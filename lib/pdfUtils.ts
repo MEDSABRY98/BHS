@@ -205,7 +205,8 @@ export async function generateAccountStatementPDF(
     // Fallback: Use the imported function directly (module style)
     // Depending on version, it might be autoTable(doc, options)
     if (typeof autoTable === 'function') {
-        autoTable(doc, tableOptions);
+        // Cast tableOptions to any to avoid strict type checking issues with 'theme'
+        autoTable(doc, tableOptions as any);
     } else {
         console.error('autoTable is not a function', autoTable);
         throw new Error('Failed to load autoTable plugin');
