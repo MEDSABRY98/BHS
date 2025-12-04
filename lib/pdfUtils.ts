@@ -142,7 +142,7 @@ export async function generateAccountStatementPDF(
     margin: { left: tableLeftMargin, right: tableLeftMargin }, // Center the table
     head: [['Date', 'Number', 'Debit', 'Credit', 'Net Debit']],
     body: tableData,
-    theme: 'striped',
+    theme: 'striped' as const,
     styles: {
       font: 'helvetica', // Default to Helvetica for most cells
       fontStyle: 'normal'
