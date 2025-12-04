@@ -39,6 +39,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   
   // PDF Export State
   const [showExportModal, setShowExportModal] = useState(false);
+  const [exportMode, setExportMode] = useState<'combined' | 'separated'>('combined');
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
 
   // Prepare invoices data with Net Debt
@@ -56,20 +57,20 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       if (inv.date) {
         const date = new Date(inv.date);
         if (!isNaN(date.getTime())) {
-          const monthYear = date.toLocaleString('en-US', { month: 'short', year: '2-digit' }).toUpperCase(); // e.g., JAN 25
+          const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' }); // e.g., January 2025
           monthsSet.add(monthYear);
         }
       }
     });
     // Convert to array and sort by date descending
     return Array.from(monthsSet).sort((a, b) => {
-      const [monthA, yearA] = a.split(' ');
-      const [monthB, yearB] = b.split(' ');
-      const dateA = new Date(`${monthA} 1, 20${yearA}`);
-      const dateB = new Date(`${monthB} 1, 20${yearB}`);
+      const dateA = new Date(`1 ${a}`);
+      const dateB = new Date(`1 ${b}`);
       return dateB.getTime() - dateA.getTime();
     });
   }, [invoices]);
+
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
 
   // Initialize selected months with all available months
   useEffect(() => {
@@ -186,8 +187,20 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     []
   );
 
+  // Filter invoices based on selected month filter
+  const filteredInvoicesByMonth = useMemo(() => {
+    if (selectedMonthFilter === 'All Months') return invoicesWithNetDebt;
+    return invoicesWithNetDebt.filter((inv) => {
+      if (!inv.date) return false;
+      const date = new Date(inv.date);
+      if (isNaN(date.getTime())) return false;
+      const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      return monthYear === selectedMonthFilter;
+    });
+  }, [invoicesWithNetDebt, selectedMonthFilter]);
+
   const invoiceTable = useReactTable({
-    data: invoicesWithNetDebt,
+    data: filteredInvoicesByMonth,
     columns: invoiceColumns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -204,9 +217,9 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     onSortingChange: setMonthlySorting,
   });
 
-  const totalNetDebt = invoicesWithNetDebt.reduce((sum, inv) => sum + inv.netDebt, 0);
-  const totalDebit = invoicesWithNetDebt.reduce((sum, inv) => sum + inv.debit, 0);
-  const totalCredit = invoicesWithNetDebt.reduce((sum, inv) => sum + inv.credit, 0);
+  const totalNetDebt = filteredInvoicesByMonth.reduce((sum, inv) => sum + inv.netDebt, 0);
+  const totalDebit = filteredInvoicesByMonth.reduce((sum, inv) => sum + inv.debit, 0);
+  const totalCredit = filteredInvoicesByMonth.reduce((sum, inv) => sum + inv.credit, 0);
 
   const monthlyTotalNetDebt = monthlyDebt.reduce((sum, m) => sum + m.netDebt, 0);
   const monthlyTotalDebit = monthlyDebt.reduce((sum, m) => sum + m.debit, 0);
@@ -235,7 +248,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         if (!inv.date) return false;
         const date = new Date(inv.date);
         if (isNaN(date.getTime())) return false;
-        const monthYear = date.toLocaleString('en-US', { month: 'short', year: '2-digit' }).toUpperCase();
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         return selectedMonths.includes(monthYear);
       });
 
@@ -244,23 +257,26 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         return;
       }
 
-      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/pdfUtils');
       
-      // Determine months label
-      let monthsLabel = 'All Months';
-      if (selectedMonths.length < availableMonths.length) {
-        // Sort selected months by date descending
-        const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
-          const [monthA, yearA] = a.split(' ');
-          const [monthB, yearB] = b.split(' ');
-          const dateA = new Date(`${monthA} 1, 20${yearA}`);
-          const dateB = new Date(`${monthB} 1, 20${yearB}`);
-          return dateB.getTime() - dateA.getTime();
-        });
-        monthsLabel = sortedSelectedMonths.join(', ');
+      if (exportMode === 'separated') {
+        await generateMonthlySeparatedPDF(customerName, filteredInvoices);
+      } else {
+        // Determine months label
+        let monthsLabel = 'All Months';
+        if (selectedMonths.length < availableMonths.length) {
+          // Sort selected months by date descending
+          const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
+            const dateA = new Date(`1 ${a}`);
+            const dateB = new Date(`1 ${b}`);
+            return dateB.getTime() - dateA.getTime();
+          });
+          monthsLabel = sortedSelectedMonths.join(', ');
+        }
+        
+        await generateAccountStatementPDF(customerName, filteredInvoices, false, monthsLabel);
       }
       
-      await generateAccountStatementPDF(customerName, filteredInvoices, false, monthsLabel);
       setShowExportModal(false);
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -277,10 +293,22 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         </div>
         <div className="flex gap-3">
           <button
-            onClick={() => setShowExportModal(true)}
+            onClick={() => {
+              setExportMode('combined');
+              setShowExportModal(true);
+            }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
           >
             📄 Export PDF
+          </button>
+          <button
+            onClick={() => {
+              setExportMode('separated');
+              setShowExportModal(true);
+            }}
+            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
+          >
+            📑 Export Monthly PDF
           </button>
           <button
             onClick={onBack}
@@ -334,7 +362,10 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                 onClick={handleExport}
                 className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
               >
-                Export PDF ({selectedMonths.length})
+                {exportMode === 'separated' 
+                  ? `Export Separate Sheets (${selectedMonths.length})`
+                  : `Export PDF (${selectedMonths.length})`
+                }
               </button>
             </div>
           </div>
@@ -368,6 +399,24 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       {/* Tab Content: Invoices */}
       {activeTab === 'invoices' && (
         <div>
+          <div className="mb-4 flex items-center justify-end">
+            <div className="flex items-center gap-2">
+              <label htmlFor="monthFilter" className="font-medium text-gray-700">Filter by Month:</label>
+              <select
+                id="monthFilter"
+                value={selectedMonthFilter}
+                onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+              >
+                <option value="All Months">All Months</option>
+                {availableMonths.map((month) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>

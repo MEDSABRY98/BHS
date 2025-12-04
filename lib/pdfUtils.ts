@@ -222,3 +222,203 @@ export async function generateAccountStatementPDF(
   
   doc.save(fileName);
 }
+
+export async function generateMonthlySeparatedPDF(
+  customerName: string,
+  invoices: Array<{
+    date: string;
+    number: string;
+    debit: number;
+    credit: number;
+    netDebt: number;
+  }>
+) {
+  // 1. Dynamic imports
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+  
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  // 2. Group invoices by Month-Year (YYYY-MM)
+  const invoicesByMonth: Record<string, typeof invoices> = {};
+  
+  invoices.forEach((inv) => {
+    if (!inv.date) return;
+    const date = new Date(inv.date);
+    if (isNaN(date.getTime())) return;
+    
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const key = `${year}-${month}`;
+    
+    if (!invoicesByMonth[key]) {
+      invoicesByMonth[key] = [];
+    }
+    invoicesByMonth[key].push(inv);
+  });
+
+  // 3. Sort keys Oldest to Newest
+  const sortedKeys = Object.keys(invoicesByMonth).sort();
+
+  if (sortedKeys.length === 0) {
+    console.warn('No valid invoices to generate PDF');
+    return;
+  }
+
+  // 4. Create Doc
+  const doc = new jsPDF('l', 'mm', 'a4');
+  await addArabicFont(doc);
+  
+  const pageWidth = doc.internal.pageSize.getWidth();
+  
+  // Loop through each month
+  for (let i = 0; i < sortedKeys.length; i++) {
+    const key = sortedKeys[i];
+    const monthInvoices = invoicesByMonth[key];
+    
+    // Determine Month Label (e.g. "January 2025")
+    const [yearStr, monthStr] = key.split('-');
+    const dateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1);
+    const monthLabel = dateObj.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+
+    // Add new page for subsequent months
+    if (i > 0) {
+      doc.addPage();
+    }
+    
+    const margin = 15;
+    let yPosition = 20;
+    
+    // Calculate total table width
+    const tableWidth = 45 + 70 + 45 + 45 + 45; 
+    const tableLeftMargin = (pageWidth - tableWidth) / 2;
+
+    // --- HEADER ---
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Account Statement', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 7;
+
+    // Company Name
+    doc.setFontSize(12);
+    doc.setTextColor(0, 155, 77);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    yPosition += 10;
+
+    // Customer Name + Month Label
+    doc.setFontSize(14);
+    doc.setFont('Amiri', 'normal');
+    // User requested: under customer name or with it, put month name in parentheses
+    doc.text(`Customer: ${customerName} (${monthLabel})`, margin, yPosition);
+    yPosition += 8;
+
+    // Date (Current Date of generation)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const now = new Date();
+    const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
+    doc.text(`Generated: ${currentDate}`, margin, yPosition);
+    yPosition += 8;
+
+    // --- TABLE DATA ---
+    const tableData = monthInvoices.map((inv) => {
+      let dateStr = '';
+      if (inv.date) {
+        const date = new Date(inv.date);
+        if (!isNaN(date.getTime())) {
+          dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
+        }
+      }
+      return [
+        dateStr,
+        inv.number || '',
+        inv.debit.toLocaleString('en-US'),
+        inv.credit.toLocaleString('en-US'),
+        inv.netDebt.toLocaleString('en-US')
+      ];
+    });
+
+    // Calculate totals for this month
+    const totalDebit = monthInvoices.reduce((sum, inv) => sum + inv.debit, 0);
+    const totalCredit = monthInvoices.reduce((sum, inv) => sum + inv.credit, 0);
+    const totalNetDebt = monthInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+
+    tableData.push([
+      '',
+      'TOTAL',
+      totalDebit.toLocaleString('en-US'),
+      totalCredit.toLocaleString('en-US'),
+      totalNetDebt.toLocaleString('en-US')
+    ]);
+
+    // --- TABLE OPTIONS ---
+    const tableOptions = {
+      startY: yPosition,
+      margin: { left: tableLeftMargin, right: tableLeftMargin },
+      head: [['Date', 'Number', 'Debit', 'Credit', 'Net Debit']],
+      body: tableData,
+      theme: 'striped' as const,
+      styles: {
+        font: 'helvetica',
+        fontStyle: 'normal'
+      },
+      headStyles: {
+        fillColor: [66, 139, 202],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 10,
+        halign: 'center',
+        font: 'helvetica'
+      },
+      bodyStyles: {
+        fontSize: 9
+      },
+      columnStyles: {
+        0: { cellWidth: 45, halign: 'center', font: 'helvetica' }, 
+        1: { cellWidth: 70, halign: 'center', font: 'Amiri' },
+        2: { cellWidth: 45, halign: 'center', font: 'helvetica' },
+        3: { cellWidth: 45, halign: 'center', font: 'helvetica' },
+        4: { cellWidth: 45, halign: 'center', font: 'helvetica' }
+      },
+      footStyles: {
+        fillColor: [240, 240, 240],
+        textColor: 0,
+        fontStyle: 'bold',
+        fontSize: 10,
+        font: 'helvetica'
+      },
+      didParseCell: function (data: any) {
+        if (data.section === 'head') {
+          data.cell.styles.textColor = 255;
+          return;
+        }
+        if (data.row.index === tableData.length - 1) {
+          data.cell.styles.fillColor = [255, 245, 200];
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.textColor = 0;
+        }
+        if (data.column.index === 4 && data.row.index < tableData.length - 1) {
+          const netDebt = monthInvoices[data.row.index].netDebt;
+          if (netDebt > 0) {
+            data.cell.styles.textColor = [204, 0, 0];
+          } else if (netDebt < 0) {
+            data.cell.styles.textColor = [0, 153, 0];
+          }
+        }
+      }
+    };
+
+    // Draw Table
+    if (typeof (doc as any).autoTable === 'function') {
+      (doc as any).autoTable(tableOptions);
+    } else if (typeof autoTable === 'function') {
+      autoTable(doc, tableOptions as any);
+    }
+  }
+
+  doc.save(`${customerName}_Detailed_Statement.pdf`);
+}
