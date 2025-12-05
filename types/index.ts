@@ -1,5 +1,6 @@
 export interface InvoiceRow {
   date: string;
+  dueDate?: string;
   number: string;
   customerName: string;
   debit: number;

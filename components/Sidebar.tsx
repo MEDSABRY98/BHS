@@ -12,6 +12,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout }: SidebarPro
     { id: 'salesreps', label: 'Sales Reps', icon: '👔' },
     { id: 'years', label: 'Years', icon: '📅' },
     { id: 'months', label: 'Months', icon: '📆' },
+    { id: 'ages', label: 'Ages', icon: '⏳' },
   ];
 
   return (

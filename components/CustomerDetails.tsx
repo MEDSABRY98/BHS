@@ -29,11 +29,21 @@ interface MonthlyDebt {
   netDebt: number;
 }
 
+interface AgingSummary {
+  atDate: number;
+  oneToThirty: number;
+  thirtyOneToSixty: number;
+  sixtyOneToNinety: number;
+  ninetyOneToOneTwenty: number;
+  older: number;
+  total: number;
+}
+
 const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
 export default function CustomerDetails({ customerName, invoices, onBack }: CustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly'>('invoices');
+  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages'>('invoices');
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
   
@@ -112,6 +122,69 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       return new Date(`${a.month} 1, ${a.year}`).getTime() - new Date(`${b.month} 1, ${b.year}`).getTime();
     });
   }, [invoices]);
+
+  // Prepare aging data
+  const agingData = useMemo<AgingSummary>(() => {
+    const totalNetDebt = invoicesWithNetDebt.reduce((sum, inv) => sum + inv.netDebt, 0);
+    
+    const summary: AgingSummary = {
+      atDate: 0,
+      oneToThirty: 0,
+      thirtyOneToSixty: 0,
+      sixtyOneToNinety: 0,
+      ninetyOneToOneTwenty: 0,
+      older: 0,
+      total: totalNetDebt
+    };
+
+    if (totalNetDebt <= 0) return summary;
+
+    // Get all debits sorted by due date descending (newest first)
+    const debits = invoicesWithNetDebt
+      .filter(inv => inv.debit > 0)
+      .sort((a, b) => {
+         // Prefer Due Date, fallback to Date
+         const dateA = a.dueDate ? new Date(a.dueDate) : (a.date ? new Date(a.date) : new Date(0));
+         const dateB = b.dueDate ? new Date(b.dueDate) : (b.date ? new Date(b.date) : new Date(0));
+         return dateB.getTime() - dateA.getTime();
+      });
+
+    let remainingDebt = totalNetDebt;
+
+    for (const inv of debits) {
+      if (remainingDebt <= 0) break;
+
+      const amountToAllocate = Math.min(inv.debit, remainingDebt);
+      
+      // Calculate days overdue
+      const dueDate = inv.dueDate ? new Date(inv.dueDate) : (inv.date ? new Date(inv.date) : new Date());
+      const today = new Date();
+      // Reset time part to ensure accurate day calculation
+      today.setHours(0, 0, 0, 0);
+      dueDate.setHours(0, 0, 0, 0);
+
+      const diffTime = today.getTime() - dueDate.getTime();
+      const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+      if (daysOverdue <= 0) {
+        summary.atDate += amountToAllocate;
+      } else if (daysOverdue <= 30) {
+        summary.oneToThirty += amountToAllocate;
+      } else if (daysOverdue <= 60) {
+        summary.thirtyOneToSixty += amountToAllocate;
+      } else if (daysOverdue <= 90) {
+        summary.sixtyOneToNinety += amountToAllocate;
+      } else if (daysOverdue <= 120) {
+        summary.ninetyOneToOneTwenty += amountToAllocate;
+      } else {
+        summary.older += amountToAllocate;
+      }
+
+      remainingDebt -= amountToAllocate;
+    }
+
+    return summary;
+  }, [invoicesWithNetDebt]);
 
   // Invoice columns - Order: DATE, NUMBER, DEBIT, CREDIT, Net Debt
   const invoiceColumns = useMemo(
@@ -224,7 +297,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   const monthlyTotalNetDebt = monthlyDebt.reduce((sum, m) => sum + m.netDebt, 0);
   const monthlyTotalDebit = monthlyDebt.reduce((sum, m) => sum + m.debit, 0);
   const monthlyTotalCredit = monthlyDebt.reduce((sum, m) => sum + m.credit, 0);
-
+  
   const toggleMonthSelection = (month: string) => {
     setSelectedMonths(prev => 
       prev.includes(month) 
@@ -393,6 +466,16 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
           }`}
         >
           Debit by Months
+        </button>
+        <button
+          onClick={() => setActiveTab('ages')}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
+            activeTab === 'ages'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+          }`}
+        >
+          Ages
         </button>
       </div>
 
@@ -572,6 +655,60 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
           </div>
         </div>
       </div>
+      )}
+
+      {/* Tab Content: Ages */}
+      {activeTab === 'ages' && (
+        <div>
+          {agingData.total <= 0 ? (
+            <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
+              <p className="text-lg">No outstanding debt to display aging information.</p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>AT DATE</th>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>1 - 30</th>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>31 - 60</th>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>61 - 90</th>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>91 - 120</th>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>OLDER</th>
+                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '16%' }}>TOTAL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b hover:bg-gray-50">
+                      <td className="px-4 py-4 text-center text-lg text-green-600 font-semibold">
+                        {agingData.atDate.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-lg">
+                        {agingData.oneToThirty.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-lg">
+                        {agingData.thirtyOneToSixty.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-lg">
+                        {agingData.sixtyOneToNinety.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-lg">
+                        {agingData.ninetyOneToOneTwenty.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-lg text-red-600 font-semibold">
+                        {agingData.older.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-4 text-center text-lg font-bold bg-gray-50">
+                        {agingData.total.toLocaleString('en-US')}
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

@@ -6,6 +6,7 @@ import CustomersTab from '@/components/CustomersTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
 import YearsTab from '@/components/YearsTab';
 import MonthsTab from '@/components/MonthsTab';
+import AgesTab from '@/components/AgesTab';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
@@ -109,6 +110,8 @@ export default function Home() {
         return <YearsTab data={data} />;
       case 'months':
         return <MonthsTab data={data} />;
+      case 'ages':
+        return <AgesTab data={data} />;
       default:
         return <CustomersTab data={data} />;
     }

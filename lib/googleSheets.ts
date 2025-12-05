@@ -63,7 +63,7 @@ export async function getSheetData() {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:F`, // DATE, NUMBER, CUSTOMER NAME, DEBIT, CREDIT, SALESREP
+      range: `${SHEET_NAME}!A:G`, // DATE, DUE DATE, NUMBER, CUSTOMER NAME, DEBIT, CREDIT, SALESREP
     });
 
     const rows = response.data.values;
@@ -73,9 +73,10 @@ export async function getSheetData() {
 
     // Skip header row and parse data
     const data = rows.slice(1).map((row) => {
-      const [date, number, customerName, debit, credit, salesRep] = row;
+      const [date, dueDate, number, customerName, debit, credit, salesRep] = row;
       return {
         date: date || '',
+        dueDate: dueDate || '',
         number: number?.toString() || '',
         customerName: customerName || '',
         debit: parseFloat(debit?.toString().replace(/,/g, '') || '0'),
