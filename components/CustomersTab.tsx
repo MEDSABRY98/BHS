@@ -25,26 +25,56 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
 
   const customerAnalysis = useMemo(() => {
-    const customerMap = new Map<string, CustomerAnalysis>();
+    // Intermediate structure to track matchings per customer
+    type CustomerData = CustomerAnalysis & { matchingsMap: Map<string, number> };
+    const customerMap = new Map<string, CustomerData>();
 
     data.forEach((row) => {
-      const existing = customerMap.get(row.customerName) || {
-        customerName: row.customerName,
-        totalDebit: 0,
-        totalCredit: 0,
-        netDebt: 0,
-        transactionCount: 0,
-      };
+      let existing = customerMap.get(row.customerName);
+      
+      if (!existing) {
+        existing = {
+          customerName: row.customerName,
+          totalDebit: 0,
+          totalCredit: 0,
+          netDebt: 0,
+          transactionCount: 0,
+          matchingsMap: new Map(),
+        };
+      }
 
       existing.totalDebit += row.debit;
       existing.totalCredit += row.credit;
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
 
+      if (row.matching) {
+          const currentMatchTotal = existing.matchingsMap.get(row.matching) || 0;
+          existing.matchingsMap.set(row.matching, currentMatchTotal + (row.debit - row.credit));
+      }
+
       customerMap.set(row.customerName, existing);
     });
 
-    return Array.from(customerMap.values()).sort((a, b) => b.netDebt - a.netDebt);
+    return Array.from(customerMap.values()).map(c => {
+        // Check for any open matching
+        let hasOpen = false;
+        for (const amount of c.matchingsMap.values()) {
+            if (Math.abs(amount) > 0.01) {
+                hasOpen = true;
+                break;
+            }
+        }
+        
+        return {
+            customerName: c.customerName,
+            totalDebit: c.totalDebit,
+            totalCredit: c.totalCredit,
+            netDebt: c.netDebt,
+            transactionCount: c.transactionCount,
+            hasOpenMatchings: hasOpen
+        };
+    }).sort((a, b) => b.netDebt - a.netDebt);
   }, [data]);
 
   const filteredData = useMemo(() => {
@@ -62,9 +92,12 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         cell: (info) => (
           <button
             onClick={() => setSelectedCustomer(info.getValue())}
-            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left w-full"
+            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left w-full flex items-center gap-2"
           >
             {info.getValue()}
+            {info.row.original.hasOpenMatchings && (
+              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Has Open Matching"></span>
+            )}
           </button>
         ),
       }),

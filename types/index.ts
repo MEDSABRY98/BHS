@@ -15,6 +15,7 @@ export interface CustomerAnalysis {
   totalCredit: number;
   netDebt: number;
   transactionCount: number;
+  hasOpenMatchings?: boolean;
 }
 
 export interface SalesRepAnalysis {
