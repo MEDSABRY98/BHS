@@ -67,13 +67,21 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('transactionCount', {
-        header: 'Transactions',
+      columnHelper.accessor('salesRep', {
+        header: 'Sales Rep',
         cell: (info) => info.getValue(),
       }),
       columnHelper.accessor('customerCount', {
         header: 'Customers',
         cell: (info) => info.getValue(),
+      }),
+      columnHelper.accessor('totalDebit', {
+        header: 'Total Debit',
+        cell: (info) => info.getValue().toLocaleString('en-US'),
+      }),
+      columnHelper.accessor('totalCredit', {
+        header: 'Total Credit',
+        cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debt',
@@ -86,16 +94,8 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
           );
         },
       }),
-      columnHelper.accessor('totalCredit', {
-        header: 'Total Credit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      columnHelper.accessor('totalDebit', {
-        header: 'Total Debit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      columnHelper.accessor('salesRep', {
-        header: 'Sales Rep',
+      columnHelper.accessor('transactionCount', {
+        header: 'Transactions',
         cell: (info) => info.getValue(),
       }),
     ],
@@ -198,24 +198,24 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
                 </tr>
               ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {filteredData.reduce((sum, r) => sum + r.transactionCount, 0)}
-                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '28%' }}>Total</td>
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
                   {filteredData.reduce((sum, r) => sum + r.customerCount, 0)}
+                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
+                  {filteredData.reduce((sum, r) => sum + r.totalDebit, 0).toLocaleString('en-US')}
+                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
+                  {filteredData.reduce((sum, r) => sum + r.totalCredit, 0).toLocaleString('en-US')}
                 </td>
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
                   <span className={filteredData.reduce((sum, r) => sum + r.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, r) => sum + r.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, r) => sum + r.netDebt, 0).toLocaleString('en-US')}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
-                  {filteredData.reduce((sum, r) => sum + r.totalCredit, 0).toLocaleString('en-US')}
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
+                  {filteredData.reduce((sum, r) => sum + r.transactionCount, 0)}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
-                  {filteredData.reduce((sum, r) => sum + r.totalDebit, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '28%' }}>Total</td>
               </tr>
             </tbody>
           </table>
@@ -224,4 +224,3 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
     </div>
   );
 }
-

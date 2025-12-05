@@ -57,9 +57,24 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
   const columns = useMemo(
     () => [
-      columnHelper.accessor('transactionCount', {
-        header: 'Transactions',
-        cell: (info) => info.getValue(),
+      columnHelper.accessor('customerName', {
+        header: 'Customer Name',
+        cell: (info) => (
+          <button
+            onClick={() => setSelectedCustomer(info.getValue())}
+            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left w-full"
+          >
+            {info.getValue()}
+          </button>
+        ),
+      }),
+      columnHelper.accessor('totalDebit', {
+        header: 'Total Debit',
+        cell: (info) => info.getValue().toLocaleString('en-US'),
+      }),
+      columnHelper.accessor('totalCredit', {
+        header: 'Total Credit',
+        cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debt',
@@ -72,24 +87,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           );
         },
       }),
-      columnHelper.accessor('totalCredit', {
-        header: 'Total Credit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      columnHelper.accessor('totalDebit', {
-        header: 'Total Debit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      columnHelper.accessor('customerName', {
-        header: 'Customer Name',
-        cell: (info) => (
-          <button
-            onClick={() => setSelectedCustomer(info.getValue())}
-            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-          >
-            {info.getValue()}
-          </button>
-        ),
+      columnHelper.accessor('transactionCount', {
+        header: 'Transactions',
+        cell: (info) => info.getValue(),
       }),
     ],
     []
@@ -206,21 +206,23 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 </tr>
               ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {filteredData.reduce((sum, c) => sum + c.transactionCount, 0)}
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '34%' }}>
+                  Total
+                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                  {filteredData.reduce((sum, c) => sum + c.totalDebit, 0).toLocaleString('en-US')}
+                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                  {filteredData.reduce((sum, c) => sum + c.totalCredit, 0).toLocaleString('en-US')}
                 </td>
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
                   <span className={filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
-                  {filteredData.reduce((sum, c) => sum + c.totalCredit, 0).toLocaleString('en-US')}
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
+                  {filteredData.reduce((sum, c) => sum + c.transactionCount, 0)}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
-                  {filteredData.reduce((sum, c) => sum + c.totalDebit, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '34%' }}>Total</td>
               </tr>
             </tbody>
           </table>
@@ -229,4 +231,3 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     </div>
   );
 }
-

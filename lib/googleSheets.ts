@@ -91,3 +91,41 @@ export async function getSheetData() {
   }
 }
 
+export async function getUsers() {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Users!A:C`, // NAME, ROLE, PASSWORD
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row and parse data
+    // Assuming header is NAME, ROLE, PASSWORD
+    const users = rows.slice(1).map((row) => {
+      const [name, role, password] = row;
+      return {
+        name: name || '',
+        role: role || '',
+        password: password?.toString() || '',
+      };
+    }).filter(user => user.name && user.password);
+
+    return users;
+  } catch (error) {
+    console.error('Error fetching users:', error);
+    throw error;
+  }
+}

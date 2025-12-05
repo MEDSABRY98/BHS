@@ -6,17 +6,50 @@ import CustomersTab from '@/components/CustomersTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
 import YearsTab from '@/components/YearsTab';
 import MonthsTab from '@/components/MonthsTab';
+import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('customers');
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchData();
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+        setIsAuthenticated(true);
+      } catch (e) {
+        localStorage.removeItem('currentUser');
+      }
+    }
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated]);
+
+  const handleLogin = (user: any) => {
+    setIsAuthenticated(true);
+    setCurrentUser(user);
+    localStorage.setItem('currentUser', JSON.stringify(user));
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    localStorage.removeItem('currentUser');
+    // Optional: Reset tab or data if needed
+    setActiveTab('customers');
+    // We keep the data if we want to avoid refetching on immediate relogin, 
+    // but usually logout implies clearing session.
+  };
 
   const fetchData = async () => {
     try {
@@ -81,9 +114,17 @@ export default function Home() {
     }
   };
 
+  if (!isAuthenticated) {
+    return <Login onLogin={handleLogin} />;
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+      <Sidebar 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        onLogout={handleLogout}
+      />
       <main className="flex-1 ml-64 overflow-y-auto">
         {renderTabContent()}
       </main>
