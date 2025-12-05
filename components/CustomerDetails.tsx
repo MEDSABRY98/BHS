@@ -49,10 +49,15 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
+  const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string>('All Matchings');
+
   // PDF Export State
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportMode, setExportMode] = useState<'combined' | 'separated'>('combined');
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
+  const [pdfExportType, setPdfExportType] = useState<'all' | 'net'>('all');
+  const [exportScope, setExportScope] = useState<'custom' | 'view'>('custom');
 
   // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
@@ -97,10 +102,31 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     });
   }, [invoices]);
 
+  // Get matchings with residual for filtering
+  const availableMatchingsWithResidual = useMemo(() => {
+    const matchings = new Set<string>();
+    invoicesWithNetDebt.forEach(inv => {
+      if (inv.matching && inv.residual !== undefined && Math.abs(inv.residual) > 0.01) {
+        matchings.add(inv.matching);
+      }
+    });
+    return Array.from(matchings).sort();
+  }, [invoicesWithNetDebt]);
+
   // Get available months for filtering
   const availableMonths = useMemo(() => {
     const monthsSet = new Set<string>();
-    invoices.forEach(inv => {
+    
+    // Filter invoices if a matching is selected
+    let relevantInvoices = invoices;
+
+    if (selectedMatchingFilter === 'All Open Matchings') {
+       relevantInvoices = invoices.filter(inv => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
+    } else if (selectedMatchingFilter !== 'All Matchings') {
+      relevantInvoices = invoices.filter(inv => inv.matching === selectedMatchingFilter);
+    }
+
+    relevantInvoices.forEach(inv => {
       if (inv.date) {
         const date = new Date(inv.date);
         if (!isNaN(date.getTime())) {
@@ -115,26 +141,19 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       const dateB = new Date(`1 ${b}`);
       return dateB.getTime() - dateA.getTime();
     });
-  }, [invoices]);
-
-  // Get matchings with residual for filtering
-  const availableMatchingsWithResidual = useMemo(() => {
-    const matchings = new Set<string>();
-    invoicesWithNetDebt.forEach(inv => {
-      if (inv.matching && inv.residual !== undefined && Math.abs(inv.residual) > 0.01) {
-        matchings.add(inv.matching);
-      }
-    });
-    return Array.from(matchings).sort();
-  }, [invoicesWithNetDebt]);
-
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
-  const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string>('All Matchings');
+  }, [invoices, selectedMatchingFilter, availableMatchingsWithResidual]);
 
   // Initialize selected months with all available months
   useEffect(() => {
     setSelectedMonths(availableMonths);
   }, [availableMonths]);
+
+  // Reset selected month if it's no longer available in the filtered list
+  useEffect(() => {
+    if (selectedMonthFilter !== 'All Months' && !availableMonths.includes(selectedMonthFilter)) {
+      setSelectedMonthFilter('All Months');
+    }
+  }, [availableMonths, selectedMonthFilter]);
 
   // Prepare monthly debt data
   const monthlyDebt = useMemo(() => {
@@ -345,7 +364,11 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
 
     // Matching Filter
     if (selectedMatchingFilter !== 'All Matchings') {
-      filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+      if (selectedMatchingFilter === 'All Open Matchings') {
+        filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
+      } else {
+        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+      }
     }
 
     // Search Query
@@ -407,38 +430,87 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
 
   const handleExport = async () => {
     try {
-      // Filter invoices based on selected months
-      const filteredInvoices = invoicesWithNetDebt.filter(inv => {
-        if (!inv.date) return false;
-        const date = new Date(inv.date);
-        if (isNaN(date.getTime())) return false;
-        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return selectedMonths.includes(monthYear);
-      });
+      let finalInvoices = [];
+      let monthsLabel = 'All Months';
 
-      if (filteredInvoices.length === 0) {
-        alert('Please select at least one month to export.');
-        return;
+      if (exportScope === 'view') {
+        finalInvoices = filteredInvoices;
+        monthsLabel = 'Filtered View';
+        
+        // If filtering by month, use that name
+        if (selectedMonthFilter !== 'All Months') {
+           monthsLabel = selectedMonthFilter;
+        } else if (selectedMonths.length < availableMonths.length && selectedMonths.length > 0) {
+           // If view was constructed differently but matches months logic (unlikely here since filteredInvoices uses selectedMonthFilter)
+        }
+        
+        if (selectedMatchingFilter !== 'All Matchings') {
+          monthsLabel += ` - ${selectedMatchingFilter}`;
+        }
+        
+        if (invoiceSearchQuery) {
+          monthsLabel += ` (Search: ${invoiceSearchQuery})`;
+        }
+        
+      } else {
+        // Custom Selection Logic
+        // Filter invoices based on selected months
+        finalInvoices = invoicesWithNetDebt.filter(inv => {
+          if (!inv.date) return false;
+          const date = new Date(inv.date);
+          if (isNaN(date.getTime())) return false;
+          const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+          return selectedMonths.includes(monthYear);
+        });
+
+        if (finalInvoices.length === 0) {
+          alert('Please select at least one month to export.');
+          return;
+        }
+
+        // Filter for "Net Only" (exclude fully closed matches)
+        if (pdfExportType === 'net') {
+          // Calculate totals for ALL matchings (global context)
+          const matchingTotals = new Map<string, number>();
+          invoices.forEach(inv => {
+            if (inv.matching) {
+               const currentTotal = matchingTotals.get(inv.matching) || 0;
+               matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
+            }
+          });
+
+          finalInvoices = finalInvoices.filter(inv => {
+            // Keep if no matching ID
+            if (!inv.matching) return true;
+            
+            // Check if the matching group is open (total != 0)
+            const total = matchingTotals.get(inv.matching) || 0;
+            return Math.abs(total) > 0.01;
+          });
+        }
+        
+        // Determine months label for Custom
+        if (selectedMonths.length < availableMonths.length) {
+            // Sort selected months by date descending
+            const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
+              const dateA = new Date(`1 ${a}`);
+              const dateB = new Date(`1 ${b}`);
+              return dateB.getTime() - dateA.getTime();
+            });
+            monthsLabel = sortedSelectedMonths.join(', ');
+        }
+         // Append filter info to label if needed
+        if (pdfExportType === 'net') {
+           monthsLabel += ' (Net Only)';
+        }
       }
 
       const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/pdfUtils');
       
       if (exportMode === 'separated') {
-        await generateMonthlySeparatedPDF(customerName, filteredInvoices);
+        await generateMonthlySeparatedPDF(customerName, finalInvoices);
       } else {
-        // Determine months label
-        let monthsLabel = 'All Months';
-        if (selectedMonths.length < availableMonths.length) {
-          // Sort selected months by date descending
-          const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
-            const dateA = new Date(`1 ${a}`);
-            const dateB = new Date(`1 ${b}`);
-            return dateB.getTime() - dateA.getTime();
-          });
-          monthsLabel = sortedSelectedMonths.join(', ');
-        }
-        
-        await generateAccountStatementPDF(customerName, filteredInvoices, false, monthsLabel);
+        await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
       }
       
       setShowExportModal(false);
@@ -487,8 +559,63 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       {showExportModal && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-gray-100">
-            <h3 className="text-xl font-bold mb-4">Select Months to Export</h3>
+            <h3 className="text-xl font-bold mb-4">Export Options</h3>
+
+            {/* Scope Selection */}
+            <div className="mb-4 border-b border-gray-200 pb-4">
+              <h4 className="font-semibold mb-2 text-gray-700">Export Scope</h4>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
+                  <input 
+                    type="radio" 
+                    name="exportScope"
+                    checked={exportScope === 'custom'} 
+                    onChange={() => setExportScope('custom')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">Custom Selection</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
+                  <input 
+                    type="radio" 
+                    name="exportScope"
+                    checked={exportScope === 'view'} 
+                    onChange={() => setExportScope('view')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">Current Filtered View</span>
+                </label>
+              </div>
+            </div>
             
+            {exportScope === 'custom' && (
+              <>
+            <div className="mb-4 border-b border-gray-200 pb-4">
+              <h4 className="font-semibold mb-2 text-gray-700">Export Type</h4>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
+                  <input 
+                    type="radio" 
+                    name="exportType"
+                    checked={pdfExportType === 'all'} 
+                    onChange={() => setPdfExportType('all')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">All Transactions</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
+                  <input 
+                    type="radio" 
+                    name="exportType"
+                    checked={pdfExportType === 'net'} 
+                    onChange={() => setPdfExportType('net')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">Net Only (Unmatched & Open)</span>
+                </label>
+              </div>
+            </div>
+
             <div className="mb-4">
               <label className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer font-bold border-b border-gray-200 pb-2 mb-2">
                 <input
@@ -514,6 +641,8 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                 ))}
               </div>
             </div>
+              </>
+            )}
 
             <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
               <button
@@ -526,9 +655,11 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                 onClick={handleExport}
                 className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
               >
-                {exportMode === 'separated' 
-                  ? `Export Separate Sheets (${selectedMonths.length})`
-                  : `Export PDF (${selectedMonths.length})`
+                {exportScope === 'view'
+                  ? 'Export Current View'
+                  : (exportMode === 'separated' 
+                      ? `Export Separate Sheets (${selectedMonths.length})`
+                      : `Export PDF (${selectedMonths.length})`)
                 }
               </button>
             </div>
@@ -608,6 +739,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                 >
                   <option value="All Matchings">All Matchings</option>
+                  <option value="All Open Matchings">All Open Matchings</option>
                   {availableMatchingsWithResidual.map((matching) => (
                     <option key={matching} value={matching}>
                       {matching}
