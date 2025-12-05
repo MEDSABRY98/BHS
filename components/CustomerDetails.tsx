@@ -19,6 +19,7 @@ interface CustomerDetailsProps {
 
 interface InvoiceWithNetDebt extends InvoiceRow {
   netDebt: number;
+  residual?: number;
 }
 
 interface MonthlyDebt {
@@ -46,18 +47,54 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages'>('invoices');
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
+  const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   
   // PDF Export State
   const [showExportModal, setShowExportModal] = useState(false);
   const [exportMode, setExportMode] = useState<'combined' | 'separated'>('combined');
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
 
-  // Prepare invoices data with Net Debt
+  // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
-    return invoices.map((invoice) => ({
-      ...invoice,
-      netDebt: invoice.debit - invoice.credit,
-    }));
+    // 1. Calculate totals for each matching group
+    const matchingTotals = new Map<string, number>();
+    
+    invoices.forEach(inv => {
+      if (inv.matching) {
+         const currentTotal = matchingTotals.get(inv.matching) || 0;
+         matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
+      }
+    });
+
+    // 2. Find the last occurrence index for each matching code (to display residual on the last row)
+    const lastMatchingIndices = new Map<string, number>();
+    invoices.forEach((inv, index) => {
+      if (inv.matching) {
+        lastMatchingIndices.set(inv.matching, index);
+      }
+    });
+
+    // 3. Map invoices preserving original order from Google Sheets
+    return invoices.map((invoice, index) => {
+      let residual: number | undefined = undefined;
+
+      if (invoice.matching) {
+        const lastIndex = lastMatchingIndices.get(invoice.matching);
+        // Show residual only on the last invoice of the group (matching the sheet order)
+        if (lastIndex === index) {
+           const total = matchingTotals.get(invoice.matching) || 0;
+           if (Math.abs(total) > 0.01) {
+             residual = total;
+           }
+        }
+      }
+
+      return {
+        ...invoice,
+        netDebt: invoice.debit - invoice.credit,
+        residual
+      };
+    });
   }, [invoices]);
 
   // Get available months for filtering
@@ -80,7 +117,19 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     });
   }, [invoices]);
 
+  // Get matchings with residual for filtering
+  const availableMatchingsWithResidual = useMemo(() => {
+    const matchings = new Set<string>();
+    invoicesWithNetDebt.forEach(inv => {
+      if (inv.matching && inv.residual !== undefined && Math.abs(inv.residual) > 0.01) {
+        matchings.add(inv.matching);
+      }
+    });
+    return Array.from(matchings).sort();
+  }, [invoicesWithNetDebt]);
+
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
+  const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string>('All Matchings');
 
   // Initialize selected months with all available months
   useEffect(() => {
@@ -186,7 +235,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     return summary;
   }, [invoicesWithNetDebt]);
 
-  // Invoice columns - Order: DATE, NUMBER, DEBIT, CREDIT, Net Debt
+  // Invoice columns - Order: DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
   const invoiceColumns = useMemo(
     () => [
       invoiceColumnHelper.accessor('date', {
@@ -220,6 +269,25 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
               {value.toLocaleString('en-US')}
             </span>
           );
+        },
+      }),
+      invoiceColumnHelper.accessor('matching', {
+        header: 'Matching',
+        cell: (info) => info.getValue() || '-',
+      }),
+      invoiceColumnHelper.accessor('residual', {
+        header: 'Residual',
+        cell: (info) => {
+          const value = info.getValue();
+          // If residual is present and not zero (with small epsilon), show it
+          if (value !== undefined && Math.abs(value) > 0.01) {
+            return (
+              <span className="inline-block px-2 py-1 rounded bg-red-100 text-red-800 font-bold">
+                {value.toLocaleString('en-US')}
+              </span>
+            );
+          }
+          return null;
         },
       }),
     ],
@@ -260,20 +328,43 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     []
   );
 
-  // Filter invoices based on selected month filter
-  const filteredInvoicesByMonth = useMemo(() => {
-    if (selectedMonthFilter === 'All Months') return invoicesWithNetDebt;
-    return invoicesWithNetDebt.filter((inv) => {
-      if (!inv.date) return false;
-      const date = new Date(inv.date);
-      if (isNaN(date.getTime())) return false;
-      const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      return monthYear === selectedMonthFilter;
-    });
-  }, [invoicesWithNetDebt, selectedMonthFilter]);
+  // Filter invoices based on selected month filter, matching filter, and search query
+  const filteredInvoices = useMemo(() => {
+    let filtered = invoicesWithNetDebt;
+    
+    // Month Filter
+    if (selectedMonthFilter !== 'All Months') {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return monthYear === selectedMonthFilter;
+      });
+    }
+
+    // Matching Filter
+    if (selectedMatchingFilter !== 'All Matchings') {
+      filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+    }
+
+    // Search Query
+    if (invoiceSearchQuery.trim()) {
+      const query = invoiceSearchQuery.toLowerCase();
+      filtered = filtered.filter((inv) => 
+        inv.number.toLowerCase().includes(query) ||
+        inv.matching?.toLowerCase().includes(query) ||
+        inv.date.toLowerCase().includes(query) ||
+        inv.debit.toString().includes(query) ||
+        inv.credit.toString().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery]);
 
   const invoiceTable = useReactTable({
-    data: filteredInvoicesByMonth,
+    data: filteredInvoices,
     columns: invoiceColumns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -290,9 +381,9 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     onSortingChange: setMonthlySorting,
   });
 
-  const totalNetDebt = filteredInvoicesByMonth.reduce((sum, inv) => sum + inv.netDebt, 0);
-  const totalDebit = filteredInvoicesByMonth.reduce((sum, inv) => sum + inv.debit, 0);
-  const totalCredit = filteredInvoicesByMonth.reduce((sum, inv) => sum + inv.credit, 0);
+  const totalNetDebt = filteredInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+  const totalDebit = filteredInvoices.reduce((sum, inv) => sum + inv.debit, 0);
+  const totalCredit = filteredInvoices.reduce((sum, inv) => sum + inv.credit, 0);
 
   const monthlyTotalNetDebt = monthlyDebt.reduce((sum, m) => sum + m.netDebt, 0);
   const monthlyTotalDebit = monthlyDebt.reduce((sum, m) => sum + m.debit, 0);
@@ -482,24 +573,64 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       {/* Tab Content: Invoices */}
       {activeTab === 'invoices' && (
         <div>
-          <div className="mb-4 flex items-center justify-end">
-            <div className="flex items-center gap-2">
-              <label htmlFor="monthFilter" className="font-medium text-gray-700">Filter by Month:</label>
-              <select
-                id="monthFilter"
-                value={selectedMonthFilter}
-                onChange={(e) => setSelectedMonthFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="All Months">All Months</option>
-                {availableMonths.map((month) => (
-                  <option key={month} value={month}>
-                    {month}
-                  </option>
-                ))}
-              </select>
+          <div className="mb-6 flex flex-col gap-4">
+            {/* Filters Row */}
+            <div className="flex justify-center gap-6">
+              {/* Month Filter */}
+              <div className="w-64">
+                <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+                  Filter by Month
+                </label>
+                <select
+                  id="monthFilter"
+                  value={selectedMonthFilter}
+                  onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="All Months">All Months</option>
+                  {availableMonths.map((month) => (
+                    <option key={month} value={month}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Matching Filter */}
+              <div className="w-64">
+                <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+                  Filter by Open Matching
+                </label>
+                <select
+                  id="matchingFilter"
+                  value={selectedMatchingFilter}
+                  onChange={(e) => setSelectedMatchingFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="All Matchings">All Matchings</option>
+                  {availableMatchingsWithResidual.map((matching) => (
+                    <option key={matching} value={matching}>
+                      {matching}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Search Box */}
+            <div className="flex justify-center">
+              <div className="w-full max-w-2xl">
+                <input
+                  type="text"
+                  placeholder="Search Invoices (Number, Date, Matching, Amount)..."
+                  value={invoiceSearchQuery}
+                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+              </div>
             </div>
           </div>
+
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
@@ -509,12 +640,14 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                     {headerGroup.headers.map((header) => {
                       const getWidth = () => {
                         const columnId = header.column.id;
-                        if (columnId === 'date') return '20%';
-                        if (columnId === 'number') return '20%';
-                        if (columnId === 'debit') return '20%';
-                        if (columnId === 'credit') return '20%';
-                        if (columnId === 'netDebt') return '20%';
-                        return '20%';
+                        if (columnId === 'date') return '15%';
+                        if (columnId === 'number') return '15%';
+                        if (columnId === 'debit') return '15%';
+                        if (columnId === 'credit') return '15%';
+                        if (columnId === 'netDebt') return '15%';
+                        if (columnId === 'matching') return '15%';
+                        if (columnId === 'residual') return '10%';
+                        return '15%';
                       };
                       return (
                         <th
@@ -540,12 +673,14 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
                         const columnId = cell.column.id;
-                        if (columnId === 'date') return '20%';
-                        if (columnId === 'number') return '20%';
-                        if (columnId === 'debit') return '20%';
-                        if (columnId === 'credit') return '20%';
-                        if (columnId === 'netDebt') return '20%';
-                        return '20%';
+                        if (columnId === 'date') return '15%';
+                        if (columnId === 'number') return '15%';
+                        if (columnId === 'debit') return '15%';
+                        if (columnId === 'credit') return '15%';
+                        if (columnId === 'netDebt') return '15%';
+                        if (columnId === 'matching') return '15%';
+                        if (columnId === 'residual') return '10%';
+                        return '15%';
                       };
                       return (
                         <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
@@ -556,19 +691,21 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                   </tr>
                 ))}
                 <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>Total</td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
                     {totalDebit.toLocaleString('en-US')}
                   </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
                     {totalCredit.toLocaleString('en-US')}
                   </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
                     <span className={totalNetDebt > 0 ? 'text-red-600' : totalNetDebt < 0 ? 'text-green-600' : ''}>
                       {totalNetDebt.toLocaleString('en-US')}
                     </span>
                   </td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
                 </tr>
               </tbody>
             </table>

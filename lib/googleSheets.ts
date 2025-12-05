@@ -63,7 +63,7 @@ export async function getSheetData() {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `${SHEET_NAME}!A:G`, // DATE, DUE DATE, NUMBER, CUSTOMER NAME, DEBIT, CREDIT, SALESREP
+      range: `${SHEET_NAME}!A:H`, // DATE, DUE DATE, NUMBER, CUSTOMER NAME, SALESREP, DEBIT, CREDIT, MATCHING
     });
 
     const rows = response.data.values;
@@ -73,7 +73,7 @@ export async function getSheetData() {
 
     // Skip header row and parse data
     const data = rows.slice(1).map((row) => {
-      const [date, dueDate, number, customerName, debit, credit, salesRep] = row;
+      const [date, dueDate, number, customerName, salesRep, debit, credit, matching] = row;
       return {
         date: date || '',
         dueDate: dueDate || '',
@@ -82,6 +82,7 @@ export async function getSheetData() {
         debit: parseFloat(debit?.toString().replace(/,/g, '') || '0'),
         credit: parseFloat(credit?.toString().replace(/,/g, '') || '0'),
         salesRep: salesRep || '',
+        matching: matching?.toString() || '',
       };
     }).filter(row => row.customerName); // Filter out empty rows
 

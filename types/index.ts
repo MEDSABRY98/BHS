@@ -6,6 +6,7 @@ export interface InvoiceRow {
   debit: number;
   credit: number;
   salesRep: string;
+  matching?: string;
 }
 
 export interface CustomerAnalysis {
@@ -41,4 +42,3 @@ export interface MonthAnalysis {
   netDebt: number;
   transactionCount: number;
 }
-
