@@ -127,6 +127,7 @@ export default function Home() {
         activeTab={activeTab} 
         onTabChange={setActiveTab} 
         onLogout={handleLogout}
+        currentUser={currentUser}
       />
       <main className="flex-1 ml-64 overflow-y-auto">
         {renderTabContent()}

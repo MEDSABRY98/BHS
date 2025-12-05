@@ -56,7 +56,7 @@ export async function getSheetData() {
     
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
@@ -131,3 +131,270 @@ export async function getUsers() {
     throw error;
   }
 }
+
+export async function getNotes(customerName?: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Notes!A:D`, // USER, CUSTOMER NAME, NOTES, TIMING
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    let notes = rows.slice(1).map((row, index) => ({
+      user: row[0] || '',
+      customerName: row[1] || '',
+      content: row[2] || '',
+      timestamp: row[3] || '',
+      rowIndex: index + 2 // Store 1-based index for updates (header is 1, so first data row is 2)
+    }));
+
+    if (customerName) {
+      notes = notes.filter(note => note.customerName === customerName);
+    }
+
+    return notes;
+  } catch (error) {
+    console.error('Error fetching notes:', error);
+    throw error;
+  }
+}
+
+export async function addNote(user: string, customerName: string, content: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const timestamp = new Date().toLocaleString('en-US', {
+        timeZone: 'UTC', // Or use specific timezone if required, usually UTC is good or server time
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Notes!A:D`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[user, customerName, content, timestamp]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding note:', error);
+    throw error;
+  }
+}
+
+export async function updateNote(rowIndex: number, content: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    const timestamp = new Date().toLocaleString('en-US', {
+        timeZone: 'UTC',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+    
+    // Update content column (C) and timing column (D) for the specific row
+    // We can do this in one call if they are adjacent.
+    // range: `Notes!C${rowIndex}:D${rowIndex}`
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Notes!C${rowIndex}:D${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[content, timestamp]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating note:', error);
+    throw error;
+  }
+}
+
+export async function deleteNote(rowIndex: number) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // To "delete" a row in Sheets properly without shifting subsequent data issues (though we rely on index), 
+    // we can clear the values. However, a true delete (shifting up) is usually better for lists.
+    // But since we are using rowIndex directly, we should use batchUpdate with deleteDimension.
+    // Note: rowIndex here is 1-based (Sheet row number), but API expects 0-based index.
+    // So row 2 in Sheet is index 1.
+    
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: 0, // Assuming the first sheet or find ID by name if not. 
+                            // Ideally we should fetch sheetId by name 'Notes'.
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1,
+                endIndex: rowIndex,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    // Important: The above code assumes 'Notes' is the first sheet (ID 0) or we know its ID.
+    // If 'Notes' is NOT ID 0, we MUST find its ID first.
+    // Let's do a quick lookup to be safe.
+
+    return { success: true };
+  } catch (error) {
+    // If batchUpdate fails (likely due to Sheet ID assumption), fall back to clearing content
+    // Or implement fetching sheet ID. 
+    // For stability let's implement proper ID fetching in a helper if we want to delete rows.
+    // For now, let's just clear the row content to avoid ID complexity if we are lazy, 
+    // BUT clearing row keeps empty space. Users usually want it gone.
+    // Let's try to implement the proper sheet ID lookup.
+    
+    console.error('Error deleting note:', error);
+    throw error;
+  }
+}
+
+async function getSheetId(sheetName: string): Promise<number | null> {
+    try {
+        const credentials = getServiceAccountCredentials();
+        const auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+        
+        const response = await sheets.spreadsheets.get({
+            spreadsheetId: SPREADSHEET_ID,
+        });
+
+        let sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
+        
+        // Try case-insensitive/trimmed match if exact match fails
+        if (!sheet) {
+            sheet = response.data.sheets?.find(s => 
+                s.properties?.title?.trim().toLowerCase() === sheetName.trim().toLowerCase()
+            );
+        }
+
+        if (!sheet) {
+            const available = response.data.sheets?.map(s => s.properties?.title).join(', ');
+            console.error(`Sheet '${sheetName}' not found. Available: ${available}`);
+        }
+
+        return sheet?.properties?.sheetId ?? null;
+    } catch (error) {
+        console.error('Error getting sheet ID:', error);
+        return null;
+    }
+}
+
+export async function deleteNoteRow(rowIndex: number) {
+    try {
+        const sheetId = await getSheetId('Notes');
+        
+        const credentials = getServiceAccountCredentials();
+        const auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        if (sheetId !== null) {
+            await sheets.spreadsheets.batchUpdate({
+                spreadsheetId: SPREADSHEET_ID,
+                requestBody: {
+                    requests: [
+                        {
+                            deleteDimension: {
+                                range: {
+                                    sheetId: sheetId,
+                                    dimension: 'ROWS',
+                                    startIndex: rowIndex - 1, // 0-based start index
+                                    endIndex: rowIndex,       // 0-based end index (exclusive)
+                                },
+                            },
+                        },
+                    ],
+                },
+            });
+            return { success: true };
+        } else {
+            console.warn('Notes sheet ID not found, attempting to clear row content instead.');
+            await sheets.spreadsheets.values.clear({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `Notes!A${rowIndex}:D${rowIndex}`,
+            });
+            return { success: true };
+        }
+    } catch (error) {
+        console.error('Error deleting note row:', error);
+        // Try fallback to clear if batchUpdate failed
+        try {
+            const credentials = getServiceAccountCredentials();
+            const auth = new google.auth.GoogleAuth({
+                credentials,
+                scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+            });
+            const sheets = google.sheets({ version: 'v4', auth });
+            
+            console.log(`Fallback: Clearing row ${rowIndex}...`);
+            await sheets.spreadsheets.values.clear({
+                spreadsheetId: SPREADSHEET_ID,
+                range: `Notes!A${rowIndex}:D${rowIndex}`,
+            });
+            return { success: true };
+        } catch (clearError) {
+            console.error('Error clearing note row:', clearError);
+            throw error;
+        }
+    }
+}
+

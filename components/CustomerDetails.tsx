@@ -5,9 +5,11 @@ import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
+  getPaginationRowModel,
   flexRender,
   createColumnHelper,
   SortingState,
+  PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
 
@@ -44,10 +46,14 @@ const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
 export default function CustomerDetails({ customerName, invoices, onBack }: CustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages'>('invoices');
+  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages' | 'notes'>('invoices');
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
+  const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 50,
+  });
   
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
   const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string>('All Matchings');
@@ -58,6 +64,108 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [pdfExportType, setPdfExportType] = useState<'all' | 'net'>('all');
   const [exportScope, setExportScope] = useState<'custom' | 'view'>('custom');
+
+  // Notes State
+  const [notes, setNotes] = useState<any[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [newNote, setNewNote] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
+
+  const fetchNotes = async () => {
+    setLoadingNotes(true);
+    try {
+      const response = await fetch(`/api/notes?customerName=${encodeURIComponent(customerName)}`);
+      const data = await response.json();
+      if (data.notes) {
+        setNotes(data.notes);
+      }
+    } catch (error) {
+      console.error('Error fetching notes:', error);
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'notes') {
+      fetchNotes();
+    }
+  }, [activeTab, customerName]);
+
+  const handleAddNote = async () => {
+    if (!newNote.trim()) return;
+
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const user = currentUser.name || 'Unknown';
+
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user,
+          customerName,
+          content: newNote
+        }),
+      });
+
+      if (response.ok) {
+        setNewNote('');
+        fetchNotes();
+      } else {
+        alert('Failed to add note');
+      }
+    } catch (error) {
+      console.error('Error adding note:', error);
+      alert('Error adding note');
+    }
+  };
+
+  const handleUpdateNote = async (rowIndex: number) => {
+    if (!editingNoteContent.trim()) return;
+
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rowIndex,
+          content: editingNoteContent
+        }),
+      });
+
+      if (response.ok) {
+        setEditingNoteId(null);
+        setEditingNoteContent('');
+        fetchNotes();
+      } else {
+        alert('Failed to update note');
+      }
+    } catch (error) {
+      console.error('Error updating note:', error);
+      alert('Error updating note');
+    }
+  };
+
+  const handleDeleteNote = async (rowIndex: number) => {
+    try {
+      const response = await fetch('/api/notes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rowIndex }),
+      });
+
+      if (response.ok) {
+        fetchNotes();
+      } else {
+        alert('Failed to delete note');
+      }
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      alert('Error deleting note');
+    }
+  };
 
   // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
@@ -391,8 +499,13 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     columns: invoiceColumns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    state: { sorting: invoiceSorting },
+    getPaginationRowModel: getPaginationRowModel(),
+    state: { 
+      sorting: invoiceSorting,
+      pagination,
+    },
     onSortingChange: setInvoiceSorting,
+    onPaginationChange: setPagination,
   });
 
   const monthlyTable = useReactTable({
@@ -699,6 +812,16 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         >
           Ages
         </button>
+        <button
+          onClick={() => setActiveTab('notes')}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
+            activeTab === 'notes'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+          }`}
+        >
+          Notes
+        </button>
       </div>
 
       {/* Tab Content: Invoices */}
@@ -842,6 +965,83 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination Controls */}
+          <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
+            <div className="flex justify-between flex-1 sm:hidden">
+              <button
+                onClick={() => invoiceTable.previousPage()}
+                disabled={!invoiceTable.getCanPreviousPage()}
+                className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Previous
+              </button>
+              <button
+                onClick={() => invoiceTable.nextPage()}
+                disabled={!invoiceTable.getCanNextPage()}
+                className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+              >
+                Next
+              </button>
+            </div>
+            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-700">
+                  Page <span className="font-medium">{invoiceTable.getState().pagination.pageIndex + 1}</span> of{' '}
+                  <span className="font-medium">{invoiceTable.getPageCount()}</span>
+                </span>
+                <select
+                  value={invoiceTable.getState().pagination.pageSize}
+                  onChange={e => {
+                    invoiceTable.setPageSize(Number(e.target.value))
+                  }}
+                  className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  {[50, 100, 250, 500].map(pageSize => (
+                    <option key={pageSize} value={pageSize}>
+                      Show {pageSize}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                  <button
+                    onClick={() => invoiceTable.setPageIndex(0)}
+                    disabled={!invoiceTable.getCanPreviousPage()}
+                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">First</span>
+                    ⟪
+                  </button>
+                  <button
+                    onClick={() => invoiceTable.previousPage()}
+                    disabled={!invoiceTable.getCanPreviousPage()}
+                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Previous</span>
+                    ⟨
+                  </button>
+                  <button
+                    onClick={() => invoiceTable.nextPage()}
+                    disabled={!invoiceTable.getCanNextPage()}
+                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Next</span>
+                    ⟩
+                  </button>
+                  <button
+                    onClick={() => invoiceTable.setPageIndex(invoiceTable.getPageCount() - 1)}
+                    disabled={!invoiceTable.getCanNextPage()}
+                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    <span className="sr-only">Last</span>
+                    ⟫
+                  </button>
+                </nav>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       )}
@@ -975,6 +1175,115 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
                   </tbody>
                 </table>
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tab Content: Notes */}
+      {activeTab === 'notes' && (
+        <div className="max-w-4xl mx-auto">
+          <div className="mb-6 bg-white p-6 rounded-lg shadow">
+            <h3 className="text-lg font-bold mb-4">Add New Note</h3>
+            <div className="flex gap-4">
+              <textarea
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                placeholder="Type your note here..."
+                className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24"
+              />
+              <button
+                onClick={handleAddNote}
+                disabled={!newNote.trim()}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
+              >
+                Add Note
+              </button>
+            </div>
+          </div>
+
+          {loadingNotes ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {notes.length === 0 ? (
+                <p className="text-center text-gray-500 py-8">No notes found for this customer.</p>
+              ) : (
+                notes.map((note, index) => {
+                  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                  // Robust comparison: check if names exist and match (ignoring case/whitespace)
+                  const isAuthor = currentUser?.name && note?.user && 
+                                   currentUser.name.trim().toLowerCase() === note.user.trim().toLowerCase();
+
+                  return (
+                    <div key={index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-gray-900">{note.user}</span>
+                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">User</span>
+                          </div>
+                          {note.timestamp && (
+                            <span className="text-sm text-gray-500">
+                              {new Date(note.timestamp).toLocaleString('en-US', {
+                                dateStyle: 'medium',
+                                timeStyle: 'short'
+                              })}
+                            </span>
+                          )}
+                        </div>
+                        {isAuthor && editingNoteId !== note.rowIndex && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingNoteId(note.rowIndex);
+                                setEditingNoteContent(note.content);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteNote(note.rowIndex)}
+                              className="text-red-600 hover:text-red-800 text-sm font-medium"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {editingNoteId === note.rowIndex ? (
+                        <div className="mt-2">
+                          <textarea
+                            value={editingNoteContent}
+                            onChange={(e) => setEditingNoteContent(e.target.value)}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24 mb-2"
+                          />
+                          <div className="flex justify-end gap-2">
+                            <button
+                              onClick={() => setEditingNoteId(null)}
+                              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleUpdateNote(note.rowIndex)}
+                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                            >
+                              Save Changes
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-gray-700 whitespace-pre-wrap text-lg">{note.content}</p>
+                      )}
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
         </div>

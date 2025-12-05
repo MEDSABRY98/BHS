@@ -43,3 +43,10 @@ export interface MonthAnalysis {
   netDebt: number;
   transactionCount: number;
 }
+
+export interface Note {
+  user: string;
+  customerName: string;
+  content: string;
+  timestamp?: string;
+}

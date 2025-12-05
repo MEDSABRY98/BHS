@@ -23,6 +23,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [matchingFilter, setMatchingFilter] = useState('ALL');
 
   const customerAnalysis = useMemo(() => {
     // Intermediate structure to track matchings per customer
@@ -78,12 +79,19 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   }, [data]);
 
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return customerAnalysis;
+    let result = customerAnalysis;
+
+    if (matchingFilter === 'OPEN') {
+      result = result.filter(c => c.hasOpenMatchings);
+    }
+
+    if (!searchQuery.trim()) return result;
+    
     const query = searchQuery.toLowerCase();
-    return customerAnalysis.filter((customer) =>
+    return result.filter((customer) =>
       customer.customerName.toLowerCase().includes(query)
     );
-  }, [customerAnalysis, searchQuery]);
+  }, [customerAnalysis, searchQuery, matchingFilter]);
 
   const columns = useMemo(
     () => [
@@ -175,7 +183,18 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         </div>
       </div>
 
-      <div className="mb-4 flex justify-center">
+      <div className="mb-4 flex flex-col items-center gap-4">
+        <div className="flex gap-4 w-full justify-center">
+          <select
+            value={matchingFilter}
+            onChange={(e) => setMatchingFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
+          >
+            <option value="ALL">All Statuses</option>
+            <option value="OPEN">Open Matching Only</option>
+          </select>
+        </div>
+
         <input
           type="text"
           placeholder="Search by customer name..."
