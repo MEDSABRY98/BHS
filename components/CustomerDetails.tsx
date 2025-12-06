@@ -71,6 +71,14 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   const [newNote, setNewNote] = useState('');
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
+  const [currentUserName, setCurrentUserName] = useState('');
+
+  useEffect(() => {
+    const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    if (storedUser && storedUser.name) {
+      setCurrentUserName(storedUser.name);
+    }
+  }, []);
 
   const fetchNotes = async () => {
     setLoadingNotes(true);
@@ -179,11 +187,23 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       }
     });
 
-    // 2. Find the last occurrence index for each matching code (to display residual on the last row)
-    const lastMatchingIndices = new Map<string, number>();
+    // 2. Find the index of the row with the largest DEBIT for each matching code
+    const targetResidualIndices = new Map<string, number>();
+    const maxDebits = new Map<string, number>();
+
     invoices.forEach((inv, index) => {
       if (inv.matching) {
-        lastMatchingIndices.set(inv.matching, index);
+        const currentMax = maxDebits.get(inv.matching) ?? -1;
+        // Update if we find a larger debit
+        // If debits are equal, we keep the first one found (strict greater than)
+        if (inv.debit > currentMax) {
+          maxDebits.set(inv.matching, inv.debit);
+          targetResidualIndices.set(inv.matching, index);
+        } else if (!targetResidualIndices.has(inv.matching)) {
+           // Ensure at least one index is set (e.g. if all debits are 0)
+           maxDebits.set(inv.matching, inv.debit);
+           targetResidualIndices.set(inv.matching, index);
+        }
       }
     });
 
@@ -192,9 +212,9 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       let residual: number | undefined = undefined;
 
       if (invoice.matching) {
-        const lastIndex = lastMatchingIndices.get(invoice.matching);
-        // Show residual only on the last invoice of the group (matching the sheet order)
-        if (lastIndex === index) {
+        const targetIndex = targetResidualIndices.get(invoice.matching);
+        // Show residual only on the invoice with the largest debit
+        if (targetIndex === index) {
            const total = matchingTotals.get(invoice.matching) || 0;
            if (Math.abs(total) > 0.01) {
              residual = total;
@@ -541,6 +561,54 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     }
   };
 
+  const handleDirectExport = async () => {
+    try {
+      // 1. Start with all invoices (Net Debt is already calculated in invoicesWithNetDebt)
+      let finalInvoices = [...invoicesWithNetDebt];
+
+      if (finalInvoices.length === 0) {
+        alert('No invoices to export.');
+        return;
+      }
+
+      // 2. Filter for "Net Only" using the condensed logic
+      // This keeps only unmatched invoices OR the single "residual holder" invoice for open matching groups
+      finalInvoices = finalInvoices.filter(inv => {
+        // Keep if no matching ID (Unmatched)
+        if (!inv.matching) return true;
+        
+        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      }).map(inv => {
+          if (inv.matching && inv.residual !== undefined) {
+             // It's a condensed open invoice
+             // Calculate "Paid" amount to show in Credit
+             // Credit = Debit - Residual
+             return {
+                 ...inv,
+                 credit: inv.debit - inv.residual,
+                 netDebt: inv.residual
+             };
+          }
+          return inv;
+      });
+
+      if (finalInvoices.length === 0) {
+         alert('No open/unmatched invoices to export.');
+         return;
+      }
+
+      const monthsLabel = 'All Months (Net Only)';
+      
+      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    }
+  };
+
   const handleExport = async () => {
     try {
       let finalInvoices = [];
@@ -554,7 +622,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         if (selectedMonthFilter !== 'All Months') {
            monthsLabel = selectedMonthFilter;
         } else if (selectedMonths.length < availableMonths.length && selectedMonths.length > 0) {
-           // If view was constructed differently but matches months logic (unlikely here since filteredInvoices uses selectedMonthFilter)
+           // If view was constructed differently but matches months logic
         }
         
         if (selectedMatchingFilter !== 'All Matchings') {
@@ -583,22 +651,24 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
 
         // Filter for "Net Only" (exclude fully closed matches)
         if (pdfExportType === 'net') {
-          // Calculate totals for ALL matchings (global context)
-          const matchingTotals = new Map<string, number>();
-          invoices.forEach(inv => {
-            if (inv.matching) {
-               const currentTotal = matchingTotals.get(inv.matching) || 0;
-               matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
-            }
-          });
-
           finalInvoices = finalInvoices.filter(inv => {
-            // Keep if no matching ID
+            // Keep if no matching ID (Unmatched)
             if (!inv.matching) return true;
             
-            // Check if the matching group is open (total != 0)
-            const total = matchingTotals.get(inv.matching) || 0;
-            return Math.abs(total) > 0.01;
+            // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+          }).map(inv => {
+              if (inv.matching && inv.residual !== undefined) {
+                 // It's a condensed open invoice
+                 // Calculate "Paid" amount to show in Credit
+                 // Credit = Debit - Residual
+                 return {
+                     ...inv,
+                     credit: inv.debit - inv.residual,
+                     netDebt: inv.residual
+                 };
+              }
+              return inv;
           });
         }
         
@@ -640,25 +710,36 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
           <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
           <p className="text-gray-600">Customer Details</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-3">
+          {currentUserName === 'Mahmoud Shaker' && (
+             <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse">
+               ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
+             </span>
+          )}
           <button
             onClick={() => {
-              setExportMode('combined');
-              setShowExportModal(true);
+              if (currentUserName === 'Mahmoud Shaker') {
+                handleDirectExport();
+              } else {
+                setExportMode('combined');
+                setShowExportModal(true);
+              }
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
           >
             📄 Export PDF
           </button>
-          <button
-            onClick={() => {
-              setExportMode('separated');
-              setShowExportModal(true);
-            }}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
-          >
-            📑 Export Monthly PDF
-          </button>
+          {currentUserName !== 'Mahmoud Shaker' && (
+            <button
+              onClick={() => {
+                setExportMode('separated');
+                setShowExportModal(true);
+              }}
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
+            >
+              📑 Export Monthly PDF
+            </button>
+          )}
           <button
             onClick={onBack}
             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
