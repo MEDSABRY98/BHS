@@ -49,4 +49,5 @@ export interface Note {
   customerName: string;
   content: string;
   timestamp?: string;
+  rowIndex?: number;
 }

@@ -15,6 +15,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     { id: 'years', label: 'Years', icon: '📅' },
     { id: 'months', label: 'Months', icon: '📆' },
     { id: 'ages', label: 'Ages', icon: '⏳' },
+    { id: 'all-notes', label: 'All Notes', icon: '📝' },
   ];
 
   return (

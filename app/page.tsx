@@ -7,6 +7,7 @@ import SalesRepsTab from '@/components/SalesRepsTab';
 import YearsTab from '@/components/YearsTab';
 import MonthsTab from '@/components/MonthsTab';
 import AgesTab from '@/components/AgesTab';
+import AllNotesTab from '@/components/AllNotesTab';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
@@ -130,6 +131,8 @@ export default function Home() {
         return <MonthsTab data={data} />;
       case 'ages':
         return <AgesTab data={data} />;
+      case 'all-notes':
+        return <AllNotesTab />;
       default:
         return <CustomersTab data={data} />;
     }
