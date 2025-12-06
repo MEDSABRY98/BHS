@@ -5,9 +5,10 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   onLogout: () => void;
   currentUser?: any;
+  lastUpdated?: string | null;
 }
 
-export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser }: SidebarProps) {
+export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SidebarProps) {
   const tabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
     { id: 'salesreps', label: 'Sales Reps', icon: '👔' },
@@ -40,6 +41,15 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser 
       </nav>
 
       <div className="p-4 border-t border-gray-200 bg-gray-50">
+        {lastUpdated && (
+          <div className="mb-4 px-3 py-2 bg-yellow-50 rounded-lg border border-yellow-200 shadow-sm text-center">
+             <div className="text-xs text-yellow-700 uppercase font-bold mb-1">Data Last Updated</div>
+             <div className="font-medium text-gray-800 text-sm">
+               {lastUpdated}
+             </div>
+          </div>
+        )}
+
         {currentUser && (
           <div className="mb-4 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
             <div className="text-xs text-gray-500 uppercase font-bold mb-1">Current User</div>

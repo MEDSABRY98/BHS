@@ -408,7 +408,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       invoiceColumnHelper.accessor('netDebt', {
-        header: 'Net Debt',
+        header: 'Net Debit',
         cell: (info) => {
           const value = info.getValue();
           return (
@@ -461,7 +461,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
         cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       monthlyColumnHelper.accessor('netDebt', {
-        header: 'Net Debt',
+        header: 'Net Debit',
         cell: (info) => {
           const value = info.getValue();
           return (

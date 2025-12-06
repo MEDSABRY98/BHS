@@ -118,7 +118,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       columnHelper.accessor('netDebt', {
-        header: 'Net Debt',
+        header: 'Net Debit',
         cell: (info) => {
           const value = info.getValue();
           return (
@@ -172,7 +172,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         <h2 className="text-2xl font-bold mb-2">Customers Analysis</h2>
         <div className="bg-blue-50 p-4 rounded-lg">
           <p className="text-lg">
-            <span className="font-semibold">Total Debt:</span>{' '}
+            <span className="font-semibold">Total Debit:</span>{' '}
             <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
               {totalDebt.toLocaleString('en-US')}
             </span>

@@ -17,6 +17,7 @@ export default function Home() {
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -63,6 +64,23 @@ export default function Home() {
       }
       
       setData(result.data);
+
+      // Find the latest date
+      if (result.data && result.data.length > 0) {
+        const dates = result.data
+          .map((row: InvoiceRow) => row.date ? new Date(row.date).getTime() : 0)
+          .filter((time: number) => !isNaN(time) && time > 0);
+        
+        if (dates.length > 0) {
+          const maxDate = new Date(Math.max(...dates));
+          setLastUpdated(maxDate.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }));
+        }
+      }
+
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -128,6 +146,7 @@ export default function Home() {
         onTabChange={setActiveTab} 
         onLogout={handleLogout}
         currentUser={currentUser}
+        lastUpdated={lastUpdated}
       />
       <main className="flex-1 ml-64 overflow-y-auto">
         {renderTabContent()}
