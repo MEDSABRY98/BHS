@@ -42,12 +42,21 @@ interface AgingSummary {
   total: number;
 }
 
+interface OverdueInvoice extends InvoiceRow {
+  netDebt: number;
+  residual?: number;
+  daysOverdue: number;
+  difference: number;
+}
+
 const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
+const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
 export default function CustomerDetails({ customerName, invoices, onBack }: CustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages' | 'notes'>('invoices');
+  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>('invoices');
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
+  const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [pagination, setPagination] = useState<PaginationState>({
@@ -382,6 +391,57 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     return summary;
   }, [invoicesWithNetDebt]);
 
+  // Prepare Overdue Invoices
+  const overdueInvoices = useMemo(() => {
+    // 1. Filter Logic same as "Net Only" PDF Export
+    // This keeps only unmatched invoices OR the single "residual holder" invoice for open matching groups
+    return invoicesWithNetDebt.filter(inv => {
+        // Keep if no matching ID (Unmatched)
+        if (!inv.matching) return true;
+        
+        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      }).map(inv => {
+          let difference = inv.netDebt;
+          
+          if (inv.matching && inv.residual !== undefined) {
+             // It's a condensed open invoice
+             // Difference is the residual
+             difference = inv.residual;
+          }
+
+        // Calculate Days Overdue
+        let daysOverdue = 0;
+        // Try Due Date first
+        let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
+        
+        // If Due Date is invalid, fallback to Invoice Date
+        if (!targetDate || isNaN(targetDate.getTime())) {
+           if (inv.date) {
+             targetDate = new Date(inv.date);
+           }
+        }
+
+        if (targetDate && !isNaN(targetDate.getTime())) {
+           const today = new Date();
+           today.setHours(0, 0, 0, 0);
+           targetDate.setHours(0, 0, 0, 0);
+           const diffTime = today.getTime() - targetDate.getTime();
+           daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        // Adjust Credit for display (Debit - Credit = Difference)
+        const adjustedCredit = inv.debit - difference;
+
+        return {
+          ...inv,
+          credit: adjustedCredit,
+          difference,
+          daysOverdue
+        } as OverdueInvoice;
+      });
+  }, [invoicesWithNetDebt]);
+
   // Invoice columns - Order: DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
   const invoiceColumns = useMemo(
     () => [
@@ -435,6 +495,57 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
             );
           }
           return null;
+        },
+      }),
+    ],
+    []
+  );
+
+  // Overdue columns
+  const overdueColumns = useMemo(
+    () => [
+      overdueColumnHelper.accessor('date', {
+        header: 'Date',
+        cell: (info) => {
+          const dateStr = info.getValue();
+          if (!dateStr) return '';
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) return dateStr;
+          return `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
+        },
+      }),
+      overdueColumnHelper.accessor('number', {
+        header: 'Invoice Number',
+        cell: (info) => info.getValue(),
+      }),
+      overdueColumnHelper.accessor('debit', {
+        header: 'Debit',
+        cell: (info) => info.getValue().toLocaleString('en-US'),
+      }),
+      overdueColumnHelper.accessor('credit', {
+        header: 'Credit',
+        cell: (info) => info.getValue().toLocaleString('en-US'),
+      }),
+      overdueColumnHelper.accessor('difference', {
+        header: 'Difference',
+        cell: (info) => {
+          const value = info.getValue();
+          return (
+            <span className={value > 0 ? 'text-red-600' : value < 0 ? 'text-green-600' : ''}>
+              {value.toLocaleString('en-US')}
+            </span>
+          );
+        },
+      }),
+      overdueColumnHelper.accessor('daysOverdue', {
+        header: 'Days Overdue',
+        cell: (info) => {
+          const value = info.getValue();
+          return (
+            <span className={value > 0 ? 'text-red-600 font-bold' : 'text-green-600'}>
+              {value}
+            </span>
+          );
         },
       }),
     ],
@@ -514,6 +625,47 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     return filtered;
   }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery]);
 
+  // Filter overdue invoices based on selected month filter, matching filter, and search query
+  const filteredOverdueInvoices = useMemo(() => {
+    let filtered = overdueInvoices;
+    
+    // Month Filter
+    if (selectedMonthFilter !== 'All Months') {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return monthYear === selectedMonthFilter;
+      });
+    }
+
+    // Matching Filter
+    if (selectedMatchingFilter !== 'All Matchings') {
+      if (selectedMatchingFilter === 'All Open Matchings') {
+        // For overdue, invoices are usually already filtered for openness, but we check if it belongs to a matching group
+        filtered = filtered.filter((inv) => inv.matching);
+      } else {
+        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+      }
+    }
+
+    // Search Query
+    if (invoiceSearchQuery.trim()) {
+      const query = invoiceSearchQuery.toLowerCase();
+      filtered = filtered.filter((inv) => 
+        inv.number.toLowerCase().includes(query) ||
+        inv.matching?.toLowerCase().includes(query) ||
+        inv.date.toLowerCase().includes(query) ||
+        inv.debit.toString().includes(query) ||
+        inv.credit.toString().includes(query) ||
+        inv.difference.toString().includes(query)
+      );
+    }
+    
+    return filtered;
+  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery]);
+
   const invoiceTable = useReactTable({
     data: filteredInvoices,
     columns: invoiceColumns,
@@ -535,6 +687,15 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     getSortedRowModel: getSortedRowModel(),
     state: { sorting: monthlySorting },
     onSortingChange: setMonthlySorting,
+  });
+
+  const overdueTable = useReactTable({
+    data: filteredOverdueInvoices,
+    columns: overdueColumns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    state: { sorting: overdueSorting },
+    onSortingChange: setOverdueSorting,
   });
 
   const totalNetDebt = filteredInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
@@ -874,6 +1035,16 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
           Invoices
         </button>
         <button
+          onClick={() => setActiveTab('overdue')}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
+            activeTab === 'overdue'
+              ? 'text-blue-600 border-blue-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+          }`}
+        >
+          Overdue
+        </button>
+        <button
           onClick={() => setActiveTab('monthly')}
           className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
             activeTab === 'monthly'
@@ -1125,6 +1296,158 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
           </div>
         </div>
       </div>
+      )}
+
+      {/* Tab Content: Overdue */}
+      {activeTab === 'overdue' && (
+        <div>
+          <div className="mb-6 flex flex-col gap-4">
+            {/* Filters Row */}
+            <div className="flex justify-center gap-6">
+              {/* Month Filter */}
+              <div className="w-64">
+                <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+                  Filter by Month
+                </label>
+                <select
+                  id="monthFilter"
+                  value={selectedMonthFilter}
+                  onChange={(e) => setSelectedMonthFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="All Months">All Months</option>
+                  {availableMonths.map((month) => (
+                    <option key={month} value={month}>
+                      {month}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Matching Filter */}
+              <div className="w-64">
+                <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+                  Filter by Open Matching
+                </label>
+                <select
+                  id="matchingFilter"
+                  value={selectedMatchingFilter}
+                  onChange={(e) => setSelectedMatchingFilter(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                >
+                  <option value="All Matchings">All Matchings</option>
+                  <option value="All Open Matchings">All Open Matchings</option>
+                  {availableMatchingsWithResidual.map((matching) => (
+                    <option key={matching} value={matching}>
+                      {matching}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Search Box */}
+            <div className="flex justify-center">
+              <div className="w-full max-w-2xl">
+                <input
+                  type="text"
+                  placeholder="Search Overdue Invoices (Number, Matching, Amount)..."
+                  value={invoiceSearchQuery}
+                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                <thead className="bg-gray-100">
+                  {overdueTable.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        const getWidth = () => {
+                          const columnId = header.column.id;
+                          if (columnId === 'date') return '15%';
+                          if (columnId === 'number') return '15%';
+                          if (columnId === 'debit') return '15%';
+                          if (columnId === 'credit') return '15%';
+                          if (columnId === 'difference') return '20%';
+                          if (columnId === 'daysOverdue') return '20%';
+                          return '15%';
+                        };
+                        return (
+                          <th
+                            key={header.id}
+                            className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
+                            style={{ width: getWidth() }}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{
+                              asc: ' ↑',
+                              desc: ' ↓',
+                            }[header.column.getIsSorted() as string] ?? null}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {overdueTable.getRowModel().rows.length === 0 ? (
+                     <tr>
+                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                         No overdue or open invoices found matching criteria.
+                       </td>
+                     </tr>
+                  ) : (
+                    overdueTable.getRowModel().rows.map((row) => (
+                      <tr key={row.id} className="border-b hover:bg-gray-50">
+                        {row.getVisibleCells().map((cell) => {
+                          const getWidth = () => {
+                            const columnId = cell.column.id;
+                            if (columnId === 'date') return '15%';
+                            if (columnId === 'number') return '15%';
+                            if (columnId === 'debit') return '15%';
+                            if (columnId === 'credit') return '15%';
+                            if (columnId === 'difference') return '20%';
+                            if (columnId === 'daysOverdue') return '20%';
+                            return '15%';
+                          };
+                          return (
+                            <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))
+                  )}
+                  {overdueTable.getRowModel().rows.length > 0 && (
+                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                        {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.debit, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                        {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.credit, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                        <span className={filteredOverdueInvoices.reduce((sum, inv) => sum + inv.difference, 0) > 0 ? 'text-red-600' : 'text-green-600'}>
+                          {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.difference, 0).toLocaleString('en-US')}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tab Content: Monthly Debt */}
