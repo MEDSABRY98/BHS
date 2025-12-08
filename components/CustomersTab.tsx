@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -24,6 +24,23 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [matchingFilter, setMatchingFilter] = useState('ALL');
+  const [customersWithEmails, setCustomersWithEmails] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const fetchEmails = async () => {
+      try {
+        const response = await fetch('/api/customer-emails-list');
+        if (response.ok) {
+          const data = await response.json();
+          // Store lowercased names for case-insensitive comparison
+          setCustomersWithEmails(new Set(data.customers.map((name: string) => name.toLowerCase().trim())));
+        }
+      } catch (error) {
+        console.error('Failed to fetch customer emails:', error);
+      }
+    };
+    fetchEmails();
+  }, []);
 
   const customerAnalysis = useMemo(() => {
     // Intermediate structure to track matchings per customer
@@ -83,6 +100,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
     if (matchingFilter === 'OPEN') {
       result = result.filter(c => c.hasOpenMatchings);
+    } else if (matchingFilter === 'WITH_EMAIL') {
+      result = result.filter(c => customersWithEmails.has(c.customerName.toLowerCase().trim()));
     }
 
     if (!searchQuery.trim()) return result;
@@ -192,6 +211,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           >
             <option value="ALL">All Statuses</option>
             <option value="OPEN">Open Matching Only</option>
+            <option value="WITH_EMAIL">Customers with Email</option>
           </select>
         </div>
 

@@ -171,6 +171,39 @@ export async function getCustomerEmail(customerName: string): Promise<string | n
   }
 }
 
+export async function getAllCustomerEmails(): Promise<string[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `CUSTOMER DETAILS!A:B`, // CUSTOMER NAME, EMAIL
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row and return names of customers with emails
+    const customersWithEmails = rows.slice(1)
+      .filter(row => row[0] && row[1] && row[1].toString().trim() !== '')
+      .map(row => row[0].toString().trim());
+
+    return customersWithEmails;
+  } catch (error) {
+    console.error('Error fetching all customer emails:', error);
+    return [];
+  }
+}
+
 export async function getNotes(customerName?: string) {
   try {
     const credentials = getServiceAccountCredentials();
