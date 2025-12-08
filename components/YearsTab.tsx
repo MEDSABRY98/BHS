@@ -102,10 +102,6 @@ export default function YearsTab({ data }: YearsTabProps) {
           );
         },
       }),
-      columnHelper.accessor('transactionCount', {
-        header: 'Transactions',
-        cell: (info) => info.getValue(),
-      }),
     ],
     []
   );
@@ -159,10 +155,9 @@ export default function YearsTab({ data }: YearsTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'netDebt') return '20%';
-                      if (columnId === 'totalCredit') return '20%';
-                      if (columnId === 'totalDebit') return '20%';
+                      if (columnId === 'netDebt') return '24%';
+                      if (columnId === 'totalCredit') return '24%';
+                      if (columnId === 'totalDebit') return '24%';
                       return '28%';
                     };
                     return (
@@ -189,10 +184,9 @@ export default function YearsTab({ data }: YearsTabProps) {
                   {row.getVisibleCells().map((cell) => {
                     const getWidth = () => {
                       const columnId = cell.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'netDebt') return '20%';
-                      if (columnId === 'totalCredit') return '20%';
-                      if (columnId === 'totalDebit') return '20%';
+                      if (columnId === 'netDebt') return '24%';
+                      if (columnId === 'totalCredit') return '24%';
+                      if (columnId === 'totalDebit') return '24%';
                       return '28%';
                     };
                     return (
@@ -205,19 +199,16 @@ export default function YearsTab({ data }: YearsTabProps) {
               ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '28%' }}>Total</td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '24%' }}>
                   {filteredData.reduce((sum, y) => sum + y.totalDebit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '24%' }}>
                   {filteredData.reduce((sum, y) => sum + y.totalCredit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '24%' }}>
                   <span className={filteredData.reduce((sum, y) => sum + y.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, y) => sum + y.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, y) => sum + y.netDebt, 0).toLocaleString('en-US')}
                   </span>
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {filteredData.reduce((sum, y) => sum + y.transactionCount, 0)}
                 </td>
               </tr>
             </tbody>

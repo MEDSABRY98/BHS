@@ -24,7 +24,19 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [matchingFilter, setMatchingFilter] = useState('ALL');
+  const [selectedSalesRep, setSelectedSalesRep] = useState('ALL');
   const [customersWithEmails, setCustomersWithEmails] = useState<Set<string>>(new Set());
+
+  // Get unique Sales Reps
+  const availableSalesReps = useMemo(() => {
+    const reps = new Set<string>();
+    data.forEach(row => {
+      if (row.salesRep && row.salesRep.trim()) {
+        reps.add(row.salesRep.trim());
+      }
+    });
+    return Array.from(reps).sort();
+  }, [data]);
 
   useEffect(() => {
     const fetchEmails = async () => {
@@ -44,7 +56,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
   const customerAnalysis = useMemo(() => {
     // Intermediate structure to track matchings per customer
-    type CustomerData = CustomerAnalysis & { matchingsMap: Map<string, number> };
+    type CustomerData = CustomerAnalysis & { matchingsMap: Map<string, number>; salesReps: Set<string> };
     const customerMap = new Map<string, CustomerData>();
 
     data.forEach((row) => {
@@ -58,6 +70,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           netDebt: 0,
           transactionCount: 0,
           matchingsMap: new Map(),
+          salesReps: new Set(),
         };
       }
 
@@ -65,6 +78,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       existing.totalCredit += row.credit;
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
+      
+      if (row.salesRep && row.salesRep.trim()) {
+        existing.salesReps.add(row.salesRep.trim());
+      }
 
       if (row.matching) {
           const currentMatchTotal = existing.matchingsMap.get(row.matching) || 0;
@@ -90,7 +107,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             totalCredit: c.totalCredit,
             netDebt: c.netDebt,
             transactionCount: c.transactionCount,
-            hasOpenMatchings: hasOpen
+            hasOpenMatchings: hasOpen,
+            salesReps: c.salesReps
         };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [data]);
@@ -104,13 +122,17 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       result = result.filter(c => customersWithEmails.has(c.customerName.toLowerCase().trim()));
     }
 
+    if (selectedSalesRep !== 'ALL') {
+      result = result.filter(c => c.salesReps && c.salesReps.has(selectedSalesRep));
+    }
+
     if (!searchQuery.trim()) return result;
     
     const query = searchQuery.toLowerCase();
     return result.filter((customer) =>
       customer.customerName.toLowerCase().includes(query)
     );
-  }, [customerAnalysis, searchQuery, matchingFilter]);
+  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep]);
 
   const columns = useMemo(
     () => [
@@ -147,10 +169,6 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           );
         },
       }),
-      columnHelper.accessor('transactionCount', {
-        header: 'Transactions',
-        cell: (info) => info.getValue(),
-      }),
     ],
     []
   );
@@ -166,7 +184,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     onSortingChange: setSorting,
   });
 
-  const totalDebt = customerAnalysis.reduce((sum, c) => sum + c.netDebt, 0);
+  const totalDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
 
   // Filter invoices for selected customer
   const selectedCustomerInvoices = useMemo(() => {
@@ -213,6 +231,17 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             <option value="OPEN">Open Matching Only</option>
             <option value="WITH_EMAIL">Customers with Email</option>
           </select>
+
+          <select
+            value={selectedSalesRep}
+            onChange={(e) => setSelectedSalesRep(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
+          >
+            <option value="ALL">All Sales Reps</option>
+            {availableSalesReps.map(rep => (
+              <option key={rep} value={rep}>{rep}</option>
+            ))}
+          </select>
         </div>
 
         <input
@@ -233,10 +262,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'netDebt') return '18%';
-                      if (columnId === 'totalCredit') return '18%';
-                      if (columnId === 'totalDebit') return '18%';
+                      if (columnId === 'netDebt') return '22%';
+                      if (columnId === 'totalCredit') return '22%';
+                      if (columnId === 'totalDebit') return '22%';
                       return '34%';
                     };
                     return (
@@ -263,10 +291,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   {row.getVisibleCells().map((cell) => {
                     const getWidth = () => {
                       const columnId = cell.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'netDebt') return '18%';
-                      if (columnId === 'totalCredit') return '18%';
-                      if (columnId === 'totalDebit') return '18%';
+                      if (columnId === 'netDebt') return '22%';
+                      if (columnId === 'totalCredit') return '22%';
+                      if (columnId === 'totalDebit') return '22%';
                       return '34%';
                     };
                     return (
@@ -281,19 +308,16 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '34%' }}>
                   Total
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
                   {filteredData.reduce((sum, c) => sum + c.totalDebit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
                   {filteredData.reduce((sum, c) => sum + c.totalCredit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
                   <span className={filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
                   </span>
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {filteredData.reduce((sum, c) => sum + c.transactionCount, 0)}
                 </td>
               </tr>
             </tbody>

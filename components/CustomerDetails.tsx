@@ -229,10 +229,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
   };
 
   useEffect(() => {
-    if (activeTab === 'notes') {
-      fetchNotes();
-    }
-  }, [activeTab, customerName]);
+    fetchNotes();
+  }, [customerName]);
 
   const handleAddNote = async () => {
     if (!newNote.trim()) return;
@@ -1213,7 +1211,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
               : 'text-gray-500 border-transparent hover:text-gray-700'
           }`}
         >
-          Notes
+          Notes <span className="text-red-600">({notes.length})</span>
         </button>
       </div>
 

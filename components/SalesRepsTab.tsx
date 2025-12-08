@@ -94,10 +94,6 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
           );
         },
       }),
-      columnHelper.accessor('transactionCount', {
-        header: 'Transactions',
-        cell: (info) => info.getValue(),
-      }),
     ],
     []
   );
@@ -151,12 +147,11 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'customerCount') return '12%';
-                      if (columnId === 'netDebt') return '16%';
-                      if (columnId === 'totalCredit') return '16%';
-                      if (columnId === 'totalDebit') return '16%';
-                      return '28%';
+                      if (columnId === 'customerCount') return '16%';
+                      if (columnId === 'netDebt') return '20%';
+                      if (columnId === 'totalCredit') return '20%';
+                      if (columnId === 'totalDebit') return '20%';
+                      return '24%';
                     };
                     return (
                       <th
@@ -182,12 +177,11 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
                   {row.getVisibleCells().map((cell) => {
                     const getWidth = () => {
                       const columnId = cell.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'customerCount') return '12%';
-                      if (columnId === 'netDebt') return '16%';
-                      if (columnId === 'totalCredit') return '16%';
-                      if (columnId === 'totalDebit') return '16%';
-                      return '28%';
+                      if (columnId === 'customerCount') return '16%';
+                      if (columnId === 'netDebt') return '20%';
+                      if (columnId === 'totalCredit') return '20%';
+                      if (columnId === 'totalDebit') return '20%';
+                      return '24%';
                     };
                     return (
                       <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
@@ -198,23 +192,20 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
                 </tr>
               ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '28%' }}>Total</td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '24%' }}>Total</td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
                   {filteredData.reduce((sum, r) => sum + r.customerCount, 0)}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
                   {filteredData.reduce((sum, r) => sum + r.totalDebit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
                   {filteredData.reduce((sum, r) => sum + r.totalCredit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
                   <span className={filteredData.reduce((sum, r) => sum + r.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, r) => sum + r.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, r) => sum + r.netDebt, 0).toLocaleString('en-US')}
                   </span>
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {filteredData.reduce((sum, r) => sum + r.transactionCount, 0)}
                 </td>
               </tr>
             </tbody>

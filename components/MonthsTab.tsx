@@ -133,10 +133,6 @@ export default function MonthsTab({ data }: MonthsTabProps) {
           );
         },
       }),
-      columnHelper.accessor('transactionCount', {
-        header: 'Transactions',
-        cell: (info) => info.getValue(),
-      }),
     ],
     []
   );
@@ -190,12 +186,11 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'netDebt') return '18%';
-                      if (columnId === 'totalCredit') return '18%';
-                      if (columnId === 'totalDebit') return '18%';
-                      if (columnId === 'month') return '17%';
-                      return '17%';
+                      if (columnId === 'netDebt') return '20%';
+                      if (columnId === 'totalCredit') return '20%';
+                      if (columnId === 'totalDebit') return '20%';
+                      if (columnId === 'month') return '20%';
+                      return '20%';
                     };
                     return (
                       <th
@@ -221,12 +216,11 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                   {row.getVisibleCells().map((cell) => {
                     const getWidth = () => {
                       const columnId = cell.column.id;
-                      if (columnId === 'transactionCount') return '12%';
-                      if (columnId === 'netDebt') return '18%';
-                      if (columnId === 'totalCredit') return '18%';
-                      if (columnId === 'totalDebit') return '18%';
-                      if (columnId === 'month') return '17%';
-                      return '17%';
+                      if (columnId === 'netDebt') return '20%';
+                      if (columnId === 'totalCredit') return '20%';
+                      if (columnId === 'totalDebit') return '20%';
+                      if (columnId === 'month') return '20%';
+                      return '20%';
                     };
                     return (
                       <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
@@ -237,21 +231,18 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                 </tr>
               ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '17%' }}>Total</td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '17%' }}></td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>Total</td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
                   {filteredData.reduce((sum, m) => sum + m.totalDebit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
                   {filteredData.reduce((sum, m) => sum + m.totalCredit, 0).toLocaleString('en-US')}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
                   <span className={filteredData.reduce((sum, m) => sum + m.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, m) => sum + m.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, m) => sum + m.netDebt, 0).toLocaleString('en-US')}
                   </span>
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  {filteredData.reduce((sum, m) => sum + m.transactionCount, 0)}
                 </td>
               </tr>
             </tbody>
