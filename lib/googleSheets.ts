@@ -132,6 +132,45 @@ export async function getUsers() {
   }
 }
 
+export async function getCustomerEmail(customerName: string): Promise<string | null> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `CUSTOMER DETAILS!A:B`, // CUSTOMER NAME, EMAIL
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    // Skip header row (assuming row 1 is header)
+    // Find customer row (case-insensitive)
+    const customerRow = rows.slice(1).find(row => 
+      row[0]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase()
+    );
+
+    if (customerRow && customerRow[1]) {
+      return customerRow[1].toString().trim();
+    }
+
+    return null;
+  } catch (error) {
+    console.error('Error fetching customer email:', error);
+    // Don't throw, just return null if sheet doesn't exist or other error
+    return null;
+  }
+}
+
 export async function getNotes(customerName?: string) {
   try {
     const credentials = getServiceAccountCredentials();
@@ -397,4 +436,3 @@ export async function deleteNoteRow(rowIndex: number) {
         }
     }
 }
-

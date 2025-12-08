@@ -81,6 +81,7 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -88,6 +89,129 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
       setCurrentUserName(storedUser.name);
     }
   }, []);
+
+  useEffect(() => {
+    const fetchEmail = async () => {
+      try {
+        const res = await fetch(`/api/customer-email?customerName=${encodeURIComponent(customerName)}`);
+        const data = await res.json();
+        if (data.email) {
+          setCustomerEmail(data.email);
+        }
+      } catch (error) {
+        console.error('Error fetching customer email:', error);
+      }
+    };
+    fetchEmail();
+  }, [customerName]);
+
+  const handleEmail = async () => {
+    if (!customerEmail) return;
+
+    try {
+      // 1. Generate PDF (Net Only)
+      let finalInvoices = [...invoicesWithNetDebt];
+      
+      // Filter for "Net Only" using the condensed logic
+      finalInvoices = finalInvoices.filter(inv => {
+        // Keep if no matching ID (Unmatched)
+        if (!inv.matching) return true;
+        
+        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      }).map(inv => {
+          if (inv.matching && inv.residual !== undefined) {
+             // It's a condensed open invoice
+             return {
+                 ...inv,
+                 credit: inv.debit - inv.residual,
+                 netDebt: inv.residual
+             };
+          }
+          return inv;
+      });
+
+      if (finalInvoices.length === 0) {
+         alert('No open invoices to send.');
+         return;
+      }
+
+      // Calculate Total Net Debt for Body
+      const currentNetDebt = finalInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+
+      const monthsLabel = 'All Months (Net Only)';
+      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      
+      // Generate PDF Blob
+      const pdfBlob = await generateAccountStatementPDF(customerName, finalInvoices, true, monthsLabel);
+      
+      if (!pdfBlob) {
+        throw new Error('Failed to generate PDF blob');
+      }
+
+      // Convert Blob to Base64
+      const reader = new FileReader();
+      reader.readAsDataURL(pdfBlob as Blob);
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        const pdfBase64 = base64data.split(',')[1]; // Remove "data:application/pdf;base64," prefix
+
+        // 2. Create .eml file content
+        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+        const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+        const htmlBody = `<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; font-size: 14px;">
+<p>Dear Customer,</p>
+<p>We hope this email finds you well.</p>
+<p>Please find attached your account statement.<br>
+Your current net debt is: <span style="color: blue; font-weight: bold; font-size: 16px;">${currentNetDebt.toLocaleString('en-US')} AED</span></p>
+<p>Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
+<p>Best regards,</p>
+</body>
+</html>`;
+
+        const pdfFileName = `${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim()}.pdf`;
+
+        const emlContent = [
+          'To: ' + customerEmail,
+          'Subject: ' + subject,
+          'X-Unsent: 1', // Mark as unsent (opens in compose mode)
+          'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+          '',
+          '--' + boundary,
+          'Content-Type: text/html; charset="UTF-8"',
+          'Content-Transfer-Encoding: 7bit',
+          '',
+          htmlBody,
+          '',
+          '--' + boundary,
+          `Content-Type: application/pdf; name="${pdfFileName}"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${pdfFileName}"`,
+          '',
+          pdfBase64,
+          '',
+          '--' + boundary + '--'
+        ].join('\r\n');
+
+        // 3. Download .eml file
+        const blob = new Blob([emlContent], { type: 'message/rfc822' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Email_to_${customerName.replace(/\s+/g, '_')}.eml`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      };
+
+    } catch (error) {
+      console.error('Error in email flow:', error);
+      alert('Error preparing email.');
+    }
+  };
 
   const fetchNotes = async () => {
     setLoadingNotes(true);
@@ -876,6 +1000,14 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
              <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse">
                ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
              </span>
+          )}
+          {customerEmail && (
+            <button
+              onClick={handleEmail}
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+            >
+              📧 Email
+            </button>
           )}
           <button
             onClick={() => {
