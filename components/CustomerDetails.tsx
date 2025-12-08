@@ -454,8 +454,17 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
 
   // Prepare aging data
   const agingData = useMemo<AgingSummary>(() => {
-    const totalNetDebt = invoicesWithNetDebt.reduce((sum, inv) => sum + inv.netDebt, 0);
-    
+    // 1. Filter for open invoices (Unmatched or Residual holders)
+    const openInvoices = invoicesWithNetDebt.filter(inv => {
+      // Keep if no matching ID (Unmatched) AND has balance
+      if (!inv.matching) {
+          return Math.abs(inv.netDebt) > 0.01;
+      }
+      
+      // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+    });
+
     const summary: AgingSummary = {
       atDate: 0,
       oneToThirty: 0,
@@ -463,54 +472,54 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       sixtyOneToNinety: 0,
       ninetyOneToOneTwenty: 0,
       older: 0,
-      total: totalNetDebt
+      total: 0
     };
 
-    if (totalNetDebt <= 0) return summary;
-
-    // Get all debits sorted by due date descending (newest first)
-    const debits = invoicesWithNetDebt
-      .filter(inv => inv.debit > 0)
-      .sort((a, b) => {
-         // Prefer Due Date, fallback to Date
-         const dateA = a.dueDate ? new Date(a.dueDate) : (a.date ? new Date(a.date) : new Date(0));
-         const dateB = b.dueDate ? new Date(b.dueDate) : (b.date ? new Date(b.date) : new Date(0));
-         return dateB.getTime() - dateA.getTime();
-      });
-
-    let remainingDebt = totalNetDebt;
-
-    for (const inv of debits) {
-      if (remainingDebt <= 0) break;
-
-      const amountToAllocate = Math.min(inv.debit, remainingDebt);
+    openInvoices.forEach(inv => {
+      let amount = inv.netDebt;
       
-      // Calculate days overdue
-      const dueDate = inv.dueDate ? new Date(inv.dueDate) : (inv.date ? new Date(inv.date) : new Date());
-      const today = new Date();
-      // Reset time part to ensure accurate day calculation
-      today.setHours(0, 0, 0, 0);
-      dueDate.setHours(0, 0, 0, 0);
-
-      const diffTime = today.getTime() - dueDate.getTime();
-      const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-      if (daysOverdue <= 0) {
-        summary.atDate += amountToAllocate;
-      } else if (daysOverdue <= 30) {
-        summary.oneToThirty += amountToAllocate;
-      } else if (daysOverdue <= 60) {
-        summary.thirtyOneToSixty += amountToAllocate;
-      } else if (daysOverdue <= 90) {
-        summary.sixtyOneToNinety += amountToAllocate;
-      } else if (daysOverdue <= 120) {
-        summary.ninetyOneToOneTwenty += amountToAllocate;
-      } else {
-        summary.older += amountToAllocate;
+      if (inv.matching && inv.residual !== undefined) {
+         // It's a condensed open invoice, use residual as amount
+         amount = inv.residual;
       }
 
-      remainingDebt -= amountToAllocate;
-    }
+      // Calculate days overdue
+      let daysOverdue = 0;
+      // Try Due Date first
+      let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
+      
+      // If Due Date is invalid, fallback to Invoice Date
+      if (!targetDate || isNaN(targetDate.getTime())) {
+         if (inv.date) {
+           targetDate = new Date(inv.date);
+         }
+      }
+
+      if (targetDate && !isNaN(targetDate.getTime())) {
+         const today = new Date();
+         today.setHours(0, 0, 0, 0);
+         targetDate.setHours(0, 0, 0, 0);
+         const diffTime = today.getTime() - targetDate.getTime();
+         daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      // Add to appropriate bucket
+      if (daysOverdue <= 0) {
+        summary.atDate += amount;
+      } else if (daysOverdue <= 30) {
+        summary.oneToThirty += amount;
+      } else if (daysOverdue <= 60) {
+        summary.thirtyOneToSixty += amount;
+      } else if (daysOverdue <= 90) {
+        summary.sixtyOneToNinety += amount;
+      } else if (daysOverdue <= 120) {
+        summary.ninetyOneToOneTwenty += amount;
+      } else {
+        summary.older += amount;
+      }
+
+      summary.total += amount;
+    });
 
     return summary;
   }, [invoicesWithNetDebt]);
