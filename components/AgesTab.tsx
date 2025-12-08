@@ -59,57 +59,99 @@ export default function AgesTab({ data }: AgesTabProps) {
         total: netDebt
       };
 
-      // Only process if there's outstanding debt
-      if (netDebt > 0.01) {
-        // Get all debits sorted by due date descending (newest first)
-        const debits = customerInvoices
-          .filter(inv => inv.debit > 0)
-          .sort((a, b) => {
-             // Prefer Due Date, fallback to Date
-             const dateA = a.dueDate ? new Date(a.dueDate) : (a.date ? new Date(a.date) : new Date(0));
-             const dateB = b.dueDate ? new Date(b.dueDate) : (b.date ? new Date(b.date) : new Date(0));
-             return dateB.getTime() - dateA.getTime();
-          });
+      // Identify Open Items (Unmatched + Residuals)
+      const matchingTotals = new Map<string, number>();
+      const maxDebits = new Map<string, number>();
+      const mainInvoiceIndices = new Map<string, number>();
 
-        let remainingDebt = netDebt;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+      // Pass 1: Analyze Matchings
+      customerInvoices.forEach((inv, idx) => {
+        if (inv.matching) {
+             const net = inv.debit - inv.credit;
+             matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+             
+             const currentMax = maxDebits.get(inv.matching) ?? -1;
+             // Logic to pick main invoice (largest debit)
+             if (inv.debit > currentMax) {
+                 maxDebits.set(inv.matching, inv.debit);
+                 mainInvoiceIndices.set(inv.matching, idx);
+             } else if (!mainInvoiceIndices.has(inv.matching)) {
+                 maxDebits.set(inv.matching, inv.debit);
+                 mainInvoiceIndices.set(inv.matching, idx);
+             }
+        }
+      });
 
-        for (const inv of debits) {
-          if (remainingDebt <= 0) break;
+      // Pass 2: Aging Calculation
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
 
-          const amountToAllocate = Math.min(inv.debit, remainingDebt);
-          
-          // Calculate days overdue
-          const dueDate = inv.dueDate ? new Date(inv.dueDate) : (inv.date ? new Date(inv.date) : new Date());
-          dueDate.setHours(0, 0, 0, 0);
+      customerInvoices.forEach((inv, idx) => {
+          let amountToAge = 0;
+          let shouldAge = false;
 
-          const diffTime = today.getTime() - dueDate.getTime();
-          const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-          if (daysOverdue <= 0) {
-            summary.atDate += amountToAllocate;
-          } else if (daysOverdue <= 30) {
-            summary.oneToThirty += amountToAllocate;
-          } else if (daysOverdue <= 60) {
-            summary.thirtyOneToSixty += amountToAllocate;
-          } else if (daysOverdue <= 90) {
-            summary.sixtyOneToNinety += amountToAllocate;
-          } else if (daysOverdue <= 120) {
-            summary.ninetyOneToOneTwenty += amountToAllocate;
+          if (!inv.matching) {
+              const net = inv.debit - inv.credit;
+              if (Math.abs(net) > 0.01) {
+                  amountToAge = net;
+                  shouldAge = true;
+              }
           } else {
-            summary.older += amountToAllocate;
+              // It is matched. Check if it is main invoice
+              if (mainInvoiceIndices.get(inv.matching) === idx) {
+                  const residual = matchingTotals.get(inv.matching) || 0;
+                  if (Math.abs(residual) > 0.01) {
+                      amountToAge = residual;
+                      shouldAge = true;
+                  }
+              }
           }
 
-          remainingDebt -= amountToAllocate;
-        }
-      } else if (netDebt < -0.01) {
-          // Credit balance - treat as negative total, buckets remain 0 or negative?
-          // Usually aging shows positive outstanding. Credit balance is just total negative.
-          // We can leave buckets as 0 and total as negative.
-      }
+          if (shouldAge) {
+              // Calculate days overdue
+              let daysOverdue = 0;
+              let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
+              
+              if (!targetDate || isNaN(targetDate.getTime())) {
+                 if (inv.date) {
+                   targetDate = new Date(inv.date);
+                 }
+              }
 
-      summaries.push(summary);
+              if (targetDate && !isNaN(targetDate.getTime())) {
+                 targetDate.setHours(0, 0, 0, 0);
+                 const diffTime = today.getTime() - targetDate.getTime();
+                 daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+              }
+
+              if (daysOverdue <= 0) {
+                summary.atDate += amountToAge;
+              } else if (daysOverdue <= 30) {
+                summary.oneToThirty += amountToAge;
+              } else if (daysOverdue <= 60) {
+                summary.thirtyOneToSixty += amountToAge;
+              } else if (daysOverdue <= 90) {
+                summary.sixtyOneToNinety += amountToAge;
+              } else if (daysOverdue <= 120) {
+                summary.ninetyOneToOneTwenty += amountToAge;
+              } else {
+                summary.older += amountToAge;
+              }
+          }
+      });
+
+      // Include in summary if there is significant debt or open items
+      const hasValues = Math.abs(summary.total) > 0.01 || 
+                        Math.abs(summary.atDate) > 0.01 || 
+                        Math.abs(summary.older) > 0.01 ||
+                        Math.abs(summary.oneToThirty) > 0.01 ||
+                        Math.abs(summary.thirtyOneToSixty) > 0.01 ||
+                        Math.abs(summary.sixtyOneToNinety) > 0.01 ||
+                        Math.abs(summary.ninetyOneToOneTwenty) > 0.01;
+
+      if (hasValues) {
+        summaries.push(summary);
+      }
     });
 
     return summaries.sort((a, b) => b.total - a.total);
