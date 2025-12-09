@@ -2,6 +2,21 @@
 
 import { useMemo, useState, useEffect } from 'react';
 import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  Legend,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+} from 'recharts';
+import {
   useReactTable,
   getCoreRowModel,
   getSortedRowModel,
@@ -54,7 +69,7 @@ const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
 export default function CustomerDetails({ customerName, invoices, onBack }: CustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>('invoices');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>('dashboard');
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
@@ -66,6 +81,13 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
   
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
   const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string>('All Matchings');
+  
+  // Invoice Type Filters
+  const [showOB, setShowOB] = useState(false);
+  const [showSales, setShowSales] = useState(false);
+  const [showReturns, setShowReturns] = useState(false);
+  const [showPayments, setShowPayments] = useState(false);
+  const [showDiscounts, setShowDiscounts] = useState(false);
 
   // PDF Export State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -245,7 +267,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         body: JSON.stringify({
           user,
           customerName,
-          content: newNote
+          content: newNote,
+          isSolved: false
         }),
       });
 
@@ -261,8 +284,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     }
   };
 
-  const handleUpdateNote = async (rowIndex: number) => {
-    if (!editingNoteContent.trim()) return;
+  const handleUpdateNote = async (rowIndex: number, content: string, isSolved: boolean) => {
+    if (!content.trim()) return;
 
     try {
       const response = await fetch('/api/notes', {
@@ -270,7 +293,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           rowIndex,
-          content: editingNoteContent
+          content,
+          isSolved
         }),
       });
 
@@ -414,11 +438,192 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     }
   }, [availableMonths, selectedMonthFilter]);
 
+  // Prepare Overdue Invoices
+  const overdueInvoices = useMemo(() => {
+    // 1. Filter Logic same as "Net Only" PDF Export
+    // This keeps only unmatched invoices OR the single "residual holder" invoice for open matching groups
+    return invoicesWithNetDebt.filter(inv => {
+        // Keep if no matching ID (Unmatched)
+        if (!inv.matching) return true;
+        
+        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      }).map(inv => {
+          let difference = inv.netDebt;
+          
+          if (inv.matching && inv.residual !== undefined) {
+             // It's a condensed open invoice
+             // Difference is the residual
+             difference = inv.residual;
+          }
+
+        // Calculate Days Overdue
+        let daysOverdue = 0;
+        // Try Due Date first
+        let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
+        
+        // If Due Date is invalid, fallback to Invoice Date
+        if (!targetDate || isNaN(targetDate.getTime())) {
+           if (inv.date) {
+             targetDate = new Date(inv.date);
+           }
+        }
+
+        if (targetDate && !isNaN(targetDate.getTime())) {
+           const today = new Date();
+           today.setHours(0, 0, 0, 0);
+           targetDate.setHours(0, 0, 0, 0);
+           const diffTime = today.getTime() - targetDate.getTime();
+           daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        // Adjust Credit for display (Debit - Credit = Difference)
+        const adjustedCredit = inv.debit - difference;
+
+        return {
+          ...inv,
+          credit: adjustedCredit,
+          difference,
+          daysOverdue
+        } as OverdueInvoice;
+      });
+  }, [invoicesWithNetDebt]);
+
+  // Filter invoices based on selected month filter, matching filter, and search query
+  const filteredInvoices = useMemo(() => {
+    let filtered = invoicesWithNetDebt;
+    
+    // Month Filter
+    if (selectedMonthFilter !== 'All Months') {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return monthYear === selectedMonthFilter;
+      });
+    }
+
+    // Matching Filter
+    if (selectedMatchingFilter !== 'All Matchings') {
+      if (selectedMatchingFilter === 'All Open Matchings') {
+        filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
+      } else {
+        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+      }
+    }
+
+    // Search Query
+    if (invoiceSearchQuery.trim()) {
+      const query = invoiceSearchQuery.toLowerCase();
+      filtered = filtered.filter((inv) => 
+        inv.number.toLowerCase().includes(query) ||
+        inv.matching?.toLowerCase().includes(query) ||
+        inv.date.toLowerCase().includes(query) ||
+        inv.debit.toString().includes(query) ||
+        inv.credit.toString().includes(query)
+      );
+    }
+
+    // Invoice Type Filters
+    const hasAnyFilter = showOB || showSales || showReturns || showPayments || showDiscounts;
+    if (hasAnyFilter) {
+      filtered = filtered.filter((inv) => {
+        const num = inv.number.toUpperCase();
+        
+        if (showOB && num.startsWith('OB')) return true;
+        if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
+        if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
+        if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
+        if (showPayments) {
+          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
+          if (inv.credit > 0.01 && 
+              !num.startsWith('SAL') && 
+              !num.startsWith('RSAL') && 
+              !num.startsWith('BIL') && 
+              !num.startsWith('JV') &&
+              !num.startsWith('OB')) {
+            return true;
+          }
+        }
+        return false;
+      });
+    }
+    
+    return filtered;
+  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
+
+  // Filter overdue invoices based on selected month filter, matching filter, and search query
+  const filteredOverdueInvoices = useMemo(() => {
+    let filtered = overdueInvoices;
+    
+    // Month Filter
+    if (selectedMonthFilter !== 'All Months') {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return monthYear === selectedMonthFilter;
+      });
+    }
+
+    // Matching Filter
+    if (selectedMatchingFilter !== 'All Matchings') {
+      if (selectedMatchingFilter === 'All Open Matchings') {
+        // For overdue, invoices are usually already filtered for openness, but we check if it belongs to a matching group
+        filtered = filtered.filter((inv) => inv.matching);
+      } else {
+        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+      }
+    }
+
+    // Search Query
+    if (invoiceSearchQuery.trim()) {
+      const query = invoiceSearchQuery.toLowerCase();
+      filtered = filtered.filter((inv) => 
+        inv.number.toLowerCase().includes(query) ||
+        inv.matching?.toLowerCase().includes(query) ||
+        inv.date.toLowerCase().includes(query) ||
+        inv.debit.toString().includes(query) ||
+        inv.credit.toString().includes(query) ||
+        inv.difference.toString().includes(query)
+      );
+    }
+
+    // Invoice Type Filters
+    const hasAnyFilter = showOB || showSales || showReturns || showPayments || showDiscounts;
+    if (hasAnyFilter) {
+      filtered = filtered.filter((inv) => {
+        const num = inv.number.toUpperCase();
+        
+        if (showOB && num.startsWith('OB')) return true;
+        if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
+        if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
+        if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
+        if (showPayments) {
+          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
+          if (inv.credit > 0.01 && 
+              !num.startsWith('SAL') && 
+              !num.startsWith('RSAL') && 
+              !num.startsWith('BIL') && 
+              !num.startsWith('JV') &&
+              !num.startsWith('OB')) {
+            return true;
+          }
+        }
+        return false;
+      });
+    }
+    
+    return filtered;
+  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
+
   // Prepare monthly debt data
   const monthlyDebt = useMemo(() => {
     const monthlyMap = new Map<string, MonthlyDebt>();
 
-    invoices.forEach((invoice) => {
+    filteredInvoices.forEach((invoice) => {
       if (!invoice.date) return;
 
       // Parse date to extract year and month
@@ -437,8 +642,31 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         netDebt: 0,
       };
 
-      existing.debit += invoice.debit;
-      existing.credit += invoice.credit;
+      const num = invoice.number ? invoice.number.toUpperCase() : '';
+
+      // 1. Calculate Net Sales (Debit)
+      // Include SAL (Debit)
+      if (num.startsWith('SAL')) {
+         existing.debit += invoice.debit;
+      }
+      // Deduct RSAL (Credit) from Sales
+      if (num.startsWith('RSAL')) {
+         existing.debit -= invoice.credit;
+      }
+      
+      // 2. Calculate Smart Payments (Credit)
+      // Only count credits that are NOT SAL, RSAL, BIL, JV
+      if (invoice.credit > 0.01) {
+          const isNotPayment = num.startsWith('SAL') || 
+                               num.startsWith('RSAL') || 
+                               num.startsWith('BIL') || 
+                               num.startsWith('JV');
+          
+          if (!isNotPayment) {
+              existing.credit += invoice.credit;
+          }
+      }
+      
       existing.netDebt = existing.debit - existing.credit;
 
       monthlyMap.set(key, existing);
@@ -448,12 +676,12 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       if (a.year !== b.year) return b.year.localeCompare(a.year);
       return new Date(`${a.month} 1, ${a.year}`).getTime() - new Date(`${b.month} 1, ${b.year}`).getTime();
     });
-  }, [invoices]);
+  }, [filteredInvoices]);
 
   // Prepare aging data
   const agingData = useMemo<AgingSummary>(() => {
     // 1. Filter for open invoices (Unmatched or Residual holders)
-    const openInvoices = invoicesWithNetDebt.filter(inv => {
+    const openInvoices = filteredInvoices.filter(inv => {
       // Keep if no matching ID (Unmatched) AND has balance
       if (!inv.matching) {
           return Math.abs(inv.netDebt) > 0.01;
@@ -520,58 +748,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     });
 
     return summary;
-  }, [invoicesWithNetDebt]);
+  }, [filteredInvoices]);
 
-  // Prepare Overdue Invoices
-  const overdueInvoices = useMemo(() => {
-    // 1. Filter Logic same as "Net Only" PDF Export
-    // This keeps only unmatched invoices OR the single "residual holder" invoice for open matching groups
-    return invoicesWithNetDebt.filter(inv => {
-        // Keep if no matching ID (Unmatched)
-        if (!inv.matching) return true;
-        
-        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
-        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-      }).map(inv => {
-          let difference = inv.netDebt;
-          
-          if (inv.matching && inv.residual !== undefined) {
-             // It's a condensed open invoice
-             // Difference is the residual
-             difference = inv.residual;
-          }
-
-        // Calculate Days Overdue
-        let daysOverdue = 0;
-        // Try Due Date first
-        let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
-        
-        // If Due Date is invalid, fallback to Invoice Date
-        if (!targetDate || isNaN(targetDate.getTime())) {
-           if (inv.date) {
-             targetDate = new Date(inv.date);
-           }
-        }
-
-        if (targetDate && !isNaN(targetDate.getTime())) {
-           const today = new Date();
-           today.setHours(0, 0, 0, 0);
-           targetDate.setHours(0, 0, 0, 0);
-           const diffTime = today.getTime() - targetDate.getTime();
-           daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
-
-        // Adjust Credit for display (Debit - Credit = Difference)
-        const adjustedCredit = inv.debit - difference;
-
-        return {
-          ...inv,
-          credit: adjustedCredit,
-          difference,
-          daysOverdue
-        } as OverdueInvoice;
-      });
-  }, [invoicesWithNetDebt]);
 
   // Invoice columns - Order: DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
   const invoiceColumns = useMemo(
@@ -717,85 +895,6 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     []
   );
 
-  // Filter invoices based on selected month filter, matching filter, and search query
-  const filteredInvoices = useMemo(() => {
-    let filtered = invoicesWithNetDebt;
-    
-    // Month Filter
-    if (selectedMonthFilter !== 'All Months') {
-      filtered = filtered.filter((inv) => {
-        if (!inv.date) return false;
-        const date = new Date(inv.date);
-        if (isNaN(date.getTime())) return false;
-        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return monthYear === selectedMonthFilter;
-      });
-    }
-
-    // Matching Filter
-    if (selectedMatchingFilter !== 'All Matchings') {
-      if (selectedMatchingFilter === 'All Open Matchings') {
-        filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
-      } else {
-        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
-      }
-    }
-
-    // Search Query
-    if (invoiceSearchQuery.trim()) {
-      const query = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter((inv) => 
-        inv.number.toLowerCase().includes(query) ||
-        inv.matching?.toLowerCase().includes(query) ||
-        inv.date.toLowerCase().includes(query) ||
-        inv.debit.toString().includes(query) ||
-        inv.credit.toString().includes(query)
-      );
-    }
-    
-    return filtered;
-  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery]);
-
-  // Filter overdue invoices based on selected month filter, matching filter, and search query
-  const filteredOverdueInvoices = useMemo(() => {
-    let filtered = overdueInvoices;
-    
-    // Month Filter
-    if (selectedMonthFilter !== 'All Months') {
-      filtered = filtered.filter((inv) => {
-        if (!inv.date) return false;
-        const date = new Date(inv.date);
-        if (isNaN(date.getTime())) return false;
-        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return monthYear === selectedMonthFilter;
-      });
-    }
-
-    // Matching Filter
-    if (selectedMatchingFilter !== 'All Matchings') {
-      if (selectedMatchingFilter === 'All Open Matchings') {
-        // For overdue, invoices are usually already filtered for openness, but we check if it belongs to a matching group
-        filtered = filtered.filter((inv) => inv.matching);
-      } else {
-        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
-      }
-    }
-
-    // Search Query
-    if (invoiceSearchQuery.trim()) {
-      const query = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter((inv) => 
-        inv.number.toLowerCase().includes(query) ||
-        inv.matching?.toLowerCase().includes(query) ||
-        inv.date.toLowerCase().includes(query) ||
-        inv.debit.toString().includes(query) ||
-        inv.credit.toString().includes(query) ||
-        inv.difference.toString().includes(query)
-      );
-    }
-    
-    return filtered;
-  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery]);
 
   const invoiceTable = useReactTable({
     data: filteredInvoices,
@@ -995,8 +1094,192 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     }
   };
 
+  // Calculate Dashboard Metrics
+  const dashboardMetrics = useMemo(() => {
+    const totalSales = filteredInvoices.reduce((acc, inv) => acc + inv.debit, 0);
+    const totalPaid = filteredInvoices.reduce((acc, inv) => acc + inv.credit, 0);
+    const collectionRate = totalSales > 0 ? (totalPaid / totalSales) * 100 : 0;
+    
+    const dates = filteredInvoices
+      .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
+      .filter(t => t > 0);
+    const lastActivity = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+
+    const overdueAmount = filteredOverdueInvoices.reduce((acc, inv) => acc + inv.difference, 0);
+    const overdueCount = filteredOverdueInvoices.length;
+
+    // Calculate Last Payment
+    // Filter out non-payment transaction types
+    const paymentInvoices = filteredInvoices.filter(inv => {
+       if (inv.credit <= 0.01) return false;
+       const num = inv.number.toUpperCase();
+       return !num.startsWith('SAL') && 
+              !num.startsWith('RSAL') && 
+              !num.startsWith('BIL') && 
+              !num.startsWith('JV');
+    });
+
+    let lastPaymentAmount = 0;
+    let lastPaymentDate = null;
+
+    if (paymentInvoices.length > 0) {
+        // Sort by date descending (newest first)
+        const sortedPayments = paymentInvoices.sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return dateB - dateA;
+        });
+        
+        lastPaymentAmount = sortedPayments[0].credit;
+        lastPaymentDate = new Date(sortedPayments[0].date);
+    }
+
+    // Calculate Total Payments (sum of all payment credits)
+    const totalPayments = paymentInvoices.reduce((acc, inv) => acc + inv.credit, 0);
+
+    // Calculate Average Monthly Sales
+    // Logic: (Sum(SAL) - Sum(RSAL)) / Span in Months
+    const salesInvoices = filteredInvoices.filter(inv => inv.number.toUpperCase().startsWith('SAL'));
+    const returnInvoices = filteredInvoices.filter(inv => inv.number.toUpperCase().startsWith('RSAL'));
+    
+    const totalSalesAmount = salesInvoices.reduce((sum, inv) => sum + inv.debit, 0);
+    const totalReturnsAmount = returnInvoices.reduce((sum, inv) => sum + inv.credit, 0);
+    
+    const netSales = totalSalesAmount - totalReturnsAmount;
+    
+    // Lifetime Smart Sales (SAL - RSAL)
+    const lifetimeSmartSales = netSales;
+
+    // Lifetime Smart Payments (Credit not SAL/RSAL/BIL/JV)
+    const smartPaymentInvoices = filteredInvoices.filter(inv => {
+       if (inv.credit <= 0.01) return false;
+       const num = inv.number.toUpperCase();
+       return !num.startsWith('SAL') && 
+              !num.startsWith('RSAL') && 
+              !num.startsWith('BIL') && 
+              !num.startsWith('JV');
+    });
+    const lifetimeSmartPayments = smartPaymentInvoices.reduce((sum, inv) => sum + inv.credit, 0);
+    
+    // Duration
+    // Find earliest date and latest date among these specific transactions
+    const allRelevantInvoices = [...salesInvoices, ...returnInvoices];
+    let monthsDuration = 1;
+    
+    if (allRelevantInvoices.length > 0) {
+        const dates = allRelevantInvoices.map(inv => inv.date ? new Date(inv.date).getTime() : 0).filter(t => t > 0);
+        if (dates.length > 0) {
+            const minDate = new Date(Math.min(...dates));
+            const maxDate = new Date(Math.max(...dates));
+            
+            // Difference in months (inclusive)
+            monthsDuration = (maxDate.getFullYear() - minDate.getFullYear()) * 12 + (maxDate.getMonth() - minDate.getMonth()) + 1;
+            if (monthsDuration < 1) monthsDuration = 1;
+        }
+    }
+    
+    const averageMonthlySales = netSales / monthsDuration;
+
+    // Aging Data for Pie Chart
+    const pieData = [
+      { name: 'Current', value: agingData.atDate, color: '#10B981' }, // Green
+      { name: '1-30 Days', value: agingData.oneToThirty, color: '#3B82F6' }, // Blue
+      { name: '31-60 Days', value: agingData.thirtyOneToSixty, color: '#F59E0B' }, // Yellow
+      { name: '61-90 Days', value: agingData.sixtyOneToNinety, color: '#F97316' }, // Orange
+      { name: '> 90 Days', value: agingData.ninetyOneToOneTwenty + agingData.older, color: '#EF4444' }, // Red
+    ].filter(d => d.value > 0.01);
+
+    return {
+      totalSales,
+      totalPaid,
+      collectionRate,
+      lastActivity,
+      overdueAmount,
+      overdueCount,
+      totalPayments,
+      lastPaymentAmount,
+      lastPaymentDate,
+      lastPaymentInvoice: paymentInvoices.length > 0 ? paymentInvoices[0] : null,
+      averageMonthlySales,
+      lifetimeSmartSales,
+      lifetimeSmartPayments,
+      totalSalesSum: totalSalesAmount,
+      totalReturnsSum: totalReturnsAmount,
+      netSalesSum: netSales,
+      pieData
+    };
+  }, [filteredInvoices, filteredOverdueInvoices, totalNetDebt, agingData]);
+
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+
   return (
     <div className="p-6">
+      {/* Payment Details Modal */}
+      {showPaymentModal && dashboardMetrics.lastPaymentInvoice && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border border-gray-100 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4 border-b pb-3">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <span className="text-2xl">💸</span> Payment Details
+              </h3>
+              <button 
+                onClick={() => setShowPaymentModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500 mb-1">Payment Amount</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {dashboardMetrics.lastPaymentInvoice.credit.toLocaleString('en-US')}
+                </p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Date</p>
+                  <p className="font-semibold text-gray-800">
+                    {new Date(dashboardMetrics.lastPaymentInvoice.date).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Invoice Number</p>
+                  <p className="font-semibold text-gray-800 font-mono">
+                    {dashboardMetrics.lastPaymentInvoice.number}
+                  </p>
+                </div>
+              </div>
+
+              {dashboardMetrics.lastPaymentInvoice.matching && (
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Matching Reference</p>
+                  <p className="font-medium text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded">
+                    {dashboardMetrics.lastPaymentInvoice.matching}
+                  </p>
+                </div>
+              )}
+
+              <div className="pt-2">
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
@@ -1161,8 +1444,130 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         </div>
       )}
 
-      {/* Tabs Navigation */}
+      {/* Global Filters & Search */}
+      <div className="mb-6 flex flex-col gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <div className="flex justify-center gap-6">
+          {/* Month Filter */}
+          <div className="w-64">
+            <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+              Filter by Month
+            </label>
+            <select
+              id="monthFilter"
+              value={selectedMonthFilter}
+              onChange={(e) => setSelectedMonthFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="All Months">All Months</option>
+              {availableMonths.map((month) => (
+                <option key={month} value={month}>
+                  {month}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Matching Filter */}
+          <div className="w-64">
+            <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
+              Filter by Open Matching
+            </label>
+            <select
+              id="matchingFilter"
+              value={selectedMatchingFilter}
+              onChange={(e) => setSelectedMatchingFilter(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            >
+              <option value="All Matchings">All Matchings</option>
+              <option value="All Open Matchings">All Open Matchings</option>
+              {availableMatchingsWithResidual.map((matching) => (
+                <option key={matching} value={matching}>
+                  {matching}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Search Box */}
+        <div className="flex justify-center">
+          <div className="w-full max-w-2xl">
+            <input
+              type="text"
+              placeholder="Search across all data..."
+              value={invoiceSearchQuery}
+              onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+            />
+          </div>
+        </div>
+
+        {/* Invoice Type Filters */}
+        <div className="flex justify-center mt-4">
+          <div className="w-full max-w-2xl">
+            <div className="flex flex-wrap gap-4 justify-center items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOB}
+                  onChange={(e) => setShowOB(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">OB</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showSales}
+                  onChange={(e) => setShowSales(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">المبيعات (SAL)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showReturns}
+                  onChange={(e) => setShowReturns(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">مرتجعات المبيعات (RSAL)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showPayments}
+                  onChange={(e) => setShowPayments(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">الدفعات</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showDiscounts}
+                  onChange={(e) => setShowDiscounts(e.target.checked)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">الخصومات (JV/BIL)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tabs Navigation */}_
       <div className="mb-6 flex justify-center gap-2 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('dashboard')}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
+            activeTab === 'dashboard'
+              ? 'text-purple-600 border-purple-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+          }`}
+        >
+          📊 Dashboard
+        </button>
         <button
           onClick={() => setActiveTab('invoices')}
           className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
@@ -1215,68 +1620,348 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         </button>
       </div>
 
-      {/* Tab Content: Invoices */}
-      {activeTab === 'invoices' && (
-        <div>
-          <div className="mb-6 flex flex-col gap-4">
-            {/* Filters Row */}
-            <div className="flex justify-center gap-6">
-              {/* Month Filter */}
-              <div className="w-64">
-                <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-                  Filter by Month
-                </label>
-                <select
-                  id="monthFilter"
-                  value={selectedMonthFilter}
-                  onChange={(e) => setSelectedMonthFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+        {/* Tab Content: Dashboard */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            
+            {/* Section 1: Debt Overview */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debt Overview</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {/* Net Debt Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">💰</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Outstanding</h3>
+                  <p className={`text-3xl font-bold mt-2 ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {totalNetDebt.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">Current Balance</p>
+                </div>
+
+                {/* Overdue Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">⚠️</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Overdue Amount</h3>
+                  <p className="text-3xl font-bold mt-2 text-orange-600">
+                    {dashboardMetrics.overdueAmount.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">{dashboardMetrics.overdueCount} Invoices Overdue</p>
+                </div>
+
+                {/* Total Payments Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">💰</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
+                  <p className="text-3xl font-bold mt-2 text-green-600">
+                    {dashboardMetrics.totalPayments.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">All Time Payments</p>
+                </div>
+
+                {/* Last Payment Card */}
+                <div 
+                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200 group"
+                  onClick={() => dashboardMetrics.lastPaymentDate && setShowPaymentModal(true)}
                 >
-                  <option value="All Months">All Months</option>
-                  {availableMonths.map((month) => (
-                    <option key={month} value={month}>
-                      {month}
-                    </option>
-                  ))}
-                </select>
+                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <span className="text-6xl">💸</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider group-hover:text-blue-600 transition-colors">Last Payment</h3>
+                  {dashboardMetrics.lastPaymentDate ? (
+                    <>
+                      <p className="text-3xl font-bold mt-2 text-green-600">
+                        {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
+                        {dashboardMetrics.lastPaymentDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">info</span>
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-3xl font-bold mt-2 text-gray-400">-</p>
+                      <p className="text-sm text-gray-400 mt-1">No payment history</p>
+                    </>
+                  )}
+                </div>
+
+                {/* Collection Rate Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">📈</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Collection Rate</h3>
+                  <p className="text-3xl font-bold mt-2 text-blue-600">
+                    {dashboardMetrics.collectionRate.toFixed(1)}%
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div 
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000" 
+                      style={{ width: `${Math.min(dashboardMetrics.collectionRate, 100)}%` }}
+                    ></div>
+                  </div>
+                </div>
               </div>
 
-              {/* Matching Filter */}
-              <div className="w-64">
-                <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-                  Filter by Open Matching
-                </label>
-                <select
-                  id="matchingFilter"
-                  value={selectedMatchingFilter}
-                  onChange={(e) => setSelectedMatchingFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="All Matchings">All Matchings</option>
-                  <option value="All Open Matchings">All Open Matchings</option>
-                  {availableMatchingsWithResidual.map((matching) => (
-                    <option key={matching} value={matching}>
-                      {matching}
-                    </option>
-                  ))}
-                </select>
+              {/* Debt Aging Breakdown - Moved here */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Debt Aging Breakdown</h3>
+                <div className="h-80 w-full flex items-center justify-center">
+                  {dashboardMetrics.pieData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={dashboardMetrics.pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={80}
+                          outerRadius={120}
+                          paddingAngle={5}
+                          dataKey="value"
+                        >
+                          {dashboardMetrics.pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <RechartsTooltip 
+                          formatter={(value: number) => value.toLocaleString('en-US')}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                        />
+                        <Legend 
+                          layout="horizontal" 
+                          verticalAlign="bottom" 
+                          align="center"
+                          content={({ payload }) => (
+                            <div className="flex flex-wrap justify-center gap-4 pt-4">
+                              {payload?.map((entry: any, index: number) => {
+                                const dataEntry = entry.payload;
+                                if (!dataEntry) return null;
+                                const percent = agingData.total > 0 
+                                  ? ((dataEntry.value / agingData.total) * 100).toFixed(1)
+                                  : '0.0';
+                                return (
+                                  <div key={`item-${index}`} className="flex items-center gap-2">
+                                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: entry.color }}></div>
+                                    <span className="text-base font-medium text-gray-700">{entry.value}</span>
+                                    <span className="text-base text-gray-500">
+                                      {dataEntry.value.toLocaleString('en-US')} ({percent}%)
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="text-center text-gray-400">
+                      <p className="text-4xl mb-2">👍</p>
+                      <p>No outstanding debt to analyze.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Monthly Payments Trend - Moved here */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Payments Trend</h3>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={monthlyDebt.slice(0, 12).reverse()} // Show last 12 months
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{fontSize: 12, fill: '#6B7280'}} 
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0} 
+                      />
+                      <YAxis 
+                        tick={{fontSize: 12, fill: '#6B7280'}} 
+                        tickFormatter={(value) => `${value / 1000}k`} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <RechartsTooltip 
+                        formatter={(value: number) => value.toLocaleString('en-US')}
+                        contentStyle={{ 
+                          borderRadius: '12px', 
+                          border: 'none', 
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          padding: '12px'
+                        }}
+                        cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
+                      <Area 
+                        type="monotone" 
+                        dataKey="credit" 
+                        name="Payments" 
+                        stroke="#10B981" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorPayments)" 
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
 
-            {/* Search Box */}
-            <div className="flex justify-center">
-              <div className="w-full max-w-2xl">
-                <input
-                  type="text"
-                  placeholder="Search Invoices (Number, Date, Matching, Amount)..."
-                  value={invoiceSearchQuery}
-                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                />
+            {/* Section 2: Sales & Performance */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales & Performance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Sales Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">🛒</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Sales</h3>
+                  <p className="text-2xl font-bold mt-2 text-blue-600">
+                    {dashboardMetrics.totalSalesSum.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Gross (SAL)</p>
+                </div>
+
+                {/* Total Returns Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">↩️</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Returns</h3>
+                  <p className="text-2xl font-bold mt-2 text-red-500">
+                    {dashboardMetrics.totalReturnsSum.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Returns (RSAL)</p>
+                </div>
+
+                {/* Net Sales Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">💵</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Sales</h3>
+                  <p className="text-2xl font-bold mt-2 text-indigo-600">
+                    {dashboardMetrics.netSalesSum.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Sales - Returns</p>
+                </div>
+
+                {/* Avg Monthly Sales Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">📅</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg. Monthly</h3>
+                  <p className="text-2xl font-bold mt-2 text-purple-600">
+                    {dashboardMetrics.averageMonthlySales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Net / Active Months</p>
+                </div>
               </div>
+
+              {/* Monthly Sales Trend - Moved here */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Sales Trend</h3>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart
+                      data={monthlyDebt.slice(0, 12).reverse()} // Show last 12 months
+                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    >
+                      <defs>
+                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis 
+                        dataKey="month" 
+                        tick={{fontSize: 12, fill: '#6B7280'}} 
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0} 
+                      />
+                      <YAxis 
+                        tick={{fontSize: 12, fill: '#6B7280'}} 
+                        tickFormatter={(value) => `${value / 1000}k`} 
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <RechartsTooltip 
+                        formatter={(value: number) => value.toLocaleString('en-US')}
+                        contentStyle={{ 
+                          borderRadius: '12px', 
+                          border: 'none', 
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          padding: '12px'
+                        }}
+                        cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
+                      />
+                      <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
+                      <Area 
+                        type="monotone" 
+                        dataKey="debit" 
+                        name="Sales" 
+                        stroke="#3B82F6" 
+                        strokeWidth={3}
+                        fillOpacity={1} 
+                        fill="url(#colorSales)" 
+                        activeDot={{ r: 6, strokeWidth: 0 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions & Recent Notes */}
+            <div className="grid grid-cols-1 gap-6">
+               {/* Recent Notes Preview */}
+               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex justify-between items-center">
+                    Recent Notes
+                    <button onClick={() => setActiveTab('notes')} className="text-sm text-blue-600 hover:underline">View All</button>
+                  </h3>
+                  <div className="space-y-4">
+                    {notes.slice(0, 3).map((note, i) => (
+                      <div key={i} className="border-l-4 border-blue-500 pl-4 py-1">
+                        <p className="text-sm text-gray-500 mb-1 flex justify-between">
+                          <span className="font-bold text-gray-700">{note.user}</span>
+                          <span>{new Date(note.timestamp || '').toLocaleDateString()}</span>
+                        </p>
+                        <p className="text-gray-800 line-clamp-2">{note.content}</p>
+                      </div>
+                    ))}
+                    {notes.length === 0 && <p className="text-gray-400 italic">No notes available.</p>}
+                  </div>
+               </div>
             </div>
           </div>
+        )}
 
+        {/* Tab Content: Invoices */}
+      {activeTab === 'invoices' && (
+        <div>
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
@@ -1440,65 +2125,6 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       {/* Tab Content: Overdue */}
       {activeTab === 'overdue' && (
         <div>
-          <div className="mb-6 flex flex-col gap-4">
-            {/* Filters Row */}
-            <div className="flex justify-center gap-6">
-              {/* Month Filter */}
-              <div className="w-64">
-                <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-                  Filter by Month
-                </label>
-                <select
-                  id="monthFilter"
-                  value={selectedMonthFilter}
-                  onChange={(e) => setSelectedMonthFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="All Months">All Months</option>
-                  {availableMonths.map((month) => (
-                    <option key={month} value={month}>
-                      {month}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Matching Filter */}
-              <div className="w-64">
-                <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-                  Filter by Open Matching
-                </label>
-                <select
-                  id="matchingFilter"
-                  value={selectedMatchingFilter}
-                  onChange={(e) => setSelectedMatchingFilter(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                >
-                  <option value="All Matchings">All Matchings</option>
-                  <option value="All Open Matchings">All Open Matchings</option>
-                  {availableMatchingsWithResidual.map((matching) => (
-                    <option key={matching} value={matching}>
-                      {matching}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Search Box */}
-            <div className="flex justify-center">
-              <div className="w-full max-w-2xl">
-                <input
-                  type="text"
-                  placeholder="Search Overdue Invoices (Number, Matching, Amount)..."
-                  value={invoiceSearchQuery}
-                  onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-                />
-              </div>
-            </div>
-          </div>
-
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
@@ -1757,8 +2383,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 notes.map((note, index) => {
                   const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
                   // Robust comparison: check if names exist and match (ignoring case/whitespace)
-                  const isAuthor = currentUser?.name && note?.user && 
-                                   currentUser.name.trim().toLowerCase() === note.user.trim().toLowerCase();
+                  // Permission Check: ONLY "MED Sabry" can edit/delete/mark solved
+                  const canManageNotes = currentUser?.name?.trim().toLowerCase() === 'med sabry';
 
                   return (
                     <div key={index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
@@ -1777,7 +2403,19 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                             </span>
                           )}
                         </div>
-                        {isAuthor && editingNoteId !== note.rowIndex && (
+                        <div className="flex items-center gap-4">
+                           {/* Solved Status */}
+                           {note.isSolved ? (
+                              <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded text-sm font-medium border border-green-200">
+                                ✓ Solved
+                              </span>
+                           ) : (
+                              <span className="flex items-center gap-1 text-yellow-600 bg-yellow-50 px-2 py-1 rounded text-sm font-medium border border-yellow-200">
+                                ⏳ Pending
+                              </span>
+                           )}
+
+                        {canManageNotes && editingNoteId !== note.rowIndex && (
                           <div className="flex gap-2">
                             <button
                               onClick={() => {
@@ -1796,6 +2434,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                             </button>
                           </div>
                         )}
+                        </div>
                       </div>
 
                       {editingNoteId === note.rowIndex ? (
@@ -1805,23 +2444,48 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                             onChange={(e) => setEditingNoteContent(e.target.value)}
                             className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24 mb-2"
                           />
-                          <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => setEditingNoteId(null)}
-                              className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              onClick={() => handleUpdateNote(note.rowIndex)}
-                              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                            >
-                              Save Changes
-                            </button>
+                          <div className="flex justify-between items-center">
+                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded transition-colors border border-gray-200">
+                              <input
+                                type="checkbox"
+                                checked={note.isSolved || false}
+                                onChange={(e) => handleUpdateNote(note.rowIndex, editingNoteContent, e.target.checked)}
+                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                              />
+                              <span className="font-medium">Mark as Solved</span>
+                            </label>
+                            
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setEditingNoteId(null)}
+                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => handleUpdateNote(note.rowIndex, editingNoteContent, note.isSolved)}
+                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                              >
+                                Save Changes
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <p className="text-gray-700 whitespace-pre-wrap text-lg">{note.content}</p>
+                        <div className="flex justify-between items-start gap-4">
+                           <p className="text-gray-700 whitespace-pre-wrap text-lg flex-1">{note.content}</p>
+                           {/* Quick Toggle for Solved Status (even if not editing content) */}
+                           {canManageNotes && (
+                             <label className="flex items-center gap-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" title="Toggle Status">
+                                <input
+                                   type="checkbox"
+                                   checked={note.isSolved || false}
+                                   onChange={(e) => handleUpdateNote(note.rowIndex, note.content, e.target.checked)}
+                                   className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                                />
+                             </label>
+                           )}
+                        </div>
                       )}
                     </div>
                   );
