@@ -165,6 +165,31 @@ export default function AgesTab({ data }: AgesTabProps) {
     );
   }, [agingData, searchQuery]);
 
+  const exportToExcel = () => {
+    const headers = ['Customer Name', 'AT DATE', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
+    const rows = filteredData.map((item) => [
+      item.customerName,
+      item.atDate.toLocaleString('en-US'),
+      item.oneToThirty.toLocaleString('en-US'),
+      item.thirtyOneToSixty.toLocaleString('en-US'),
+      item.sixtyOneToNinety.toLocaleString('en-US'),
+      item.ninetyOneToOneTwenty.toLocaleString('en-US'),
+      item.older.toLocaleString('en-US'),
+      item.total.toLocaleString('en-US'),
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((row) => row.map((cell) => `"${cell}"`).join(','))].join('\n');
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `ages_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const columns = useMemo(
     () => [
       columnHelper.accessor('customerName', {
@@ -250,7 +275,7 @@ export default function AgesTab({ data }: AgesTabProps) {
         <p className="text-gray-600">Aging of accounts receivable by customer</p>
       </div>
 
-      <div className="mb-4 flex justify-center">
+      <div className="mb-4 flex justify-center items-center gap-3">
         <input
           type="text"
           placeholder="Search by customer name..."
@@ -258,6 +283,19 @@ export default function AgesTab({ data }: AgesTabProps) {
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg text-center"
         />
+        <button
+          onClick={exportToExcel}
+          className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
+          title="Export to Excel"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path
+              fillRule="evenodd"
+              d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+              clipRule="evenodd"
+            />
+          </svg>
+        </button>
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">

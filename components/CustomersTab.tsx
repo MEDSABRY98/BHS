@@ -39,6 +39,14 @@ const parseDate = (dateStr: string): Date | null => {
   return null;
 }
 
+const formatDmy = (date?: Date | null) => {
+  if (!date) return '';
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export') => {
   // CSV format (opens in Excel)
   // Order: Customer Name, Total Debit, Total Credit, Net Debt, Open OB, Last Payment Date, Collection Rate %, Overdue Amount, Net Sales, Last Sales Date
@@ -55,11 +63,11 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       customer.totalCredit.toFixed(2) || '0.00',
       customer.netDebt.toFixed(2) || '0.00',
       (customer.openOBAmount || 0).toFixed(2),
-      customer.lastPaymentDate ? customer.lastPaymentDate.toLocaleDateString() : '',
+      customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
       collectionRate,
       (customer.overdueAmount || 0).toFixed(2),
       (customer.netSales || 0).toFixed(2),
-      customer.lastSalesDate ? customer.lastSalesDate.toLocaleDateString() : ''
+      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : ''
     ];
   });
   
@@ -212,11 +220,12 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           // Last Payment: max date where credit > 0, excluding SAL, RSAL, BIL, JV (matching Dashboard logic)
           if (row.credit > 0.01) {
               const num = row.number?.toString().toUpperCase() || '';
-              // Exclude SAL, RSAL, BIL, JV (same as Dashboard)
+              // Exclude SAL, RSAL, BIL, JV, OB (same as Dashboard, plus OB)
               if (!num.startsWith('SAL') && 
                   !num.startsWith('RSAL') && 
                   !num.startsWith('BIL') && 
-                  !num.startsWith('JV')) {
+                  !num.startsWith('JV') &&
+                  !num.startsWith('OB')) {
                   if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
                       existing.lastPaymentDate = rowDate;
                   }
