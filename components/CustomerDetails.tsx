@@ -98,6 +98,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [pdfExportType, setPdfExportType] = useState<'all' | 'net'>('all');
   const [exportScope, setExportScope] = useState<'custom' | 'view'>('custom');
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');
 
   // Notes State
   const [notes, setNotes] = useState<any[]>([]);
@@ -1019,6 +1020,40 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     }
   };
 
+  const exportToExcel = (invoices: any[], monthsLabel: string) => {
+    const headers = ['Date', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
+    
+    const rows = invoices.map(inv => {
+      const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
+      return [
+        date,
+        inv.number || '',
+        (inv.debit || 0).toFixed(2),
+        (inv.credit || 0).toFixed(2),
+        (inv.netDebt || 0).toFixed(2)
+      ];
+    });
+    
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    // Add BOM for UTF-8 to ensure Excel opens it correctly
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    const fileName = `${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim()}_${monthsLabel.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '_')}.csv`;
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleExport = async () => {
     try {
       let finalInvoices = [];
@@ -1106,18 +1141,24 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         }
       }
 
-      const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/pdfUtils');
-      
-      if (exportMode === 'separated') {
-        await generateMonthlySeparatedPDF(customerName, finalInvoices);
+      if (exportFormat === 'excel') {
+        // Export to Excel
+        exportToExcel(finalInvoices, monthsLabel);
       } else {
-        await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
+        // Export to PDF
+        const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/pdfUtils');
+        
+        if (exportMode === 'separated') {
+          await generateMonthlySeparatedPDF(customerName, finalInvoices);
+        } else {
+          await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
+        }
       }
       
       setShowExportModal(false);
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Error generating PDF. Please try again.');
+      console.error('Error exporting:', error);
+      alert(`Error exporting to ${exportFormat.toUpperCase()}. Please try again.`);
     }
   };
 
@@ -1337,7 +1378,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
             }}
             className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
           >
-            📄 Export PDF
+            📄 Export
           </button>
           {currentUserName !== 'Mahmoud Shaker' && (
             <button
@@ -1347,7 +1388,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
               }}
               className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
             >
-              📑 Export Monthly PDF
+              📑 Export Monthly
             </button>
           )}
           <button
@@ -1364,6 +1405,33 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-gray-100">
             <h3 className="text-xl font-bold mb-4">Export Options</h3>
+
+            {/* Format Selection */}
+            <div className="mb-4 border-b border-gray-200 pb-4">
+              <h4 className="font-semibold mb-2 text-gray-700">Export Format</h4>
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
+                  <input 
+                    type="radio" 
+                    name="exportFormat"
+                    checked={exportFormat === 'pdf'} 
+                    onChange={() => setExportFormat('pdf')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">PDF</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
+                  <input 
+                    type="radio" 
+                    name="exportFormat"
+                    checked={exportFormat === 'excel'} 
+                    onChange={() => setExportFormat('excel')}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-gray-700">Excel (CSV)</span>
+                </label>
+              </div>
+            </div>
 
             {/* Scope Selection */}
             <div className="mb-4 border-b border-gray-200 pb-4">
@@ -1460,10 +1528,10 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
               >
                 {exportScope === 'view'
-                  ? 'Export Current View'
-                  : (exportMode === 'separated' 
+                  ? `Export Current View (${exportFormat.toUpperCase()})`
+                  : (exportMode === 'separated' && exportFormat === 'pdf'
                       ? `Export Separate Sheets (${selectedMonths.length})`
-                      : `Export PDF (${selectedMonths.length})`)
+                      : `Export ${exportFormat.toUpperCase()} (${selectedMonths.length})`)
                 }
               </button>
             </div>
