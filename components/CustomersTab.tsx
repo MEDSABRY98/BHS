@@ -85,9 +85,16 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
+  const [initialCustomerTab, setInitialCustomerTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue' | undefined>(undefined);
   
   // Tab State
-  const [activeTab, setActiveTab] = useState<'PARTNERS' | 'FILTERS'>('PARTNERS');
+  const [activeTab, setActiveTab] = useState<'PARTNERS' | 'FILTERS' | 'LAST_PAYMENT'>('PARTNERS');
+  
+  // Search for Last Payment tab
+  const [lastPaymentSearchQuery, setLastPaymentSearchQuery] = useState('');
+  const [lastPaymentDateFrom, setLastPaymentDateFrom] = useState<string>('');
+  const [lastPaymentDateTo, setLastPaymentDateTo] = useState<string>('');
 
   // Filters State
   const [matchingFilter, setMatchingFilter] = useState('ALL');
@@ -619,6 +626,179 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     );
   }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, noSalesValue, noSalesUnit, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB]);
 
+  // Calculate unmatched payments for Last Payment tab - using same logic as Overdue tab
+  interface UnmatchedPayment {
+    customerName: string;
+    date: Date;
+    number: string;
+    debit: number;
+    credit: number;
+    remainingAmount: number; // This is the difference (netDebt) from Overdue
+  }
+
+  const unmatchedPayments = useMemo(() => {
+    // Group data by customer first (same as CustomerDetails logic)
+    const customerGroups = new Map<string, InvoiceRow[]>();
+    data.forEach(row => {
+      const customer = row.customerName;
+      if (!customerGroups.has(customer)) {
+        customerGroups.set(customer, []);
+      }
+      customerGroups.get(customer)!.push(row);
+    });
+
+    const payments: UnmatchedPayment[] = [];
+
+    // Process each customer separately (matching is per customer)
+    customerGroups.forEach((customerInvoices, customerName) => {
+      // 1. Calculate totals for each matching group and find residual (same as CustomerDetails)
+      const matchingTotals = new Map<string, number>();
+      
+      customerInvoices.forEach(inv => {
+        if (inv.matching) {
+          const currentTotal = matchingTotals.get(inv.matching) || 0;
+          matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
+        }
+      });
+
+      // 2. Find the index of the row with the largest DEBIT for each matching code
+      const targetResidualIndices = new Map<string, number>();
+      const maxDebits = new Map<string, number>();
+
+      customerInvoices.forEach((inv, index) => {
+        if (inv.matching) {
+          const currentMax = maxDebits.get(inv.matching) ?? -1;
+          if (inv.debit > currentMax) {
+            maxDebits.set(inv.matching, inv.debit);
+            targetResidualIndices.set(inv.matching, index);
+          } else if (!targetResidualIndices.has(inv.matching)) {
+            maxDebits.set(inv.matching, inv.debit);
+            targetResidualIndices.set(inv.matching, index);
+          }
+        }
+      });
+
+      // 3. Create invoicesWithNetDebt (same as CustomerDetails)
+      const invoicesWithNetDebt = customerInvoices.map((invoice, index) => {
+        let residual: number | undefined = undefined;
+
+        if (invoice.matching) {
+          const targetIndex = targetResidualIndices.get(invoice.matching);
+          if (targetIndex === index) {
+            const total = matchingTotals.get(invoice.matching) || 0;
+            if (Math.abs(total) > 0.01) {
+              residual = total;
+            }
+          }
+        }
+
+        return {
+          ...invoice,
+          netDebt: invoice.debit - invoice.credit,
+          residual
+        };
+      });
+
+      // 4. Filter for overdue invoices (same logic as Overdue tab)
+      const overdueInvoices = invoicesWithNetDebt.filter(inv => {
+        // Keep if no matching ID (Unmatched)
+        if (!inv.matching) return true;
+        
+        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      }).map(inv => {
+        let difference = inv.netDebt;
+        
+        if (inv.matching && inv.residual !== undefined) {
+          // It's a condensed open invoice
+          // Difference is the residual
+          difference = inv.residual;
+        }
+
+        // Adjust Credit for display (Debit - Credit = Difference)
+        const adjustedCredit = inv.debit - difference;
+
+        return {
+          ...inv,
+          credit: adjustedCredit,
+          difference
+        };
+      });
+
+      // 5. Filter for payments only (credit > 0, excluding SAL, RSAL, BIL, JV, OB)
+      overdueInvoices.forEach(inv => {
+        if (inv.credit > 0.01) {
+          const num = inv.number?.toString().toUpperCase() || '';
+          if (!num.startsWith('SAL') && 
+              !num.startsWith('RSAL') && 
+              !num.startsWith('BIL') && 
+              !num.startsWith('JV') &&
+              !num.startsWith('OB')) {
+            
+            const rowDate = parseDate(inv.date);
+            if (rowDate) {
+              payments.push({
+                customerName: customerName,
+                date: rowDate,
+                number: inv.number || '',
+                debit: inv.debit,
+                credit: inv.credit,
+                remainingAmount: Math.abs(inv.difference) // This is the difference from Overdue
+              });
+            }
+          }
+        }
+      });
+    });
+
+    // Sort by date descending (newest first)
+    return payments.sort((a, b) => b.date.getTime() - a.date.getTime());
+  }, [data]);
+
+  // Filter unmatched payments based on search query and date range
+  const filteredUnmatchedPayments = useMemo(() => {
+    let filtered = unmatchedPayments;
+
+    // Date range filter
+    if (lastPaymentDateFrom || lastPaymentDateTo) {
+      filtered = filtered.filter(payment => {
+        const paymentDate = new Date(payment.date);
+        paymentDate.setHours(0, 0, 0, 0);
+
+        if (lastPaymentDateFrom) {
+          const fromDate = new Date(lastPaymentDateFrom);
+          fromDate.setHours(0, 0, 0, 0);
+          if (paymentDate < fromDate) return false;
+        }
+
+        if (lastPaymentDateTo) {
+          const toDate = new Date(lastPaymentDateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (paymentDate > toDate) return false;
+        }
+
+        return true;
+      });
+    }
+
+    // Search query filter
+    if (lastPaymentSearchQuery.trim()) {
+      const query = lastPaymentSearchQuery.toLowerCase();
+      filtered = filtered.filter(payment => {
+        return (
+          payment.customerName.toLowerCase().includes(query) ||
+          payment.number.toLowerCase().includes(query) ||
+          payment.date.toLocaleDateString('en-US').toLowerCase().includes(query) ||
+          payment.debit.toString().includes(query) ||
+          payment.credit.toString().includes(query) ||
+          payment.remainingAmount.toString().includes(query)
+        );
+      });
+    }
+
+    return filtered;
+  }, [unmatchedPayments, lastPaymentSearchQuery, lastPaymentDateFrom, lastPaymentDateTo]);
+
   const columns = useMemo(
     () => [
       columnHelper.accessor('customerName', {
@@ -683,7 +863,11 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       <CustomerDetails
         customerName={selectedCustomer}
         invoices={selectedCustomerInvoices}
-        onBack={() => setSelectedCustomer(null)}
+        onBack={() => {
+          setSelectedCustomer(null);
+          setInitialCustomerTab(undefined);
+        }}
+        initialTab={initialCustomerTab}
       />
     );
   }
@@ -706,6 +890,12 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 onClick={() => setActiveTab('FILTERS')}
             >
                 Filters
+            </button>
+            <button
+                className={`py-2 px-4 font-medium text-lg ${activeTab === 'LAST_PAYMENT' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                onClick={() => setActiveTab('LAST_PAYMENT')}
+            >
+                Last Payment
             </button>
         </div>
 
@@ -1256,6 +1446,210 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           </table>
         </div>
       </div>
+          </>
+        )}
+
+        {activeTab === 'LAST_PAYMENT' && (
+          <>
+            {/* Invoice Number Popup */}
+            {selectedInvoiceNumber && (
+              <div 
+                className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50"
+                onClick={() => setSelectedInvoiceNumber(null)}
+              >
+                <div 
+                  className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-100"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-bold text-gray-900">Invoice Number</h3>
+                    <button
+                      onClick={() => setSelectedInvoiceNumber(null)}
+                      className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                    <p className="text-lg font-mono break-all">{selectedInvoiceNumber}</p>
+                  </div>
+                  <button
+                    onClick={() => setSelectedInvoiceNumber(null)}
+                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="bg-blue-50 p-4 rounded-lg mb-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <p className="text-lg">
+                    <span className="font-semibold">Unmatched Payments:</span>{' '}
+                    <span className="text-blue-600">
+                      {filteredUnmatchedPayments.length}
+                      {lastPaymentSearchQuery && ` of ${unmatchedPayments.length}`}
+                    </span>
+                  </p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Payments that haven't been fully matched yet
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Search and Date Filters */}
+            <div className="mb-4 flex flex-col gap-4">
+              {/* Search Box */}
+              <div className="flex justify-center">
+                <div className="w-full max-w-2xl">
+                  <input
+                    type="text"
+                    placeholder="Search by customer name, invoice number, date, or amounts..."
+                    value={lastPaymentSearchQuery}
+                    onChange={(e) => setLastPaymentSearchQuery(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                  />
+                </div>
+              </div>
+
+              {/* Date Range Filters */}
+              <div className="flex justify-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">From Date:</label>
+                  <input
+                    type="date"
+                    value={lastPaymentDateFrom}
+                    onChange={(e) => setLastPaymentDateFrom(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">To Date:</label>
+                  <input
+                    type="date"
+                    value={lastPaymentDateTo}
+                    onChange={(e) => setLastPaymentDateTo(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+                  />
+                </div>
+                {(lastPaymentDateFrom || lastPaymentDateTo) && (
+                  <button
+                    onClick={() => {
+                      setLastPaymentDateFrom('');
+                      setLastPaymentDateTo('');
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                  >
+                    Clear Dates
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ tableLayout: 'fixed' }}>
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '25%' }}>
+                        Customer Name
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200" style={{ width: '15%' }}>
+                        Date
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                        Invoice Number
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                        Debit
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                        Credit
+                      </th>
+                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                        Remaining Amount
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUnmatchedPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-lg">
+                          {lastPaymentSearchQuery ? 'No payments found matching your search' : 'No unmatched payments found'}
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUnmatchedPayments.map((payment, index) => (
+                        <tr key={index} className="border-b hover:bg-gray-50">
+                          <td className="px-4 py-3 text-center text-lg">
+                            <button
+                              onClick={() => {
+                                setInitialCustomerTab('overdue');
+                                setSelectedCustomer(payment.customerName);
+                              }}
+                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                            >
+                              {payment.customerName}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-center text-lg">
+                            {payment.date.toLocaleDateString('en-US')}
+                          </td>
+                          <td className="px-4 py-3 text-center text-lg">
+                            <button
+                              onClick={() => setSelectedInvoiceNumber(payment.number)}
+                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer truncate max-w-full block mx-auto"
+                              style={{ maxWidth: '100px' }}
+                              title={payment.number}
+                            >
+                              {payment.number.length > 15 ? `${payment.number.substring(0, 15)}...` : payment.number}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-center text-lg">
+                            {payment.debit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 text-center text-lg">
+                            {payment.credit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                          <td className="px-4 py-3 text-center text-lg">
+                            <span className="text-orange-600 font-semibold">
+                              {payment.remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                    {filteredUnmatchedPayments.length > 0 && (
+                      <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                        <td className="px-4 py-3 text-center text-lg" style={{ width: '25%' }}>
+                          Total
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                          -
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                          -
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                          {filteredUnmatchedPayments.reduce((sum, p) => sum + p.debit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                          {filteredUnmatchedPayments.reduce((sum, p) => sum + p.credit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                          <span className="text-orange-600 font-semibold">
+                            {filteredUnmatchedPayments.reduce((sum, p) => sum + p.remainingAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </>
         )}
       </div>

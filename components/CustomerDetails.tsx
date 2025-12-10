@@ -32,6 +32,7 @@ interface CustomerDetailsProps {
   customerName: string;
   invoices: InvoiceRow[];
   onBack: () => void;
+  initialTab?: 'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue';
 }
 
 interface InvoiceWithNetDebt extends InvoiceRow {
@@ -68,8 +69,8 @@ const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
 const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
-export default function CustomerDetails({ customerName, invoices, onBack }: CustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>('dashboard');
+export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
@@ -79,8 +80,10 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     pageSize: 50,
   });
   
-  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string>('All Months');
-  const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string>('All Matchings');
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<string[]>([]);
+  const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string[]>([]);
+  const [isMatchingDropdownOpen, setIsMatchingDropdownOpen] = useState(false);
   
   // Invoice Type Filters
   const [showOB, setShowOB] = useState(false);
@@ -126,6 +129,13 @@ export default function CustomerDetails({ customerName, invoices, onBack }: Cust
     };
     fetchEmail();
   }, [customerName]);
+
+  // Update activeTab when initialTab prop changes
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   const handleEmail = async () => {
     if (!customerEmail) return;
@@ -403,10 +413,14 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     // Filter invoices if a matching is selected
     let relevantInvoices = invoices;
 
-    if (selectedMatchingFilter === 'All Open Matchings') {
-       relevantInvoices = invoices.filter(inv => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
-    } else if (selectedMatchingFilter !== 'All Matchings') {
-      relevantInvoices = invoices.filter(inv => inv.matching === selectedMatchingFilter);
+    if (selectedMatchingFilter.length > 0) {
+      // Check if "All Open Matchings" is selected
+      if (selectedMatchingFilter.includes('All Open Matchings')) {
+        relevantInvoices = invoices.filter(inv => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
+      } else {
+        // Filter by specific matching IDs
+        relevantInvoices = invoices.filter(inv => inv.matching && selectedMatchingFilter.includes(inv.matching));
+      }
     }
 
     relevantInvoices.forEach(inv => {
@@ -431,10 +445,11 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     setSelectedMonths(availableMonths);
   }, [availableMonths]);
 
-  // Reset selected month if it's no longer available in the filtered list
+  // Reset selected months if they're no longer available in the filtered list
   useEffect(() => {
-    if (selectedMonthFilter !== 'All Months' && !availableMonths.includes(selectedMonthFilter)) {
-      setSelectedMonthFilter('All Months');
+    const validMonths = selectedMonthFilter.filter(month => availableMonths.includes(month));
+    if (validMonths.length !== selectedMonthFilter.length) {
+      setSelectedMonthFilter(validMonths);
     }
   }, [availableMonths, selectedMonthFilter]);
 
@@ -494,22 +509,24 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     let filtered = invoicesWithNetDebt;
     
     // Month Filter
-    if (selectedMonthFilter !== 'All Months') {
+    if (selectedMonthFilter.length > 0) {
       filtered = filtered.filter((inv) => {
         if (!inv.date) return false;
         const date = new Date(inv.date);
         if (isNaN(date.getTime())) return false;
         const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return monthYear === selectedMonthFilter;
+        return selectedMonthFilter.includes(monthYear);
       });
     }
 
     // Matching Filter
-    if (selectedMatchingFilter !== 'All Matchings') {
-      if (selectedMatchingFilter === 'All Open Matchings') {
+    if (selectedMatchingFilter.length > 0) {
+      // Check if "All Open Matchings" is selected
+      if (selectedMatchingFilter.includes('All Open Matchings')) {
         filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
       } else {
-        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+        // Filter by specific matching IDs
+        filtered = filtered.filter((inv) => inv.matching && selectedMatchingFilter.includes(inv.matching));
       }
     }
 
@@ -558,23 +575,25 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     let filtered = overdueInvoices;
     
     // Month Filter
-    if (selectedMonthFilter !== 'All Months') {
+    if (selectedMonthFilter.length > 0) {
       filtered = filtered.filter((inv) => {
         if (!inv.date) return false;
         const date = new Date(inv.date);
         if (isNaN(date.getTime())) return false;
         const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return monthYear === selectedMonthFilter;
+        return selectedMonthFilter.includes(monthYear);
       });
     }
 
     // Matching Filter
-    if (selectedMatchingFilter !== 'All Matchings') {
-      if (selectedMatchingFilter === 'All Open Matchings') {
+    if (selectedMatchingFilter.length > 0) {
+      // Check if "All Open Matchings" is selected
+      if (selectedMatchingFilter.includes('All Open Matchings')) {
         // For overdue, invoices are usually already filtered for openness, but we check if it belongs to a matching group
         filtered = filtered.filter((inv) => inv.matching);
       } else {
-        filtered = filtered.filter((inv) => inv.matching === selectedMatchingFilter);
+        // Filter by specific matching IDs
+        filtered = filtered.filter((inv) => inv.matching && selectedMatchingFilter.includes(inv.matching));
       }
     }
 
@@ -1010,14 +1029,22 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         monthsLabel = 'Filtered View';
         
         // If filtering by month, use that name
-        if (selectedMonthFilter !== 'All Months') {
-           monthsLabel = selectedMonthFilter;
+        if (selectedMonthFilter.length > 0) {
+           if (selectedMonthFilter.length === 1) {
+             monthsLabel = selectedMonthFilter[0];
+           } else {
+             monthsLabel = selectedMonthFilter.join(', ');
+           }
         } else if (selectedMonths.length < availableMonths.length && selectedMonths.length > 0) {
            // If view was constructed differently but matches months logic
         }
         
-        if (selectedMatchingFilter !== 'All Matchings') {
-          monthsLabel += ` - ${selectedMatchingFilter}`;
+        if (selectedMatchingFilter.length > 0) {
+          if (selectedMatchingFilter.length === 1) {
+            monthsLabel += ` - ${selectedMatchingFilter[0]}`;
+          } else {
+            monthsLabel += ` - ${selectedMatchingFilter.join(', ')}`;
+          }
         }
         
         if (invoiceSearchQuery) {
@@ -1447,45 +1474,175 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       {/* Global Filters & Search */}
       <div className="mb-6 flex flex-col gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
         <div className="flex justify-center gap-6">
-          {/* Month Filter */}
-          <div className="w-64">
+          {/* Month Filter - Multi-Select Dropdown */}
+          <div className="w-64 relative">
             <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
               Filter by Month
             </label>
-            <select
-              id="monthFilter"
-              value={selectedMonthFilter}
-              onChange={(e) => setSelectedMonthFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="All Months">All Months</option>
-              {availableMonths.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {selectedMonthFilter.length === 0 
+                    ? 'All Months' 
+                    : selectedMonthFilter.length === 1 
+                    ? selectedMonthFilter[0]
+                    : `${selectedMonthFilter.length} months selected`}
+                </span>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform ${isMonthDropdownOpen ? 'transform rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {isMonthDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsMonthDropdownOpen(false)}
+                  ></div>
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="p-2 border-b border-gray-200">
+                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedMonthFilter.length === availableMonths.length && availableMonths.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMonthFilter([...availableMonths]);
+                            } else {
+                              setSelectedMonthFilter([]);
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Select All</span>
+                      </label>
+                    </div>
+                    <div className="p-2">
+                      {availableMonths.map((month) => (
+                        <label key={month} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedMonthFilter.includes(month)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMonthFilter([...selectedMonthFilter, month]);
+                              } else {
+                                setSelectedMonthFilter(selectedMonthFilter.filter(m => m !== month));
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{month}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
 
-          {/* Matching Filter */}
-          <div className="w-64">
+          {/* Matching Filter - Multi-Select Dropdown */}
+          <div className="w-64 relative">
             <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
               Filter by Open Matching
             </label>
-            <select
-              id="matchingFilter"
-              value={selectedMatchingFilter}
-              onChange={(e) => setSelectedMatchingFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-            >
-              <option value="All Matchings">All Matchings</option>
-              <option value="All Open Matchings">All Open Matchings</option>
-              {availableMatchingsWithResidual.map((matching) => (
-                <option key={matching} value={matching}>
-                  {matching}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMatchingDropdownOpen(!isMatchingDropdownOpen)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+              >
+                <span className="truncate">
+                  {selectedMatchingFilter.length === 0 
+                    ? 'All Matchings' 
+                    : selectedMatchingFilter.length === 1 
+                    ? selectedMatchingFilter[0]
+                    : `${selectedMatchingFilter.length} matchings selected`}
+                </span>
+                <svg
+                  className={`w-5 h-5 text-gray-400 transition-transform ${isMatchingDropdownOpen ? 'transform rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {isMatchingDropdownOpen && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-10" 
+                    onClick={() => setIsMatchingDropdownOpen(false)}
+                  ></div>
+                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                    <div className="p-2 border-b border-gray-200">
+                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                        <input
+                          type="checkbox"
+                          checked={
+                            selectedMatchingFilter.includes('All Open Matchings') && 
+                            availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m)) &&
+                            selectedMatchingFilter.length === availableMatchingsWithResidual.length + 1
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMatchingFilter(['All Open Matchings', ...availableMatchingsWithResidual]);
+                            } else {
+                              setSelectedMatchingFilter([]);
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm font-medium text-gray-700">Select All</span>
+                      </label>
+                    </div>
+                    <div className="p-2">
+                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedMatchingFilter.includes('All Open Matchings')}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMatchingFilter([...selectedMatchingFilter, 'All Open Matchings']);
+                            } else {
+                              setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== 'All Open Matchings'));
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">All Open Matchings</span>
+                      </label>
+                      {availableMatchingsWithResidual.map((matching) => (
+                        <label key={matching} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchingFilter.includes(matching)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedMatchingFilter([...selectedMatchingFilter, matching]);
+                              } else {
+                                setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== matching));
+                              }
+                            }}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm text-gray-700">{matching}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
