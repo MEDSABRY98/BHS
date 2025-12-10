@@ -50,6 +50,7 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'Discount' | 'Return' | 'Sales' | 'OB'>('ALL');
+  const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 50,
@@ -256,9 +257,23 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
       }),
       columnHelper.accessor('number', {
         header: 'Invoice Number',
-        cell: (info) => (
-          <span className="font-mono text-sm">{info.getValue()}</span>
-        ),
+        cell: (info) => {
+          const invoiceNumber = info.getValue();
+          const maxLength = 20;
+          const displayText = invoiceNumber.length > maxLength 
+            ? `${invoiceNumber.substring(0, maxLength)}...` 
+            : invoiceNumber;
+          
+          return (
+            <button
+              onClick={() => setSelectedInvoiceNumber(invoiceNumber)}
+              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer font-mono text-sm truncate max-w-full block mx-auto"
+              title={invoiceNumber}
+            >
+              {displayText}
+            </button>
+          );
+        },
       }),
       columnHelper.accessor('type', {
         header: 'Type',
@@ -557,6 +572,38 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
           )}
         </div>
       </div>
+
+      {/* Invoice Number Popup */}
+      {selectedInvoiceNumber && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50"
+          onClick={() => setSelectedInvoiceNumber(null)}
+        >
+          <div 
+            className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-100"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Invoice Number</h3>
+              <button
+                onClick={() => setSelectedInvoiceNumber(null)}
+                className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <p className="text-lg font-mono break-all">{selectedInvoiceNumber}</p>
+            </div>
+            <button
+              onClick={() => setSelectedInvoiceNumber(null)}
+              className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
