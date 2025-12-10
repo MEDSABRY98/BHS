@@ -217,7 +217,7 @@ export async function getNotes(customerName?: string) {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Notes!A:D`, // USER, CUSTOMER NAME, NOTES, TIMING
+      range: `Notes!A:E`, // USER, CUSTOMER NAME, NOTES, TIMING, SOLVED
     });
 
     const rows = response.data.values;
@@ -231,6 +231,7 @@ export async function getNotes(customerName?: string) {
       customerName: row[1] || '',
       content: row[2] || '',
       timestamp: row[3] || '',
+      isSolved: row[4] === 'TRUE', // Check if solved column is TRUE
       rowIndex: index + 2 // Store 1-based index for updates (header is 1, so first data row is 2)
     }));
 
@@ -245,7 +246,7 @@ export async function getNotes(customerName?: string) {
   }
 }
 
-export async function addNote(user: string, customerName: string, content: string) {
+export async function addNote(user: string, customerName: string, content: string, isSolved: boolean = false) {
   try {
     const credentials = getServiceAccountCredentials();
     
@@ -267,10 +268,10 @@ export async function addNote(user: string, customerName: string, content: strin
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Notes!A:D`,
+      range: `Notes!A:E`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[user, customerName, content, timestamp]],
+        values: [[user, customerName, content, timestamp, isSolved ? 'TRUE' : 'FALSE']],
       },
     });
 
@@ -281,7 +282,7 @@ export async function addNote(user: string, customerName: string, content: strin
   }
 }
 
-export async function updateNote(rowIndex: number, content: string) {
+export async function updateNote(rowIndex: number, content: string, isSolved?: boolean) {
   try {
     const credentials = getServiceAccountCredentials();
     
@@ -301,15 +302,16 @@ export async function updateNote(rowIndex: number, content: string) {
         second: '2-digit'
     });
     
-    // Update content column (C) and timing column (D) for the specific row
-    // We can do this in one call if they are adjacent.
-    // range: `Notes!C${rowIndex}:D${rowIndex}`
+    // Update content column (C), timing column (D), and solved column (E) for the specific row
+    // range: `Notes!C${rowIndex}:E${rowIndex}`
+    const values = [[content, timestamp, isSolved === undefined ? 'FALSE' : (isSolved ? 'TRUE' : 'FALSE')]];
+    
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Notes!C${rowIndex}:D${rowIndex}`,
+      range: `Notes!C${rowIndex}:E${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[content, timestamp]],
+        values,
       },
     });
 

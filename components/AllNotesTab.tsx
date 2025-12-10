@@ -16,6 +16,7 @@ export default function AllNotesTab() {
   const [selectedClient, setSelectedClient] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [detailSearchQuery, setDetailSearchQuery] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'pending'>('all');
 
   useEffect(() => {
     fetchNotes();
@@ -46,6 +47,7 @@ export default function AllNotesTab() {
   };
 
   const getClientSummaries = (): ClientNotesSummary[] => {
+    // 1. Group notes by client
     const notesByClient = notes.reduce((acc, note) => {
       if (!acc[note.customerName]) {
         acc[note.customerName] = [];
@@ -54,25 +56,40 @@ export default function AllNotesTab() {
       return acc;
     }, {} as Record<string, Note[]>);
 
-    return Object.entries(notesByClient).map(([customerName, clientNotes]) => {
-      // Sort notes by timestamp descending to find the last one
-      const sortedNotes = [...clientNotes].sort((a, b) => {
-        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+    return Object.entries(notesByClient)
+      .map(([customerName, clientNotes]) => {
+        // 2. Filter notes based on the selected tab (Pending or All)
+        // If filterType is 'pending', we only care about pending notes for this client
+        let relevantNotes = clientNotes;
+        
+        if (filterType === 'pending') {
+            relevantNotes = clientNotes.filter(n => !n.isSolved);
+        }
+
+        // If no relevant notes after filtering, return null (to be filtered out later)
+        if (relevantNotes.length === 0) return null;
+
+        // 3. Sort relevant notes by timestamp descending
+        const sortedNotes = [...relevantNotes].sort((a, b) => {
+          const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+          return timeB - timeA;
+        });
+
+        // 4. Construct summary using the latest RELEVANT note
+        return {
+          customerName,
+          lastNote: sortedNotes[0],
+          allNotes: sortedNotes, // In detail view, we show these filtered notes
+        };
+      })
+      .filter((summary): summary is ClientNotesSummary => summary !== null) // Remove clients with no relevant notes
+      .sort((a, b) => {
+        // Sort clients by their last note time (most recent first)
+        const timeA = a.lastNote.timestamp ? new Date(a.lastNote.timestamp).getTime() : 0;
+        const timeB = b.lastNote.timestamp ? new Date(b.lastNote.timestamp).getTime() : 0;
         return timeB - timeA;
       });
-
-      return {
-        customerName,
-        lastNote: sortedNotes[0],
-        allNotes: sortedNotes,
-      };
-    }).sort((a, b) => {
-      // Sort clients by their last note time (most recent first)
-      const timeA = a.lastNote.timestamp ? new Date(a.lastNote.timestamp).getTime() : 0;
-      const timeB = b.lastNote.timestamp ? new Date(b.lastNote.timestamp).getTime() : 0;
-      return timeB - timeA;
-    });
   };
 
   const formatDate = (timestamp?: string) => {
@@ -122,7 +139,12 @@ export default function AllNotesTab() {
 
   if (selectedClient) {
     const clientSummary = getClientSummaries().find(c => c.customerName === selectedClient);
-    if (!clientSummary) return <div>Client not found</div>;
+    
+    // If client not found in current view (e.g. switched tab and they have no pending notes), go back
+    if (!clientSummary) {
+        setSelectedClient(null);
+        return null; // Will re-render with the effect or next render cycle
+    }
 
     const filteredDetailNotes = clientSummary.allNotes.filter(note => 
       note.content.toLowerCase().includes(detailSearchQuery.toLowerCase()) ||
@@ -135,13 +157,13 @@ export default function AllNotesTab() {
           onClick={() => setSelectedClient(null)}
           className="mb-6 flex items-center text-blue-600 hover:text-blue-800 transition-colors mx-auto"
         >
-          <span className="mr-2">←</span> Back to All Notes
+          <span className="mr-2">←</span> Back to {filterType === 'pending' ? 'Pending' : 'All'} Notes
         </button>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-6 border-b border-gray-200 bg-gray-50 text-center">
             <h2 className="text-2xl font-bold text-gray-800">{clientSummary.customerName}</h2>
-            <p className="text-gray-500 mt-1">All notes history</p>
+            <p className="text-gray-500 mt-1">{filterType === 'pending' ? 'Pending notes' : 'All notes history'}</p>
             
             {/* Detail Search Box */}
             <div className="mt-4 max-w-md mx-auto relative">
@@ -165,6 +187,7 @@ export default function AllNotesTab() {
                   <th className="p-4 font-semibold text-gray-600 w-32 text-center">Date</th>
                   <th className="p-4 font-semibold text-gray-600 w-24 text-center">Time</th>
                   <th className="p-4 font-semibold text-gray-600 w-48 text-center">User</th>
+                  <th className="p-4 font-semibold text-gray-600 w-32 text-center">Status</th>
                   <th className="p-4 font-semibold text-gray-600 text-center">Note</th>
                 </tr>
               </thead>
@@ -185,6 +208,17 @@ export default function AllNotesTab() {
                         <span className="text-gray-700 font-medium text-sm">{note.user}</span>
                       </div>
                     </td>
+                    <td className="p-4">
+                       {note.isSolved ? (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                            ✓ Solved
+                          </span>
+                       ) : (
+                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            ⏳ Pending
+                          </span>
+                       )}
+                    </td>
                     <td className="p-4 text-gray-800">
                       {note.content}
                     </td>
@@ -192,7 +226,7 @@ export default function AllNotesTab() {
                 ))}
                 {filteredDetailNotes.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-gray-500">
+                    <td colSpan={5} className="p-8 text-center text-gray-500">
                       No notes found matching your search.
                     </td>
                   </tr>
@@ -215,8 +249,32 @@ export default function AllNotesTab() {
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-800">All Notes</h1>
-        <p className="text-gray-600 mt-1">Overview of notes across all clients</p>
+        <h1 className="text-2xl font-bold text-gray-800">Notes Center</h1>
+        <p className="text-gray-600 mt-1">Manage all client notes and follow-ups</p>
+      </div>
+
+      {/* Tabs Navigation */}
+      <div className="flex justify-center gap-4 mb-6">
+        <button
+          onClick={() => setFilterType('all')}
+          className={`px-6 py-2 rounded-full font-medium transition-colors ${
+            filterType === 'all'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+          }`}
+        >
+          All Notes ({notes.length})
+        </button>
+        <button
+          onClick={() => setFilterType('pending')}
+          className={`px-6 py-2 rounded-full font-medium transition-colors ${
+            filterType === 'pending'
+              ? 'bg-yellow-500 text-white shadow-md'
+              : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+          }`}
+        >
+          Pending Only ({notes.filter(n => !n.isSolved).length})
+        </button>
       </div>
 
       {/* Main Search Box */}

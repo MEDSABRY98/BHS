@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { user, customerName, content } = body;
+    const { user, customerName, content, isSolved } = body;
 
     if (!user || !customerName || !content) {
       return NextResponse.json(
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
       );
     }
 
-    await addNote(user, customerName, content);
+    await addNote(user, customerName, content, isSolved);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { rowIndex, content } = body;
+    const { rowIndex, content, isSolved } = body;
 
     if (!rowIndex || !content) {
       return NextResponse.json(
@@ -60,7 +60,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    await updateNote(rowIndex, content);
+    await updateNote(rowIndex, content, isSolved);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
