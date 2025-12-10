@@ -49,8 +49,8 @@ const formatDmy = (date?: Date | null) => {
 
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export') => {
   // CSV format (opens in Excel)
-  // Order: Customer Name, Total Debit, Total Credit, Net Debt, Open OB, Last Payment Date, Collection Rate %, Overdue Amount, Net Sales, Last Sales Date
-  const headers = ['Customer Name', 'Total Debit', 'Total Credit', 'Net Debt', 'Open OB', 'Last Payment Date', 'Collection Rate %', 'Overdue Amount', 'Net Sales', 'Last Sales Date'];
+  // Order: Customer Name, Total Debit, Total Credit, Net Debt, Open OB, Last Payment Date, Last Payment Closure, Collection Rate %, Overdue Amount, Net Sales, Last Sales Date
+  const headers = ['Customer Name', 'Total Debit', 'Total Credit', 'Net Debt', 'Open OB', 'Last Payment Date', 'Last Payment Closure', 'Collection Rate %', 'Overdue Amount', 'Net Sales', 'Last Sales Date'];
   
   const rows = data.map(customer => {
     const collectionRate = customer.totalDebit > 0 
@@ -64,6 +64,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       customer.netDebt.toFixed(2) || '0.00',
       (customer.openOBAmount || 0).toFixed(2),
       customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
+      customer.lastPaymentClosure || 'Still Open',
       collectionRate,
       (customer.overdueAmount || 0).toFixed(2),
       (customer.netSales || 0).toFixed(2),
@@ -166,7 +167,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const customerAnalysis = useMemo(() => {
     // Intermediate structure to track matchings per customer
     type CustomerData = CustomerAnalysis & { 
-      matchingsMap: Map<string, number>; 
+      matchingsMap: Map<string, number>;
+      lastPaymentMatching: string | null;
     };
     const customerMap = new Map<string, CustomerData>();
 
@@ -185,6 +187,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           salesReps: new Set(),
           invoiceNumbers: new Set(),
           lastPaymentDate: null,
+          lastPaymentMatching: null,
           lastSalesDate: null,
         };
       }
@@ -228,6 +231,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   !num.startsWith('OB')) {
                   if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
                       existing.lastPaymentDate = rowDate;
+                      existing.lastPaymentMatching = row.matching || 'UNMATCHED';
                   }
               }
           }
@@ -281,6 +285,46 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             group.push(inv);
             matchingGroups.set(key, group);
         });
+
+        // Determine last payment closure status using matching groups
+        let lastPaymentClosure = '';
+        if (c.lastPaymentDate) {
+            // If no matching code or explicitly unmatched, treat as still open
+            if (!c.lastPaymentMatching || c.lastPaymentMatching === 'UNMATCHED') {
+                lastPaymentClosure = 'Still Open';
+            } else {
+            const targetMatch = c.lastPaymentMatching || 'UNMATCHED';
+            const group = matchingGroups.get(targetMatch);
+            if (group && group.length > 0) {
+                const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
+                const invoiceNumbers = Array.from(new Set(group.map(inv => inv.number?.toString() || '').filter(Boolean)));
+
+                // If any SAL exists and fully closed, still keep month labeling
+                const salesInvoices = group.filter(inv => (inv.number?.toString().toUpperCase() || '').startsWith('SAL'));
+
+                if (Math.abs(groupNetDebt) <= 0.01) {
+                    if (salesInvoices.length > 0) {
+                        const monthLabels = Array.from(new Set(salesInvoices.map(inv => {
+                            const d = parseDate(inv.date);
+                            return d ? d.toLocaleString('en-US', { month: 'short', year: 'numeric' }) : null;
+                        }).filter(Boolean) as string[]));
+                        lastPaymentClosure = monthLabels.length > 0 
+                            ? `Closed in ${monthLabels.join(', ')}`
+                            : 'Closed';
+                    } else {
+                        // Fully closed via non-SAL documents – keep only matching ID
+                        lastPaymentClosure = `Closed via matching ${targetMatch}`;
+                    }
+                } else {
+                    // Partially closed; report remaining and reference invoice numbers
+                    const remaining = groupNetDebt.toFixed(2);
+                    lastPaymentClosure = `Partially closed via matching ${targetMatch}; remaining ${remaining}`;
+                }
+            } else {
+                lastPaymentClosure = 'Still Open';
+            }
+            }
+        }
 
         matchingGroups.forEach((group, matchingKey) => {
             let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
@@ -429,6 +473,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             salesReps: c.salesReps,
             invoiceNumbers: c.invoiceNumbers,
             lastPaymentDate: c.lastPaymentDate,
+            lastPaymentMatching: c.lastPaymentMatching,
+            lastPaymentClosure,
             lastSalesDate: c.lastSalesDate,
             overdueAmount: totalOverdue,
             hasOB,
