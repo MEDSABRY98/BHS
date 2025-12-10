@@ -49,26 +49,52 @@ const formatDmy = (date?: Date | null) => {
 
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export') => {
   // CSV format (opens in Excel)
-  // Order: Customer Name, Total Debit, Total Credit, Net Debt, Open OB, Last Payment Date, Last Payment Closure, Collection Rate %, Overdue Amount, Net Sales, Last Sales Date
-  const headers = ['Customer Name', 'Total Debit', 'Total Credit', 'Net Debt', 'Open OB', 'Last Payment Date', 'Last Payment Closure', 'Collection Rate %', 'Overdue Amount', 'Net Sales', 'Last Sales Date'];
+  // Order: Customer Name, Total Debit, Total Credit, Net Debt, Open OB, Overdue Amount, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
+  const headers = [
+    'Customer Name',
+    'Sales Rep',
+    'Total Debit',
+    'Total Credit',
+    'Net Debt',
+    'Open OB',
+    'Overdue Amount',
+    'Collection Rate %',
+    'Last Payment Date',
+    'Last Payment Closure',
+    'Payments Last 90d',
+    'Payments Count Last 90d',
+    'Net Sales',
+    'Last Sales Date',
+    'Sales Last 90d',
+    'Sales Count Last 90d',
+  ];
   
   const rows = data.map(customer => {
     const collectionRate = customer.totalDebit > 0 
       ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(2)
       : '0.00';
     
+    const salesRep = customer.salesReps && customer.salesReps.size > 0
+      ? Array.from(customer.salesReps).join(', ')
+      : '';
+    
     return [
       customer.customerName || '',
+      salesRep,
       customer.totalDebit.toFixed(2) || '0.00',
       customer.totalCredit.toFixed(2) || '0.00',
       customer.netDebt.toFixed(2) || '0.00',
       (customer.openOBAmount || 0).toFixed(2),
-      customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
-      customer.lastPaymentClosure || 'Still Open',
       collectionRate,
       (customer.overdueAmount || 0).toFixed(2),
+      customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
+      customer.lastPaymentClosure || 'Still Open',
+      (customer as any).payments3m?.toFixed(2) || '0.00',
+      (customer as any).paymentsCount3m ?? 0,
       (customer.netSales || 0).toFixed(2),
-      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : ''
+      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '',
+      (customer as any).sales3m?.toFixed(2) || '0.00',
+      (customer as any).salesCount3m ?? 0,
     ];
   });
   
@@ -254,6 +280,16 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         invoices.push(row);
         customerInvoicesMap.set(row.customerName, invoices);
     });
+
+    const now = new Date();
+    const since90 = new Date();
+    since90.setDate(now.getDate() - 90);
+    const isInLast90 = (dateStr?: string) => {
+        if (!dateStr) return false;
+        const d = parseDate(dateStr);
+        if (!d) return false;
+        return d >= since90 && d <= now;
+    };
 
     return Array.from(customerMap.values()).map(c => {
         // Check for any open matching
@@ -462,6 +498,39 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             }
         });
         
+        // Last 90 days sales and payments
+        const sales3m = customerInvoices
+            .filter(inv => inv.number?.toString().toUpperCase().startsWith('SAL') && isInLast90(inv.date))
+            .reduce((s, inv) => s + inv.debit, 0);
+        const salesCount3m = customerInvoices
+            .filter(inv => inv.number?.toString().toUpperCase().startsWith('SAL') && isInLast90(inv.date))
+            .length;
+
+        const payments3m = customerInvoices
+            .filter(inv => isInLast90(inv.date))
+            .filter(inv => {
+                const num = inv.number?.toString().toUpperCase() || '';
+                return inv.credit > 0.01 &&
+                    !num.startsWith('SAL') &&
+                    !num.startsWith('RSAL') &&
+                    !num.startsWith('BIL') &&
+                    !num.startsWith('JV') &&
+                    !num.startsWith('OB');
+            })
+        .reduce((s, inv) => s + inv.credit, 0);
+    const paymentsCount3m = customerInvoices
+        .filter(inv => isInLast90(inv.date))
+        .filter(inv => {
+            const num = inv.number?.toString().toUpperCase() || '';
+            return inv.credit > 0.01 &&
+                !num.startsWith('SAL') &&
+                !num.startsWith('RSAL') &&
+                !num.startsWith('BIL') &&
+                !num.startsWith('JV') &&
+                !num.startsWith('OB');
+        })
+        .length;
+
         return {
             customerName: c.customerName,
             totalDebit: c.totalDebit,
@@ -480,6 +549,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             hasOB,
             openOBAmount,
             agingBreakdown,
+            payments3m,
+            paymentsCount3m,
+            sales3m,
+            salesCount3m
         };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [data]);
@@ -945,12 +1018,6 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 onClick={() => setActiveTab('FILTERS')}
             >
                 Filters
-            </button>
-            <button
-                className={`py-2 px-4 font-medium text-lg ${activeTab === 'LAST_PAYMENT' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                onClick={() => setActiveTab('LAST_PAYMENT')}
-            >
-                Last Payment
             </button>
         </div>
 
@@ -1504,209 +1571,6 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           </>
         )}
 
-        {activeTab === 'LAST_PAYMENT' && (
-          <>
-            {/* Invoice Number Popup */}
-            {selectedInvoiceNumber && (
-              <div 
-                className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50"
-                onClick={() => setSelectedInvoiceNumber(null)}
-              >
-                <div 
-                  className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full mx-4 border border-gray-100"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-xl font-bold text-gray-900">Invoice Number</h3>
-                    <button
-                      onClick={() => setSelectedInvoiceNumber(null)}
-                      className="text-gray-500 hover:text-gray-700 text-2xl font-bold"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="bg-gray-50 p-4 rounded-lg mb-4">
-                    <p className="text-lg font-mono break-all">{selectedInvoiceNumber}</p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedInvoiceNumber(null)}
-                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="bg-blue-50 p-4 rounded-lg mb-6">
-              <div className="flex justify-between items-center">
-                <div>
-                  <p className="text-lg">
-                    <span className="font-semibold">Unmatched Payments:</span>{' '}
-                    <span className="text-blue-600">
-                      {filteredUnmatchedPayments.length}
-                      {lastPaymentSearchQuery && ` of ${unmatchedPayments.length}`}
-                    </span>
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Payments that haven't been fully matched yet
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Search and Date Filters */}
-            <div className="mb-4 flex flex-col gap-4">
-              {/* Search Box */}
-              <div className="flex justify-center">
-                <div className="w-full max-w-2xl">
-                  <input
-                    type="text"
-                    placeholder="Search by customer name, invoice number, date, or amounts..."
-                    value={lastPaymentSearchQuery}
-                    onChange={(e) => setLastPaymentSearchQuery(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-                  />
-                </div>
-              </div>
-
-              {/* Date Range Filters */}
-              <div className="flex justify-center gap-4">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">From Date:</label>
-                  <input
-                    type="date"
-                    value={lastPaymentDateFrom}
-                    onChange={(e) => setLastPaymentDateFrom(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm font-medium text-gray-700 whitespace-nowrap">To Date:</label>
-                  <input
-                    type="date"
-                    value={lastPaymentDateTo}
-                    onChange={(e) => setLastPaymentDateTo(e.target.value)}
-                    className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-                  />
-                </div>
-                {(lastPaymentDateFrom || lastPaymentDateTo) && (
-                  <button
-                    onClick={() => {
-                      setLastPaymentDateFrom('');
-                      setLastPaymentDateTo('');
-                    }}
-                    className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-                  >
-                    Clear Dates
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '25%' }}>
-                        Customer Name
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200" style={{ width: '15%' }}>
-                        Date
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                        Invoice Number
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                        Debit
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                        Credit
-                      </th>
-                      <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                        Remaining Amount
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUnmatchedPayments.length === 0 ? (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-8 text-center text-gray-500 text-lg">
-                          {lastPaymentSearchQuery ? 'No payments found matching your search' : 'No unmatched payments found'}
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredUnmatchedPayments.map((payment, index) => (
-                        <tr key={index} className="border-b hover:bg-gray-50">
-                          <td className="px-4 py-3 text-center text-lg">
-                            <button
-                              onClick={() => {
-                                setInitialCustomerTab('overdue');
-                                setSelectedCustomer(payment.customerName);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                            >
-                              {payment.customerName}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-center text-lg">
-                            {payment.date.toLocaleDateString('en-US')}
-                          </td>
-                          <td className="px-4 py-3 text-center text-lg">
-                            <button
-                              onClick={() => setSelectedInvoiceNumber(payment.number)}
-                              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer truncate max-w-full block mx-auto"
-                              style={{ maxWidth: '100px' }}
-                              title={payment.number}
-                            >
-                              {payment.number.length > 15 ? `${payment.number.substring(0, 15)}...` : payment.number}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3 text-center text-lg">
-                            {payment.debit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-4 py-3 text-center text-lg">
-                            {payment.credit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="px-4 py-3 text-center text-lg">
-                            <span className="text-orange-600 font-semibold">
-                              {payment.remainingAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                    {filteredUnmatchedPayments.length > 0 && (
-                      <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                        <td className="px-4 py-3 text-center text-lg" style={{ width: '25%' }}>
-                          Total
-                        </td>
-                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                          -
-                        </td>
-                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                          -
-                        </td>
-                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                          {filteredUnmatchedPayments.reduce((sum, p) => sum + p.debit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                          {filteredUnmatchedPayments.reduce((sum, p) => sum + p.credit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </td>
-                        <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                          <span className="text-orange-600 font-semibold">
-                            {filteredUnmatchedPayments.reduce((sum, p) => sum + p.remainingAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
       </div>
 
     </div>

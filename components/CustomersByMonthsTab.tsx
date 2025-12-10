@@ -141,7 +141,7 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
         .map(([key, amount]) => ({
           key,
           amount,
-          label: `${formatMonthLabel(key)} (${amount.toLocaleString('en-US')})`,
+          label: `${formatMonthLabel(key)} (${Math.round(amount).toLocaleString('en-US')})`,
         }))
         .sort((a, b) => a.key.localeCompare(b.key));
 
@@ -217,11 +217,27 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
   }, []);
 
   const exportToExcel = () => {
-    const headers = ['Customer Name', 'Net Total', 'Debit Months', 'Credit Months'];
-    const rows = filtered.map((item) => {
+    const headers = ['Customer Name', 'Net Total', 'Type', 'Months'];
+    const rows: string[][] = [];
+    
+    filtered.forEach((item) => {
       const debitMonths = item.months.filter((m) => m.amount > 0.01).map((m) => m.label).join(' | ');
       const creditMonths = item.months.filter((m) => m.amount < -0.01).map((m) => m.label).join(' | ');
-      return [item.customerName, item.netTotal.toFixed(2), debitMonths, creditMonths];
+      
+      const netTotal = Math.round(item.netTotal).toString();
+      let isFirstRow = true;
+      
+      // Add debit row if there are debit months
+      if (debitMonths) {
+        rows.push([item.customerName, isFirstRow ? netTotal : '', 'Debit', debitMonths]);
+        isFirstRow = false;
+      }
+      
+      // Add credit row if there are credit months
+      if (creditMonths) {
+        rows.push([item.customerName, isFirstRow ? netTotal : '', 'Credit', creditMonths]);
+        isFirstRow = false;
+      }
     });
 
     const csvContent = [headers.join(','), ...rows.map((row) => row.map((cell) => `"${cell}"`).join(','))].join('\n');
@@ -256,7 +272,7 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
           <p className="text-lg">
             <span className="font-semibold">Total Net:</span>{' '}
             <span className={totalNet > 0 ? 'text-red-600' : totalNet < 0 ? 'text-green-600' : ''}>
-              {totalNet.toLocaleString('en-US')}
+              {Math.round(totalNet).toLocaleString('en-US')}
             </span>
           </p>
           <p className="text-sm text-gray-600">
@@ -344,7 +360,7 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
                   </td>
                   <td className="px-4 py-3 text-right text-lg">
                     <span className={item.netTotal > 0 ? 'text-red-600' : item.netTotal < 0 ? 'text-green-600' : ''}>
-                      {item.netTotal.toLocaleString('en-US')}
+                      {Math.round(item.netTotal).toLocaleString('en-US')}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-gray-800 whitespace-pre-wrap leading-relaxed">
@@ -378,7 +394,7 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
                   <td className="px-4 py-3 text-left">Total</td>
                   <td className="px-4 py-3 text-right">
                     <span className={totalNet > 0 ? 'text-red-600' : totalNet < 0 ? 'text-green-600' : ''}>
-                      {totalNet.toLocaleString('en-US')}
+                      {Math.round(totalNet).toLocaleString('en-US')}
                     </span>
                   </td>
                   <td className="px-4 py-3"></td>

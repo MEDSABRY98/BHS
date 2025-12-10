@@ -38,6 +38,8 @@ interface CustomerDetailsProps {
 interface InvoiceWithNetDebt extends InvoiceRow {
   netDebt: number;
   residual?: number;
+  originalIndex: number;
+  parsedDate: Date | null;
 }
 
 interface MonthlyDebt {
@@ -63,11 +65,31 @@ interface OverdueInvoice extends InvoiceRow {
   residual?: number;
   daysOverdue: number;
   difference: number;
+  originalIndex: number;
+  parsedDate: Date | null;
 }
 
 const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
 const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
+
+// Parse dates from Google Sheets while preserving original order for invalid dates
+const parseInvoiceDate = (dateStr?: string | null): Date | null => {
+  if (!dateStr) return null;
+  const direct = new Date(dateStr);
+  if (!isNaN(direct.getTime())) return direct;
+
+  // Fallback for DD/MM/YYYY or DD-MM-YYYY
+  const parts = dateStr.split(/[\/\-]/);
+  if (parts.length === 3) {
+    const [p1, p2, p3] = parts.map((p) => parseInt(p, 10));
+    if (p1 > 12 || p3 > 31) {
+      const parsed = new Date(p3, (p2 || 1) - 1, p1);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+  }
+  return null;
+};
 
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
@@ -79,6 +101,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     pageIndex: 0,
     pageSize: 50,
   });
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
   
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string[]>([]);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
@@ -376,6 +399,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     // 3. Map invoices preserving original order from Google Sheets
     return invoices.map((invoice, index) => {
       let residual: number | undefined = undefined;
+      const parsedDate = parseInvoiceDate(invoice.date);
 
       if (invoice.matching) {
         const targetIndex = targetResidualIndices.get(invoice.matching);
@@ -391,7 +415,9 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       return {
         ...invoice,
         netDebt: invoice.debit - invoice.credit,
-        residual
+        residual,
+        originalIndex: index,
+        parsedDate
       };
     });
   }, [invoices]);
@@ -475,15 +501,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
 
         // Calculate Days Overdue
         let daysOverdue = 0;
-        // Try Due Date first
-        let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
-        
-        // If Due Date is invalid, fallback to Invoice Date
-        if (!targetDate || isNaN(targetDate.getTime())) {
-           if (inv.date) {
-             targetDate = new Date(inv.date);
-           }
-        }
+        // Try Due Date first, then Invoice Date
+        let targetDate = parseInvoiceDate(inv.dueDate) || inv.parsedDate;
 
         if (targetDate && !isNaN(targetDate.getTime())) {
            const today = new Date();
@@ -568,7 +587,23 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       });
     }
     
-    return filtered;
+    const sortedByDate = [...filtered].sort((a, b) => {
+      const dateA = a.parsedDate;
+      const dateB = b.parsedDate;
+
+      if (dateA && dateB) {
+        const diff = dateA.getTime() - dateB.getTime();
+        if (diff !== 0) return diff;
+      } else if (dateA) {
+        return -1;
+      } else if (dateB) {
+        return 1;
+      }
+
+      return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
+    });
+
+    return sortedByDate;
   }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
 
   // Filter overdue invoices based on selected month filter, matching filter, and search query
@@ -636,7 +671,23 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       });
     }
     
-    return filtered;
+    const sortedByDate = [...filtered].sort((a, b) => {
+      const dateA = parseInvoiceDate(a.dueDate) || a.parsedDate;
+      const dateB = parseInvoiceDate(b.dueDate) || b.parsedDate;
+
+      if (dateA && dateB) {
+        const diff = dateA.getTime() - dateB.getTime();
+        if (diff !== 0) return diff;
+      } else if (dateA) {
+        return -1;
+      } else if (dateB) {
+        return 1;
+      }
+
+      return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
+    });
+
+    return sortedByDate;
   }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
 
   // Prepare monthly debt data
@@ -1167,6 +1218,40 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     const totalSales = filteredInvoices.reduce((acc, inv) => acc + inv.debit, 0);
     const totalPaid = filteredInvoices.reduce((acc, inv) => acc + inv.credit, 0);
     const collectionRate = totalSales > 0 ? (totalPaid / totalSales) * 100 : 0;
+
+    // Breakdown for collection analysis
+    const salesDebit = filteredInvoices.reduce((sum, inv) => {
+      const num = inv.number.toUpperCase();
+      return num.startsWith('SAL') ? sum + inv.debit : sum;
+    }, 0);
+
+    const returnsAmount = filteredInvoices.reduce((sum, inv) => {
+      const num = inv.number.toUpperCase();
+      return num.startsWith('RSAL') ? sum + inv.credit : sum;
+    }, 0);
+
+    const discountsAmount = filteredInvoices.reduce((sum, inv) => {
+      const num = inv.number.toUpperCase();
+      return (num.startsWith('JV') || num.startsWith('BIL')) ? sum + inv.credit : sum;
+    }, 0);
+
+    const paymentsAmount = filteredInvoices.reduce((sum, inv) => {
+      if (inv.credit <= 0.01) return sum;
+      const num = inv.number.toUpperCase();
+      const isPayment = !num.startsWith('SAL') &&
+                        !num.startsWith('RSAL') &&
+                        !num.startsWith('BIL') &&
+                        !num.startsWith('JV') &&
+                        !num.startsWith('OB');
+      return isPayment ? sum + inv.credit : sum;
+    }, 0);
+
+    const paymentsCoverage = salesDebit > 0 ? (paymentsAmount / salesDebit) * 100 : 0;
+    const returnsImpact = salesDebit > 0 ? (returnsAmount / salesDebit) * 100 : 0;
+    const discountsImpact = salesDebit > 0 ? (discountsAmount / salesDebit) * 100 : 0;
+
+    const netBase = salesDebit - returnsAmount - discountsAmount;
+    const paymentsNetCoverage = netBase > 0 ? (paymentsAmount / netBase) * 100 : 0;
     
     const dates = filteredInvoices
       .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
@@ -1267,6 +1352,14 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       totalPayments,
       lastPaymentAmount,
       lastPaymentDate,
+      salesDebit,
+      returnsAmount,
+      discountsAmount,
+      paymentsAmount,
+      paymentsCoverage,
+      returnsImpact,
+      discountsImpact,
+      paymentsNetCoverage,
       lastPaymentInvoice: paymentInvoices.length > 0 ? paymentInvoices[0] : null,
       averageMonthlySales,
       lifetimeSmartSales,
@@ -1274,6 +1367,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       totalSalesSum: totalSalesAmount,
       totalReturnsSum: totalReturnsAmount,
       netSalesSum: netSales,
+      netBase,
       pieData
     };
   }, [filteredInvoices, filteredOverdueInvoices, totalNetDebt, agingData]);
@@ -1343,6 +1437,45 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                   Close
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collection Breakdown Modal */}
+      {showCollectionModal && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowCollectionModal(false)}>
+          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-2xl border border-gray-100 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4 border-b pb-3">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <span className="text-2xl">📈</span> Collection Breakdown
+              </h3>
+              <button 
+                onClick={() => setShowCollectionModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase">Payments</p>
+                  <p className="text-lg font-bold text-gray-900">{dashboardMetrics.paymentsAmount.toLocaleString('en-US')}</p>
+                </div>
+                <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase">Returns (RSAL)</p>
+                  <p className="text-lg font-bold text-gray-900">{dashboardMetrics.returnsAmount.toLocaleString('en-US')}</p>
+                  <p className="text-xs text-gray-500">Impact: {dashboardMetrics.returnsImpact.toFixed(1)}%</p>
+                </div>
+                <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase">Discounts (JV/BIL)</p>
+                  <p className="text-lg font-bold text-gray-900">{dashboardMetrics.discountsAmount.toLocaleString('en-US')}</p>
+                  <p className="text-xs text-gray-500">Impact: {dashboardMetrics.discountsImpact.toFixed(1)}%</p>
+                </div>
+              </div>
+
             </div>
           </div>
         </div>
@@ -1917,7 +2050,11 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 </div>
 
                 {/* Collection Rate Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div 
+                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200"
+                  onClick={() => setShowCollectionModal(true)}
+                  title="Click to view detailed collection breakdown"
+                >
                   <div className="absolute top-0 right-0 p-4 opacity-10">
                     <span className="text-6xl">📈</span>
                   </div>
