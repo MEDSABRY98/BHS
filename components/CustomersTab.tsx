@@ -447,10 +447,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                         }
                         break;
                     case 'LAST_SALE':
-                        targetDate = c.lastSalesDate;
+                        targetDate = c.lastSalesDate || null;
                         break;
                     case 'LAST_PAYMENT':
-                        targetDate = c.lastPaymentDate;
+                        targetDate = c.lastPaymentDate || null;
                         break;
                 }
                 
