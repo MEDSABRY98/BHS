@@ -21,8 +21,10 @@ export interface CustomerAnalysis {
   invoiceNumbers?: Set<string>;
   lastPaymentDate?: Date | null;
   lastPaymentMatching?: string | null; // Matching ID tied to last payment (if any)
+  lastPaymentAmount?: number | null; // Amount of last payment
   lastPaymentClosure?: string; // Human label describing whether last payment is closed
   lastSalesDate?: Date | null;
+  lastSalesAmount?: number | null; // Amount of last sale
   overdueAmount?: number; // Total overdue amount
   hasOB?: boolean; // Has unpaid OB invoices (OB invoices with netDebt > 0)
   openOBAmount?: number; // Total netDebt of unpaid OB invoices

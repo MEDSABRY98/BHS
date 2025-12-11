@@ -147,9 +147,19 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   
   const [lastPaymentValue, setLastPaymentValue] = useState<string>('');
   const [lastPaymentUnit, setLastPaymentUnit] = useState<'DAYS' | 'MONTHS'>('DAYS');
+  const [lastPaymentStatus, setLastPaymentStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
+  
+  // Last Payment Amount Filter
+  const [lastPaymentAmountOperator, setLastPaymentAmountOperator] = useState<'GT' | 'LT' | ''>('');
+  const [lastPaymentAmountValue, setLastPaymentAmountValue] = useState<string>('');
+  
+  // Last Sales Amount Filter
+  const [lastSalesAmountOperator, setLastSalesAmountOperator] = useState<'GT' | 'LT' | ''>('');
+  const [lastSalesAmountValue, setLastSalesAmountValue] = useState<string>('');
   
   const [noSalesValue, setNoSalesValue] = useState<string>('');
   const [noSalesUnit, setNoSalesUnit] = useState<'DAYS' | 'MONTHS'>('DAYS');
+  const [lastSalesStatus, setLastSalesStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
 
   // Date Range Filters
   const [dateRangeFrom, setDateRangeFrom] = useState<string>('');
@@ -195,6 +205,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     type CustomerData = CustomerAnalysis & { 
       matchingsMap: Map<string, number>;
       lastPaymentMatching: string | null;
+      lastPaymentAmount: number | null;
+      lastSalesAmount: number | null;
     };
     const customerMap = new Map<string, CustomerData>();
 
@@ -214,7 +226,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           invoiceNumbers: new Set(),
           lastPaymentDate: null,
           lastPaymentMatching: null,
+          lastPaymentAmount: null,
           lastSalesDate: null,
+          lastSalesAmount: null,
         };
       }
 
@@ -258,6 +272,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
                       existing.lastPaymentDate = rowDate;
                       existing.lastPaymentMatching = row.matching || 'UNMATCHED';
+                      existing.lastPaymentAmount = row.credit;
                   }
               }
           }
@@ -266,6 +281,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           if (num.startsWith('SAL') && row.debit > 0) {
               if (!existing.lastSalesDate || rowDate > existing.lastSalesDate) {
                   existing.lastSalesDate = rowDate;
+                  existing.lastSalesAmount = row.debit;
               }
           }
       }
@@ -543,8 +559,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             invoiceNumbers: c.invoiceNumbers,
             lastPaymentDate: c.lastPaymentDate,
             lastPaymentMatching: c.lastPaymentMatching,
+            lastPaymentAmount: c.lastPaymentAmount,
             lastPaymentClosure,
             lastSalesDate: c.lastSalesDate,
+            lastSalesAmount: c.lastSalesAmount,
             overdueAmount: totalOverdue,
             hasOB,
             openOBAmount,
@@ -705,40 +723,78 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         });
     }
 
-    // Last Payment Filter (Time elapsed since last payment)
+    // Last Payment Filter (Active/Inactive in last X days)
     if (lastPaymentValue) {
         const val = parseFloat(lastPaymentValue);
         if (!isNaN(val)) {
             const daysThreshold = lastPaymentUnit === 'MONTHS' ? val * 30 : val;
+            const cutoffDate = new Date(now);
+            cutoffDate.setDate(cutoffDate.getDate() - daysThreshold);
+            
             result = result.filter(c => {
-                if (!c.lastPaymentDate) return false; // Or true? If no payment ever, is it > X days? Yes.
-                // Assuming "No payment" matches "Haven't paid in X days"
-                // But let's check logic: if no payment date, it means no credit transaction found.
-                // Let's include them? Or exclude? Usually filtering for "Slow payers".
-                // If they never paid, they are the slowest.
-                // But let's stick to calculated difference. If null, maybe include?
-                // Let's stick to having a date for now to be safe.
-                const diffTime = Math.abs(now.getTime() - c.lastPaymentDate.getTime());
-                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                return diffDays >= daysThreshold;
+                if (!c.lastPaymentDate) {
+                    // No payment ever - consider as INACTIVE
+                    return lastPaymentStatus === 'INACTIVE';
+                }
+                
+                // Check if last payment was within the threshold (ACTIVE) or before it (INACTIVE)
+                const isActive = c.lastPaymentDate >= cutoffDate;
+                return lastPaymentStatus === 'ACTIVE' ? isActive : !isActive;
             });
         }
     }
 
-    // No Sales Filter (Time elapsed since last sale)
+    // Last Payment Amount Filter
+    if (lastPaymentAmountOperator && lastPaymentAmountValue) {
+        const amount = parseFloat(lastPaymentAmountValue);
+        if (!isNaN(amount)) {
+            result = result.filter(c => {
+                if (!c.lastPaymentAmount) return false; // Only include customers with payment history
+                
+                if (lastPaymentAmountOperator === 'GT') {
+                    return c.lastPaymentAmount > amount;
+                } else if (lastPaymentAmountOperator === 'LT') {
+                    return c.lastPaymentAmount < amount;
+                }
+                return true;
+            });
+        }
+    }
+
+    // Last Sales Filter (Active/Inactive in last X days)
     if (noSalesValue) {
         const val = parseFloat(noSalesValue);
         if (!isNaN(val)) {
             const daysThreshold = noSalesUnit === 'MONTHS' ? val * 30 : val;
+            const cutoffDate = new Date(now);
+            cutoffDate.setDate(cutoffDate.getDate() - daysThreshold);
+            
             result = result.filter(c => {
-                 // If never bought, does it match?
-                 // "People who haven't had a sales invoice for X days"
-                 // If never had one, they satisfy the condition technically (infinity > X).
-                 // But let's check if they exist in the list implies they have SOME transaction.
-                 if (!c.lastSalesDate) return true; 
-                 const diffTime = Math.abs(now.getTime() - c.lastSalesDate.getTime());
-                 const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-                 return diffDays >= daysThreshold;
+                if (!c.lastSalesDate) {
+                    // No sales ever - consider as INACTIVE
+                    return lastSalesStatus === 'INACTIVE';
+                }
+                
+                // Check if last sale was within the threshold (ACTIVE) or before it (INACTIVE)
+                const isActive = c.lastSalesDate >= cutoffDate;
+                return lastSalesStatus === 'ACTIVE' ? isActive : !isActive;
+            });
+        }
+    }
+
+    // Last Sales Amount Filter
+    if (lastSalesAmountOperator && lastSalesAmountValue) {
+        const amount = parseFloat(lastSalesAmountValue);
+        if (!isNaN(amount)) {
+            result = result.filter(c => {
+                if (!c.lastSalesAmount) return false; // Only include customers with sales history
+                
+                if (lastSalesAmountOperator === 'GT') {
+                    return c.lastSalesAmount > amount;
+                } else if (lastSalesAmountOperator === 'LT') {
+                    return c.lastSalesAmount < amount;
+                }
+                return true;
             });
         }
     }
@@ -752,7 +808,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         num.toString().toLowerCase().includes(query)
       )
     );
-  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, noSalesValue, noSalesUnit, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB]);
+  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, lastPaymentStatus, lastPaymentAmountOperator, lastPaymentAmountValue, noSalesValue, noSalesUnit, lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB]);
 
   // Calculate unmatched payments for Last Payment tab - using same logic as Overdue tab
   interface UnmatchedPayment {
@@ -1043,7 +1099,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                     </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     
                     {/* Date Range Section */}
                     <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-purple-200 transition-colors">
@@ -1056,7 +1112,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             Date Range Filters
                         </h4>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-3">
                             {/* Date Range Type */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Filter By</label>
@@ -1106,7 +1162,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             Debit Filters
                         </h4>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="space-y-3">
                             {/* Net Debt Range */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Debt</label>
@@ -1159,37 +1215,69 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             {/* Last Payment moved here */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment</label>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="number" 
-                                        placeholder="Value" 
-                                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                        value={lastPaymentValue}
-                                        onChange={(e) => setLastPaymentValue(e.target.value)}
-                                    />
+                                <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="number" 
+                                            placeholder="Value" 
+                                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                            value={lastPaymentValue}
+                                            onChange={(e) => setLastPaymentValue(e.target.value)}
+                                        />
+                                        <select 
+                                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                            value={lastPaymentUnit}
+                                            onChange={(e) => setLastPaymentUnit(e.target.value as any)}
+                                        >
+                                            <option value="DAYS">Days</option>
+                                            <option value="MONTHS">Months</option>
+                                        </select>
+                                    </div>
                                     <select 
-                                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                        value={lastPaymentUnit}
-                                        onChange={(e) => setLastPaymentUnit(e.target.value as any)}
+                                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                        value={lastPaymentStatus}
+                                        onChange={(e) => setLastPaymentStatus(e.target.value as any)}
                                     >
-                                        <option value="DAYS">Days</option>
-                                        <option value="MONTHS">Months</option>
+                                        <option value="ACTIVE">Active (paid in last period)</option>
+                                        <option value="INACTIVE">Inactive (no payment in last period)</option>
                                     </select>
                                 </div>
                             </div>
-                        </div>
 
-                        {/* OB Filter Checkbox */}
-                        <div className="mt-4 pt-4 border-t border-gray-200">
-                            <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={hasOB}
-                                    onChange={(e) => setHasOB(e.target.checked)}
-                                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                />
-                                <span className="text-sm font-medium text-gray-700">Has Unpaid OB Invoices</span>
-                            </label>
+                            {/* Last Payment Amount Filter */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment Amount</label>
+                                <div className="flex gap-2">
+                                    <select 
+                                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                        value={lastPaymentAmountOperator}
+                                        onChange={(e) => setLastPaymentAmountOperator(e.target.value as any)}
+                                    >
+                                        <option value="GT">&gt; More</option>
+                                        <option value="LT">&lt; Less</option>
+                                    </select>
+                                    <input 
+                                        type="number" 
+                                        placeholder="Amount" 
+                                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                        value={lastPaymentAmountValue}
+                                        onChange={(e) => setLastPaymentAmountValue(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+
+                            {/* OB Filter Checkbox */}
+                            <div className="pt-2 border-t border-gray-200">
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={hasOB}
+                                        onChange={(e) => setHasOB(e.target.checked)}
+                                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm font-medium text-gray-700">Has Unpaid OB Invoices</span>
+                                </label>
+                            </div>
                         </div>
                     </div>
 
@@ -1204,7 +1292,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             Overdue Amount
                         </h4>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
                             {/* Overdue Amount Input */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Overdue Amount</label>
@@ -1219,98 +1307,116 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
                             {/* Aging Buckets Checkboxes - Matching AGES tab order */}
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-2 uppercase">Aging Buckets</label>
-                                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            checked={overdueAging.includes('AT_DATE')}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setOverdueAging([...overdueAging, 'AT_DATE']);
-                                                } else {
-                                                    setOverdueAging(overdueAging.filter(b => b !== 'AT_DATE'));
-                                                }
-                                            }}
-                                        />
-                                        <span className="text-sm text-gray-700">AT DATE</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            checked={overdueAging.includes('1-30')}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setOverdueAging([...overdueAging, '1-30']);
-                                                } else {
-                                                    setOverdueAging(overdueAging.filter(b => b !== '1-30'));
-                                                }
-                                            }}
-                                        />
-                                        <span className="text-sm text-gray-700">1 - 30</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            checked={overdueAging.includes('31-60')}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setOverdueAging([...overdueAging, '31-60']);
-                                                } else {
-                                                    setOverdueAging(overdueAging.filter(b => b !== '31-60'));
-                                                }
-                                            }}
-                                        />
-                                        <span className="text-sm text-gray-700">31 - 60</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            checked={overdueAging.includes('61-90')}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setOverdueAging([...overdueAging, '61-90']);
-                                                } else {
-                                                    setOverdueAging(overdueAging.filter(b => b !== '61-90'));
-                                                }
-                                            }}
-                                        />
-                                        <span className="text-sm text-gray-700">61 - 90</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            checked={overdueAging.includes('91-120')}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setOverdueAging([...overdueAging, '91-120']);
-                                                } else {
-                                                    setOverdueAging(overdueAging.filter(b => b !== '91-120'));
-                                                }
-                                            }}
-                                        />
-                                        <span className="text-sm text-gray-700">91 - 120</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input 
-                                            type="checkbox" 
-                                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                                            checked={overdueAging.includes('OLDER')}
-                                            onChange={(e) => {
-                                                if (e.target.checked) {
-                                                    setOverdueAging([...overdueAging, 'OLDER']);
-                                                } else {
-                                                    setOverdueAging(overdueAging.filter(b => b !== 'OLDER'));
-                                                }
-                                            }}
-                                        />
-                                        <span className="text-sm text-gray-700">OLDER</span>
-                                    </label>
+                                <label className="block text-xs font-medium text-gray-500 mb-3 uppercase">Aging Buckets</label>
+                                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (overdueAging.includes('AT_DATE')) {
+                                                setOverdueAging(overdueAging.filter(b => b !== 'AT_DATE'));
+                                            } else {
+                                                setOverdueAging([...overdueAging, 'AT_DATE']);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${
+                                            overdueAging.includes('AT_DATE')
+                                                ? 'bg-green-50 border-green-500 text-green-700 shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('AT_DATE') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                        <span>AT DATE</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (overdueAging.includes('1-30')) {
+                                                setOverdueAging(overdueAging.filter(b => b !== '1-30'));
+                                            } else {
+                                                setOverdueAging([...overdueAging, '1-30']);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${
+                                            overdueAging.includes('1-30')
+                                                ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('1-30') ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                                        <span>1 - 30</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (overdueAging.includes('31-60')) {
+                                                setOverdueAging(overdueAging.filter(b => b !== '31-60'));
+                                            } else {
+                                                setOverdueAging([...overdueAging, '31-60']);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${
+                                            overdueAging.includes('31-60')
+                                                ? 'bg-yellow-50 border-yellow-500 text-yellow-700 shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('31-60') ? 'bg-yellow-500' : 'bg-gray-300'}`}></div>
+                                        <span>31 - 60</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (overdueAging.includes('61-90')) {
+                                                setOverdueAging(overdueAging.filter(b => b !== '61-90'));
+                                            } else {
+                                                setOverdueAging([...overdueAging, '61-90']);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${
+                                            overdueAging.includes('61-90')
+                                                ? 'bg-orange-50 border-orange-500 text-orange-700 shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('61-90') ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
+                                        <span>61 - 90</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (overdueAging.includes('91-120')) {
+                                                setOverdueAging(overdueAging.filter(b => b !== '91-120'));
+                                            } else {
+                                                setOverdueAging([...overdueAging, '91-120']);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${
+                                            overdueAging.includes('91-120')
+                                                ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('91-120') ? 'bg-red-500' : 'bg-gray-300'}`}></div>
+                                        <span>91 - 120</span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            if (overdueAging.includes('OLDER')) {
+                                                setOverdueAging(overdueAging.filter(b => b !== 'OLDER'));
+                                            } else {
+                                                setOverdueAging([...overdueAging, 'OLDER']);
+                                            }
+                                        }}
+                                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${
+                                            overdueAging.includes('OLDER')
+                                                ? 'bg-purple-50 border-purple-500 text-purple-700 shadow-sm'
+                                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                        }`}
+                                    >
+                                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('OLDER') ? 'bg-purple-500' : 'bg-gray-300'}`}></div>
+                                        <span>OLDER</span>
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -1327,7 +1433,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             Sales Filters
                         </h4>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-3">
                             {/* Net Sales Volume (moved here) */}
                             <div>
                                 <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Sales</label>
@@ -1350,25 +1456,57 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                                 </div>
                             </div>
 
-                            {/* No Sales */}
+                            {/* Last Sales */}
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Sales Inactivity</label>
-                                <div className="flex gap-2">
-                                    <input 
-                                        type="number" 
-                                        placeholder="Value" 
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales</label>
+                                <div className="space-y-2">
+                                    <div className="flex gap-2">
+                                        <input 
+                                            type="number" 
+                                            placeholder="Value" 
+                                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                            value={noSalesValue}
+                                            onChange={(e) => setNoSalesValue(e.target.value)}
+                                        />
+                                        <select 
+                                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                            value={noSalesUnit}
+                                            onChange={(e) => setNoSalesUnit(e.target.value as any)}
+                                        >
+                                            <option value="DAYS">Days</option>
+                                            <option value="MONTHS">Months</option>
+                                        </select>
+                                    </div>
+                                    <select 
                                         className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                        value={noSalesValue}
-                                        onChange={(e) => setNoSalesValue(e.target.value)}
-                                    />
+                                        value={lastSalesStatus}
+                                        onChange={(e) => setLastSalesStatus(e.target.value as any)}
+                                    >
+                                        <option value="ACTIVE">Active (sold in last period)</option>
+                                        <option value="INACTIVE">Inactive (no sales in last period)</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Last Sales Amount Filter */}
+                            <div>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales Amount</label>
+                                <div className="flex gap-2">
                                     <select 
                                         className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                                        value={noSalesUnit}
-                                        onChange={(e) => setNoSalesUnit(e.target.value as any)}
+                                        value={lastSalesAmountOperator}
+                                        onChange={(e) => setLastSalesAmountOperator(e.target.value as any)}
                                     >
-                                        <option value="DAYS">Days</option>
-                                        <option value="MONTHS">Months</option>
+                                        <option value="GT">&gt; More</option>
+                                        <option value="LT">&lt; Less</option>
                                     </select>
+                                    <input 
+                                        type="number" 
+                                        placeholder="Amount" 
+                                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                        value={lastSalesAmountValue}
+                                        onChange={(e) => setLastSalesAmountValue(e.target.value)}
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -1378,7 +1516,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 <div className="mt-6 flex justify-end items-center gap-3 pt-4 border-t border-gray-200">
                     <button 
                         className={`text-sm font-medium px-3 py-2 rounded-md transition-colors ${
-                            debtOperator || lastPaymentValue || noSalesValue || matchingFilter !== 'ALL' || selectedSalesRep !== 'ALL' || searchQuery || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo
+                            debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || matchingFilter !== 'ALL' || selectedSalesRep !== 'ALL' || searchQuery || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo
                             ? 'text-red-600 hover:bg-red-50 cursor-pointer' 
                             : 'text-gray-300 cursor-not-allowed'
                         }`}
@@ -1386,7 +1524,13 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             setDebtOperator('');
                             setDebtAmount('');
                             setLastPaymentValue('');
+                            setLastPaymentStatus('ACTIVE');
+                            setLastPaymentAmountOperator('');
+                            setLastPaymentAmountValue('');
                             setNoSalesValue('');
+                            setLastSalesStatus('ACTIVE');
+                            setLastSalesAmountOperator('');
+                            setLastSalesAmountValue('');
                             setMatchingFilter('ALL');
                             setSelectedSalesRep('ALL');
                             setSearchQuery('');
@@ -1402,7 +1546,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                             setDateRangeType('LAST_TRANSACTION');
                             setHasOB(false);
                         }}
-                        disabled={!(debtOperator || lastPaymentValue || noSalesValue || matchingFilter !== 'ALL' || selectedSalesRep !== 'ALL' || searchQuery || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB)}
+                        disabled={!(debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || matchingFilter !== 'ALL' || selectedSalesRep !== 'ALL' || searchQuery || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB)}
                     >
                         Clear All
                     </button>
