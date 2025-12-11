@@ -256,16 +256,6 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
     });
   };
 
-  const openPostedDetails = (monthKey: string, label: string, customerName: string) => {
-    const invoices = data.filter((row) => {
-      if (!row.number?.toUpperCase().startsWith('BIL')) return false;
-      if (row.customerName.trim().toLowerCase() !== customerName.trim().toLowerCase()) return false;
-      const d = parseDate(row.date);
-      const key = toMonthKey(d);
-      return key === monthKey;
-    });
-    setPostedDetails({ monthKey, label, invoices });
-  };
 
   if (loading) {
     return (

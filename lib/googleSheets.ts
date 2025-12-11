@@ -156,7 +156,7 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
         const tokens = reconciliationRaw
           .split(/[,;\s]+/)
           .map(normalizeMonthToken)
-          .filter((val): val is string => Boolean(val));
+          .filter((val: string | null): val is string => Boolean(val));
 
         if (!customerName) return null;
 
