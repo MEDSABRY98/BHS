@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { readFileSync } from 'fs';
 import { join } from 'path';
+import { DiscountTrackerEntry } from '@/types';
 
 const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || '1s1G42Qd0FNDyvz42qi_6SPoKMAy8Kvx8eMm7iyR8pds';
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Invoices';
@@ -89,6 +90,84 @@ export async function getSheetData() {
     return data;
   } catch (error) {
     console.error('Error fetching sheet data:', error);
+    throw error;
+  }
+}
+
+const MONTH_ABBREVIATIONS: Record<string, number> = {
+  JAN: 1,
+  FEB: 2,
+  MAR: 3,
+  APR: 4,
+  MAY: 5,
+  JUN: 6,
+  JUL: 7,
+  AUG: 8,
+  SEP: 9,
+  OCT: 10,
+  NOV: 11,
+  DEC: 12,
+};
+
+const normalizeMonthToken = (token: string): string | null => {
+  const cleaned = token.trim().toUpperCase();
+  if (!cleaned) return null;
+
+  // Accept formats like JAN25, JAN2025, JAN-25, JAN/25
+  const match = cleaned.match(/^([A-Z]{3})[-\/]?(\d{2}|\d{4})$/);
+  if (!match) return null;
+
+  const [, monthText, yearText] = match;
+  const month = MONTH_ABBREVIATIONS[monthText];
+  if (!month) return null;
+
+  let year = parseInt(yearText, 10);
+  if (year < 100) {
+    year += 2000; // Assume 2000s for 2-digit years
+  }
+
+  return `${year}-${String(month).padStart(2, '0')}`;
+};
+
+export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `DISCOUNTS!A:B`, // CUSTOMER NAME, RECONCILIATION
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    return rows.slice(1) // skip header
+      .map((row) => {
+        const customerName = row[0]?.toString().trim() || '';
+        const reconciliationRaw = row[1]?.toString() || '';
+
+        const tokens = reconciliationRaw
+          .split(/[,;\s]+/)
+          .map(normalizeMonthToken)
+          .filter((val): val is string => Boolean(val));
+
+        if (!customerName) return null;
+
+        return {
+          customerName,
+          reconciliationMonths: tokens,
+        } as DiscountTrackerEntry;
+      })
+      .filter((entry): entry is DiscountTrackerEntry => Boolean(entry));
+  } catch (error) {
+    console.error('Error fetching discount tracker entries:', error);
     throw error;
   }
 }

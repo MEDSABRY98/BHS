@@ -11,8 +11,9 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SidebarProps) {
   const tabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
-    { id: 'customers-open-matches', label: 'Customers Open Matches', icon: '🔗' },
-    { id: 'customers-by-months', label: 'Customers BY Months', icon: '📊' },
+    { id: 'customers-open-matches', label: 'C Open Matches', icon: '🔗' },
+    { id: 'customers-by-months', label: 'C by Months', icon: '📊' },
+    { id: 'discount-tracker', label: 'Discount Tracker', icon: '🏷️' },
     { id: 'salesreps', label: 'Sales Reps', icon: '👔' },
     { id: 'years', label: 'Years', icon: '📅' },
     { id: 'months', label: 'Months', icon: '📆' },
