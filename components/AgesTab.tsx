@@ -17,6 +17,7 @@ interface AgesTabProps {
 
 interface CustomerAgingSummary {
   customerName: string;
+  salesReps: string[];
   atDate: number;
   oneToThirty: number;
   thirtyOneToSixty: number;
@@ -48,8 +49,17 @@ export default function AgesTab({ data }: AgesTabProps) {
       const totalCredit = customerInvoices.reduce((sum, inv) => sum + inv.credit, 0);
       const netDebt = totalDebit - totalCredit;
 
+      // Collect unique sales reps
+      const salesRepsSet = new Set<string>();
+      customerInvoices.forEach((inv) => {
+        if (inv.salesRep && inv.salesRep.trim()) {
+          salesRepsSet.add(inv.salesRep.trim());
+        }
+      });
+
       const summary: CustomerAgingSummary = {
         customerName,
+        salesReps: Array.from(salesRepsSet).sort(),
         atDate: 0,
         oneToThirty: 0,
         thirtyOneToSixty: 0,
@@ -166,9 +176,10 @@ export default function AgesTab({ data }: AgesTabProps) {
   }, [agingData, searchQuery]);
 
   const exportToExcel = () => {
-    const headers = ['Customer Name', 'AT DATE', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
+    const headers = ['Customer Name', 'Sales Rep', 'AT DATE', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
     const rows = filteredData.map((item) => [
       item.customerName,
+      item.salesReps.join(', ') || '',
       item.atDate.toLocaleString('en-US'),
       item.oneToThirty.toLocaleString('en-US'),
       item.thirtyOneToSixty.toLocaleString('en-US'),

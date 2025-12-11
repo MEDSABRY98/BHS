@@ -91,6 +91,52 @@ const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   return null;
 };
 
+// Helper function to shorten invoice numbers
+const shortenInvoiceNumber = (invoiceNumber: string | undefined | null, maxLength: number = 18): string => {
+  if (!invoiceNumber) return '';
+
+  // Remove trailing parenthetical info like "(INVOICE NO.2004)"
+  const cleaned = invoiceNumber.replace(/\s*\(.*?\)\s*$/, '').trim();
+  const upper = cleaned.toUpperCase();
+
+  // If it is a structured sales/returns/billing/journal number, keep it fully visible
+  if (upper.startsWith('SAL') || upper.startsWith('RSAL') || upper.startsWith('BIL') || upper.startsWith('JV')) {
+    // Strip any trailing descriptive text after the structured number (e.g., "JV/2025/09/0315 Transfer ...")
+    const mainPart = cleaned.split(/\s+/)[0];
+    return mainPart;
+  }
+
+  if (cleaned.length <= maxLength) return cleaned;
+  
+  // Try to keep prefix and suffix if it looks like a structured number
+  // e.g., "ABC-2024-00123" -> "ABC...123"
+  const parts = cleaned.split(/[-_]/);
+  if (parts.length >= 2) {
+    const prefix = parts[0];
+    const suffix = parts[parts.length - 1];
+    if (prefix.length + suffix.length + 3 <= maxLength) {
+      return `${prefix}...${suffix}`;
+    }
+  }
+  
+  // Otherwise, keep a longer head/tail chunk
+  const head = cleaned.substring(0, Math.max(6, maxLength - 10));
+  const tail = cleaned.substring(cleaned.length - 6);
+  return `${head}...${tail}`;
+};
+
+// Helper to classify invoice/transaction type (mirrors Open Matches intent)
+const getInvoiceType = (inv: Pick<InvoiceRow, 'number' | 'debit' | 'credit'>): string => {
+  const num = (inv.number || '').toUpperCase();
+  if (num.startsWith('SAL')) return 'Sale';
+  if (num.startsWith('RSAL')) return 'Return';
+  if (num.startsWith('OB')) return 'Opening Balance';
+  if (num.startsWith('BIL')) return 'Discount';
+  if (num.startsWith('JV')) return 'Discount';
+  if (inv.credit > 0.01) return 'Payment';
+  return 'Invoice/Txn';
+};
+
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
@@ -131,6 +177,9 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  
+  // Invoice Details Modal State
+  const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithNetDebt | OverdueInvoice | null>(null);
 
   useEffect(() => {
     const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -835,9 +884,41 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
           return `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         },
       }),
+      invoiceColumnHelper.display({
+        id: 'type',
+        header: 'Type',
+        cell: (info) => {
+          const inv = info.row.original;
+          const type = getInvoiceType(inv);
+          const color =
+            type === 'Sale' ? 'bg-green-100 text-green-700' :
+            type === 'Return' ? 'bg-yellow-100 text-yellow-700' :
+            type === 'Payment' ? 'bg-blue-100 text-blue-700' :
+            type === 'Discount' ? 'bg-purple-100 text-purple-700' :
+            type === 'Opening Balance' ? 'bg-gray-200 text-gray-700' :
+            'bg-slate-100 text-slate-700';
+          return (
+            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
+              {type}
+            </span>
+          );
+        }
+      }),
       invoiceColumnHelper.accessor('number', {
         header: 'Number',
-        cell: (info) => info.getValue(),
+        cell: (info) => {
+          const invoiceNumber = info.getValue();
+          const row = info.row.original;
+          return (
+            <button
+              onClick={() => setSelectedInvoice(row)}
+              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+              title={invoiceNumber}
+            >
+              {shortenInvoiceNumber(invoiceNumber)}
+            </button>
+          );
+        },
       }),
       invoiceColumnHelper.accessor('debit', {
         header: 'Debit',
@@ -894,9 +975,41 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
           return `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         },
       }),
+      overdueColumnHelper.display({
+        id: 'type',
+        header: 'Type',
+        cell: (info) => {
+          const inv = info.row.original;
+          const type = getInvoiceType(inv);
+          const color =
+            type === 'Sale' ? 'bg-green-100 text-green-700' :
+            type === 'Return' ? 'bg-yellow-100 text-yellow-700' :
+            type === 'Payment' ? 'bg-blue-100 text-blue-700' :
+            type === 'Discount' ? 'bg-purple-100 text-purple-700' :
+            type === 'Opening Balance' ? 'bg-gray-200 text-gray-700' :
+            'bg-slate-100 text-slate-700';
+          return (
+            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
+              {type}
+            </span>
+          );
+        }
+      }),
       overdueColumnHelper.accessor('number', {
         header: 'Invoice Number',
-        cell: (info) => info.getValue(),
+        cell: (info) => {
+          const invoiceNumber = info.getValue();
+          const row = info.row.original;
+          return (
+            <button
+              onClick={() => setSelectedInvoice(row)}
+              className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+              title={invoiceNumber}
+            >
+              {shortenInvoiceNumber(invoiceNumber)}
+            </button>
+          );
+        },
       }),
       overdueColumnHelper.accessor('debit', {
         header: 'Debit',
@@ -1379,7 +1492,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       {/* Payment Details Modal */}
       {showPaymentModal && dashboardMetrics.lastPaymentInvoice && (
         <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
-          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-2xl border border-gray-100 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4 border-b pb-3">
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <span className="text-2xl">💸</span> Payment Details
@@ -1412,9 +1525,9 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                     })}
                   </p>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-sm text-gray-500 mb-1">Invoice Number</p>
-                  <p className="font-semibold text-gray-800 font-mono">
+                  <p className="font-semibold text-gray-800 font-mono break-words overflow-wrap-anywhere text-sm">
                     {dashboardMetrics.lastPaymentInvoice.number}
                   </p>
                 </div>
@@ -1666,6 +1779,44 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                       ? `Export Separate Sheets (${selectedMonths.length})`
                       : `Export ${exportFormat.toUpperCase()} (${selectedMonths.length})`)
                 }
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Invoice Details Modal */}
+      {selectedInvoice && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" 
+          onClick={() => setSelectedInvoice(null)}
+        >
+          <div 
+            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100" 
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-4 border-b pb-3">
+              <h3 className="text-xl font-bold text-gray-800">Invoice Number</h3>
+              <button 
+                onClick={() => setSelectedInvoice(null)}
+                className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="py-6">
+              <p className="text-lg font-bold text-gray-900 text-center break-all">
+                {selectedInvoice.number || 'N/A'}
+              </p>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setSelectedInvoice(null)}
+                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+              >
+                Close
               </button>
             </div>
           </div>
@@ -2071,64 +2222,99 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 </div>
               </div>
 
-              {/* Debt Aging Breakdown - Moved here */}
+              {/* Debt Aging Breakdown - Modern Bar Chart */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-4">Debt Aging Breakdown</h3>
-                <div className="h-80 w-full flex items-center justify-center">
+                <div className="h-80 w-full">
                   {dashboardMetrics.pieData.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={dashboardMetrics.pieData}
-                          cx="50%"
-                          cy="50%"
-                          innerRadius={80}
-                          outerRadius={120}
-                          paddingAngle={5}
-                          dataKey="value"
+                      <BarChart
+                        data={dashboardMetrics.pieData}
+                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                        layout="vertical"
+                      >
+                        <defs>
+                          {dashboardMetrics.pieData.map((entry, index) => (
+                            <linearGradient key={`gradient-${index}`} id={`gradient-${index}`} x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
+                              <stop offset="100%" stopColor={entry.color} stopOpacity={0.6} />
+                            </linearGradient>
+                          ))}
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
+                        <XAxis 
+                          type="number"
+                          tick={{ fontSize: 12, fill: '#6B7280' }}
+                          tickFormatter={(value) => {
+                            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+                            if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
+                            return value.toString();
+                          }}
+                          axisLine={false}
+                          tickLine={false}
+                        />
+                        <YAxis 
+                          type="category"
+                          dataKey="name"
+                          tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }}
+                          axisLine={false}
+                          tickLine={false}
+                          width={100}
+                        />
+                        <RechartsTooltip 
+                          formatter={(value: number, name: string, props: any) => {
+                            const total = agingData.total;
+                            const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+                            return [
+                              `${value.toLocaleString('en-US')} (${percent}%)`,
+                              'Amount'
+                            ];
+                          }}
+                          contentStyle={{ 
+                            borderRadius: '12px', 
+                            border: 'none', 
+                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                            padding: '12px',
+                            backgroundColor: 'white'
+                          }}
+                          cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                        />
+                        <Bar 
+                          dataKey="value" 
+                          radius={[0, 8, 8, 0]}
                         >
                           {dashboardMetrics.pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={entry.color} />
+                            <Cell key={`cell-${index}`} fill={`url(#gradient-${index})`} />
                           ))}
-                        </Pie>
-                        <RechartsTooltip 
-                          formatter={(value: number) => value.toLocaleString('en-US')}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                        />
-                        <Legend 
-                          layout="horizontal" 
-                          verticalAlign="bottom" 
-                          align="center"
-                          content={({ payload }) => (
-                            <div className="flex flex-wrap justify-center gap-4 pt-4">
-                              {payload?.map((entry: any, index: number) => {
-                                const dataEntry = entry.payload;
-                                if (!dataEntry) return null;
-                                const percent = agingData.total > 0 
-                                  ? ((dataEntry.value / agingData.total) * 100).toFixed(1)
-                                  : '0.0';
-                                return (
-                                  <div key={`item-${index}`} className="flex items-center gap-2">
-                                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: entry.color }}></div>
-                                    <span className="text-base font-medium text-gray-700">{entry.value}</span>
-                                    <span className="text-base text-gray-500">
-                                      {dataEntry.value.toLocaleString('en-US')} ({percent}%)
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        />
-                      </PieChart>
+                        </Bar>
+                      </BarChart>
                     </ResponsiveContainer>
                   ) : (
-                    <div className="text-center text-gray-400">
+                    <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
                       <p className="text-4xl mb-2">👍</p>
                       <p>No outstanding debt to analyze.</p>
                     </div>
                   )}
                 </div>
+                {/* Legend below chart */}
+                {dashboardMetrics.pieData.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-4 mt-4 pt-4 border-t border-gray-200">
+                    {dashboardMetrics.pieData.map((entry, index) => {
+                      const percent = agingData.total > 0 
+                        ? ((entry.value / agingData.total) * 100).toFixed(1)
+                        : '0.0';
+                      return (
+                        <div key={`legend-${index}`} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
+                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></div>
+                          <span className="text-sm font-semibold text-gray-700">{entry.name}</span>
+                          <span className="text-sm text-gray-500">
+                            {entry.value.toLocaleString('en-US')} ({percent}%)
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Monthly Payments Trend - Moved here */}
@@ -2333,7 +2519,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                     {headerGroup.headers.map((header) => {
                       const getWidth = () => {
                         const columnId = header.column.id;
-                        if (columnId === 'date') return '15%';
+                      if (columnId === 'date') return '15%';
+                      if (columnId === 'type') return '12%';
                         if (columnId === 'number') return '15%';
                         if (columnId === 'debit') return '15%';
                         if (columnId === 'credit') return '15%';
@@ -2366,7 +2553,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
                         const columnId = cell.column.id;
-                        if (columnId === 'date') return '15%';
+                      if (columnId === 'date') return '15%';
+                      if (columnId === 'type') return '12%';
                         if (columnId === 'number') return '15%';
                         if (columnId === 'debit') return '15%';
                         if (columnId === 'credit') return '15%';
@@ -2496,7 +2684,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                       {headerGroup.headers.map((header) => {
                         const getWidth = () => {
                           const columnId = header.column.id;
-                          if (columnId === 'date') return '15%';
+                      if (columnId === 'date') return '15%';
+                      if (columnId === 'type') return '12%';
                           if (columnId === 'number') return '15%';
                           if (columnId === 'debit') return '15%';
                           if (columnId === 'credit') return '15%';
@@ -2535,7 +2724,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
                             const columnId = cell.column.id;
-                            if (columnId === 'date') return '15%';
+                      if (columnId === 'date') return '15%';
+                      if (columnId === 'type') return '12%';
                             if (columnId === 'number') return '15%';
                             if (columnId === 'debit') return '15%';
                             if (columnId === 'credit') return '15%';

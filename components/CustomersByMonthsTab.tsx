@@ -217,7 +217,7 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
   }, []);
 
   const exportToExcel = () => {
-    const headers = ['Customer Name', 'Net Total', 'Type', 'Months'];
+    const headers = ['Customer Name', 'Sales Rep', 'Net Total', 'Type', 'Months'];
     const rows: string[][] = [];
     
     filtered.forEach((item) => {
@@ -225,17 +225,18 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
       const creditMonths = item.months.filter((m) => m.amount < -0.01).map((m) => m.label).join(' | ');
       
       const netTotal = Math.round(item.netTotal).toString();
+      const salesRep = item.salesReps.join(', ') || '';
       let isFirstRow = true;
       
       // Add debit row if there are debit months
       if (debitMonths) {
-        rows.push([item.customerName, isFirstRow ? netTotal : '', 'Debit', debitMonths]);
+        rows.push([item.customerName, isFirstRow ? salesRep : '', isFirstRow ? netTotal : '', 'Debit', debitMonths]);
         isFirstRow = false;
       }
       
       // Add credit row if there are credit months
       if (creditMonths) {
-        rows.push([item.customerName, isFirstRow ? netTotal : '', 'Credit', creditMonths]);
+        rows.push([item.customerName, isFirstRow ? salesRep : '', isFirstRow ? netTotal : '', 'Credit', creditMonths]);
         isFirstRow = false;
       }
     });
