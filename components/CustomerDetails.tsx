@@ -15,6 +15,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  LabelList,
 } from 'recharts';
 import {
   useReactTable,
@@ -144,6 +145,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [pagination, setPagination] = useState<PaginationState>({
+    pageIndex: 0,
+    pageSize: 50,
+  });
+  const [overduePagination, setOverduePagination] = useState<PaginationState>({
     pageIndex: 0,
     pageSize: 50,
   });
@@ -1108,8 +1113,10 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     columns: overdueColumns,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
-    state: { sorting: overdueSorting },
+    getPaginationRowModel: getPaginationRowModel(),
+    state: { sorting: overdueSorting, pagination: overduePagination },
     onSortingChange: setOverdueSorting,
+    onPaginationChange: setOverduePagination,
   });
 
   const totalNetDebt = filteredInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
@@ -1119,6 +1126,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
   const monthlyTotalNetDebt = monthlyDebt.reduce((sum, m) => sum + m.netDebt, 0);
   const monthlyTotalDebit = monthlyDebt.reduce((sum, m) => sum + m.debit, 0);
   const monthlyTotalCredit = monthlyDebt.reduce((sum, m) => sum + m.credit, 0);
+
+  // Aging totals (initialized later after dashboardMetrics to avoid TDZ)
   
   const toggleMonthSelection = (month: string) => {
     setSelectedMonths(prev => 
@@ -1485,6 +1494,33 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     };
   }, [filteredInvoices, filteredOverdueInvoices, totalNetDebt, agingData]);
 
+  // Use the sum of pieData to keep chart and pills perfectly aligned
+  const agingTotal = useMemo(
+    () => dashboardMetrics.pieData.reduce((sum, item) => sum + item.value, 0),
+    [dashboardMetrics.pieData],
+  );
+
+  const stackedAgingData = useMemo(() => {
+    const row: Record<string, number | string> = { label: 'Aging' };
+    dashboardMetrics.pieData.forEach((entry, idx) => {
+      row[`bucket-${idx}`] = entry.value;
+    });
+    return [row];
+  }, [dashboardMetrics.pieData]);
+
+  const agingBuckets = useMemo(
+    () =>
+      dashboardMetrics.pieData.map((entry, idx) => {
+        const percent = agingTotal > 0 ? (entry.value / agingTotal) * 100 : 0;
+        return {
+          ...entry,
+          percent,
+          dataKey: `bucket-${idx}`,
+        };
+      }),
+    [dashboardMetrics.pieData, agingTotal],
+  );
+
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   return (
@@ -1597,7 +1633,18 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
-          <p className="text-gray-600">Customer Details</p>
+          <p className="text-gray-600">
+            {(() => {
+              const salesReps = new Set<string>();
+              invoices.forEach(inv => {
+                if (inv.salesRep && inv.salesRep.trim()) {
+                  salesReps.add(inv.salesRep.trim());
+                }
+              });
+              const salesRepsArray = Array.from(salesReps).sort();
+              return salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep';
+            })()}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {currentUserName === 'Mahmoud Shaker' && (
@@ -2133,9 +2180,9 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-in fade-in duration-300">
             
-            {/* Section 1: Debt Overview */}
+            {/* Section 1: Debit Overview */}
             <div>
-              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debt Overview</h3>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                 {/* Net Debt Card */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
@@ -2222,97 +2269,113 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 </div>
               </div>
 
-              {/* Debt Aging Breakdown - Modern Bar Chart */}
+              {/* Debit Aging Breakdown - Modern Stacked Bar + Pills */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Debt Aging Breakdown</h3>
-                <div className="h-80 w-full">
-                  {dashboardMetrics.pieData.length > 0 ? (
+                <div className="flex items-center justify-between gap-4 flex-wrap">
+                  <h3 className="text-lg font-bold text-gray-800">Debit Aging Breakdown</h3>
+                  <div className="text-sm text-gray-600">
+                    Total Outstanding:{' '}
+                    <span className="font-semibold text-gray-900">
+                      {agingTotal.toLocaleString('en-US')}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="h-44 w-full mt-2">
+                  {agingBuckets.length > 0 ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart
-                        data={dashboardMetrics.pieData}
-                        margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+                        data={stackedAgingData}
+                        margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
                         layout="vertical"
+                        stackOffset="none"
                       >
-                        <defs>
-                          {dashboardMetrics.pieData.map((entry, index) => (
-                            <linearGradient key={`gradient-${index}`} id={`gradient-${index}`} x1="0" y1="0" x2="1" y2="0">
-                              <stop offset="0%" stopColor={entry.color} stopOpacity={0.9} />
-                              <stop offset="100%" stopColor={entry.color} stopOpacity={0.6} />
-                            </linearGradient>
-                          ))}
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} stroke="#E5E7EB" />
-                        <XAxis 
+                        <CartesianGrid horizontal={true} vertical={false} stroke="#E5E7EB" />
+                        <XAxis
                           type="number"
-                          tick={{ fontSize: 12, fill: '#6B7280' }}
-                          tickFormatter={(value) => {
-                            if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
-                            if (value >= 1000) return `${(value / 1000).toFixed(1)}k`;
-                            return value.toString();
-                          }}
+                          tick={false}
                           axisLine={false}
                           tickLine={false}
+                          domain={[0, agingTotal || 'auto']}
                         />
-                        <YAxis 
-                          type="category"
-                          dataKey="name"
-                          tick={{ fontSize: 12, fill: '#6B7280', fontWeight: 500 }}
-                          axisLine={false}
-                          tickLine={false}
-                          width={100}
-                        />
-                        <RechartsTooltip 
+                        <YAxis type="category" dataKey="label" hide />
+                        <RechartsTooltip
                           formatter={(value: number, name: string, props: any) => {
-                            const total = agingData.total;
-                            const percent = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
-                            return [
-                              `${value.toLocaleString('en-US')} (${percent}%)`,
-                              'Amount'
-                            ];
+                            const percent = agingTotal > 0 ? ((value / agingTotal) * 100).toFixed(1) : '0.0';
+                            const label = agingBuckets.find((b) => b.dataKey === name)?.name || 'Bucket';
+                            return [`${value.toLocaleString('en-US')} (${percent}%)`, label];
                           }}
-                          contentStyle={{ 
-                            borderRadius: '12px', 
-                            border: 'none', 
+                          contentStyle={{
+                            borderRadius: '12px',
+                            border: 'none',
                             boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
                             padding: '12px',
-                            backgroundColor: 'white'
+                            backgroundColor: 'white',
                           }}
                           cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
                         />
-                        <Bar 
-                          dataKey="value" 
-                          radius={[0, 8, 8, 0]}
-                        >
-                          {dashboardMetrics.pieData.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={`url(#gradient-${index})`} />
-                          ))}
-                        </Bar>
+                        {agingBuckets.map((bucket) => (
+                          <Bar
+                            key={bucket.dataKey}
+                            dataKey={bucket.dataKey}
+                            stackId="aging"
+                            fill={bucket.color}
+                            radius={[0, 0, 0, 0]}
+                          >
+                            <LabelList
+                              dataKey={bucket.dataKey}
+                              position="inside"
+                              formatter={(value: number) => {
+                                const percent = agingTotal > 0 ? (value / agingTotal) * 100 : 0;
+                                return percent >= 1 ? `${percent.toFixed(0)}%` : '';
+                              }}
+                              fill="#fff"
+                              fontSize={15}
+                              fontWeight={800}
+                            />
+                          </Bar>
+                        ))}
                       </BarChart>
                     </ResponsiveContainer>
                   ) : (
                     <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
                       <p className="text-4xl mb-2">👍</p>
-                      <p>No outstanding debt to analyze.</p>
+                      <p>No outstanding debit to analyze.</p>
                     </div>
                   )}
                 </div>
-                {/* Legend below chart */}
-                {dashboardMetrics.pieData.length > 0 && (
-                  <div className="flex flex-wrap justify-center gap-4 mt-4 pt-4 border-t border-gray-200">
-                    {dashboardMetrics.pieData.map((entry, index) => {
-                      const percent = agingData.total > 0 
-                        ? ((entry.value / agingData.total) * 100).toFixed(1)
-                        : '0.0';
-                      return (
-                        <div key={`legend-${index}`} className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
-                          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }}></div>
-                          <span className="text-sm font-semibold text-gray-700">{entry.name}</span>
-                          <span className="text-sm text-gray-500">
-                            {entry.value.toLocaleString('en-US')} ({percent}%)
-                          </span>
+
+                {/* Pills with value + percent */}
+                {agingBuckets.length > 0 && (
+                  <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2 text-center">
+                    {agingBuckets.map((bucket) => (
+                      <div
+                        key={bucket.name}
+                        className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white border border-gray-100 shadow-[0_8px_24px_rgba(0,0,0,0.06)] min-w-[200px]"
+                      >
+                        <div className="flex flex-col items-start flex-1 leading-tight text-left">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full inline-block"
+                              style={{ backgroundColor: bucket.color }}
+                            ></span>
+                            <span className="text-sm font-semibold text-gray-900">{bucket.name}</span>
+                          </div>
+                          <div className="text-sm text-gray-700 font-semibold mt-1">
+                            {bucket.value.toLocaleString('en-US')}
+                          </div>
                         </div>
-                      );
-                    })}
+                        <span
+                          className="px-3 py-1.5 rounded-full text-sm font-bold"
+                          style={{
+                            color: bucket.color,
+                            backgroundColor: `${bucket.color}1A`, // ~10% opacity
+                          }}
+                        >
+                          {bucket.percent.toFixed(1)}%
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -2573,6 +2636,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 ))}
                 <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                   <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}></td>
                   <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
                   <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
                     {totalDebit.toLocaleString('en-US')}
@@ -2745,6 +2809,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                   {overdueTable.getRowModel().rows.length > 0 && (
                     <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                       <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}></td>
                       <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
                       <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
                         {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.debit, 0).toLocaleString('en-US')}
@@ -2763,6 +2828,83 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 </tbody>
               </table>
             </div>
+          {overdueTable.getRowModel().rows.length > 0 && (
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
+              <div className="flex justify-between flex-1 sm:hidden">
+                <button
+                  onClick={() => overdueTable.previousPage()}
+                  disabled={!overdueTable.getCanPreviousPage()}
+                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => overdueTable.nextPage()}
+                  disabled={!overdueTable.getCanNextPage()}
+                  className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-700">
+                    Page <span className="font-medium">{overdueTable.getState().pagination.pageIndex + 1}</span> of{' '}
+                    <span className="font-medium">{overdueTable.getPageCount()}</span>
+                  </span>
+                  <select
+                    value={overdueTable.getState().pagination.pageSize}
+                    onChange={e => {
+                      overdueTable.setPageSize(Number(e.target.value))
+                    }}
+                    className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    {[50, 100, 250, 500].map(pageSize => (
+                      <option key={pageSize} value={pageSize}>
+                        Show {pageSize}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => overdueTable.setPageIndex(0)}
+                      disabled={!overdueTable.getCanPreviousPage()}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">First</span>
+                      «
+                    </button>
+                    <button
+                      onClick={() => overdueTable.previousPage()}
+                      disabled={!overdueTable.getCanPreviousPage()}
+                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Previous</span>
+                      ‹
+                    </button>
+                    <button
+                      onClick={() => overdueTable.nextPage()}
+                      disabled={!overdueTable.getCanNextPage()}
+                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Next</span>
+                      ›
+                    </button>
+                    <button
+                      onClick={() => overdueTable.setPageIndex(overdueTable.getPageCount() - 1)}
+                      disabled={!overdueTable.getCanNextPage()}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Last</span>
+                      »
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          )}
           </div>
         </div>
       )}

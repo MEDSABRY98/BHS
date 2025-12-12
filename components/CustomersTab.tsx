@@ -47,15 +47,194 @@ const formatDmy = (date?: Date | null) => {
   return `${day}/${month}/${year}`;
 };
 
-const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export') => {
+const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
+  // 🎯 أولاً: التحقق من شيت CUSTOMER REMARKS - عمل xlookup باسم العميل
+  // لو لقيته في الشيت → Bad فوراً بدون أي حسابات أخرى
+  // Normalize: lowercase, trim, and normalize whitespace only (exact match - keep punctuation, same as in getClosedCustomers)
+  const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
+  
+  // التحقق من وجود الاسم في القائمة (مقارنة دقيقة - exact match)
+  const isClosed = closedCustomersSet.has(customerNameNormalized);
+  
+  // لو المحل مغلق، الدين سيء فوراً بدون أي حسابات أخرى
+  if (isClosed) {
+    if (returnBreakdown) {
+      return {
+        rating: 'Bad',
+        reason: 'مغلق',
+        isClosed: true,
+        breakdown: null
+      };
+    }
+    return 'Bad';
+  }
+
+  // تعريف المتغيرات (LET function)
+  const netDebt = customer.netDebt;
+  const collRate = customer.totalDebit > 0 ? (customer.totalCredit / customer.totalDebit) : 0;
+  const lastPay = customer.lastPaymentDate;
+  const payCount = (customer as any).paymentsCount3m || 0;
+  const payments90d = (customer as any).payments3m || 0; // قيمة المدفوعات آخر 90 يوم
+  const sales90d = (customer as any).sales3m || 0; // صافي المبيعات آخر 90 يوم (SAL debits)
+  const lastSale = customer.lastSalesDate;
+  const salesCount = (customer as any).salesCount3m || 0;
+
+  // 🎯 ثانياً: مؤشرات الخطر Risk Flags
+  // riskFlag1: صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0
+  const riskFlag1 = sales90d < 0 && payCount === 0 ? 1 : 0;
+  
+  // riskFlag2: مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب
+  const riskFlag2 = payCount === 0 && salesCount === 0 && netDebt > 0 ? 1 : 0;
+
+  // 🎯 ثالثاً: نظام النقاط (5 مستويات × نقطتين)
+  
+  // score1 — تقييم صافي المديونية Net Debt
+  let score1 = 0;
+  if (netDebt < 0) {
+    score1 = 2; // العميل ليه عندك فلوس
+  } else if (netDebt <= 5000) {
+    score1 = 2;
+  } else if (netDebt <= 20000) {
+    score1 = 1;
+  } else {
+    score1 = 0; // > 20000
+  }
+
+  // score2 — تقييم نسبة التحصيل Collection Rate %
+  let score2 = 0;
+  if (collRate >= 0.8) { // >= 80%
+    score2 = 2;
+  } else if (collRate >= 0.5) { // بين 50–79%
+    score2 = 1;
+  } else {
+    score2 = 0; // < 50%
+  }
+
+  // score3 — تقييم آخر دفعة Last Payment Date
+  let score3 = 0;
+  if (lastPay) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lastPayDate = new Date(lastPay);
+    lastPayDate.setHours(0, 0, 0, 0);
+    const daysSinceLastPay = Math.floor((today.getTime() - lastPayDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysSinceLastPay <= 30) {
+      score3 = 2; // دفع خلال الشهر الأخير
+    } else if (daysSinceLastPay <= 90) {
+      score3 = 1; // دفع خلال آخر 90 يوم
+    } else {
+      score3 = 0; // أكتر من 90 يوم
+    }
+  } else {
+    score3 = 0; // لو "-" → 0
+  }
+
+  // score4 — تقييم عدد المدفوعات آخر 90 يوم
+  let score4 = 0;
+  if (payCount >= 2) {
+    score4 = 2; // مرتين أو أكتر
+  } else if (payCount === 1) {
+    score4 = 1; // مرة واحدة
+  } else {
+    score4 = 0; // صفر
+  }
+
+  // score5 — تقييم آخر عملية بيع Last Sale Date
+  let score5 = 0;
+  if (lastSale) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const lastSaleDate = new Date(lastSale);
+    lastSaleDate.setHours(0, 0, 0, 0);
+    const daysSinceLastSale = Math.floor((today.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysSinceLastSale <= 30) {
+      score5 = 2; // شراء خلال الشهر الأخير
+    } else if (daysSinceLastSale <= 90) {
+      score5 = 1; // شراء خلال 90 يوم
+    } else {
+      score5 = 0; // أكتر من 90 يوم
+    }
+  } else {
+    score5 = 0; // لو "-" → 0
+  }
+
+  const totalScore = score1 + score2 + score3 + score4 + score5;
+
+  // 🎯 رابعاً: حساب التقييم النهائي
+  let finalRating: 'Good' | 'Medium' | 'Bad';
+  let reason = '';
+  
+  // 1️⃣ لو صافي المديونية بالسالب → على طول Good
+  if (netDebt < 0) {
+    finalRating = 'Good';
+    reason = 'صافي المديونية بالسالب (العميل ليه عندك فلوس)';
+  }
+  // 2️⃣ بعدها: لو أي RiskFlag = 1 → Bad
+  else if (riskFlag1 === 1 || riskFlag2 === 1) {
+    finalRating = 'Bad';
+    if (riskFlag1 === 1) {
+      reason = 'مؤشر خطر 1: صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0';
+    } else {
+      reason = 'مؤشر خطر 2: مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب';
+    }
+  }
+  // 3️⃣ آخر خطوة: تقييم النقاط
+  else {
+    if (totalScore >= 7) {
+      finalRating = 'Good'; // 7–10 → Good
+      reason = `إجمالي النقاط = ${totalScore} (≥ 7 → Good)`;
+    } else if (totalScore >= 4) {
+      finalRating = 'Medium'; // 4–6 → Medium
+      reason = `إجمالي النقاط = ${totalScore} (4-6 → Medium)`;
+    } else {
+      finalRating = 'Bad'; // ≤3 → Bad
+      reason = `إجمالي النقاط = ${totalScore} (≤3 → Bad)`;
+    }
+  }
+
+  if (returnBreakdown) {
+    return {
+      rating: finalRating,
+      reason,
+      isClosed: false,
+      breakdown: {
+        netDebt,
+        collRate: collRate * 100,
+        lastPay: lastPay ? formatDmy(lastPay) : '-',
+        payCount,
+        payments90d,
+        sales90d,
+        lastSale: lastSale ? formatDmy(lastSale) : '-',
+        salesCount,
+        riskFlags: {
+          riskFlag1,
+          riskFlag2
+        },
+        scores: {
+          score1,
+          score2,
+          score3,
+          score4,
+          score5
+        },
+        totalScore
+      }
+    };
+  }
+
+  return finalRating;
+};
+
+const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set()) => {
   // CSV format (opens in Excel)
-  // Order: Customer Name, Total Debit, Total Credit, Net Debt, Open OB, Overdue Amount, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
+  // Order: Customer Name, Sales Rep, Net Debt, Debt Rating, Open OB, Overdue Amount, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
   const headers = [
     'Customer Name',
     'Sales Rep',
-    'Total Debit',
-    'Total Credit',
     'Net Debt',
+    'Debt Rating',
     'Open OB',
     'Overdue Amount',
     'Collection Rate %',
@@ -78,12 +257,13 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       ? Array.from(customer.salesReps).join(', ')
       : '';
     
+    const rating = calculateDebtRating(customer, closedCustomersSet);
+    
     return [
       customer.customerName || '',
       salesRep,
-      customer.totalDebit.toFixed(2) || '0.00',
-      customer.totalCredit.toFixed(2) || '0.00',
       customer.netDebt.toFixed(2) || '0.00',
+      rating,
       (customer.openOBAmount || 0).toFixed(2),
       collectionRate,
       (customer.overdueAmount || 0).toFixed(2),
@@ -135,6 +315,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [matchingFilter, setMatchingFilter] = useState('ALL');
   const [selectedSalesRep, setSelectedSalesRep] = useState('ALL');
   const [customersWithEmails, setCustomersWithEmails] = useState<Set<string>>(new Set());
+  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
+  const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
+  const [ratingBreakdown, setRatingBreakdown] = useState<any>(null);
 
   // Advanced Filters
   const [debtOperator, setDebtOperator] = useState<'GT' | 'LT' | ''>('');
@@ -198,6 +381,28 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       }
     };
     fetchEmails();
+  }, []);
+
+  useEffect(() => {
+    const fetchClosedCustomers = async () => {
+      try {
+        const response = await fetch('/api/closed-customers');
+        if (response.ok) {
+          const data = await response.json();
+          // Normalize customer names when storing (same normalization as in calculateDebtRating)
+          const normalizedSet = new Set<string>();
+          data.closedCustomers.forEach((name: string) => {
+            // Normalize: lowercase, trim, and normalize whitespace only (exact match - keep punctuation, same as in getClosedCustomers)
+            const normalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
+            normalizedSet.add(normalized);
+          });
+          setClosedCustomers(normalizedSet);
+        }
+      } catch (error) {
+        console.error('Failed to fetch closed customers:', error);
+      }
+    };
+    fetchClosedCustomers();
   }, []);
 
   const customerAnalysis = useMemo(() => {
@@ -577,6 +782,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
   const filteredData = useMemo(() => {
     let result = customerAnalysis;
+    // Filter out customers with zero net debt
+    result = result.filter(c => Math.abs(c.netDebt) > 0.01);
     const now = new Date();
 
     // Date Range Filter
@@ -999,14 +1206,6 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           </button>
         ),
       }),
-      columnHelper.accessor('totalDebit', {
-        header: 'Total Debit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      columnHelper.accessor('totalCredit', {
-        header: 'Total Credit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debit',
         cell: (info) => {
@@ -1018,8 +1217,50 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           );
         },
       }),
+      columnHelper.display({
+        id: 'collectionRate',
+        header: 'Collection Rate',
+        cell: (info) => {
+          const customer = info.row.original;
+          // If net debt is negative (creditor), show "-"
+          if (customer.netDebt < 0) {
+            return <span className="text-gray-500">-</span>;
+          }
+          const collectionRate = customer.totalDebit > 0 
+            ? ((customer.totalCredit / customer.totalDebit) * 100)
+            : 0;
+          return (
+            <span className={collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>
+              {collectionRate.toFixed(1)}%
+            </span>
+          );
+        },
+      }),
+      columnHelper.display({
+        id: 'debtRating',
+        header: 'Debt Rating',
+        cell: (info) => {
+          const customer = info.row.original;
+          const rating = calculateDebtRating(customer, closedCustomers);
+          const colorClass = rating === 'Good' ? 'text-green-600' : rating === 'Medium' ? 'text-yellow-600' : 'text-red-600';
+          const bgClass = rating === 'Good' ? 'bg-green-50' : rating === 'Medium' ? 'bg-yellow-50' : 'bg-red-50';
+          return (
+            <button
+              onClick={() => {
+                const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                setSelectedRatingCustomer(customer);
+                setRatingBreakdown(breakdown);
+              }}
+              className={`px-3 py-1 rounded-full text-sm font-semibold ${colorClass} ${bgClass} border ${rating === 'Good' ? 'border-green-200' : rating === 'Medium' ? 'border-yellow-200' : 'border-red-200'} hover:shadow-md transition-all cursor-pointer`}
+              title="اضغط لعرض تفاصيل التقييم"
+            >
+              {rating}
+            </button>
+          );
+        },
+      }),
     ],
-    []
+    [closedCustomers]
   );
 
   const table = useReactTable({
@@ -1569,7 +1810,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
               <div className="flex justify-between items-start">
                 <div>
           <p className="text-lg">
-            <span className="font-semibold">Total Debit:</span>{' '}
+            <span className="font-semibold">Total Net Debt:</span>{' '}
             <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
               {totalDebt.toLocaleString('en-US')}
             </span>
@@ -1622,7 +1863,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           </select>
 
           <button
-            onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`)}
+            onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
             className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
             title="Export to Excel"
           >
@@ -1650,10 +1891,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'netDebt') return '22%';
-                      if (columnId === 'totalCredit') return '22%';
-                      if (columnId === 'totalDebit') return '22%';
-                      return '34%';
+                      if (columnId === 'netDebt') return '25%';
+                      if (columnId === 'collectionRate') return '15%';
+                      if (columnId === 'debtRating') return '15%';
+                      return '45%';
                     };
                     return (
                     <th
@@ -1679,10 +1920,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   {row.getVisibleCells().map((cell) => {
                     const getWidth = () => {
                       const columnId = cell.column.id;
-                      if (columnId === 'netDebt') return '22%';
-                      if (columnId === 'totalCredit') return '22%';
-                      if (columnId === 'totalDebit') return '22%';
-                      return '34%';
+                      if (columnId === 'netDebt') return '25%';
+                      if (columnId === 'collectionRate') return '15%';
+                      if (columnId === 'debtRating') return '15%';
+                      return '45%';
                     };
                     return (
                       <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
@@ -1693,19 +1934,33 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 </tr>
               ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '34%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '45%' }}>
                   Total
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
-                  {filteredData.reduce((sum, c) => sum + c.totalDebit, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
-                  {filteredData.reduce((sum, c) => sum + c.totalCredit, 0).toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '25%' }}>
                   <span className={filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : ''}>
                     {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
                   </span>
+                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                  {(() => {
+                    const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+                    // If total net debt is negative, show "-"
+                    if (totalNetDebt < 0) {
+                      return <span className="text-gray-500">-</span>;
+                    }
+                    const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
+                    const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
+                    const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
+                    return (
+                      <span className={avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>
+                        {avgCollectionRate.toFixed(1)}%
+                      </span>
+                    );
+                  })()}
+                </td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                  -
                 </td>
               </tr>
             </tbody>
@@ -1717,6 +1972,132 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
       </div>
 
+      {/* Rating Breakdown Modal */}
+      {selectedRatingCustomer && ratingBreakdown && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50 px-4" onClick={() => {
+          setSelectedRatingCustomer(null);
+          setRatingBreakdown(null);
+        }}>
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedRatingCustomer.customerName}</h3>
+                <p className="text-sm text-gray-500">تفاصيل تقييم الدين</p>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedRatingCustomer(null);
+                  setRatingBreakdown(null);
+                }}
+                className="text-gray-500 hover:text-gray-700 text-2xl"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="px-6 py-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+              {/* Final Rating */}
+              <div className="mb-6 p-5 rounded-lg border-2" style={{
+                backgroundColor: ratingBreakdown.rating === 'Good' ? '#F0FDF4' : ratingBreakdown.rating === 'Medium' ? '#FEFCE8' : '#FEF2F2',
+                borderColor: ratingBreakdown.rating === 'Good' ? '#86EFAC' : ratingBreakdown.rating === 'Medium' ? '#FDE047' : '#FCA5A5'
+              }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-base font-medium text-gray-600 mb-2">التقييم النهائي</p>
+                    <p className="text-3xl font-bold" style={{
+                      color: ratingBreakdown.rating === 'Good' ? '#16A34A' : ratingBreakdown.rating === 'Medium' ? '#CA8A04' : '#DC2626'
+                    }}>
+                      {ratingBreakdown.rating === 'Good' ? 'جيد' : ratingBreakdown.rating === 'Medium' ? 'متوسط' : 'سيء'}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-base text-gray-600 mb-2">السبب</p>
+                    <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.reason}</p>
+                  </div>
+                </div>
+              </div>
+
+              {ratingBreakdown.breakdown && (
+                <>
+                  {/* Risk Flags */}
+                  {(ratingBreakdown.breakdown.riskFlags.riskFlag1 === 1 || ratingBreakdown.breakdown.riskFlags.riskFlag2 === 1) && (
+                    <div className="mb-6">
+                      <h4 className="text-lg font-bold text-gray-800 mb-3">مؤشرات الخطر</h4>
+                      <div className="space-y-2">
+                        {ratingBreakdown.breakdown.riskFlags.riskFlag1 === 1 && (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-base font-semibold text-red-800">مؤشر خطر 1</p>
+                            <p className="text-sm text-red-600">صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0</p>
+                          </div>
+                        )}
+                        {ratingBreakdown.breakdown.riskFlags.riskFlag2 === 1 && (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-base font-semibold text-red-800">مؤشر خطر 2</p>
+                            <p className="text-sm text-red-600">مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Scores Breakdown */}
+                  <div className="mb-6">
+                    <h4 className="text-lg font-bold text-gray-800 mb-3">تفاصيل النقاط</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm text-gray-500 mb-2">صافي المديونية</p>
+                        <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.netDebt.toLocaleString('en-US')}</p>
+                        <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score1}/2</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <p className="text-sm text-gray-500 mb-2">نسبة التحصيل</p>
+                        <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.collRate.toFixed(1)}%</p>
+                        <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score2}/2</p>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 md:col-span-2">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-500 mb-1">آخر دفعة</p>
+                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.lastPay}</p>
+                            <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score3}/2</p>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-500 mb-1">قيمة المدفوعات آخر 90 يوم</p>
+                            <p className="text-lg font-semibold text-gray-800">{(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-500 mb-1">عدد المدفوعات آخر 90 يوم</p>
+                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.payCount}</p>
+                            <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score4}/2</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 md:col-span-2">
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-500 mb-1">آخر عملية بيع</p>
+                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.lastSale}</p>
+                            <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score5}/2</p>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-500 mb-1">قيمة المبيعات آخر 90 يوم</p>
+                            <p className="text-lg font-semibold text-gray-800">{(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm text-gray-500 mb-1">عدد عمليات البيع آخر 90 يوم</p>
+                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.salesCount}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

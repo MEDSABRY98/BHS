@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Customer Debt Analysis",
+  title: "Customer Debit Analysis",
   description: "Customer debt analysis application",
 };
 

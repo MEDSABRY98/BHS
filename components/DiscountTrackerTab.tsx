@@ -113,9 +113,10 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedSummary, setSelectedSummary] = useState<DiscountSummary | null>(null);
-  const [detailTab, setDetailTab] = useState<'missing' | 'posted' | 'posted-details'>('missing');
+  const [detailTab, setDetailTab] = useState<'missing' | 'posted' | 'reconciled' | 'posted-details'>('missing');
   const [selectedPostedMonth, setSelectedPostedMonth] = useState<MonthItem | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [reconcilingKey, setReconcilingKey] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchEntries = async () => {
@@ -256,6 +257,52 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
     });
   };
 
+  const handleReconcile = async (month: MonthItem) => {
+    if (!selectedSummary) return;
+    setReconcilingKey(month.key);
+    try {
+      const res = await fetch('/api/discounts/reconcile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerName: selectedSummary.customerName, monthKey: month.key }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to mark reconciliation');
+      }
+
+      const updatedKeys: string[] = data.reconciliationMonths || [];
+
+      setEntries((prev) =>
+        prev.map((entry) =>
+          entry.customerName === selectedSummary.customerName
+            ? { ...entry, reconciliationMonths: updatedKeys }
+            : entry,
+        ),
+      );
+
+      setSelectedSummary((prev) => {
+        if (!prev) return prev;
+        const newMissing = prev.missingMonths.filter((m) => m.key !== month.key);
+        const newReconciled = Array.from(
+          new Set([...prev.reconciledMonths.map((m) => m.key), month.key]),
+        )
+          .sort(compareMonthKeys)
+          .map((key) => ({ key, label: formatMonthLabel(key) }));
+        return {
+          ...prev,
+          missingMonths: newMissing,
+          reconciledMonths: newReconciled,
+        };
+      });
+      setDetailTab('reconciled');
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to mark reconciliation');
+    } finally {
+      setReconcilingKey(null);
+    }
+  };
+
 
   if (loading) {
     return (
@@ -323,14 +370,14 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
               <tr>
-                <th className="px-5 py-3 text-left font-semibold w-2/5">Customer</th>
+                <th className="px-5 py-3 text-left font-semibold w-2/5">Customer Name</th>
                 <th className="px-5 py-3 text-center font-semibold w-1/5">Missing</th>
                 <th className="px-5 py-3 text-center font-semibold w-1/5">Posted (BIL)</th>
                 <th className="px-5 py-3 text-center font-semibold w-1/5">Reconciled</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSummaries.map((summary) => {
+              {filteredSummaries.map((summary, index) => {
                 const missingCount = summary.missingMonths.length;
                 const postedCount = summary.postedMonths.length;
                 const reconciledCount = summary.reconciledMonths.length;
@@ -342,8 +389,8 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                   >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold uppercase">
-                          {summary.customerName.charAt(0)}
+                        <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                          {index + 1}
                         </div>
                         <div className="flex flex-col">
                           <button
@@ -451,6 +498,16 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                   Posted · {selectedSummary.postedMonths.length}
                 </button>
                 <button
+                  onClick={() => setDetailTab('reconciled')}
+                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
+                    detailTab === 'reconciled'
+                      ? 'bg-green-600 text-white border-green-600 shadow-sm'
+                      : 'bg-white text-green-700 border-green-200 hover:bg-green-50'
+                  }`}
+                >
+                  Reconciled · {selectedSummary.reconciledMonths.length}
+                </button>
+                <button
                   onClick={() => setDetailTab('posted-details')}
                   className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
                     detailTab === 'posted-details'
@@ -479,8 +536,37 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                           className="flex items-center justify-between px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm font-semibold"
                         >
                           <span>{m.label}</span>
-                          <span className="text-xs font-medium bg-white/60 text-red-700 px-2 py-1 rounded-full border border-red-200">
-                            Missing
+                          <button
+                            onClick={() => handleReconcile(m)}
+                            disabled={reconcilingKey === m.key}
+                            className="text-xs font-semibold px-3 py-1 rounded-full border border-red-300 bg-white/80 text-red-700 hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
+                          >
+                            {reconcilingKey === m.key ? 'Saving...' : 'Reconcile'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {detailTab === 'reconciled' && (
+                <div className="space-y-3">
+                  {selectedSummary.reconciledMonths.length === 0 ? (
+                    <div className="text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
+                      <span className="text-lg">ℹ</span>
+                      لا توجد شهور Reconciled بعد.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {selectedSummary.reconciledMonths.map((m) => (
+                        <div
+                          key={m.key}
+                          className="flex items-center justify-between px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm font-semibold"
+                        >
+                          <span>{m.label}</span>
+                          <span className="text-xs font-medium bg-white/70 text-green-700 px-2 py-1 rounded-full border border-green-200">
+                            Reconciled
                           </span>
                         </div>
                       ))}

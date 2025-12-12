@@ -85,10 +85,8 @@ export default function AllNotesTab() {
       })
       .filter((summary): summary is ClientNotesSummary => summary !== null) // Remove clients with no relevant notes
       .sort((a, b) => {
-        // Sort clients by their last note time (most recent first)
-        const timeA = a.lastNote.timestamp ? new Date(a.lastNote.timestamp).getTime() : 0;
-        const timeB = b.lastNote.timestamp ? new Date(b.lastNote.timestamp).getTime() : 0;
-        return timeB - timeA;
+        // Sort clients by customer name alphabetically
+        return a.customerName.localeCompare(b.customerName);
       });
   };
 
@@ -219,7 +217,7 @@ export default function AllNotesTab() {
                           </span>
                        )}
                     </td>
-                    <td className="p-4 text-gray-800">
+                    <td className="p-4 text-gray-800 whitespace-pre-wrap">
                       {note.content}
                     </td>
                   </tr>

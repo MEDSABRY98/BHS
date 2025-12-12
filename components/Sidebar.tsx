@@ -24,7 +24,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-800 text-center">Debt Analysis</h1>
+        <h1 className="text-xl font-bold text-gray-800 text-center">Debit Analysis</h1>
       </div>
       
       <nav className="p-4 flex-1 overflow-y-auto">

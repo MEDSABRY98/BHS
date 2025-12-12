@@ -154,7 +154,8 @@ export default function CustomersByMonthsTab({ data }: CustomersByMonthsTabProps
     });
 
     // Default sort: highest open net total first
-    return result.sort((a, b) => b.netTotal - a.netTotal);
+    // Filter out customers with netTotal === 0
+    return result.filter(item => Math.abs(item.netTotal) > 0.01).sort((a, b) => b.netTotal - a.netTotal);
   }, [data]);
 
   const filtered = useMemo(() => {

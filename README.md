@@ -1,4 +1,4 @@
-# Customer Debt Analysis Application
+# Customer Debit Analysis Application
 
 تطبيق تحليل مديونية العملاء - مبني بـ Next.js
 

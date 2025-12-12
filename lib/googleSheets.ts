@@ -109,6 +109,21 @@ const MONTH_ABBREVIATIONS: Record<string, number> = {
   DEC: 12,
 };
 
+const MONTH_NAMES_BY_NUMBER: Record<number, string> = {
+  1: 'JAN',
+  2: 'FEB',
+  3: 'MAR',
+  4: 'APR',
+  5: 'MAY',
+  6: 'JUN',
+  7: 'JUL',
+  8: 'AUG',
+  9: 'SEP',
+  10: 'OCT',
+  11: 'NOV',
+  12: 'DEC',
+};
+
 const normalizeMonthToken = (token: string): string | null => {
   const cleaned = token.trim().toUpperCase();
   if (!cleaned) return null;
@@ -127,6 +142,15 @@ const normalizeMonthToken = (token: string): string | null => {
   }
 
   return `${year}-${String(month).padStart(2, '0')}`;
+};
+
+const formatMonthTokenFromKey = (key: string): string => {
+  // Input: YYYY-MM -> Output: MONYY (e.g., 2025-09 -> SEP25)
+  const [yearStr, monthStr] = key.split('-');
+  const monthNum = parseInt(monthStr, 10);
+  const mon = MONTH_NAMES_BY_NUMBER[monthNum] || monthStr;
+  const yy = yearStr.slice(-2);
+  return `${mon}${yy}`;
 };
 
 export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[]> {
@@ -168,6 +192,67 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
       .filter((entry): entry is DiscountTrackerEntry => Boolean(entry));
   } catch (error) {
     console.error('Error fetching discount tracker entries:', error);
+    throw error;
+  }
+}
+
+const normalizeMonthKeyFlexible = (token: string, fallbackYear: number): string | null => {
+  if (/^\d{4}-\d{2}$/.test(token.trim())) return token.trim();
+  return normalizeMonthToken(token) || normalizeMonthToken(`${token}${fallbackYear}`);
+};
+
+export async function markReconciliationMonth(customerName: string, monthKey: string): Promise<string[]> {
+  const normalizedKey =
+    normalizeMonthKeyFlexible(monthKey, new Date().getFullYear()) ||
+    monthKey;
+
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `DISCOUNTS!A:B`, // CUSTOMER NAME, RECONCILIATION
+    });
+
+    const rows = response.data.values || [];
+    const customerIndex = rows.slice(1).findIndex(
+      (row) => row[0]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase(),
+    );
+
+    if (customerIndex === -1) {
+      throw new Error('Customer not found in DISCOUNTS sheet');
+    }
+
+    const rowNumber = customerIndex + 2; // account for header
+    const existingCell = rows[rowNumber - 1]?.[1]?.toString() || '';
+    const existingNormalized = existingCell
+      .split(/[,;\s]+/)
+      .map((t) => normalizeMonthKeyFlexible(t, new Date().getFullYear()))
+      .filter((v): v is string => Boolean(v));
+
+    const set = new Set<string>(existingNormalized);
+    set.add(normalizedKey);
+
+    const normalizedList = Array.from(set).sort();
+    const tokensForSheet = normalizedList.map(formatMonthTokenFromKey).join(', ');
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `DISCOUNTS!B${rowNumber}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[tokensForSheet]] },
+    });
+
+    return normalizedList;
+  } catch (error) {
+    console.error('Error marking reconciliation month:', error);
     throw error;
   }
 }
@@ -224,7 +309,7 @@ export async function getCustomerEmail(customerName: string): Promise<string | n
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `CUSTOMER DETAILS!A:B`, // CUSTOMER NAME, EMAIL
+      range: `EMAILS!A:B`, // CUSTOMER NAME, EMAIL
     });
 
     const rows = response.data.values;
@@ -263,7 +348,7 @@ export async function getAllCustomerEmails(): Promise<string[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `CUSTOMER DETAILS!A:B`, // CUSTOMER NAME, EMAIL
+      range: `EMAILS!A:B`, // CUSTOMER NAME, EMAIL
     });
 
     const rows = response.data.values;
@@ -487,6 +572,46 @@ async function getSheetId(sheetName: string): Promise<number | null> {
         console.error('Error getting sheet ID:', error);
         return null;
     }
+}
+
+export async function getClosedCustomers(): Promise<Set<string>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `CUSTOMER REMARKS!A:A`, // CUSTOMER NAME column
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return new Set();
+    }
+
+    // Skip header row and return set of customer names (normalized for exact match)
+    const closedCustomers = new Set<string>();
+    rows.slice(1).forEach((row) => {
+      const customerName = row[0]?.toString().trim();
+      if (customerName) {
+        // Normalize: lowercase, trim, and normalize whitespace only (exact match - keep punctuation)
+        const normalized = customerName.toLowerCase().trim().replace(/\s+/g, ' ');
+        closedCustomers.add(normalized);
+      }
+    });
+
+    return closedCustomers;
+  } catch (error) {
+    console.error('Error fetching closed customers:', error);
+    // Don't throw, just return empty set if sheet doesn't exist or other error
+    return new Set();
+  }
 }
 
 export async function deleteNoteRow(rowIndex: number) {
