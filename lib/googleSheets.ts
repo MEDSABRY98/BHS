@@ -235,7 +235,7 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
     const existingNormalized = existingCell
       .split(/[,;\s]+/)
       .map((t: string) => normalizeMonthKeyFlexible(t, new Date().getFullYear()))
-      .filter((v): v is string => Boolean(v));
+      .filter((v: string | null): v is string => Boolean(v));
 
     const set = new Set<string>(existingNormalized);
     set.add(normalizedKey);
