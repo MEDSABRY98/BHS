@@ -2325,8 +2325,9 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                             <LabelList
                               dataKey={bucket.dataKey}
                               position="inside"
-                              formatter={(value: number) => {
-                                const percent = agingTotal > 0 ? (value / agingTotal) * 100 : 0;
+                              formatter={(value: any) => {
+                                const numValue = typeof value === 'number' ? value : 0;
+                                const percent = agingTotal > 0 ? (numValue / agingTotal) * 100 : 0;
                                 return percent >= 1 ? `${percent.toFixed(0)}%` : '';
                               }}
                               fill="#fff"
