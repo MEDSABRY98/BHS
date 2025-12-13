@@ -342,9 +342,6 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
             <span className="text-blue-600">{filteredItems.length}</span>
             {searchQuery && ` of ${openMatches.length}`}
           </p>
-          <p className="text-sm text-gray-600 mt-1">
-            Showing all open payments, discounts, returns, partially closed sales, and opening balances
-          </p>
         </div>
 
         {/* Filters */}

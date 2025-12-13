@@ -3,6 +3,57 @@
 import { useState, useEffect } from 'react';
 import { Note } from '@/types';
 
+// Helper function to convert URLs in text to clickable links
+const renderNoteWithLinks = (text: string) => {
+  // Regular expression to match URLs (http, https, www, or plain domain)
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/g;
+  
+  const parts: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    // Add text before the URL
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    
+    // Add the URL as a clickable link
+    let url = match[0];
+    // Add https:// if it starts with www.
+    if (url.startsWith('www.')) {
+      url = 'https://' + url;
+    }
+    // Add https:// if it doesn't start with http:// or https://
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    
+    parts.push(
+      <a
+        key={key++}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 hover:text-blue-800 underline break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {match[0]}
+      </a>
+    );
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+  
+  return parts.length > 0 ? parts : text;
+};
+
 interface ClientNotesSummary {
   customerName: string;
   lastNote: Note;
@@ -153,24 +204,38 @@ export default function AllNotesTab() {
       <div className="p-6 max-w-6xl mx-auto">
         <button 
           onClick={() => setSelectedClient(null)}
-          className="mb-6 flex items-center text-blue-600 hover:text-blue-800 transition-colors mx-auto"
+          className="mb-6 flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors font-medium"
         >
-          <span className="mr-2">←</span> Back to {filterType === 'pending' ? 'Pending' : 'All'} Notes
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to {filterType === 'pending' ? 'Pending' : 'All'} Notes
         </button>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200 bg-gray-50 text-center">
-            <h2 className="text-2xl font-bold text-gray-800">{clientSummary.customerName}</h2>
-            <p className="text-gray-500 mt-1">{filterType === 'pending' ? 'Pending notes' : 'All notes history'}</p>
+        <div className="bg-white rounded-2xl shadow-[0_8px_24px_rgba(0,0,0,0.08)] border border-gray-100 overflow-hidden">
+          <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-blue-50">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-md">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900">{clientSummary.customerName}</h2>
+                <p className="text-sm text-gray-600 mt-0.5">{filterType === 'pending' ? 'Pending notes' : 'All notes history'}</p>
+              </div>
+            </div>
             
             {/* Detail Search Box */}
-            <div className="mt-4 max-w-md mx-auto relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <span className="text-gray-500">🔍</span>
+            <div className="max-w-md relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
               </div>
               <input
                 type="text"
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:border-blue-300 focus:ring focus:ring-blue-200 sm:text-sm transition duration-150 ease-in-out text-center"
+                className="block w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-base transition-all shadow-sm hover:shadow-md"
                 placeholder="Search notes..."
                 value={detailSearchQuery}
                 onChange={(e) => setDetailSearchQuery(e.target.value)}
@@ -178,59 +243,59 @@ export default function AllNotesTab() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-center border-collapse">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="p-4 font-semibold text-gray-600 w-32 text-center">Date</th>
-                  <th className="p-4 font-semibold text-gray-600 w-24 text-center">Time</th>
-                  <th className="p-4 font-semibold text-gray-600 w-48 text-center">User</th>
-                  <th className="p-4 font-semibold text-gray-600 w-32 text-center">Status</th>
-                  <th className="p-4 font-semibold text-gray-600 text-center">Note</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredDetailNotes.map((note, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                    <td className="p-4 text-gray-600 whitespace-nowrap">
-                      {formatDate(note.timestamp)}
-                    </td>
-                    <td className="p-4 text-gray-500 text-sm">
-                      {formatTime(note.timestamp)}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center justify-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
-                          {note.user.charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-gray-700 font-medium text-sm">{note.user}</span>
+          <div className="p-6">
+            <div className="space-y-4">
+              {filteredDetailNotes.map((note, idx) => (
+                <div
+                  key={idx}
+                  className="bg-gray-50 rounded-xl border border-gray-200 p-5 hover:shadow-md transition-all duration-200"
+                >
+                  <div className="flex items-start justify-between gap-4 mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center text-sm font-bold shadow-sm">
+                        {note.user.charAt(0).toUpperCase()}
                       </div>
-                    </td>
-                    <td className="p-4">
-                       {note.isSolved ? (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            ✓ Solved
-                          </span>
-                       ) : (
-                          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                            ⏳ Pending
-                          </span>
-                       )}
-                    </td>
-                    <td className="p-4 text-gray-800 whitespace-pre-wrap">
-                      {note.content}
-                    </td>
-                  </tr>
-                ))}
-                {filteredDetailNotes.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="p-8 text-center text-gray-500">
-                      No notes found matching your search.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                      <div>
+                        <p className="font-semibold text-gray-900">{note.user}</p>
+                        <div className="flex items-center gap-2 text-xs text-gray-500 mt-0.5">
+                          <span>{formatDate(note.timestamp)}</span>
+                          <span className="text-gray-300">•</span>
+                          <span>{formatTime(note.timestamp)}</span>
+                        </div>
+                      </div>
+                    </div>
+                    {note.isSolved ? (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Solved
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Pending
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+                    {renderNoteWithLinks(note.content)}
+                  </div>
+                </div>
+              ))}
+              {filteredDetailNotes.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-gray-500 font-medium">No notes found matching your search.</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -246,29 +311,36 @@ export default function AllNotesTab() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-800">Notes Center</h1>
-        <p className="text-gray-600 mt-1">Manage all client notes and follow-ups</p>
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-3">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </div>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Notes Center</h1>
+        </div>
       </div>
 
       {/* Tabs Navigation */}
-      <div className="flex justify-center gap-4 mb-6">
+      <div className="flex gap-2 border-b-2 border-gray-200 mb-6 bg-gray-50/50 p-1 rounded-t-xl">
         <button
           onClick={() => setFilterType('all')}
-          className={`px-6 py-2 rounded-full font-medium transition-colors ${
+          className={`px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 ${
             filterType === 'all'
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50'
+              : 'text-gray-600 hover:text-gray-800 hover:bg-white'
           }`}
         >
           All Notes ({notes.length})
         </button>
         <button
           onClick={() => setFilterType('pending')}
-          className={`px-6 py-2 rounded-full font-medium transition-colors ${
+          className={`px-6 py-3 rounded-lg font-semibold text-base transition-all duration-200 ${
             filterType === 'pending'
-              ? 'bg-yellow-500 text-white shadow-md'
-              : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
+              ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-white shadow-lg shadow-amber-200/50'
+              : 'text-gray-600 hover:text-gray-800 hover:bg-white'
           }`}
         >
           Pending Only ({notes.filter(n => !n.isSolved).length})
@@ -276,65 +348,81 @@ export default function AllNotesTab() {
       </div>
 
       {/* Main Search Box */}
-      <div className="mb-6 max-w-md mx-auto relative">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <span className="text-gray-500">🔍</span>
+      <div className="mb-6 max-w-2xl mx-auto relative">
+        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
         </div>
         <input
           type="text"
-          className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:border-blue-300 focus:ring focus:ring-blue-200 sm:text-sm transition duration-150 ease-in-out text-center"
+          className="block w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl leading-5 bg-white placeholder-gray-500 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-base transition-all shadow-sm hover:shadow-md"
           placeholder="Search by client name or note content..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-center border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="p-4 font-semibold text-gray-600 text-center">Client Name</th>
-                <th className="p-4 font-semibold text-gray-600 text-center">Last Note</th>
-                <th className="p-4 font-semibold text-gray-600 w-48 text-center">Last Updated</th>
-                <th className="p-4 font-semibold text-gray-600 w-20 text-center"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {filteredSummaries.map((summary, idx) => (
-                <tr 
-                  key={idx} 
-                  className="hover:bg-blue-50 transition-colors cursor-pointer group"
-                  onClick={() => setSelectedClient(summary.customerName)}
-                >
-                  <td className="p-4 font-medium text-blue-600 group-hover:text-blue-800">
+      {/* Cards Grid */}
+      <div className="space-y-3">
+        {filteredSummaries.map((summary, idx) => (
+          <div
+            key={idx}
+            onClick={() => setSelectedClient(summary.customerName)}
+            className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group cursor-pointer"
+          >
+            <div className="p-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
                     {summary.customerName}
-                  </td>
-                  <td className="p-4 text-gray-600 max-w-md text-center">
-                    <div className="truncate">
-                      {summary.lastNote.content}
+                  </h3>
+                  <div className="text-gray-600 text-sm line-clamp-2 mb-3">
+                    {renderNoteWithLinks(summary.lastNote.content)}
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <div className="flex items-center gap-1.5">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>{formatDate(summary.lastNote.timestamp)}</span>
                     </div>
-                  </td>
-                  <td className="p-4 text-gray-500 text-sm">
-                    {formatDate(summary.lastNote.timestamp)}
-                    <span className="mx-1 text-gray-300">•</span>
-                    {formatTime(summary.lastNote.timestamp)}
-                  </td>
-                  <td className="p-4 text-center text-gray-400 group-hover:text-blue-500">
-                    →
-                  </td>
-                </tr>
-              ))}
-              {filteredSummaries.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-500">
-                    {searchQuery ? 'No notes found matching your search.' : 'No notes found.'}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+                    <span className="text-gray-300">•</span>
+                    <span>{formatTime(summary.lastNote.timestamp)}</span>
+                    {!summary.lastNote.isSolved && (
+                      <>
+                        <span className="text-gray-300">•</span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          ⏳ Pending
+                        </span>
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">
+                    {summary.lastNote.user.charAt(0).toUpperCase()}
+                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400 group-hover:text-blue-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+        {filteredSummaries.length === 0 && (
+          <div className="bg-white rounded-xl border-2 border-gray-200 p-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p className="text-gray-500 font-medium">
+              {searchQuery ? 'No notes found matching your search.' : 'No notes found.'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

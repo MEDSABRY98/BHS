@@ -283,7 +283,6 @@ export default function AgesTab({ data }: AgesTabProps) {
     <div className="p-6">
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-2">Ages Analysis</h2>
-        <p className="text-gray-600">Aging of accounts receivable by customer</p>
       </div>
 
       <div className="mb-4 flex justify-center items-center gap-3">

@@ -138,6 +138,57 @@ const getInvoiceType = (inv: Pick<InvoiceRow, 'number' | 'debit' | 'credit'>): s
   return 'Invoice/Txn';
 };
 
+// Helper function to convert URLs in text to clickable links
+const renderNoteWithLinks = (text: string) => {
+  // Regular expression to match URLs (http, https, www, or plain domain)
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/g;
+  
+  const parts: (string | JSX.Element)[] = [];
+  let lastIndex = 0;
+  let match;
+  let key = 0;
+
+  while ((match = urlRegex.exec(text)) !== null) {
+    // Add text before the URL
+    if (match.index > lastIndex) {
+      parts.push(text.substring(lastIndex, match.index));
+    }
+    
+    // Add the URL as a clickable link
+    let url = match[0];
+    // Add https:// if it starts with www.
+    if (url.startsWith('www.')) {
+      url = 'https://' + url;
+    }
+    // Add https:// if it doesn't start with http:// or https://
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url;
+    }
+    
+    parts.push(
+      <a
+        key={key++}
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 hover:text-blue-800 underline break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {match[0]}
+      </a>
+    );
+    
+    lastIndex = match.index + match[0].length;
+  }
+  
+  // Add remaining text
+  if (lastIndex < text.length) {
+    parts.push(text.substring(lastIndex));
+  }
+  
+  return parts.length > 0 ? parts : text;
+};
+
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
@@ -2387,7 +2438,59 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
-                      data={monthlyDebt.slice(0, 12).reverse()} // Show last 12 months
+                      data={useMemo(() => {
+                        // Generate last 12 months from current date
+                        const last12Months: MonthlyDebt[] = [];
+                        const now = new Date();
+                        const monthShortNames: { [key: string]: string } = {
+                          'January': 'JAN', 'February': 'FEB', 'March': 'MAR', 'April': 'APR',
+                          'May': 'MAY', 'June': 'JUN', 'July': 'JUL', 'August': 'AUG',
+                          'September': 'SEP', 'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
+                        };
+                        const monthFullNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+                        
+                        // Create a map of existing data for quick lookup
+                        const dataMap = new Map<string, MonthlyDebt>();
+                        monthlyDebt.forEach(item => {
+                          const key = `${item.year}-${item.month}`;
+                          dataMap.set(key, item);
+                        });
+                        
+                        // Generate last 12 months
+                        for (let i = 11; i >= 0; i--) {
+                          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                          const year = date.getFullYear().toString();
+                          const month = monthFullNames[date.getMonth()];
+                          const key = `${year}-${month}`;
+                          
+                          // Get existing data or create zero entry
+                          const existing = dataMap.get(key);
+                          if (existing) {
+                            last12Months.push(existing);
+                          } else {
+                            last12Months.push({
+                              year,
+                              month,
+                              debit: 0,
+                              credit: 0,
+                              netDebt: 0,
+                            });
+                          }
+                        }
+                        
+                        return last12Months.map(item => {
+                          // Convert month name to short format with year
+                          const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
+                          const yearShort = item.year.substring(2); // Get last 2 digits of year
+                          const monthLabel = `${shortMonth}${yearShort}`;
+                          
+                          return {
+                            ...item,
+                            monthLabel: monthLabel
+                          };
+                        });
+                      }, [monthlyDebt])}
                       margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                     >
                       <defs>
@@ -2398,8 +2501,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                       <XAxis 
-                        dataKey="month" 
-                        tick={{fontSize: 12, fill: '#6B7280'}} 
+                        dataKey="monthLabel" 
+                        tick={{fontSize: 14, fill: '#374151', fontWeight: 700}} 
                         axisLine={false}
                         tickLine={false}
                         interval={0} 
@@ -2420,11 +2523,10 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                         }}
                         cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
                       <Area 
                         type="monotone" 
                         dataKey="credit" 
-                        name="Payments" 
+                        name="" 
                         stroke="#10B981" 
                         strokeWidth={3}
                         fillOpacity={1} 
@@ -2495,20 +2597,111 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Sales Trend</h3>
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={monthlyDebt.slice(0, 12).reverse()} // Show last 12 months
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                    <BarChart
+                      data={useMemo(() => {
+                        // Generate last 12 months from current date
+                        const last12Months: MonthlyDebt[] = [];
+                        const now = new Date();
+                        const monthShortNames: { [key: string]: string } = {
+                          'January': 'JAN', 'February': 'FEB', 'March': 'MAR', 'April': 'APR',
+                          'May': 'MAY', 'June': 'JUN', 'July': 'JUL', 'August': 'AUG',
+                          'September': 'SEP', 'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
+                        };
+                        const monthFullNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+                        
+                        // Create a map of existing data for quick lookup
+                        const dataMap = new Map<string, MonthlyDebt>();
+                        monthlyDebt.forEach(item => {
+                          const key = `${item.year}-${item.month}`;
+                          dataMap.set(key, item);
+                        });
+                        
+                        // Generate last 12 months
+                        for (let i = 11; i >= 0; i--) {
+                          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                          const year = date.getFullYear().toString();
+                          const month = monthFullNames[date.getMonth()];
+                          const key = `${year}-${month}`;
+                          
+                          // Get existing data or create zero entry
+                          const existing = dataMap.get(key);
+                          if (existing) {
+                            last12Months.push(existing);
+                          } else {
+                            last12Months.push({
+                              year,
+                              month,
+                              debit: 0,
+                              credit: 0,
+                              netDebt: 0,
+                            });
+                          }
+                        }
+                        
+                        return last12Months.map(item => {
+                          let displayValue = item.debit;
+                          // Ensure each bar shows at least 25% of its original value
+                          if (Math.abs(item.debit) > 0) {
+                            const minDisplayRatio = 0.25; // 25% minimum
+                            const minDisplayValue = Math.abs(item.debit) * minDisplayRatio;
+                            
+                            // If the absolute value is very small, ensure it's at least 25% visible
+                            if (Math.abs(item.debit) < minDisplayValue) {
+                              displayValue = item.debit >= 0 ? minDisplayValue : -minDisplayValue;
+                            } else {
+                              // For larger values, ensure they show at least 25% of their original size
+                              const currentRatio = Math.abs(displayValue) / Math.abs(item.debit);
+                              if (currentRatio < minDisplayRatio) {
+                                displayValue = item.debit >= 0 
+                                  ? Math.abs(item.debit) * minDisplayRatio 
+                                  : -Math.abs(item.debit) * minDisplayRatio;
+                              }
+                            }
+                          }
+                          
+                          // Convert month name to short format with year
+                          const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
+                          const yearShort = item.year.substring(2); // Get last 2 digits of year
+                          const monthLabel = `${shortMonth}${yearShort}`;
+                          
+                          return {
+                            ...item,
+                            displayDebit: displayValue,
+                            originalDebit: item.debit,
+                            monthLabel: monthLabel
+                          };
+                        });
+                      }, [monthlyDebt])}
+                      margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+                      barCategoryGap="12%"
                     >
                       <defs>
-                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                        <linearGradient id="colorSalesPositive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10B981" stopOpacity={1}/>
+                          <stop offset="50%" stopColor="#34D399" stopOpacity={1}/>
+                          <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1}/>
+                        </linearGradient>
+                        <linearGradient id="colorSalesNegative" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#EC4899" stopOpacity={1}/>
+                          <stop offset="50%" stopColor="#F472B6" stopOpacity={1}/>
+                          <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1}/>
+                        </linearGradient>
+                        <linearGradient id="barGlowPositive" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#10B981" stopOpacity="0.3"/>
+                          <stop offset="50%" stopColor="#34D399" stopOpacity="0.5"/>
+                          <stop offset="100%" stopColor="#10B981" stopOpacity="0.3"/>
+                        </linearGradient>
+                        <linearGradient id="barGlowNegative" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#EC4899" stopOpacity="0.3"/>
+                          <stop offset="50%" stopColor="#F472B6" stopOpacity="0.5"/>
+                          <stop offset="100%" stopColor="#EC4899" stopOpacity="0.3"/>
                         </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
                       <XAxis 
-                        dataKey="month" 
-                        tick={{fontSize: 12, fill: '#6B7280'}} 
+                        dataKey="monthLabel" 
+                        tick={{fontSize: 14, fill: '#374151', fontWeight: 700}} 
                         axisLine={false}
                         tickLine={false}
                         interval={0} 
@@ -2520,27 +2713,77 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                         tickLine={false}
                       />
                       <RechartsTooltip 
-                        formatter={(value: number) => value.toLocaleString('en-US')}
+                        formatter={(value: number, name: string, props: any) => {
+                          // Always show the original value in tooltip
+                          const originalValue = props.payload?.originalDebit ?? value;
+                          return originalValue.toLocaleString('en-US');
+                        }}
+                        labelFormatter={(label) => `Month: ${label}`}
                         contentStyle={{ 
                           borderRadius: '12px', 
                           border: 'none', 
                           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                          padding: '12px'
+                          padding: '12px',
+                          backgroundColor: 'white'
                         }}
-                        cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
+                        cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
                       />
-                      <Legend wrapperStyle={{ paddingTop: '20px' }} iconType="circle" />
-                      <Area 
-                        type="monotone" 
-                        dataKey="debit" 
-                        name="Sales" 
-                        stroke="#3B82F6" 
-                        strokeWidth={3}
-                        fillOpacity={1} 
-                        fill="url(#colorSales)" 
-                        activeDot={{ r: 6, strokeWidth: 0 }}
-                      />
-                    </AreaChart>
+                      <Bar 
+                        dataKey="displayDebit" 
+                        name="Sales"
+                        radius={[10, 10, 0, 0]}
+                        barSize={58}
+                      >
+                        {useMemo(() => {
+                          // Generate last 12 months for cell mapping
+                          const now = new Date();
+                          const monthFullNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                            'July', 'August', 'September', 'October', 'November', 'December'];
+                          const last12Months: MonthlyDebt[] = [];
+                          const dataMap = new Map<string, MonthlyDebt>();
+                          monthlyDebt.forEach(item => {
+                            const key = `${item.year}-${item.month}`;
+                            dataMap.set(key, item);
+                          });
+                          
+                          for (let i = 11; i >= 0; i--) {
+                            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                            const year = date.getFullYear().toString();
+                            const month = monthFullNames[date.getMonth()];
+                            const key = `${year}-${month}`;
+                            const existing = dataMap.get(key);
+                            if (existing) {
+                              last12Months.push(existing);
+                            } else {
+                              last12Months.push({
+                                year,
+                                month,
+                                debit: 0,
+                                credit: 0,
+                                netDebt: 0,
+                              });
+                            }
+                          }
+                          return last12Months;
+                        }, [monthlyDebt]).map((entry, index) => {
+                          const isPositive = entry.debit >= 0;
+                          return (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={isPositive ? "url(#colorSalesPositive)" : "url(#colorSalesNegative)"}
+                              stroke="none"
+                            />
+                          );
+                        })}
+                        <LabelList 
+                          dataKey="originalDebit" 
+                          position="top" 
+                          formatter={(value: number) => value.toLocaleString('en-US')}
+                          style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
+                          offset={10}
+                        />
+                      </Bar>
+                    </BarChart>
                   </ResponsiveContainer>
                 </div>
               </div>
@@ -2561,7 +2804,9 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                           <span className="font-bold text-gray-700">{note.user}</span>
                           <span>{new Date(note.timestamp || '').toLocaleDateString()}</span>
                         </p>
-                        <p className="text-gray-800 line-clamp-2">{note.content}</p>
+                        <div className="text-gray-800 line-clamp-2">
+                          {renderNoteWithLinks(note.content)}
+                        </div>
                       </div>
                     ))}
                     {notes.length === 0 && <p className="text-gray-400 italic">No notes available.</p>}
@@ -3168,7 +3413,9 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                         </div>
                       ) : (
                         <div className="flex justify-between items-start gap-4">
-                           <p className="text-gray-700 whitespace-pre-wrap text-lg flex-1">{note.content}</p>
+                           <div className="text-gray-700 whitespace-pre-wrap text-lg flex-1">
+                             {renderNoteWithLinks(note.content)}
+                           </div>
                            {/* Quick Toggle for Solved Status (even if not editing content) */}
                            {canManageNotes && (
                              <label className="flex items-center gap-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" title="Toggle Status">

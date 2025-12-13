@@ -320,8 +320,8 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
   const headers = [
     'Customer Name',
     'Sales Rep',
-    'Net Debt',
-    'Debt Rating',
+    'Net Debit',
+    'Debit Rating',
     'Open OB',
     'Overdue Amount',
     'Collection Rate %',
@@ -1331,7 +1331,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       }),
       columnHelper.display({
         id: 'debtRating',
-        header: 'Debt Rating',
+        header: 'Debit Rating',
         cell: (info) => {
           const customer = info.row.original;
           const rating = calculateDebtRating(customer, closedCustomers);
@@ -1393,18 +1393,35 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-4">Customers Analysis</h2>
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold text-gray-900">Customers Analysis</h2>
+          </div>
+        </div>
         
         {/* Main Tabs */}
-        <div className="flex border-b border-gray-200 mb-6">
+        <div className="flex gap-2 border-b-2 border-gray-200 mb-6 bg-gray-50/50 p-1 rounded-t-xl">
             <button
-                className={`py-2 px-4 font-medium text-lg ${activeTab === 'PARTNERS' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${
+                  activeTab === 'PARTNERS' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-white'
+                }`}
                 onClick={() => setActiveTab('PARTNERS')}
             >
                 All Partners
             </button>
             <button
-                className={`py-2 px-4 font-medium text-lg ${activeTab === 'FILTERS' ? 'border-b-2 border-blue-500 text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                className={`py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${
+                  activeTab === 'FILTERS' 
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50' 
+                    : 'text-gray-600 hover:text-gray-800 hover:bg-white'
+                }`}
                 onClick={() => setActiveTab('FILTERS')}
             >
                 Filters
@@ -1497,9 +1514,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                         </h4>
 
                         <div className="space-y-3">
-                            {/* Net Debt Range */}
+                            {/* Net Debit Range */}
                             <div>
-                                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Debt</label>
+                                <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Debit</label>
                                 <div className="flex gap-2">
                                     <select 
                                         className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
@@ -1899,165 +1916,280 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
         {activeTab === 'PARTNERS' && (
           <>
-            <div className="bg-blue-50 p-4 rounded-lg mb-6">
-              <div className="flex justify-between items-start">
-                <div>
-          <p className="text-lg">
-            <span className="font-semibold">Total Net Debt:</span>{' '}
-            <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
-              {totalDebt.toLocaleString('en-US')}
-            </span>
-          </p>
-          <p className="text-sm text-gray-600 mt-1">
-            Number of Customers: {filteredData.length} {searchQuery && `(filtered from ${customerAnalysis.length})`}
-          </p>
+            <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-4 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6">
+              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+                {/* Left Side - Total Net Debit */}
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${
+                    totalDebt > 0 
+                      ? 'bg-gradient-to-br from-red-500 to-red-600' 
+                      : 'bg-gradient-to-br from-green-500 to-green-600'
+                  }`}>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Total Net Debit</p>
+                    <p className="text-xl font-bold">
+                      <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
+                        {totalDebt.toLocaleString('en-US')}
+                      </span>
+                    </p>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      <span className="font-medium">{filteredData.length}</span> customers
+                      {searchQuery && <span className="text-gray-400"> (from {customerAnalysis.length})</span>}
+                    </p>
+                  </div>
                 </div>
                 
-                {(debtOperator || lastPaymentValue || noSalesValue || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB) && (
-                    <div className="flex items-center bg-yellow-100 px-5 py-3 rounded-lg border border-yellow-200 shadow-sm">
-                        <svg className="h-6 w-6 text-yellow-600 mr-3" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        <div className="text-base">
-                            <span className="font-semibold text-yellow-800">Advanced Filters Active</span>
-                            <button
-                                onClick={() => setActiveTab('FILTERS')}
-                                className="ml-3 text-blue-700 hover:text-blue-900 underline font-bold"
-                            >
-                                Edit Filters
-                            </button>
-                        </div>
+                {/* Center - Filters and Search */}
+                <div className="flex-1 flex flex-col sm:flex-row gap-2 items-center justify-center max-w-3xl mx-auto">
+                  <select
+                    value={matchingFilter}
+                    onChange={(e) => setMatchingFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                  >
+                    <option value="ALL">All Statuses</option>
+                    <option value="OPEN">Open Matching Only</option>
+                    <option value="WITH_EMAIL">Customers with Email</option>
+                  </select>
+
+                  <select
+                    value={selectedSalesRep}
+                    onChange={(e) => setSelectedSalesRep(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                  >
+                    <option value="ALL">All Sales Reps</option>
+                    {availableSalesReps.map(rep => (
+                      <option key={rep} value={rep}>{rep}</option>
+                    ))}
+                  </select>
+
+                  <div className="relative flex-1 max-w-md w-full">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
                     </div>
-                )}
-        </div>
-      </div>
+                    <input
+                      type="text"
+                      placeholder="Search by customer name or invoice number..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
+                    />
+                  </div>
 
-      <div className="mb-4 flex flex-col items-center gap-4">
-        <div className="flex gap-4 w-full justify-center items-center">
-          <select
-            value={matchingFilter}
-            onChange={(e) => setMatchingFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
-          >
-            <option value="ALL">All Statuses</option>
-            <option value="OPEN">Open Matching Only</option>
-            <option value="WITH_EMAIL">Customers with Email</option>
-          </select>
+                  <button
+                    onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
+                    className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
+                    title="Export to Excel"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
 
-          <select
-            value={selectedSalesRep}
-            onChange={(e) => setSelectedSalesRep(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
-          >
-            <option value="ALL">All Sales Reps</option>
-            {availableSalesReps.map(rep => (
-              <option key={rep} value={rep}>{rep}</option>
-            ))}
-          </select>
-
-          <button
-            onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
-            className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors"
-            title="Export to Excel"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
-          </button>
-        </div>
-
-        <input
-          type="text"
-          placeholder="Search by customer name or invoice number..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg text-center"
-        />
-      </div>
-
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ tableLayout: 'fixed' }}>
-            <thead className="bg-gray-100">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const getWidth = () => {
-                      const columnId = header.column.id;
-                      if (columnId === 'netDebt') return '25%';
-                      if (columnId === 'collectionRate') return '15%';
-                      if (columnId === 'debtRating') return '15%';
-                      return '45%';
-                    };
-                    return (
-                    <th
-                      key={header.id}
-                      className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
-                      style={{ width: getWidth() }}
-                      onClick={header.column.getToggleSortingHandler()}
+              {/* Advanced Filters Warning */}
+              {(debtOperator || lastPaymentValue || noSalesValue || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB) && (
+                <div className="mt-3 flex items-center bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-2.5 rounded-lg border border-amber-200">
+                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mr-3 flex-shrink-0">
+                    <svg className="h-4 w-4 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-800 text-sm">Advanced Filters Active</p>
+                    <button
+                      onClick={() => setActiveTab('FILTERS')}
+                      className="text-blue-700 hover:text-blue-900 font-medium text-xs underline decoration-2 underline-offset-2 transition-colors"
                     >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
+                      Edit Filters →
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+      {/* Header with Sort Controls */}
+      <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          {table.getHeaderGroups().map((headerGroup) => (
+            <>
+              {headerGroup.headers.map((header, index) => {
+                const columnId = header.column.id;
+                const isFirstColumn = index === 0;
+                return (
+                  <button
+                    key={header.id}
+                    onClick={header.column.getToggleSortingHandler()}
+                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg hover:bg-white transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${
+                      isFirstColumn ? 'md:col-span-2' : ''
+                    }`}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                    <span className="text-blue-600">
                       {{
-                        asc: ' ↑',
-                        desc: ' ↓',
-                      }[header.column.getIsSorted() as string] ?? null}
-                    </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b hover:bg-gray-50">
-                  {row.getVisibleCells().map((cell) => {
-                    const getWidth = () => {
-                      const columnId = cell.column.id;
-                      if (columnId === 'netDebt') return '25%';
-                      if (columnId === 'collectionRate') return '15%';
-                      if (columnId === 'debtRating') return '15%';
-                      return '45%';
-                    };
-                    return (
-                      <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-              <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '45%' }}>
-                  Total
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '25%' }}>
-                  <span className={filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : ''}>
-                    {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                  {(() => {
-                    const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-                    // If total net debt is negative, show "-"
-                    if (totalNetDebt < 0) {
-                      return <span className="text-gray-500">-</span>;
-                    }
-                    const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
-                    const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
-                    const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
-                    return (
-                      <span className={avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>
-                        {avgCollectionRate.toFixed(1)}%
-                      </span>
-                    );
-                  })()}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                  -
-                </td>
-              </tr>
-            </tbody>
-          </table>
+                        asc: '↑',
+                        desc: '↓',
+                      }[header.column.getIsSorted() as string] ?? (
+                        <span className="text-gray-300">↕</span>
+                      )}
+                    </span>
+                  </button>
+                );
+              })}
+            </>
+          ))}
+        </div>
+      </div>
+
+      {/* Cards Grid */}
+      <div className="space-y-3 mb-6">
+        {table.getRowModel().rows.map((row) => {
+          const customer = row.original;
+          const netDebt = customer.netDebt;
+          const collectionRate = customer.totalDebit > 0 
+            ? ((customer.totalCredit / customer.totalDebit) * 100)
+            : 0;
+          const rating = calculateDebtRating(customer, closedCustomers);
+          const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
+          const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+          const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
+
+          return (
+            <div
+              key={row.id}
+              className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
+            >
+              <div className="p-5">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {/* Customer Name */}
+                  <div className="md:col-span-2">
+                    <button
+                      onClick={() => setSelectedCustomer(customer.customerName)}
+                      className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left w-full group-hover:underline"
+                    >
+                      {customer.customerName}
+                    </button>
+                  </div>
+
+                  {/* Net Debit */}
+                  <div className="md:col-span-1">
+                    <button
+                      onClick={() => setSelectedCustomerForMonths(customer.customerName)}
+                      className={`text-xl font-bold transition-colors w-full text-center ${
+                        netDebt > 0 
+                          ? 'text-red-600 hover:text-red-700' 
+                          : netDebt < 0 
+                          ? 'text-green-600 hover:text-green-700' 
+                          : 'text-gray-600 hover:text-gray-700'
+                      }`}
+                      title="Click to view monthly debt breakdown"
+                    >
+                      {netDebt.toLocaleString('en-US')}
+                    </button>
+                  </div>
+
+                  {/* Collection Rate */}
+                  <div className="md:col-span-1">
+                    {customer.netDebt < 0 ? (
+                      <div className="text-center">
+                        <span className="text-gray-500 text-xl font-bold">-</span>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-2">
+                        <span className={`text-xl font-bold ${
+                          collectionRate >= 80 
+                            ? 'text-green-600' 
+                            : collectionRate >= 50 
+                            ? 'text-yellow-600' 
+                            : 'text-red-600'
+                        }`}>
+                          {collectionRate.toFixed(1)}%
+                        </span>
+                        <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              collectionRate >= 80 
+                                ? 'bg-green-500' 
+                                : collectionRate >= 50 
+                                ? 'bg-yellow-500' 
+                                : 'bg-red-500'
+                            }`}
+                            style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Debit Rating */}
+                  <div className="md:col-span-1">
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => {
+                          const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                          setSelectedRatingCustomer(customer);
+                          setRatingBreakdown(breakdown);
+                        }}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
+                        title="اضغط لعرض تفاصيل التقييم"
+                      >
+                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
+                        {rating}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Total Summary Card */}
+      <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="md:col-span-2">
+            <p className="text-sm font-semibold text-gray-700">Summary</p>
+          </div>
+          <div className="md:col-span-1">
+            <p className={`text-xl font-bold text-center ${
+              filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 
+                ? 'text-red-600' 
+                : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 
+                ? 'text-green-600' 
+                : 'text-gray-600'
+            }`}>
+              {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
+            </p>
+          </div>
+          <div className="md:col-span-1">
+            {(() => {
+              const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+              if (totalNetDebt < 0) {
+                return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
+              }
+              const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
+              const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
+              const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
+              const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
+              return (
+                <p className={`text-xl font-bold text-center ${rateColor}`}>
+                  {avgCollectionRate.toFixed(1)}%
+                </p>
+              );
+            })()}
+          </div>
+          <div className="md:col-span-1">
+            <p className="text-xl font-bold text-blue-600 text-center">
+              {filteredData.length}
+            </p>
+          </div>
         </div>
       </div>
           </>
@@ -2104,7 +2236,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 </div>
                 <div>
                   <h3 className="text-2xl font-bold text-gray-900">{selectedRatingCustomer.customerName}</h3>
-                  <p className="text-sm text-gray-500 font-medium">Debt Rating Breakdown</p>
+                  <p className="text-sm text-gray-500 font-medium">Debit Rating Breakdown</p>
                 </div>
               </div>
               <button
@@ -2216,11 +2348,12 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                         Total: {ratingBreakdown.breakdown.totalScore}/10
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {/* Net Debt */}
+                    {/* First Row: 2 Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      {/* Net Debit */}
                       <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
-                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Net Debt</p>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Net Debit</p>
                           <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
                             ratingBreakdown.breakdown.scores.score1 === 2 
                               ? 'bg-emerald-100 text-emerald-700' 
@@ -2250,7 +2383,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                         </div>
                         <p className="text-2xl font-bold text-gray-900">{ratingBreakdown.breakdown.collRate.toFixed(1)}%</p>
                       </div>
+                    </div>
 
+                    {/* Second Row: 3 Cards - Payments */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                       {/* Last Payment */}
                       <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
@@ -2266,7 +2402,18 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                           </div>
                         </div>
                         <p className="text-xl font-bold text-gray-900">{ratingBreakdown.breakdown.lastPay}</p>
-                        <p className="text-sm text-gray-500 mt-1">Payments Last 90d: {(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
+                      </div>
+
+                      {/* Payment Value */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Value</p>
+                          <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600">
+                            N/A
+                          </div>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900">{(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
+                        <p className="text-sm text-gray-500 mt-1">Payments Last 90d</p>
                       </div>
 
                       {/* Payment Count */}
@@ -2284,9 +2431,11 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                           </div>
                         </div>
                         <p className="text-3xl font-bold text-gray-900">{ratingBreakdown.breakdown.payCount}</p>
-                        <p className="text-sm text-gray-500 mt-1">Payments Value: {(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
                       </div>
+                    </div>
 
+                    {/* Third Row: 3 Cards - Sales */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* Last Sale */}
                       <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
                         <div className="flex items-center justify-between mb-3">
@@ -2302,7 +2451,18 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                           </div>
                         </div>
                         <p className="text-xl font-bold text-gray-900">{ratingBreakdown.breakdown.lastSale}</p>
-                        <p className="text-sm text-gray-500 mt-1">Sales Last 90d: {(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
+                      </div>
+
+                      {/* Sales Value */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sales Value</p>
+                          <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600">
+                            N/A
+                          </div>
+                        </div>
+                        <p className="text-2xl font-bold text-gray-900">{(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
+                        <p className="text-sm text-gray-500 mt-1">Sales Last 90d</p>
                       </div>
 
                       {/* Sales Count */}
@@ -2314,7 +2474,6 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                           </div>
                         </div>
                         <p className="text-3xl font-bold text-gray-900">{ratingBreakdown.breakdown.salesCount}</p>
-                        <p className="text-sm text-gray-500 mt-1">Sales Value: {(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
                       </div>
                     </div>
                   </div>
