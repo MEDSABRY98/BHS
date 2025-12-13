@@ -47,6 +47,93 @@ const formatDmy = (date?: Date | null) => {
   return `${day}/${month}/${year}`;
 };
 
+// Helper functions for monthly breakdown
+const formatMonthKey = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+const formatMonthLabel = (key: string) => {
+  const [year, month] = key.split('-');
+  const monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+  const monthIndex = parseInt(month, 10) - 1;
+  const monthName = monthNames[monthIndex] || month;
+  return `${monthName}${year.slice(-2)}`;
+};
+
+// Calculate monthly breakdown for a customer (similar to CustomersByMonthsTab)
+const calculateCustomerMonthlyBreakdown = (customerName: string, invoices: InvoiceRow[]) => {
+  const customerInvoices = invoices.filter(row => row.customerName === customerName);
+  
+  // 1) Prepare matching residuals
+  const matchingTotals = new Map<string, number>();
+  const maxDebits = new Map<string, number>();
+  const mainInvoiceIndices = new Map<string, number>();
+
+  customerInvoices.forEach((inv, idx) => {
+    if (inv.matching) {
+      const net = inv.debit - inv.credit;
+      matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+
+      const currentMax = maxDebits.get(inv.matching) ?? -1;
+      if (inv.debit > currentMax) {
+        maxDebits.set(inv.matching, inv.debit);
+        mainInvoiceIndices.set(inv.matching, idx);
+      } else if (!mainInvoiceIndices.has(inv.matching)) {
+        maxDebits.set(inv.matching, inv.debit);
+        mainInvoiceIndices.set(inv.matching, idx);
+      }
+    }
+  });
+
+  // 2) Build open items (unmatched or residual holder)
+  const openItems: { date: Date | null; amount: number }[] = [];
+
+  customerInvoices.forEach((inv, idx) => {
+    const netDebt = inv.debit - inv.credit;
+    let residual: number | undefined;
+
+    if (inv.matching && mainInvoiceIndices.get(inv.matching) === idx) {
+      const total = matchingTotals.get(inv.matching) || 0;
+      if (Math.abs(total) > 0.01) residual = total;
+    }
+
+    let amountToUse: number | null = null;
+    if (!inv.matching && Math.abs(netDebt) > 0.01) {
+      amountToUse = netDebt;
+    } else if (residual !== undefined && Math.abs(residual) > 0.01) {
+      amountToUse = residual;
+    }
+
+    if (amountToUse !== null) {
+      const d = parseDate(inv.date);
+      openItems.push({ date: d, amount: amountToUse });
+    }
+  });
+
+  // 3) Aggregate by month using open amounts only
+  const monthsMap = new Map<string, number>();
+  let netTotal = 0;
+
+  openItems.forEach(({ date, amount }) => {
+    if (!date) return;
+    const key = formatMonthKey(date);
+    monthsMap.set(key, (monthsMap.get(key) || 0) + amount);
+    netTotal += amount;
+  });
+
+  const monthEntries = Array.from(monthsMap.entries())
+    .map(([key, amount]) => ({
+      key,
+      amount,
+      label: `${formatMonthLabel(key)} (${Math.round(amount).toLocaleString('en-US')})`,
+    }))
+    .sort((a, b) => a.key.localeCompare(b.key));
+
+  return { months: monthEntries, netTotal };
+};
+
 const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
   // 🎯 أولاً: التحقق من شيت CUSTOMER REMARKS - عمل xlookup باسم العميل
   // لو لقيته في الشيت → Bad فوراً بدون أي حسابات أخرى
@@ -302,6 +389,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [initialCustomerTab, setInitialCustomerTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue' | undefined>(undefined);
+  const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
   
   // Tab State
   const [activeTab, setActiveTab] = useState<'PARTNERS' | 'FILTERS' | 'LAST_PAYMENT'>('PARTNERS');
@@ -1210,10 +1298,15 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         header: 'Net Debit',
         cell: (info) => {
           const value = info.getValue();
+          const customer = info.row.original;
           return (
-            <span className={value > 0 ? 'text-red-600' : value < 0 ? 'text-green-600' : ''}>
+            <button
+              onClick={() => setSelectedCustomerForMonths(customer.customerName)}
+              className={`hover:underline cursor-pointer transition-colors ${value > 0 ? 'text-red-600 hover:text-red-700' : value < 0 ? 'text-green-600 hover:text-green-700' : 'text-gray-600 hover:text-gray-700'}`}
+              title="Click to view monthly debt breakdown"
+            >
               {value.toLocaleString('en-US')}
-            </span>
+            </button>
           );
         },
       }),
@@ -1974,46 +2067,98 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
       {/* Rating Breakdown Modal */}
       {selectedRatingCustomer && ratingBreakdown && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50 px-4" onClick={() => {
-          setSelectedRatingCustomer(null);
-          setRatingBreakdown(null);
-        }}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center px-6 py-4 border-b bg-gray-50">
-              <div>
-                <h3 className="text-xl font-bold text-gray-900">{selectedRatingCustomer.customerName}</h3>
-                <p className="text-sm text-gray-500">تفاصيل تقييم الدين</p>
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200" 
+          onClick={() => {
+            setSelectedRatingCustomer(null);
+            setRatingBreakdown(null);
+          }}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200" 
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-md ${
+                  ratingBreakdown.rating === 'Good' 
+                    ? 'bg-gradient-to-br from-emerald-500 to-green-600' 
+                    : ratingBreakdown.rating === 'Medium' 
+                    ? 'bg-gradient-to-br from-amber-500 to-yellow-600' 
+                    : 'bg-gradient-to-br from-red-500 to-rose-600'
+                }`}>
+                  {ratingBreakdown.rating === 'Good' ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : ratingBreakdown.rating === 'Medium' ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  )}
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedRatingCustomer.customerName}</h3>
+                  <p className="text-sm text-gray-500 font-medium">Debt Rating Breakdown</p>
+                </div>
               </div>
               <button
                 onClick={() => {
                   setSelectedRatingCustomer(null);
                   setRatingBreakdown(null);
                 }}
-                className="text-gray-500 hover:text-gray-700 text-2xl"
+                className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
                 aria-label="Close"
               >
-                ×
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
               </button>
             </div>
 
-            <div className="px-6 py-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 100px)' }}>
+            <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
               {/* Final Rating */}
-              <div className="mb-6 p-5 rounded-lg border-2" style={{
-                backgroundColor: ratingBreakdown.rating === 'Good' ? '#F0FDF4' : ratingBreakdown.rating === 'Medium' ? '#FEFCE8' : '#FEF2F2',
-                borderColor: ratingBreakdown.rating === 'Good' ? '#86EFAC' : ratingBreakdown.rating === 'Medium' ? '#FDE047' : '#FCA5A5'
-              }}>
+              <div className={`mb-8 p-6 rounded-2xl shadow-lg border-2 transition-all ${
+                ratingBreakdown.rating === 'Good' 
+                  ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50' 
+                  : ratingBreakdown.rating === 'Medium' 
+                  ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200/50' 
+                  : 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200/50'
+              }`}>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-base font-medium text-gray-600 mb-2">التقييم النهائي</p>
-                    <p className="text-3xl font-bold" style={{
-                      color: ratingBreakdown.rating === 'Good' ? '#16A34A' : ratingBreakdown.rating === 'Medium' ? '#CA8A04' : '#DC2626'
-                    }}>
-                      {ratingBreakdown.rating === 'Good' ? 'جيد' : ratingBreakdown.rating === 'Medium' ? 'متوسط' : 'سيء'}
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${
+                      ratingBreakdown.rating === 'Good' 
+                        ? 'bg-emerald-100 text-emerald-600' 
+                        : ratingBreakdown.rating === 'Medium' 
+                        ? 'bg-amber-100 text-amber-600' 
+                        : 'bg-red-100 text-red-600'
+                    }`}>
+                      <span className="text-3xl font-bold">
+                        {ratingBreakdown.rating === 'Good' ? '✓' : ratingBreakdown.rating === 'Medium' ? '!' : '✗'}
+                      </span>
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">Final Rating</p>
+                      <p className={`text-4xl font-bold tracking-tight ${
+                        ratingBreakdown.rating === 'Good' 
+                          ? 'text-emerald-600' 
+                          : ratingBreakdown.rating === 'Medium' 
+                          ? 'text-amber-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {ratingBreakdown.rating}
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-base text-gray-600 mb-2">السبب</p>
-                    <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.reason}</p>
+                  <div className="text-right max-w-md">
+                    <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-2">Reason</p>
+                    <p className="text-base font-medium text-gray-800 leading-relaxed">{ratingBreakdown.reason}</p>
                   </div>
                 </div>
               </div>
@@ -2022,19 +2167,40 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 <>
                   {/* Risk Flags */}
                   {(ratingBreakdown.breakdown.riskFlags.riskFlag1 === 1 || ratingBreakdown.breakdown.riskFlags.riskFlag2 === 1) && (
-                    <div className="mb-6">
-                      <h4 className="text-lg font-bold text-gray-800 mb-3">مؤشرات الخطر</h4>
-                      <div className="space-y-2">
+                    <div className="mb-8">
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
+                        <h4 className="text-lg font-bold text-gray-800">Risk Indicators</h4>
+                      </div>
+                      <div className="space-y-3">
                         {ratingBreakdown.breakdown.riskFlags.riskFlag1 === 1 && (
-                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-base font-semibold text-red-800">مؤشر خطر 1</p>
-                            <p className="text-sm text-red-600">صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0</p>
+                          <div className="p-4 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl shadow-sm">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-base font-bold text-red-800 mb-1">Risk Indicator 1</p>
+                                <p className="text-sm text-red-700">Net sales last 90 days negative + payment count = 0</p>
+                              </div>
+                            </div>
                           </div>
                         )}
                         {ratingBreakdown.breakdown.riskFlags.riskFlag2 === 1 && (
-                          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-base font-semibold text-red-800">مؤشر خطر 2</p>
-                            <p className="text-sm text-red-600">مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب</p>
+                          <div className="p-4 bg-gradient-to-r from-red-50 to-rose-50 border-2 border-red-200 rounded-xl shadow-sm">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <p className="text-base font-bold text-red-800 mb-1">Risk Indicator 2</p>
+                                <p className="text-sm text-red-700">No payment last 90 days + no sale last 90 days + positive debt</p>
+                              </div>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2043,52 +2209,112 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
                   {/* Scores Breakdown */}
                   <div className="mb-6">
-                    <h4 className="text-lg font-bold text-gray-800 mb-3">تفاصيل النقاط</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-500 mb-2">صافي المديونية</p>
-                        <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.netDebt.toLocaleString('en-US')}</p>
-                        <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score1}/2</p>
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
+                      <h4 className="text-lg font-bold text-gray-800">Score Details</h4>
+                      <div className="ml-auto px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
+                        Total: {ratingBreakdown.breakdown.totalScore}/10
                       </div>
-                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
-                        <p className="text-sm text-gray-500 mb-2">نسبة التحصيل</p>
-                        <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.collRate.toFixed(1)}%</p>
-                        <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score2}/2</p>
-                      </div>
-                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 md:col-span-2">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-500 mb-1">آخر دفعة</p>
-                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.lastPay}</p>
-                            <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score3}/2</p>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-500 mb-1">قيمة المدفوعات آخر 90 يوم</p>
-                            <p className="text-lg font-semibold text-gray-800">{(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-500 mb-1">عدد المدفوعات آخر 90 يوم</p>
-                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.payCount}</p>
-                            <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score4}/2</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Net Debt */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Net Debt</p>
+                          <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            ratingBreakdown.breakdown.scores.score1 === 2 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : ratingBreakdown.breakdown.scores.score1 === 1 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {ratingBreakdown.breakdown.scores.score1}/2
                           </div>
                         </div>
+                        <p className="text-2xl font-bold text-gray-900">{ratingBreakdown.breakdown.netDebt.toLocaleString('en-US')}</p>
                       </div>
-                      <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 md:col-span-2">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-500 mb-1">آخر عملية بيع</p>
-                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.lastSale}</p>
-                            <p className="text-sm text-gray-600 mt-2">النقاط: {ratingBreakdown.breakdown.scores.score5}/2</p>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-500 mb-1">قيمة المبيعات آخر 90 يوم</p>
-                            <p className="text-lg font-semibold text-gray-800">{(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm text-gray-500 mb-1">عدد عمليات البيع آخر 90 يوم</p>
-                            <p className="text-lg font-semibold text-gray-800">{ratingBreakdown.breakdown.salesCount}</p>
+
+                      {/* Collection Rate */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Collection Rate</p>
+                          <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            ratingBreakdown.breakdown.scores.score2 === 2 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : ratingBreakdown.breakdown.scores.score2 === 1 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {ratingBreakdown.breakdown.scores.score2}/2
                           </div>
                         </div>
+                        <p className="text-2xl font-bold text-gray-900">{ratingBreakdown.breakdown.collRate.toFixed(1)}%</p>
+                      </div>
+
+                      {/* Last Payment */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Payment</p>
+                          <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            ratingBreakdown.breakdown.scores.score3 === 2 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : ratingBreakdown.breakdown.scores.score3 === 1 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {ratingBreakdown.breakdown.scores.score3}/2
+                          </div>
+                        </div>
+                        <p className="text-xl font-bold text-gray-900">{ratingBreakdown.breakdown.lastPay}</p>
+                        <p className="text-sm text-gray-500 mt-1">Payments Last 90d: {(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
+                      </div>
+
+                      {/* Payment Count */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Count (90d)</p>
+                          <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            ratingBreakdown.breakdown.scores.score4 === 2 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : ratingBreakdown.breakdown.scores.score4 === 1 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {ratingBreakdown.breakdown.scores.score4}/2
+                          </div>
+                        </div>
+                        <p className="text-3xl font-bold text-gray-900">{ratingBreakdown.breakdown.payCount}</p>
+                        <p className="text-sm text-gray-500 mt-1">Payments Value: {(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
+                      </div>
+
+                      {/* Last Sale */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Last Sale</p>
+                          <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                            ratingBreakdown.breakdown.scores.score5 === 2 
+                              ? 'bg-emerald-100 text-emerald-700' 
+                              : ratingBreakdown.breakdown.scores.score5 === 1 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-red-100 text-red-700'
+                          }`}>
+                            {ratingBreakdown.breakdown.scores.score5}/2
+                          </div>
+                        </div>
+                        <p className="text-xl font-bold text-gray-900">{ratingBreakdown.breakdown.lastSale}</p>
+                        <p className="text-sm text-gray-500 mt-1">Sales Last 90d: {(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
+                      </div>
+
+                      {/* Sales Count */}
+                      <div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex items-center justify-between mb-3">
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sales Count (90d)</p>
+                          <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600">
+                            N/A
+                          </div>
+                        </div>
+                        <p className="text-3xl font-bold text-gray-900">{ratingBreakdown.breakdown.salesCount}</p>
+                        <p className="text-sm text-gray-500 mt-1">Sales Value: {(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
                       </div>
                     </div>
                   </div>
@@ -2098,6 +2324,157 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           </div>
         </div>
       )}
+
+      {/* Monthly Breakdown Modal */}
+      {selectedCustomerForMonths && (() => {
+        const monthlyData = calculateCustomerMonthlyBreakdown(selectedCustomerForMonths, data);
+        const debitMonths = monthlyData.months.filter((m) => m.amount > 0.01);
+        const creditMonths = monthlyData.months.filter((m) => m.amount < -0.01);
+        
+        return (
+          <div 
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200" 
+            onClick={() => setSelectedCustomerForMonths(null)}
+          >
+            <div 
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200" 
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedCustomerForMonths}</h3>
+                    <p className="text-sm text-gray-500 font-medium">Monthly Debt Breakdown</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedCustomerForMonths(null)}
+                  className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
+                  aria-label="Close"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+                {/* Net Total Summary */}
+                <div className={`mb-8 p-6 rounded-2xl shadow-lg border-2 transition-all ${
+                  monthlyData.netTotal > 0 
+                    ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200/50' 
+                    : monthlyData.netTotal < 0 
+                    ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50' 
+                    : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200/50'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                        monthlyData.netTotal > 0 
+                          ? 'bg-red-100 text-red-600' 
+                          : monthlyData.netTotal < 0 
+                          ? 'bg-emerald-100 text-emerald-600' 
+                          : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Net Total Debt</p>
+                        <p className="text-xs text-gray-500 mt-0.5">All open items combined</p>
+                      </div>
+                    </div>
+                    <span className={`text-4xl font-bold tracking-tight ${
+                      monthlyData.netTotal > 0 
+                        ? 'text-red-600' 
+                        : monthlyData.netTotal < 0 
+                        ? 'text-emerald-600' 
+                        : 'text-gray-600'
+                    }`}>
+                      {Math.round(monthlyData.netTotal).toLocaleString('en-US')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Months Breakdown */}
+                <div className="space-y-6">
+                  {/* Debit Months */}
+                  {debitMonths.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
+                        <h4 className="text-lg font-bold text-gray-800">Debit Months</h4>
+                        <span className="text-sm text-gray-500 font-medium">({debitMonths.length} {debitMonths.length === 1 ? 'month' : 'months'})</span>
+                      </div>
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <div className="grid grid-cols-5 gap-3">
+                          {debitMonths.map((m, idx) => (
+                            <div
+                              key={m.key}
+                              className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${
+                                idx % 2 === 0 
+                                  ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-red-200' 
+                                  : 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-orange-200'
+                              }`}
+                            >
+                              {m.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Credit Months */}
+                  {creditMonths.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
+                        <h4 className="text-lg font-bold text-gray-800">Credit Months</h4>
+                        <span className="text-sm text-gray-500 font-medium">({creditMonths.length} {creditMonths.length === 1 ? 'month' : 'months'})</span>
+                      </div>
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <div className="grid grid-cols-5 gap-3">
+                          {creditMonths.map((m, idx) => (
+                            <div
+                              key={m.key}
+                              className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${
+                                idx % 2 === 0 
+                                  ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200' 
+                                  : 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-teal-200'
+                              }`}
+                            >
+                              {m.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {debitMonths.length === 0 && creditMonths.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-500 font-medium">No monthly data available</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

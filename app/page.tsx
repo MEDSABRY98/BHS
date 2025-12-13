@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 import CustomersTab from '@/components/CustomersTab';
 import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
-import CustomersByMonthsTab from '@/components/CustomersByMonthsTab';
 import DiscountTrackerTab from '@/components/DiscountTrackerTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
 import YearsTab from '@/components/YearsTab';
@@ -128,8 +127,6 @@ export default function Home() {
         return <CustomersTab data={data} />;
       case 'customers-open-matches':
         return <CustomersOpenMatchesTab data={data} />;
-      case 'customers-by-months':
-        return <CustomersByMonthsTab data={data} />;
       case 'discount-tracker':
         return <DiscountTrackerTab data={data} />;
       case 'salesreps':
