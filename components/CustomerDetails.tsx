@@ -2778,7 +2778,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                         <LabelList 
                           dataKey="originalDebit" 
                           position="top" 
-                          formatter={(value: number) => value.toLocaleString('en-US')}
+                          formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
                           style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
                           offset={10}
                         />
