@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   AreaChart,
   Area,
@@ -143,7 +143,7 @@ const renderNoteWithLinks = (text: string) => {
   // Regular expression to match URLs (http, https, www, or plain domain)
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/g;
   
-  const parts: (string | JSX.Element)[] = [];
+  const parts: (string | React.JSX.Element)[] = [];
   let lastIndex = 0;
   let match;
   let key = 0;
