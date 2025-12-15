@@ -335,6 +335,98 @@ export async function getCustomerEmail(customerName: string): Promise<string | n
   }
 }
 
+const normalizeCustomerKey = (name: string): string =>
+  name.toString().toLowerCase().trim().replace(/\s+/g, ' ');
+
+const splitCustomerGroupNames = (text: string): string[] =>
+  text
+    .split('&')
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+export async function resolveCustomerEmailTargets(customerName: string): Promise<{ customers: string[]; emails: string[] }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `EMAILS!A:B`, // CUSTOMER NAME, EMAIL
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return { customers: [], emails: [] };
+    }
+
+    const dataRows = rows.slice(1).map((row) => {
+      const name = row[0]?.toString().trim() || '';
+      const email = row[1]?.toString().trim() || '';
+      return { name, email };
+    }).filter(r => r.name);
+
+    const emailByCustomer = new Map<string, string>();
+    dataRows.forEach(r => {
+      if (r.email) emailByCustomer.set(normalizeCustomerKey(r.name), r.email);
+    });
+
+    const requestedNormalized = normalizeCustomerKey(customerName);
+
+    // Determine target customers:
+    // 1) If the requested name already contains '&' => treat as a group definition
+    // 2) Else, try to find a group definition row that contains this customer as one of its parts
+    // 3) Else, treat as single customer
+    let customers: string[] = [];
+    let groupRowEmail: string | null = null;
+
+    if (customerName.includes('&')) {
+      customers = splitCustomerGroupNames(customerName);
+      const exactGroupRow = dataRows.find(r => normalizeCustomerKey(r.name) === requestedNormalized);
+      groupRowEmail = exactGroupRow?.email || null;
+    } else {
+      const groupRow = dataRows.find(r => {
+        if (!r.name.includes('&')) return false;
+        const parts = splitCustomerGroupNames(r.name).map(normalizeCustomerKey);
+        return parts.some(p => p === requestedNormalized);
+      });
+      if (groupRow) {
+        customers = splitCustomerGroupNames(groupRow.name);
+        groupRowEmail = groupRow.email || null;
+      } else {
+        customers = [customerName.trim()];
+      }
+    }
+
+    // Resolve emails per target customer (by exact name match)
+    const emails: string[] = [];
+    customers.forEach(c => {
+      const e = emailByCustomer.get(normalizeCustomerKey(c));
+      if (e) emails.push(e);
+    });
+
+    // Fallback: if group row has emails written directly, parse them
+    if (emails.length === 0 && groupRowEmail) {
+      const parsed = groupRowEmail
+        .split(/[,&;]+/)
+        .map(s => s.trim())
+        .filter(Boolean);
+      emails.push(...parsed);
+    }
+
+    const uniqueEmails = Array.from(new Set(emails));
+    return { customers, emails: uniqueEmails };
+  } catch (error) {
+    console.error('Error resolving customer email targets:', error);
+    return { customers: [], emails: [] };
+  }
+}
+
 export async function getAllCustomerEmails(): Promise<string[]> {
   try {
     const credentials = getServiceAccountCredentials();

@@ -2018,7 +2018,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           {table.getHeaderGroups().map((headerGroup) => (
-            <>
+            <div key={headerGroup.id} className="contents">
               {headerGroup.headers.map((header, index) => {
                 const columnId = header.column.id;
                 const isFirstColumn = index === 0;
@@ -2042,7 +2042,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   </button>
                 );
               })}
-            </>
+            </div>
           ))}
         </div>
       </div>

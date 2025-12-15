@@ -28,6 +28,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
+import { getInvoiceType } from '@/lib/invoiceType';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -73,6 +74,9 @@ interface OverdueInvoice extends InvoiceRow {
 const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
 const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
 const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
+
+const normalizeCustomerKey = (name: string): string =>
+  name.toString().toLowerCase().trim().replace(/\s+/g, ' ');
 
 // Parse dates from Google Sheets while preserving original order for invalid dates
 const parseInvoiceDate = (dateStr?: string | null): Date | null => {
@@ -126,18 +130,6 @@ const shortenInvoiceNumber = (invoiceNumber: string | undefined | null, maxLengt
   return `${head}...${tail}`;
 };
 
-// Helper to classify invoice/transaction type (mirrors Open Matches intent)
-const getInvoiceType = (inv: Pick<InvoiceRow, 'number' | 'debit' | 'credit'>): string => {
-  const num = (inv.number || '').toUpperCase();
-  if (num.startsWith('SAL')) return 'Sale';
-  if (num.startsWith('RSAL')) return 'Return';
-  if (num.startsWith('OB')) return 'Opening Balance';
-  if (num.startsWith('BIL')) return 'Discount';
-  if (num.startsWith('JV')) return 'Discount';
-  if (inv.credit > 0.01) return 'Payment';
-  return 'Invoice/Txn';
-};
-
 // Helper function to convert URLs in text to clickable links
 const renderNoteWithLinks = (text: string) => {
   // Regular expression to match URLs (http, https, www, or plain domain)
@@ -189,6 +181,86 @@ const renderNoteWithLinks = (text: string) => {
   return parts.length > 0 ? parts : text;
 };
 
+const buildInvoicesWithNetDebt = (invList: InvoiceRow[]): InvoiceWithNetDebt[] => {
+  // 1. Calculate totals for each matching group
+  const matchingTotals = new Map<string, number>();
+  invList.forEach((invoice) => {
+    if (invoice.matching) {
+      const current = matchingTotals.get(invoice.matching) || 0;
+      matchingTotals.set(invoice.matching, current + (invoice.debit - invoice.credit));
+    }
+  });
+
+  // 2. Identify which invoice should display the residual per matching group (largest debit)
+  const matchingTargetIndex = new Map<string, number>();
+  invList.forEach((invoice, index) => {
+    if (!invoice.matching) return;
+    const existingTarget = matchingTargetIndex.get(invoice.matching);
+    if (existingTarget === undefined) {
+      matchingTargetIndex.set(invoice.matching, index);
+      return;
+    }
+    const existingInvoice = invList[existingTarget];
+    if ((invoice.debit || 0) > (existingInvoice?.debit || 0)) {
+      matchingTargetIndex.set(invoice.matching, index);
+    }
+  });
+
+  // 3. Map invoices preserving original order
+  return invList.map((invoice, index) => {
+    let residual: number | undefined = undefined;
+    const parsedDate = parseInvoiceDate(invoice.date);
+
+    if (invoice.matching) {
+      const targetIndex = matchingTargetIndex.get(invoice.matching);
+      if (targetIndex === index) {
+        const total = matchingTotals.get(invoice.matching) || 0;
+        if (Math.abs(total) > 0.01) {
+          residual = total;
+        }
+      }
+    }
+
+    return {
+      ...invoice,
+      netDebt: invoice.debit - invoice.credit,
+      residual,
+      originalIndex: index,
+      parsedDate,
+    };
+  });
+};
+
+const toNetOnlyOpenInvoices = (invList: InvoiceWithNetDebt[]): InvoiceWithNetDebt[] => {
+  // Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
+  return invList
+    .filter((inv) => {
+      if (!inv.matching) return true;
+      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+    })
+    .map((inv) => {
+      if (inv.matching && inv.residual !== undefined) {
+        return {
+          ...inv,
+          credit: inv.debit - inv.residual,
+          netDebt: inv.residual,
+        };
+      }
+      return inv;
+    });
+};
+
+const blobToBase64 = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read blob'));
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      resolve(result.split(',')[1] || '');
+    };
+    reader.readAsDataURL(blob);
+  });
+
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
@@ -232,7 +304,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
-  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [customerEmails, setCustomerEmails] = useState<string[]>([]);
+  const [emailCustomers, setEmailCustomers] = useState<string[]>([]);
   
   // Invoice Details Modal State
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithNetDebt | OverdueInvoice | null>(null);
@@ -249,9 +322,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       try {
         const res = await fetch(`/api/customer-email?customerName=${encodeURIComponent(customerName)}`);
         const data = await res.json();
-        if (data.email) {
-          setCustomerEmail(data.email);
-        }
+        const emails = Array.isArray(data?.emails) ? data.emails.filter(Boolean) : (data?.email ? [data.email] : []);
+        const customers = Array.isArray(data?.customers) ? data.customers.filter(Boolean) : [];
+        setCustomerEmails(emails);
+        setEmailCustomers(customers.length > 0 ? customers : [customerName]);
       } catch (error) {
         console.error('Error fetching customer email:', error);
       }
@@ -267,106 +341,137 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   }, [initialTab]);
 
   const handleEmail = async () => {
-    if (!customerEmail) return;
+    if (customerEmails.length === 0) return;
 
     try {
-      // 1. Generate PDF (Net Only)
-      let finalInvoices = [...invoicesWithNetDebt];
-      
-      // Filter for "Net Only" using the condensed logic
-      finalInvoices = finalInvoices.filter(inv => {
-        // Keep if no matching ID (Unmatched)
-        if (!inv.matching) return true;
-        
-        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
-        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-      }).map(inv => {
-          if (inv.matching && inv.residual !== undefined) {
-             // It's a condensed open invoice
-             return {
-                 ...inv,
-                 credit: inv.debit - inv.residual,
-                 netDebt: inv.residual
-             };
-          }
-          return inv;
-      });
+      const toEmails = customerEmails.join(', ');
+      const ccEmails = ['shady@aladraj.ae', 'altayfy@marae.ae'].join(', ');
 
-      if (finalInvoices.length === 0) {
-         alert('No open invoices to send.');
-         return;
+      // Determine which customers we should include (supports "A & B" grouping coming from the sheet resolver)
+      const targets = (emailCustomers && emailCustomers.length > 0 ? emailCustomers : [customerName]).filter(Boolean);
+      const uniqueTargets = Array.from(new Set(targets.map(t => t.trim()))).filter(Boolean);
+
+      // We only fetch all sheet data if we need more than the current customer's invoices
+      const invoicesByCustomer = new Map<string, InvoiceRow[]>();
+      if (uniqueTargets.length <= 1) {
+        invoicesByCustomer.set(customerName, invoices);
+      } else {
+        const res = await fetch('/api/sheets');
+        const payload = await res.json();
+        const allRows: InvoiceRow[] = Array.isArray(payload?.data) ? payload.data : [];
+
+        uniqueTargets.forEach((cust) => {
+          const key = normalizeCustomerKey(cust);
+          const rows = allRows.filter(r => normalizeCustomerKey(r.customerName) === key);
+          invoicesByCustomer.set(cust, rows);
+        });
       }
 
-      // Calculate Total Net Debt for Body
-      const currentNetDebt = finalInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
-
+      // Build PDFs + per-customer net debt lines
       const monthsLabel = 'All Months (Net Only)';
       const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
-      
-      // Generate PDF Blob
-      const pdfBlob = await generateAccountStatementPDF(customerName, finalInvoices, true, monthsLabel);
-      
-      if (!pdfBlob) {
-        throw new Error('Failed to generate PDF blob');
+
+      const attachments: Array<{ fileName: string; base64: string }> = [];
+      const debtByCustomer: Array<{ customer: string; netDebt: number }> = [];
+
+      for (const cust of uniqueTargets) {
+        const rows = invoicesByCustomer.get(cust) || [];
+        const withNet = buildInvoicesWithNetDebt(rows);
+        const finalInvoices = toNetOnlyOpenInvoices(withNet);
+
+        const netDebt = finalInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+        debtByCustomer.push({ customer: cust, netDebt });
+
+        if (finalInvoices.length === 0) {
+          continue; // still list debt=0, but skip attachment
+        }
+
+        const pdfBlob = await generateAccountStatementPDF(cust, finalInvoices, true, monthsLabel);
+        if (!pdfBlob) throw new Error('Failed to generate PDF blob');
+
+        const pdfBase64 = await blobToBase64(pdfBlob as Blob);
+        const pdfFileName = `${cust.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim()}.pdf`;
+        attachments.push({ fileName: pdfFileName, base64: pdfBase64 });
       }
 
-      // Convert Blob to Base64
-      const reader = new FileReader();
-      reader.readAsDataURL(pdfBlob as Blob);
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        const pdfBase64 = base64data.split(',')[1]; // Remove "data:application/pdf;base64," prefix
+      const hasAnyAttachment = attachments.length > 0;
+      if (!hasAnyAttachment) {
+        alert('No open invoices to send.');
+        return;
+      }
 
-        // 2. Create .eml file content
-        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
-        const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
-        const htmlBody = `<!DOCTYPE html>
+      const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+      const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+
+      const debtSectionHtml =
+        uniqueTargets.length > 1
+          ? `<p>Your current net debt details:</p>
+<ul>
+${debtByCustomer
+  .map(
+    (d) =>
+      `<li><b>${d.customer}</b>: <span style="color: blue; font-weight: bold; font-size: 16px;">${d.netDebt.toLocaleString(
+        'en-US',
+      )} AED</span></li>`,
+  )
+  .join('')}
+</ul>`
+          : `<p>Please find attached your account statement.<br>
+Your current net debt is: <span style="color: blue; font-weight: bold; font-size: 16px;">${debtByCustomer[0]?.netDebt.toLocaleString(
+  'en-US',
+)} AED</span></p>`;
+
+      const htmlBody = `<!DOCTYPE html>
 <html>
 <body style="font-family: Arial, sans-serif; font-size: 14px;">
-<p>Dear Customer,</p>
+<p>Dear Team,</p>
 <p>We hope this email finds you well.</p>
-<p>Please find attached your account statement.<br>
-Your current net debt is: <span style="color: blue; font-weight: bold; font-size: 16px;">${currentNetDebt.toLocaleString('en-US')} AED</span></p>
+${debtSectionHtml}
 <p>Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
 <p>Best regards,</p>
 </body>
 </html>`;
+      const emlLines: string[] = [];
+      emlLines.push('To: ' + toEmails);
+      emlLines.push('Cc: ' + ccEmails);
+      emlLines.push('Subject: ' + subject);
+      emlLines.push('X-Unsent: 1');
+      emlLines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
+      emlLines.push('');
 
-        const pdfFileName = `${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim()}.pdf`;
+      // Body part
+      emlLines.push('--' + boundary);
+      emlLines.push('Content-Type: text/html; charset="UTF-8"');
+      emlLines.push('Content-Transfer-Encoding: 7bit');
+      emlLines.push('');
+      emlLines.push(htmlBody);
+      emlLines.push('');
 
-        const emlContent = [
-          'To: ' + customerEmail,
-          'Subject: ' + subject,
-          'X-Unsent: 1', // Mark as unsent (opens in compose mode)
-          'Content-Type: multipart/mixed; boundary="' + boundary + '"',
-          '',
-          '--' + boundary,
-          'Content-Type: text/html; charset="UTF-8"',
-          'Content-Transfer-Encoding: 7bit',
-          '',
-          htmlBody,
-          '',
-          '--' + boundary,
-          `Content-Type: application/pdf; name="${pdfFileName}"`,
-          'Content-Transfer-Encoding: base64',
-          `Content-Disposition: attachment; filename="${pdfFileName}"`,
-          '',
-          pdfBase64,
-          '',
-          '--' + boundary + '--'
-        ].join('\r\n');
+      // Attachments
+      attachments.forEach((att) => {
+        emlLines.push('--' + boundary);
+        emlLines.push(`Content-Type: application/pdf; name="${att.fileName}"`);
+        emlLines.push('Content-Transfer-Encoding: base64');
+        emlLines.push(`Content-Disposition: attachment; filename="${att.fileName}"`);
+        emlLines.push('');
+        emlLines.push(att.base64);
+        emlLines.push('');
+      });
 
-        // 3. Download .eml file
-        const blob = new Blob([emlContent], { type: 'message/rfc822' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `Email_to_${customerName.replace(/\s+/g, '_')}.eml`;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-      };
+      emlLines.push('--' + boundary + '--');
+
+      const emlContent = emlLines.join('\r\n');
+
+      // Download .eml file
+      const blob = new Blob([emlContent], { type: 'message/rfc822' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Email_to_${customerName.replace(/\s+/g, '_')}.eml`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
 
     } catch (error) {
       console.error('Error in email flow:', error);
@@ -854,6 +959,116 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
     });
   }, [filteredInvoices]);
 
+  // NOTE: Hooks must never be called inside JSX. These are used by dashboard charts but must be declared here
+  // so hook order is stable across tab switches.
+  const last12MonthsBase = useMemo((): MonthlyDebt[] => {
+    const last12Months: MonthlyDebt[] = [];
+    const now = new Date();
+    const monthFullNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December',
+    ];
+
+    const dataMap = new Map<string, MonthlyDebt>();
+    monthlyDebt.forEach((item) => {
+      const key = `${item.year}-${item.month}`;
+      dataMap.set(key, item);
+    });
+
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = date.getFullYear().toString();
+      const month = monthFullNames[date.getMonth()];
+      const key = `${year}-${month}`;
+      const existing = dataMap.get(key);
+      if (existing) {
+        last12Months.push(existing);
+      } else {
+        last12Months.push({
+          year,
+          month,
+          debit: 0,
+          credit: 0,
+          netDebt: 0,
+        });
+      }
+    }
+
+    return last12Months;
+  }, [monthlyDebt]);
+
+  const monthlyPaymentsTrendData = useMemo(() => {
+    const monthShortNames: { [key: string]: string } = {
+      January: 'JAN',
+      February: 'FEB',
+      March: 'MAR',
+      April: 'APR',
+      May: 'MAY',
+      June: 'JUN',
+      July: 'JUL',
+      August: 'AUG',
+      September: 'SEP',
+      October: 'OCT',
+      November: 'NOV',
+      December: 'DEC',
+    };
+
+    return last12MonthsBase.map((item) => {
+      const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
+      const yearShort = item.year.substring(2);
+      return {
+        ...item,
+        monthLabel: `${shortMonth}${yearShort}`,
+      };
+    });
+  }, [last12MonthsBase]);
+
+  const monthlySalesTrendData = useMemo(() => {
+    const monthShortNames: { [key: string]: string } = {
+      January: 'JAN',
+      February: 'FEB',
+      March: 'MAR',
+      April: 'APR',
+      May: 'MAY',
+      June: 'JUN',
+      July: 'JUL',
+      August: 'AUG',
+      September: 'SEP',
+      October: 'OCT',
+      November: 'NOV',
+      December: 'DEC',
+    };
+
+    return last12MonthsBase.map((item) => {
+      let displayValue = item.debit;
+      if (Math.abs(item.debit) > 0) {
+        const minDisplayRatio = 0.25;
+        const minDisplayValue = Math.abs(item.debit) * minDisplayRatio;
+
+        if (Math.abs(item.debit) < minDisplayValue) {
+          displayValue = item.debit >= 0 ? minDisplayValue : -minDisplayValue;
+        } else {
+          const currentRatio = Math.abs(displayValue) / Math.abs(item.debit);
+          if (currentRatio < minDisplayRatio) {
+            displayValue = item.debit >= 0
+              ? Math.abs(item.debit) * minDisplayRatio
+              : -Math.abs(item.debit) * minDisplayRatio;
+          }
+        }
+      }
+
+      const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
+      const yearShort = item.year.substring(2);
+
+      return {
+        ...item,
+        displayDebit: displayValue,
+        originalDebit: item.debit,
+        monthLabel: `${shortMonth}${yearShort}`,
+      };
+    });
+  }, [last12MonthsBase]);
+
   // Prepare aging data
   const agingData = useMemo<AgingSummary>(() => {
     // 1. Filter for open invoices (Unmatched or Residual holders)
@@ -1245,12 +1460,14 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
   };
 
   const exportToExcel = (invoices: any[], monthsLabel: string) => {
-    const headers = ['Date', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
+    const headers = ['Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
     
     const rows = invoices.map(inv => {
       const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
+      const type = getInvoiceType(inv);
       return [
         date,
+        type,
         inv.number || '',
         (inv.debit || 0).toFixed(2),
         (inv.credit || 0).toFixed(2),
@@ -1703,7 +1920,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
              </span>
           )}
-          {customerEmail && (
+          {customerEmails.length > 0 && (
             <button
               onClick={handleEmail}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
@@ -2438,59 +2655,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart
-                      data={useMemo(() => {
-                        // Generate last 12 months from current date
-                        const last12Months: MonthlyDebt[] = [];
-                        const now = new Date();
-                        const monthShortNames: { [key: string]: string } = {
-                          'January': 'JAN', 'February': 'FEB', 'March': 'MAR', 'April': 'APR',
-                          'May': 'MAY', 'June': 'JUN', 'July': 'JUL', 'August': 'AUG',
-                          'September': 'SEP', 'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
-                        };
-                        const monthFullNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-                        
-                        // Create a map of existing data for quick lookup
-                        const dataMap = new Map<string, MonthlyDebt>();
-                        monthlyDebt.forEach(item => {
-                          const key = `${item.year}-${item.month}`;
-                          dataMap.set(key, item);
-                        });
-                        
-                        // Generate last 12 months
-                        for (let i = 11; i >= 0; i--) {
-                          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                          const year = date.getFullYear().toString();
-                          const month = monthFullNames[date.getMonth()];
-                          const key = `${year}-${month}`;
-                          
-                          // Get existing data or create zero entry
-                          const existing = dataMap.get(key);
-                          if (existing) {
-                            last12Months.push(existing);
-                          } else {
-                            last12Months.push({
-                              year,
-                              month,
-                              debit: 0,
-                              credit: 0,
-                              netDebt: 0,
-                            });
-                          }
-                        }
-                        
-                        return last12Months.map(item => {
-                          // Convert month name to short format with year
-                          const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
-                          const yearShort = item.year.substring(2); // Get last 2 digits of year
-                          const monthLabel = `${shortMonth}${yearShort}`;
-                          
-                          return {
-                            ...item,
-                            monthLabel: monthLabel
-                          };
-                        });
-                      }, [monthlyDebt])}
+                      data={monthlyPaymentsTrendData}
                       margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                     >
                       <defs>
@@ -2598,81 +2763,7 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                 <div className="h-80 w-full">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart
-                      data={useMemo(() => {
-                        // Generate last 12 months from current date
-                        const last12Months: MonthlyDebt[] = [];
-                        const now = new Date();
-                        const monthShortNames: { [key: string]: string } = {
-                          'January': 'JAN', 'February': 'FEB', 'March': 'MAR', 'April': 'APR',
-                          'May': 'MAY', 'June': 'JUN', 'July': 'JUL', 'August': 'AUG',
-                          'September': 'SEP', 'October': 'OCT', 'November': 'NOV', 'December': 'DEC'
-                        };
-                        const monthFullNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-                        
-                        // Create a map of existing data for quick lookup
-                        const dataMap = new Map<string, MonthlyDebt>();
-                        monthlyDebt.forEach(item => {
-                          const key = `${item.year}-${item.month}`;
-                          dataMap.set(key, item);
-                        });
-                        
-                        // Generate last 12 months
-                        for (let i = 11; i >= 0; i--) {
-                          const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                          const year = date.getFullYear().toString();
-                          const month = monthFullNames[date.getMonth()];
-                          const key = `${year}-${month}`;
-                          
-                          // Get existing data or create zero entry
-                          const existing = dataMap.get(key);
-                          if (existing) {
-                            last12Months.push(existing);
-                          } else {
-                            last12Months.push({
-                              year,
-                              month,
-                              debit: 0,
-                              credit: 0,
-                              netDebt: 0,
-                            });
-                          }
-                        }
-                        
-                        return last12Months.map(item => {
-                          let displayValue = item.debit;
-                          // Ensure each bar shows at least 25% of its original value
-                          if (Math.abs(item.debit) > 0) {
-                            const minDisplayRatio = 0.25; // 25% minimum
-                            const minDisplayValue = Math.abs(item.debit) * minDisplayRatio;
-                            
-                            // If the absolute value is very small, ensure it's at least 25% visible
-                            if (Math.abs(item.debit) < minDisplayValue) {
-                              displayValue = item.debit >= 0 ? minDisplayValue : -minDisplayValue;
-                            } else {
-                              // For larger values, ensure they show at least 25% of their original size
-                              const currentRatio = Math.abs(displayValue) / Math.abs(item.debit);
-                              if (currentRatio < minDisplayRatio) {
-                                displayValue = item.debit >= 0 
-                                  ? Math.abs(item.debit) * minDisplayRatio 
-                                  : -Math.abs(item.debit) * minDisplayRatio;
-                              }
-                            }
-                          }
-                          
-                          // Convert month name to short format with year
-                          const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
-                          const yearShort = item.year.substring(2); // Get last 2 digits of year
-                          const monthLabel = `${shortMonth}${yearShort}`;
-                          
-                          return {
-                            ...item,
-                            displayDebit: displayValue,
-                            originalDebit: item.debit,
-                            monthLabel: monthLabel
-                          };
-                        });
-                      }, [monthlyDebt])}
+                      data={monthlySalesTrendData}
                       margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
                       barCategoryGap="12%"
                     >
@@ -2734,39 +2825,8 @@ Your current net debt is: <span style="color: blue; font-weight: bold; font-size
                         radius={[10, 10, 0, 0]}
                         barSize={58}
                       >
-                        {useMemo(() => {
-                          // Generate last 12 months for cell mapping
-                          const now = new Date();
-                          const monthFullNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                            'July', 'August', 'September', 'October', 'November', 'December'];
-                          const last12Months: MonthlyDebt[] = [];
-                          const dataMap = new Map<string, MonthlyDebt>();
-                          monthlyDebt.forEach(item => {
-                            const key = `${item.year}-${item.month}`;
-                            dataMap.set(key, item);
-                          });
-                          
-                          for (let i = 11; i >= 0; i--) {
-                            const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-                            const year = date.getFullYear().toString();
-                            const month = monthFullNames[date.getMonth()];
-                            const key = `${year}-${month}`;
-                            const existing = dataMap.get(key);
-                            if (existing) {
-                              last12Months.push(existing);
-                            } else {
-                              last12Months.push({
-                                year,
-                                month,
-                                debit: 0,
-                                credit: 0,
-                                netDebt: 0,
-                              });
-                            }
-                          }
-                          return last12Months;
-                        }, [monthlyDebt]).map((entry, index) => {
-                          const isPositive = entry.debit >= 0;
+                        {monthlySalesTrendData.map((entry: any, index: number) => {
+                          const isPositive = (entry.originalDebit ?? entry.debit ?? 0) >= 0;
                           return (
                             <Cell 
                               key={`cell-${index}`} 

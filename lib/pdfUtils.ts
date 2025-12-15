@@ -1,6 +1,20 @@
 'use client';
 
 // Helper function to load and add Arabic font to jsPDF
+import { getInvoiceType } from '@/lib/invoiceType';
+
+const TYPE_BADGE_COLORS: Record<
+  string,
+  { fillColor: [number, number, number]; textColor: [number, number, number] }
+> = {
+  Sale: { fillColor: [220, 252, 231], textColor: [21, 128, 61] }, // bg-green-100 / text-green-700
+  Return: { fillColor: [254, 249, 195], textColor: [161, 98, 7] }, // bg-yellow-100 / text-yellow-700
+  Payment: { fillColor: [219, 234, 254], textColor: [29, 78, 216] }, // bg-blue-100 / text-blue-700
+  Discount: { fillColor: [243, 232, 255], textColor: [126, 34, 206] }, // bg-purple-100 / text-purple-700
+  'Opening Balance': { fillColor: [229, 231, 235], textColor: [55, 65, 81] }, // bg-gray-200 / text-gray-700
+  'Invoice/Txn': { fillColor: [241, 245, 249], textColor: [51, 65, 85] }, // bg-slate-100 / text-slate-700
+};
+
 async function addArabicFont(doc: any): Promise<void> {
   try {
     // Load Amiri Arabic font from GitHub raw content (reliable CORS-wise usually)
@@ -72,7 +86,7 @@ export async function generateAccountStatementPDF(
   let yPosition = 20;
   
   // Calculate total table width
-  const tableWidth = 45 + 70 + 45 + 45 + 45; // Sum of all column widths = 250mm
+  const tableWidth = 40 + 35 + 65 + 40 + 40 + 40; // Date + Type + Number + Debit + Credit + Net = 260mm
   // Calculate left margin to center the table
   const tableLeftMargin = (pageWidth - tableWidth) / 2;
 
@@ -113,8 +127,10 @@ export async function generateAccountStatementPDF(
         dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
       }
     }
+    const type = getInvoiceType(inv);
     return [
       dateStr,
+      type,
       inv.number || '',
       inv.debit.toLocaleString('en-US'),
       inv.credit.toLocaleString('en-US'),
@@ -130,6 +146,7 @@ export async function generateAccountStatementPDF(
   // Add total row
   tableData.push([
     '',
+    '',
     'TOTAL',
     totalDebit.toLocaleString('en-US'),
     totalCredit.toLocaleString('en-US'),
@@ -140,7 +157,7 @@ export async function generateAccountStatementPDF(
   const tableOptions = {
     startY: yPosition,
     margin: { left: tableLeftMargin, right: tableLeftMargin }, // Center the table
-    head: [['Date', 'Number', 'Debit', 'Credit', 'Net Debit']],
+    head: [['Date', 'Type', 'Number', 'Debit', 'Credit', 'Net Debit']],
     body: tableData,
     theme: 'striped' as const,
     styles: {
@@ -159,11 +176,12 @@ export async function generateAccountStatementPDF(
       fontSize: 9
     },
     columnStyles: {
-      0: { cellWidth: 45, halign: 'center', font: 'helvetica' }, // Date
-      1: { cellWidth: 70, halign: 'center', font: 'Amiri' }, // Number - Contains Arabic text
-      2: { cellWidth: 45, halign: 'center', font: 'helvetica' }, // Debit
-      3: { cellWidth: 45, halign: 'center', font: 'helvetica' }, // Credit
-      4: { cellWidth: 45, halign: 'center', font: 'helvetica' }  // Net Debt
+      0: { cellWidth: 40, halign: 'center', font: 'helvetica' }, // Date
+      1: { cellWidth: 35, halign: 'center', font: 'helvetica' }, // Type
+      2: { cellWidth: 65, halign: 'center', font: 'Amiri' }, // Number - Contains Arabic text
+      3: { cellWidth: 40, halign: 'center', font: 'helvetica' }, // Debit
+      4: { cellWidth: 40, halign: 'center', font: 'helvetica' }, // Credit
+      5: { cellWidth: 40, halign: 'center', font: 'helvetica' }  // Net Debt
     },
     footStyles: {
       fillColor: [240, 240, 240],
@@ -185,8 +203,18 @@ export async function generateAccountStatementPDF(
         data.cell.styles.fontStyle = 'bold'; // Make total bold
         data.cell.styles.textColor = 0; // Black text
       }
+
+      // Style Type column (fill entire cell) to mirror UI (Overdue tab)
+      if (data.column.index === 1 && data.row.index < tableData.length - 1) {
+        const type = getInvoiceType(invoices[data.row.index]);
+        const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
+        data.cell.styles.fillColor = colors.fillColor;
+        data.cell.styles.textColor = colors.textColor;
+        data.cell.styles.fontStyle = 'bold';
+      }
+
       // Color Net Debt column
-      if (data.column.index === 4 && data.row.index < tableData.length - 1) {
+      if (data.column.index === 5 && data.row.index < tableData.length - 1) {
         const netDebt = invoices[data.row.index].netDebt;
         if (netDebt > 0) {
           data.cell.styles.textColor = [204, 0, 0]; // Red
@@ -291,7 +319,7 @@ export async function generateMonthlySeparatedPDF(
     let yPosition = 20;
     
     // Calculate total table width
-    const tableWidth = 45 + 70 + 45 + 45 + 45; 
+    const tableWidth = 40 + 35 + 65 + 40 + 40 + 40;
     const tableLeftMargin = (pageWidth - tableWidth) / 2;
 
     // --- HEADER ---
@@ -333,8 +361,10 @@ export async function generateMonthlySeparatedPDF(
           dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         }
       }
+      const type = getInvoiceType(inv);
       return [
         dateStr,
+        type,
         inv.number || '',
         inv.debit.toLocaleString('en-US'),
         inv.credit.toLocaleString('en-US'),
@@ -349,6 +379,7 @@ export async function generateMonthlySeparatedPDF(
 
     tableData.push([
       '',
+      '',
       'TOTAL',
       totalDebit.toLocaleString('en-US'),
       totalCredit.toLocaleString('en-US'),
@@ -359,7 +390,7 @@ export async function generateMonthlySeparatedPDF(
     const tableOptions = {
       startY: yPosition,
       margin: { left: tableLeftMargin, right: tableLeftMargin },
-      head: [['Date', 'Number', 'Debit', 'Credit', 'Net Debit']],
+      head: [['Date', 'Type', 'Number', 'Debit', 'Credit', 'Net Debit']],
       body: tableData,
       theme: 'striped' as const,
       styles: {
@@ -378,11 +409,12 @@ export async function generateMonthlySeparatedPDF(
         fontSize: 9
       },
       columnStyles: {
-        0: { cellWidth: 45, halign: 'center', font: 'helvetica' }, 
-        1: { cellWidth: 70, halign: 'center', font: 'Amiri' },
-        2: { cellWidth: 45, halign: 'center', font: 'helvetica' },
-        3: { cellWidth: 45, halign: 'center', font: 'helvetica' },
-        4: { cellWidth: 45, halign: 'center', font: 'helvetica' }
+        0: { cellWidth: 40, halign: 'center', font: 'helvetica' },
+        1: { cellWidth: 35, halign: 'center', font: 'helvetica' },
+        2: { cellWidth: 65, halign: 'center', font: 'Amiri' },
+        3: { cellWidth: 40, halign: 'center', font: 'helvetica' },
+        4: { cellWidth: 40, halign: 'center', font: 'helvetica' },
+        5: { cellWidth: 40, halign: 'center', font: 'helvetica' }
       },
       footStyles: {
         fillColor: [240, 240, 240],
@@ -401,7 +433,17 @@ export async function generateMonthlySeparatedPDF(
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.textColor = 0;
         }
-        if (data.column.index === 4 && data.row.index < tableData.length - 1) {
+
+        // Style Type column (fill entire cell) to mirror UI (Overdue tab)
+        if (data.column.index === 1 && data.row.index < tableData.length - 1) {
+          const type = getInvoiceType(monthInvoices[data.row.index]);
+          const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
+          data.cell.styles.fillColor = colors.fillColor;
+          data.cell.styles.textColor = colors.textColor;
+          data.cell.styles.fontStyle = 'bold';
+        }
+
+        if (data.column.index === 5 && data.row.index < tableData.length - 1) {
           const netDebt = monthInvoices[data.row.index].netDebt;
           if (netDebt > 0) {
             data.cell.styles.textColor = [204, 0, 0];

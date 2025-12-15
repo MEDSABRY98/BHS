@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getCustomerEmail } from '@/lib/googleSheets';
+import { resolveCustomerEmailTargets } from '@/lib/googleSheets';
 
 export async function GET(request: Request) {
   try {
@@ -13,9 +13,12 @@ export async function GET(request: Request) {
       );
     }
 
-    const email = await getCustomerEmail(customerName);
-    
-    return NextResponse.json({ email });
+    const { customers, emails } = await resolveCustomerEmailTargets(customerName);
+
+    // Backward-compat: keep "email" as first email (if any)
+    const email = emails[0] ?? null;
+
+    return NextResponse.json({ email, emails, customers });
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
