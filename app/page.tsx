@@ -5,6 +5,7 @@ import Sidebar from '@/components/Sidebar';
 import CustomersTab from '@/components/CustomersTab';
 import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
 import DiscountTrackerTab from '@/components/DiscountTrackerTab';
+import PaymentTrackerTab from '@/components/PaymentTrackerTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
 import YearsTab from '@/components/YearsTab';
 import MonthsTab from '@/components/MonthsTab';
@@ -129,6 +130,8 @@ export default function Home() {
         return <CustomersOpenMatchesTab data={data} />;
       case 'discount-tracker':
         return <DiscountTrackerTab data={data} />;
+      case 'payment-tracker':
+        return <PaymentTrackerTab data={data} />;
       case 'salesreps':
         return <SalesRepsTab data={data} />;
       case 'years':

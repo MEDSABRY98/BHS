@@ -12,6 +12,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   const tabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
     { id: 'customers-open-matches', label: 'C Open Matches', icon: '🔗' },
+    { id: 'payment-tracker', label: 'Payment Tracker', icon: '💰' },
     { id: 'discount-tracker', label: 'Discount Tracker', icon: '🏷️' },
     { id: 'salesreps', label: 'Sales Reps', icon: '👔' },
     { id: 'years', label: 'Years', icon: '📅' },
