@@ -918,9 +918,20 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     }
 
     if (matchingFilter === 'OPEN') {
+      // فقط العملاء اللي عندهم matchings مفتوحة
       result = result.filter(c => c.hasOpenMatchings);
     } else if (matchingFilter === 'WITH_EMAIL') {
+      // العملاء اللي ليهم ايميل في شيت الإيميلات
       result = result.filter(c => customersWithEmails.has(c.customerName.toLowerCase().trim()));
+    } else if (matchingFilter === 'RATING_GOOD') {
+      // العملاء تقييمهم Good
+      result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Good');
+    } else if (matchingFilter === 'RATING_MEDIUM') {
+      // العملاء تقييمهم Medium
+      result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Medium');
+    } else if (matchingFilter === 'RATING_BAD') {
+      // العملاء تقييمهم Bad
+      result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Bad');
     }
 
     if (selectedSalesRep !== 'ALL') {
@@ -1953,6 +1964,9 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                     <option value="ALL">All Statuses</option>
                     <option value="OPEN">Open Matching Only</option>
                     <option value="WITH_EMAIL">Customers with Email</option>
+                    <option value="RATING_GOOD">Rating: Good</option>
+                    <option value="RATING_MEDIUM">Rating: Medium</option>
+                    <option value="RATING_BAD">Rating: Bad</option>
                   </select>
 
                   <select
