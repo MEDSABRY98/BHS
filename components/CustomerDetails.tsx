@@ -797,23 +797,11 @@ ${debtSectionHtml}
       });
     }
     
-    const sortedByDate = [...filtered].sort((a, b) => {
-      const dateA = a.parsedDate;
-      const dateB = b.parsedDate;
-
-      if (dateA && dateB) {
-        const diff = dateA.getTime() - dateB.getTime();
-        if (diff !== 0) return diff;
-      } else if (dateA) {
-        return -1;
-      } else if (dateB) {
-        return 1;
-      }
-
-      return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
-    });
-
-    return sortedByDate;
+    // Keep the same row order as the exported PDF (which follows the original sheet order),
+    // while still allowing interactive sorting via the table headers.
+    return [...filtered].sort(
+      (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
+    );
   }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
 
   // Filter overdue invoices based on selected month filter, matching filter, and search query
@@ -881,23 +869,10 @@ ${debtSectionHtml}
       });
     }
     
-    const sortedByDate = [...filtered].sort((a, b) => {
-      const dateA = parseInvoiceDate(a.dueDate) || a.parsedDate;
-      const dateB = parseInvoiceDate(b.dueDate) || b.parsedDate;
-
-      if (dateA && dateB) {
-        const diff = dateA.getTime() - dateB.getTime();
-        if (diff !== 0) return diff;
-      } else if (dateA) {
-        return -1;
-      } else if (dateB) {
-        return 1;
-      }
-
-      return (a.originalIndex ?? 0) - (b.originalIndex ?? 0);
-    });
-
-    return sortedByDate;
+    // Keep the same row order as the exported PDF (original sheet order).
+    return [...filtered].sort(
+      (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
+    );
   }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
 
   // Prepare monthly debt data
