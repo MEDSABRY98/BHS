@@ -703,6 +703,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               onClick={() => {
                 setDetailMode('none');
                 setSelectedCustomer(null);
+                setLastCustomerSelection(null);
               }}
               className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100"
             >
