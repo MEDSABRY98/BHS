@@ -332,6 +332,34 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   const filteredByPeriod = useMemo(() => paymentsByPeriod, [paymentsByPeriod]);
 
+  // Calculate totals for Customer view
+  const customerTotals = useMemo(() => {
+    return filteredByCustomer.reduce(
+      (acc, item) => ({
+        totalPayments: acc.totalPayments + item.totalPayments,
+        paymentCount: acc.paymentCount + item.paymentCount,
+      }),
+      { totalPayments: 0, paymentCount: 0 }
+    );
+  }, [filteredByCustomer]);
+
+  // Calculate totals for Period view
+  const periodTotals = useMemo(() => {
+    return filteredByPeriod.reduce(
+      (acc, item) => {
+        const customerCount = new Set(
+          item.payments.map((p) => p.customerName.trim().toLowerCase())
+        ).size;
+        return {
+          totalPayments: acc.totalPayments + item.totalPayments,
+          paymentCount: acc.paymentCount + item.paymentCount,
+          customerCount: acc.customerCount + customerCount,
+        };
+      },
+      { totalPayments: 0, paymentCount: 0, customerCount: 0 }
+    );
+  }, [filteredByPeriod]);
+
   const [selectedCustomer, setSelectedCustomer] = useState<PaymentByCustomer | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<PaymentByPeriod | null>(null);
   const [detailMode, setDetailMode] = useState<'none' | 'customer' | 'period'>('none');
@@ -601,6 +629,19 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   </tr>
                 )}
               </tbody>
+              <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
+                <tr>
+                  <td className="px-5 py-3 text-left">Total</td>
+                  <td className="px-5 py-3 text-right">
+                    {customerTotals.totalPayments.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+                  <td className="px-5 py-3 text-center">{customerTotals.paymentCount}</td>
+                  <td className="px-5 py-3"></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
@@ -677,6 +718,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   </tr>
                 )}
               </tbody>
+              <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
+                <tr>
+                  <td className="px-5 py-3 text-left">Total</td>
+                  <td className="px-5 py-3 text-center">
+                    {periodTotals.totalPayments.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </td>
+                  <td className="px-5 py-3 text-center">{periodTotals.paymentCount}</td>
+                  <td className="px-5 py-3 text-center">{periodTotals.customerCount}</td>
+                  <td className="px-5 py-3"></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>

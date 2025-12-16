@@ -767,3 +767,88 @@ export async function deleteNoteRow(rowIndex: number) {
         }
     }
 }
+
+export async function getInventoryData() {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Inventory!A:G`, // BARCODE, PRODUCT NAME, TYPE, QTY IN PACK, QTY PER CARTOON, WEIGHT, SIZE
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    const data = rows.slice(1).map((row, index) => {
+      return {
+        rowIndex: index + 2, // 1-based index (header is 1)
+        barcode: row[0] || '',
+        productName: row[1] || '',
+        type: row[2] || '',
+        qtyInPack: row[3] ? parseInt(row[3]) : 1, // Default to 1 if missing
+        qtyPerCartoon: row[4] ? parseInt(row[4]) : 0,
+        weight: row[5] || '',
+        size: row[6] || '',
+      };
+    }).filter(row => row.productName);
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching inventory data:', error);
+    throw error;
+  }
+}
+
+export async function updateInventoryItem(rowIndex: number, data: {
+    barcode: string;
+    productName: string;
+    type: string;
+    qtyInPack: number;
+    qtyPerCartoon: number;
+    weight: string;
+    size: string;
+}) {
+    try {
+        const credentials = getServiceAccountCredentials();
+        const auth = new google.auth.GoogleAuth({
+            credentials,
+            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+        });
+        const sheets = google.sheets({ version: 'v4', auth });
+
+        const values = [[
+            data.barcode,
+            data.productName,
+            data.type,
+            data.qtyInPack,
+            data.qtyPerCartoon,
+            data.weight,
+            data.size
+        ]];
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `Inventory!A${rowIndex}:G${rowIndex}`,
+            valueInputOption: 'USER_ENTERED',
+            requestBody: {
+                values,
+            },
+        });
+
+        return { success: true };
+    } catch (error) {
+        console.error('Error updating inventory item:', error);
+        throw error;
+    }
+}

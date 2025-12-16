@@ -11,6 +11,7 @@ import YearsTab from '@/components/YearsTab';
 import MonthsTab from '@/components/MonthsTab';
 import AgesTab from '@/components/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
+import ProductAnalyzer from '@/components/ProductAnalyzer';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
@@ -142,6 +143,8 @@ export default function Home() {
         return <AgesTab data={data} />;
       case 'all-notes':
         return <AllNotesTab />;
+      case 'inventory-analyze':
+        return <ProductAnalyzer />;
       default:
         return <CustomersTab data={data} />;
     }
