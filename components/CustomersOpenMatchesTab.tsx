@@ -147,6 +147,9 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
         
         if (num.startsWith('OB')) {
           type = 'OB';
+        } else if (num.startsWith('BNK')) {
+          // Bank transfers should be treated as payments (even if credit isn't populated as expected)
+          type = 'Payment';
         } else if (num.startsWith('SAL')) {
           // Only show SAL if it's partially closed (has matching and residual)
           // Don't show unmatched SAL (fully open)

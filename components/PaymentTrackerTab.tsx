@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
+import { getInvoiceType } from '@/lib/invoiceType';
 
 interface PaymentTrackerTabProps {
   data: InvoiceRow[];
@@ -11,8 +12,12 @@ interface PaymentEntry {
   date: string;
   number: string;
   customerName: string;
+  type: string;
   credit: number;
+  rawCredit: number;
   debit: number;
+  rawDebit: number;
+  amountSource: 'credit' | 'debit' | 'netDebt' | 'creditMinusDebit';
   salesRep: string;
   matching?: string;
   parsedDate: Date | null;
@@ -127,38 +132,35 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return set;
   }, [data]);
 
-  // Filter payments using the same logic as CustomerDetails "smart payments"
+  // Filter payments using the same TYPE logic as the Invoices tab (via shared getInvoiceType).
   const payments = useMemo<PaymentEntry[]>(() => {
     return data
-      .filter((row) => {
+      .filter((row) => getInvoiceType(row) === 'Payment')
+      .map((row) => {
         const credit = row.credit || 0;
-        if (credit <= 0.01) return false;
-        const num = (row.number || '').toUpperCase();
-        // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
-        if (
-          num.startsWith('SAL') ||
-          num.startsWith('RSAL') ||
-          num.startsWith('BIL') ||
-          num.startsWith('JV') ||
-          num.startsWith('OB')
-        ) {
-          return false;
-        }
-        return true;
-      })
-      .map((row) => ({
+        const debit = row.debit || 0;
+        // User-requested: payments amount = Credit - Debit
+        const amountSource: 'creditMinusDebit' = 'creditMinusDebit';
+        const amount = credit - debit;
+
+        return {
         date: row.date,
         number: row.number,
         customerName: row.customerName,
-        credit: row.credit,
+          type: getInvoiceType(row),
+        credit: amount,
+          rawCredit: credit,
         debit: row.debit,
+          rawDebit: debit,
+          amountSource,
         salesRep: row.salesRep,
         matching: row.matching,
         parsedDate: parseDate(row.date),
         matchedOpeningBalance: row.matching
           ? obMatchingIds.has(row.matching.toString().toLowerCase())
           : false,
-      }))
+      };
+      })
       .filter((payment) => {
         // Apply date filter
         if (dateFrom || dateTo) {
@@ -183,7 +185,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
         return true;
       });
-  }, [data, dateFrom, dateTo]);
+  }, [data, dateFrom, dateTo, obMatchingIds]);
 
   // Apply OB-closed / other payments toggles
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
@@ -213,10 +215,14 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       .map(([key, paymentList]) => {
         const customerName = paymentList[0].customerName;
         const totalPayments = paymentList.reduce((sum, p) => sum + p.credit, 0);
+        // Only count actual payments (where Credit > 0.01) based on raw credit data
+        // This excludes reversals or purely debit adjustments that might have been included in the list
+        const paymentCount = paymentList.filter(p => p.rawCredit > 0.01).length;
+        
         return {
           customerName,
           totalPayments,
-          paymentCount: paymentList.length,
+          paymentCount,
           payments: paymentList.sort((a, b) => {
             if (!a.parsedDate || !b.parsedDate) return 0;
             return b.parsedDate.getTime() - a.parsedDate.getTime();
@@ -267,11 +273,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           if (!a.parsedDate || !b.parsedDate) return 0;
           return b.parsedDate.getTime() - a.parsedDate.getTime();
         });
+        
+        // Only count actual payments (where Credit > 0.01) based on raw credit data
+        const paymentCount = paymentList.filter(p => p.rawCredit > 0.01).length;
+
         return {
           period: formatPeriodLabel(key, periodType),
           periodKey: key,
           totalPayments,
-          paymentCount: paymentList.length,
+          paymentCount,
           payments: sortedPayments,
         };
       })
@@ -330,23 +340,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   >({});
   const [lastCustomerSelection, setLastCustomerSelection] = useState<string | null>(null);
 
-  // Detail-level filtered payments to let the main search box affect inner tables
+  // Detail payments: show ALL payments for the selected customer/period (do not shrink by the main Search box),
+  // so counts match the "Payment by Customer" summary.
   const customerDetailPayments = useMemo(() => {
     if (!selectedCustomer) return [];
     const nameKey = selectedCustomer.customerName.trim().toLowerCase();
-    const base = visiblePayments.filter(
+    return visiblePayments.filter(
       (p) => p.customerName.trim().toLowerCase() === nameKey,
     );
-
-    const q = search.toLowerCase().trim();
-    if (!q) return base;
-
-    return base.filter(
-      (p) =>
-        p.number.toLowerCase().includes(q) ||
-        (p.matching ?? '').toLowerCase().includes(q),
-    );
-  }, [visiblePayments, selectedCustomer, search]);
+  }, [visiblePayments, selectedCustomer]);
 
   const periodDetailPayments = useMemo(() => {
     if (!selectedPeriod) return [];
@@ -369,16 +371,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       return key === selectedPeriod.periodKey;
     });
 
-    const q = search.toLowerCase().trim();
-    if (!q) return base;
-
-    return base.filter(
-      (p) =>
-        p.customerName.toLowerCase().includes(q) ||
-        p.number.toLowerCase().includes(q) ||
-        (p.matching ?? '').toLowerCase().includes(q),
-    );
-  }, [visiblePayments, selectedPeriod, search, periodType]);
+    return base;
+  }, [visiblePayments, selectedPeriod, periodType]);
 
   // (Customer detail restore is handled synchronously in the tab button click handler)
 
@@ -702,7 +696,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}{' '}
-                · Payment Count: {customerDetailPayments.length}
+                · Payment Count: {customerDetailPayments.filter(p => p.rawCredit > 0.01).length}
               </p>
             </div>
             <button
@@ -721,6 +715,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 <tr className="text-gray-600 text-center">
                   <th className="px-4 py-3 text-center">Date</th>
                   <th className="px-4 py-3 text-center">Number</th>
+                  <th className="px-4 py-3 text-center">Type</th>
                   <th className="px-4 py-3 text-center">Paid</th>
                   <th className="px-4 py-3 text-center">Matching</th>
                 </tr>
@@ -730,12 +725,17 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   <tr
                     key={`${payment.number}-${idx}`}
                     className={`hover:bg-gray-50 text-center ${
-                      payment.matchedOpeningBalance ? 'bg-emerald-50/60' : ''
+                      payment.credit < 0 
+                        ? 'bg-red-50/60' 
+                        : payment.matchedOpeningBalance 
+                          ? 'bg-emerald-50/60' 
+                          : ''
                     }`}
                   >
                     <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
                     <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
-                    <td className="px-4 py-2 text-green-700 font-semibold text-center text-base">
+                    <td className="px-4 py-2 text-gray-700 text-center">{payment.type}</td>
+                    <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
                       {payment.credit.toLocaleString('en-US', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
@@ -771,7 +771,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
                   })}{' '}
-                · Payment Count: {periodDetailPayments.length}
+                · Payment Count: {periodDetailPayments.filter(p => p.rawCredit > 0.01).length}
               </p>
             </div>
             <button
@@ -791,6 +791,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   <th className="px-4 py-3 text-center">Date</th>
                   <th className="px-4 py-3 text-center">Customer Name</th>
                   <th className="px-4 py-3 text-center">Number</th>
+                  <th className="px-4 py-3 text-center">Type</th>
                   <th className="px-4 py-3 text-center">Paid</th>
                   <th className="px-4 py-3 text-center">Matching</th>
                 </tr>
@@ -800,13 +801,18 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   <tr
                     key={`${payment.number}-${idx}`}
                     className={`hover:bg-gray-50 text-center ${
-                      payment.matchedOpeningBalance ? 'bg-emerald-50/60' : ''
+                      payment.credit < 0 
+                        ? 'bg-red-50/60' 
+                        : payment.matchedOpeningBalance 
+                          ? 'bg-emerald-50/60' 
+                          : ''
                     }`}
                   >
                     <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
                     <td className="px-4 py-2 text-gray-700 text-center">{payment.customerName}</td>
                     <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
-                    <td className="px-4 py-2 text-green-700 font-semibold text-center text-base">
+                    <td className="px-4 py-2 text-gray-700 text-center">{payment.type}</td>
+                    <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
                       {payment.credit.toLocaleString('en-US', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,

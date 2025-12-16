@@ -10,6 +10,8 @@ export const getInvoiceType = (inv: InvoiceTypeInput): string => {
   const num = (inv.number || '').toUpperCase();
   const credit = inv.credit ?? 0;
 
+  // Bank transfers should be treated as payments
+  if (num.startsWith('BNK')) return 'Payment';
   if (num.startsWith('SAL')) return 'Sale';
   if (num.startsWith('RSAL')) return 'Return';
   if (num.startsWith('OB')) return 'Opening Balance';

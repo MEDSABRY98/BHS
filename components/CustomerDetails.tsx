@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import {
   AreaChart,
   Area,
@@ -84,6 +84,9 @@ const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | 
 
   if (num.startsWith('OB')) {
     return 'OB';
+  } else if (num.startsWith('BNK')) {
+    // Bank transfers should be treated as payments
+    return 'Payment';
   } else if (num.startsWith('SAL')) {
     return 'Sales';
   } else if (num.startsWith('RSAL')) {
@@ -94,6 +97,27 @@ const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | 
     return 'Payment';
   }
   return 'Invoice/Txn';
+};
+
+// Helper to identify payment transactions consistently
+const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
+  const num = (inv.number || '').toUpperCase();
+  if (num.startsWith('BNK')) return true;
+  if ((inv.credit || 0) <= 0.01) return false;
+  return (
+    !num.startsWith('SAL') &&
+    !num.startsWith('RSAL') &&
+    !num.startsWith('BIL') &&
+    !num.startsWith('JV') &&
+    !num.startsWith('OB')
+  );
+};
+
+// Helper to calculate payment amount consistently (Credit - Debit)
+const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }): number => {
+  const credit = inv.credit || 0;
+  const debit = inv.debit || 0;
+  return credit - debit;
 };
 
 // Parse dates from Google Sheets while preserving original order for invalid dates
@@ -280,6 +304,8 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
   });
 
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
+  const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
+  const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
@@ -299,6 +325,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string[]>([]);
   const [isMatchingDropdownOpen, setIsMatchingDropdownOpen] = useState(false);
+  
+  // Selected invoices for checkboxes (using originalIndex as unique identifier)
+  const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<number>>(new Set());
+  const [selectedOverdueIds, setSelectedOverdueIds] = useState<Set<number>>(new Set());
   
   // Invoice Type Filters
   const [showOB, setShowOB] = useState(false);
@@ -324,6 +354,29 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [currentUserName, setCurrentUserName] = useState('');
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
   const [emailCustomers, setEmailCustomers] = useState<string[]>([]);
+
+  // Notes textarea auto-resize (grow with content; only scroll after max height)
+  const newNoteRef = useRef<HTMLTextAreaElement | null>(null);
+  const editNoteRef = useRef<HTMLTextAreaElement | null>(null);
+  const NOTES_TEXTAREA_MAX_HEIGHT = 360; // px
+
+  const autoResizeTextarea = (el: HTMLTextAreaElement | null) => {
+    if (!el) return;
+    el.style.height = 'auto';
+    const nextHeight = Math.min(el.scrollHeight, NOTES_TEXTAREA_MAX_HEIGHT);
+    el.style.height = `${nextHeight}px`;
+    el.style.overflowY = el.scrollHeight > NOTES_TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden';
+  };
+
+  useEffect(() => {
+    autoResizeTextarea(newNoteRef.current);
+  }, [newNote]);
+
+  useEffect(() => {
+    if (editingNoteId !== null) {
+      autoResizeTextarea(editNoteRef.current);
+    }
+  }, [editingNoteId, editingNoteContent]);
   
   // Invoice Details Modal State
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithNetDebt | OverdueInvoice | null>(null);
@@ -536,6 +589,8 @@ ${debtSectionHtml}
 
       if (response.ok) {
         setNewNote('');
+        // Shrink the textarea back after clearing (avoid keeping the expanded height)
+        requestAnimationFrame(() => autoResizeTextarea(newNoteRef.current));
         fetchNotes();
       } else {
         alert('Failed to add note');
@@ -563,6 +618,8 @@ ${debtSectionHtml}
       if (response.ok) {
         setEditingNoteId(null);
         setEditingNoteContent('');
+        // Shrink edit textarea after saving
+        requestAnimationFrame(() => autoResizeTextarea(editNoteRef.current));
         fetchNotes();
       } else {
         alert('Failed to update note');
@@ -669,13 +726,19 @@ ${debtSectionHtml}
     let relevantInvoices = invoices;
 
     if (selectedMatchingFilter.length > 0) {
-      // Check if "All Open Matchings" is selected
-      if (selectedMatchingFilter.includes('All Open Matchings')) {
-        relevantInvoices = invoices.filter(inv => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
-      } else {
-        // Filter by specific matching IDs
-        relevantInvoices = invoices.filter(inv => inv.matching && selectedMatchingFilter.includes(inv.matching));
-      }
+      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
+      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
+      const selectedIds = selectedMatchingFilter.filter(
+        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
+      );
+
+      relevantInvoices = invoices.filter((inv) => {
+        if (!inv.matching) return wantsUnmatched;
+        return (
+          (wantsAllOpen && availableMatchingsWithResidual.includes(inv.matching)) ||
+          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
+        );
+      });
     }
 
     relevantInvoices.forEach(inv => {
@@ -769,13 +832,19 @@ ${debtSectionHtml}
 
     // Matching Filter
     if (selectedMatchingFilter.length > 0) {
-      // Check if "All Open Matchings" is selected
-      if (selectedMatchingFilter.includes('All Open Matchings')) {
-        filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
-      } else {
-        // Filter by specific matching IDs
-        filtered = filtered.filter((inv) => inv.matching && selectedMatchingFilter.includes(inv.matching));
-      }
+      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
+      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
+      const selectedIds = selectedMatchingFilter.filter(
+        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
+      );
+
+      filtered = filtered.filter((inv) => {
+        if (!inv.matching) return wantsUnmatched;
+        return (
+          (wantsAllOpen && availableMatchingsWithResidual.includes(inv.matching)) ||
+          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
+        );
+      });
     }
 
     // Search Query
@@ -801,6 +870,8 @@ ${debtSectionHtml}
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
         if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
         if (showPayments) {
+          // Treat BNK* as payments even if credit isn't populated as expected
+          if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
           // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
           if (inv.credit > 0.01 && 
               !num.startsWith('SAL') && 
@@ -840,11 +911,19 @@ ${debtSectionHtml}
 
     // Matching Filter
     if (selectedMatchingFilter.length > 0) {
-      if (selectedMatchingFilter.includes('All Open Matchings')) {
-        filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
-      } else {
-        filtered = filtered.filter((inv) => inv.matching && selectedMatchingFilter.includes(inv.matching));
-      }
+      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
+      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
+      const selectedIds = selectedMatchingFilter.filter(
+        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
+      );
+
+      filtered = filtered.filter((inv) => {
+        if (!inv.matching) return wantsUnmatched;
+        return (
+          (wantsAllOpen && availableMatchingsWithResidual.includes(inv.matching)) ||
+          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
+        );
+      });
     }
 
     // Search Query
@@ -869,6 +948,7 @@ ${debtSectionHtml}
     filtered.forEach((inv) => {
       const num = inv.number.toUpperCase();
       const netDebt = inv.netDebt;
+      const type = getInvoiceTypeFromRow(inv);
 
       if (num.startsWith('OB')) {
         obTotal += netDebt;
@@ -878,13 +958,9 @@ ${debtSectionHtml}
         returnsTotal += netDebt;
       } else if (num.startsWith('JV') || num.startsWith('BIL')) {
         discountsTotal += netDebt;
-      } else if (inv.credit > 0.01 && 
-                 !num.startsWith('SAL') && 
-                 !num.startsWith('RSAL') && 
-                 !num.startsWith('BIL') && 
-                 !num.startsWith('JV') &&
-                 !num.startsWith('OB')) {
-        paymentsTotal += netDebt;
+      } else if (isPaymentTxn(inv)) {
+        // Payments checkbox total: Credit - Debit
+        paymentsTotal += getPaymentAmount(inv);
       }
     });
 
@@ -914,14 +990,20 @@ ${debtSectionHtml}
 
     // Matching Filter
     if (selectedMatchingFilter.length > 0) {
-      // Check if "All Open Matchings" is selected
-      if (selectedMatchingFilter.includes('All Open Matchings')) {
-        // For overdue, invoices are usually already filtered for openness, but we check if it belongs to a matching group
-        filtered = filtered.filter((inv) => inv.matching);
-      } else {
-        // Filter by specific matching IDs
-        filtered = filtered.filter((inv) => inv.matching && selectedMatchingFilter.includes(inv.matching));
-      }
+      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
+      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
+      const selectedIds = selectedMatchingFilter.filter(
+        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
+      );
+
+      filtered = filtered.filter((inv) => {
+        if (!inv.matching) return wantsUnmatched;
+        // For overdue list, matchings present are already "open", but keep same semantics as invoices tab
+        return (
+          (wantsAllOpen && true) ||
+          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
+        );
+      });
     }
 
     // Search Query
@@ -948,6 +1030,8 @@ ${debtSectionHtml}
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
         if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
         if (showPayments) {
+          // Treat BNK* as payments even if credit isn't populated as expected
+          if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
           // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
           if (inv.credit > 0.01 && 
               !num.startsWith('SAL') && 
@@ -1066,6 +1150,8 @@ ${debtSectionHtml}
   }, [monthlyDebt]);
 
   const monthlyPaymentsTrendData = useMemo(() => {
+    // Build a last-12-months series based on Payment-type transactions only,
+    // and compute amount as (credit - debit) per user request.
     const monthShortNames: { [key: string]: string } = {
       January: 'JAN',
       February: 'FEB',
@@ -1081,7 +1167,39 @@ ${debtSectionHtml}
       December: 'DEC',
     };
 
-    return last12MonthsBase.map((item) => {
+    const now = new Date();
+    const months: Array<{ year: string; month: string; credit: number }> = [];
+
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear().toString();
+      const month = d.toLocaleString('en-US', { month: 'long' });
+      months.push({ year, month, credit: 0 });
+    }
+
+    const indexByKey = new Map<string, number>();
+    months.forEach((m, idx) => indexByKey.set(`${m.year}-${m.month}`, idx));
+
+    filteredInvoices.forEach((inv) => {
+      // Use the same standardized check as dashboard cards
+      if (!isPaymentTxn(inv)) return;
+
+      const date = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+      if (!date || isNaN(date.getTime())) return;
+
+      const year = date.getFullYear().toString();
+      const month = date.toLocaleString('en-US', { month: 'long' });
+      const idx = indexByKey.get(`${year}-${month}`);
+      if (idx === undefined) return;
+
+      // Use the same amount calculation: (Credit - Debit)
+      const amount = getPaymentAmount(inv);
+      // Allow negative amounts (reversals/adjustments) so the chart matches the Total Payments card
+      if (Math.abs(amount) < 0.001) return;
+      months[idx].credit += amount;
+    });
+
+    return months.map((item) => {
       const shortMonth = monthShortNames[item.month] || item.month.substring(0, 3).toUpperCase();
       const yearShort = item.year.substring(2);
       return {
@@ -1089,7 +1207,7 @@ ${debtSectionHtml}
         monthLabel: `${shortMonth}${yearShort}`,
       };
     });
-  }, [last12MonthsBase]);
+  }, [filteredInvoices]);
 
   const monthlySalesTrendData = useMemo(() => {
     const monthShortNames: { [key: string]: string } = {
@@ -1210,9 +1328,58 @@ ${debtSectionHtml}
   }, [filteredInvoices]);
 
 
-  // Invoice columns - Order: DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
+  // Invoice columns - Order: CHECKBOX, DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
   const invoiceColumns = useMemo(
     () => [
+      invoiceColumnHelper.display({
+        id: 'select',
+        header: () => {
+          const allSelected = filteredInvoices.length > 0 && 
+            filteredInvoices.every(inv => selectedInvoiceIds.has(inv.originalIndex));
+          const someSelected = filteredInvoices.some(inv => selectedInvoiceIds.has(inv.originalIndex));
+          return (
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(input) => {
+                if (input) input.indeterminate = someSelected && !allSelected;
+              }}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  const newSelected = new Set(selectedInvoiceIds);
+                  filteredInvoices.forEach(inv => newSelected.add(inv.originalIndex));
+                  setSelectedInvoiceIds(newSelected);
+                } else {
+                  const newSelected = new Set(selectedInvoiceIds);
+                  filteredInvoices.forEach(inv => newSelected.delete(inv.originalIndex));
+                  setSelectedInvoiceIds(newSelected);
+                }
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          );
+        },
+        cell: (info) => {
+          const inv = info.row.original;
+          const isSelected = selectedInvoiceIds.has(inv.originalIndex);
+          return (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                const newSelected = new Set(selectedInvoiceIds);
+                if (e.target.checked) {
+                  newSelected.add(inv.originalIndex);
+                } else {
+                  newSelected.delete(inv.originalIndex);
+                }
+                setSelectedInvoiceIds(newSelected);
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          );
+        },
+      }),
       invoiceColumnHelper.accessor('date', {
         header: 'Date',
         cell: (info) => {
@@ -1298,12 +1465,61 @@ ${debtSectionHtml}
         },
       }),
     ],
-    []
+    [filteredInvoices, selectedInvoiceIds]
   );
 
   // Overdue columns
   const overdueColumns = useMemo(
     () => [
+      overdueColumnHelper.display({
+        id: 'select',
+        header: () => {
+          const allSelected = filteredOverdueInvoices.length > 0 && 
+            filteredOverdueInvoices.every(inv => selectedOverdueIds.has(inv.originalIndex));
+          const someSelected = filteredOverdueInvoices.some(inv => selectedOverdueIds.has(inv.originalIndex));
+          return (
+            <input
+              type="checkbox"
+              checked={allSelected}
+              ref={(input) => {
+                if (input) input.indeterminate = someSelected && !allSelected;
+              }}
+              onChange={(e) => {
+                if (e.target.checked) {
+                  const newSelected = new Set(selectedOverdueIds);
+                  filteredOverdueInvoices.forEach(inv => newSelected.add(inv.originalIndex));
+                  setSelectedOverdueIds(newSelected);
+                } else {
+                  const newSelected = new Set(selectedOverdueIds);
+                  filteredOverdueInvoices.forEach(inv => newSelected.delete(inv.originalIndex));
+                  setSelectedOverdueIds(newSelected);
+                }
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          );
+        },
+        cell: (info) => {
+          const inv = info.row.original;
+          const isSelected = selectedOverdueIds.has(inv.originalIndex);
+          return (
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={(e) => {
+                const newSelected = new Set(selectedOverdueIds);
+                if (e.target.checked) {
+                  newSelected.add(inv.originalIndex);
+                } else {
+                  newSelected.delete(inv.originalIndex);
+                }
+                setSelectedOverdueIds(newSelected);
+              }}
+              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
+            />
+          );
+        },
+      }),
       overdueColumnHelper.accessor('date', {
         header: 'Date',
         cell: (info) => {
@@ -1381,7 +1597,7 @@ ${debtSectionHtml}
         },
       }),
     ],
-    []
+    [filteredOverdueInvoices, selectedOverdueIds]
   );
 
   // Monthly debt columns - Order: Year, Month, DEBIT, CREDIT, Net Debt
@@ -1453,9 +1669,19 @@ ${debtSectionHtml}
     onPaginationChange: setOverduePagination,
   });
 
-  const totalNetDebt = filteredInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
-  const totalDebit = filteredInvoices.reduce((sum, inv) => sum + inv.debit, 0);
-  const totalCredit = filteredInvoices.reduce((sum, inv) => sum + inv.credit, 0);
+  // Calculate totals based on selected invoices, or all if none selected
+  const selectedInvoices = filteredInvoices.filter(inv => selectedInvoiceIds.has(inv.originalIndex));
+  const invoicesToSum = selectedInvoices.length > 0 ? selectedInvoices : filteredInvoices;
+  const totalNetDebt = invoicesToSum.reduce((sum, inv) => sum + inv.netDebt, 0);
+  const totalDebit = invoicesToSum.reduce((sum, inv) => sum + inv.debit, 0);
+  const totalCredit = invoicesToSum.reduce((sum, inv) => sum + inv.credit, 0);
+  
+  // Calculate totals for overdue invoices based on selected, or all if none selected
+  const selectedOverdueInvoices = filteredOverdueInvoices.filter(inv => selectedOverdueIds.has(inv.originalIndex));
+  const overdueToSum = selectedOverdueInvoices.length > 0 ? selectedOverdueInvoices : filteredOverdueInvoices;
+  const overdueTotalDebit = overdueToSum.reduce((sum, inv) => sum + inv.debit, 0);
+  const overdueTotalCredit = overdueToSum.reduce((sum, inv) => sum + inv.credit, 0);
+  const overdueTotalDifference = overdueToSum.reduce((sum, inv) => sum + inv.difference, 0);
 
   const monthlyTotalNetDebt = monthlyDebt.reduce((sum, m) => sum + m.netDebt, 0);
   const monthlyTotalDebit = monthlyDebt.reduce((sum, m) => sum + m.debit, 0);
@@ -1694,14 +1920,8 @@ ${debtSectionHtml}
     }, 0);
 
     const paymentsAmount = filteredInvoices.reduce((sum, inv) => {
-      if (inv.credit <= 0.01) return sum;
-      const num = inv.number.toUpperCase();
-      const isPayment = !num.startsWith('SAL') &&
-                        !num.startsWith('RSAL') &&
-                        !num.startsWith('BIL') &&
-                        !num.startsWith('JV') &&
-                        !num.startsWith('OB');
-      return isPayment ? sum + inv.credit : sum;
+      if (!isPaymentTxn(inv)) return sum;
+      return sum + getPaymentAmount(inv);
     }, 0);
 
     const paymentsCoverage = salesDebit > 0 ? (paymentsAmount / salesDebit) * 100 : 0;
@@ -1721,32 +1941,27 @@ ${debtSectionHtml}
 
     // Calculate Last Payment
     // Filter out non-payment transaction types
-    const paymentInvoices = filteredInvoices.filter(inv => {
-       if (inv.credit <= 0.01) return false;
-       const num = inv.number.toUpperCase();
-       return !num.startsWith('SAL') && 
-              !num.startsWith('RSAL') && 
-              !num.startsWith('BIL') && 
-              !num.startsWith('JV');
-    });
+    const paymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv));
 
     let lastPaymentAmount = 0;
     let lastPaymentDate = null;
 
+    let lastPaymentInvoice: any = null;
     if (paymentInvoices.length > 0) {
-        // Sort by date descending (newest first)
-        const sortedPayments = paymentInvoices.sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            return dateB - dateA;
-        });
-        
-        lastPaymentAmount = sortedPayments[0].credit;
-        lastPaymentDate = new Date(sortedPayments[0].date);
+      // Sort by date descending (newest first)
+      const sortedPayments = [...paymentInvoices].sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        return dateB - dateA;
+      });
+      lastPaymentInvoice = sortedPayments[0] || null;
+      // User-requested: Last Payment amount should be Credit - Debit
+      lastPaymentAmount = lastPaymentInvoice ? getPaymentAmount(lastPaymentInvoice) : 0;
+      lastPaymentDate = lastPaymentInvoice ? new Date(lastPaymentInvoice.date) : null;
     }
 
-    // Calculate Total Payments (sum of all payment credits)
-    const totalPayments = paymentInvoices.reduce((acc, inv) => acc + inv.credit, 0);
+    // Calculate Total Payments
+    const totalPayments = paymentInvoices.reduce((acc, inv) => acc + getPaymentAmount(inv), 0);
 
     // Calculate Average Monthly Sales
     // Logic: (Sum(SAL) - Sum(RSAL)) / Span in Months
@@ -1762,15 +1977,8 @@ ${debtSectionHtml}
     const lifetimeSmartSales = netSales;
 
     // Lifetime Smart Payments (Credit not SAL/RSAL/BIL/JV)
-    const smartPaymentInvoices = filteredInvoices.filter(inv => {
-       if (inv.credit <= 0.01) return false;
-       const num = inv.number.toUpperCase();
-       return !num.startsWith('SAL') && 
-              !num.startsWith('RSAL') && 
-              !num.startsWith('BIL') && 
-              !num.startsWith('JV');
-    });
-    const lifetimeSmartPayments = smartPaymentInvoices.reduce((sum, inv) => sum + inv.credit, 0);
+    const smartPaymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv));
+    const lifetimeSmartPayments = smartPaymentInvoices.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
     
     // Duration
     // Find earliest date and latest date among these specific transactions
@@ -1818,7 +2026,7 @@ ${debtSectionHtml}
       returnsImpact,
       discountsImpact,
       paymentsNetCoverage,
-      lastPaymentInvoice: paymentInvoices.length > 0 ? paymentInvoices[0] : null,
+      lastPaymentInvoice,
       averageMonthlySales,
       lifetimeSmartSales,
       lifetimeSmartPayments,
@@ -1881,7 +2089,7 @@ ${debtSectionHtml}
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Payment Amount</p>
                 <p className="text-3xl font-bold text-green-600">
-                  {dashboardMetrics.lastPaymentInvoice.credit.toLocaleString('en-US')}
+                  {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
                 </p>
               </div>
 
@@ -2288,7 +2496,7 @@ ${debtSectionHtml}
           {/* Matching Filter - Multi-Select Dropdown */}
           <div className="w-64 relative">
             <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-              Filter by Open Matching
+              Filter by Matching
             </label>
             <div className="relative">
               <button
@@ -2324,13 +2532,22 @@ ${debtSectionHtml}
                         <input
                           type="checkbox"
                           checked={
-                            selectedMatchingFilter.includes('All Open Matchings') && 
+                            selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) && 
                             availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m)) &&
-                            selectedMatchingFilter.length === availableMatchingsWithResidual.length + 1
+                            (
+                              selectedMatchingFilter.length === availableMatchingsWithResidual.length + 1 ||
+                              (selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED) &&
+                                selectedMatchingFilter.length === availableMatchingsWithResidual.length + 2)
+                            )
                           }
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedMatchingFilter(['All Open Matchings', ...availableMatchingsWithResidual]);
+                              // Preserve All Unmatched if it was already selected
+                              if (selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED)) {
+                                setSelectedMatchingFilter([MATCHING_FILTER_ALL_UNMATCHED, MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
+                              } else {
+                                setSelectedMatchingFilter([MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
+                              }
                             } else {
                               setSelectedMatchingFilter([]);
                             }
@@ -2344,12 +2561,27 @@ ${debtSectionHtml}
                       <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
                         <input
                           type="checkbox"
-                          checked={selectedMatchingFilter.includes('All Open Matchings')}
+                          checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED)}
                           onChange={(e) => {
                             if (e.target.checked) {
-                              setSelectedMatchingFilter([...selectedMatchingFilter, 'All Open Matchings']);
+                              setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_UNMATCHED]);
                             } else {
-                              setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== 'All Open Matchings'));
+                              setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_UNMATCHED));
+                            }
+                          }}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                        <span className="text-sm text-gray-700">All Unmatched</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <input
+                          type="checkbox"
+                          checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_OPEN]);
+                            } else {
+                              setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_OPEN));
                             }
                           }}
                           className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
@@ -2981,15 +3213,16 @@ ${debtSectionHtml}
                     {headerGroup.headers.map((header) => {
                       const getWidth = () => {
                         const columnId = header.column.id;
-                      if (columnId === 'date') return '15%';
-                      if (columnId === 'type') return '12%';
-                        if (columnId === 'number') return '15%';
-                        if (columnId === 'debit') return '15%';
-                        if (columnId === 'credit') return '15%';
-                        if (columnId === 'netDebt') return '15%';
-                        if (columnId === 'matching') return '15%';
-                        if (columnId === 'residual') return '10%';
-                        return '15%';
+                        if (columnId === 'select') return '5%';
+                        if (columnId === 'date') return '13%';
+                        if (columnId === 'type') return '10%';
+                        if (columnId === 'number') return '13%';
+                        if (columnId === 'debit') return '13%';
+                        if (columnId === 'credit') return '13%';
+                        if (columnId === 'netDebt') return '13%';
+                        if (columnId === 'matching') return '13%';
+                        if (columnId === 'residual') return '9%';
+                        return '13%';
                       };
                       return (
                         <th
@@ -3015,15 +3248,16 @@ ${debtSectionHtml}
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
                         const columnId = cell.column.id;
-                      if (columnId === 'date') return '15%';
-                      if (columnId === 'type') return '12%';
-                        if (columnId === 'number') return '15%';
-                        if (columnId === 'debit') return '15%';
-                        if (columnId === 'credit') return '15%';
-                        if (columnId === 'netDebt') return '15%';
-                        if (columnId === 'matching') return '15%';
-                        if (columnId === 'residual') return '10%';
-                        return '15%';
+                        if (columnId === 'select') return '5%';
+                        if (columnId === 'date') return '13%';
+                        if (columnId === 'type') return '10%';
+                        if (columnId === 'number') return '13%';
+                        if (columnId === 'debit') return '13%';
+                        if (columnId === 'credit') return '13%';
+                        if (columnId === 'netDebt') return '13%';
+                        if (columnId === 'matching') return '13%';
+                        if (columnId === 'residual') return '9%';
+                        return '13%';
                       };
                       return (
                         <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
@@ -3034,22 +3268,23 @@ ${debtSectionHtml}
                   </tr>
                 ))}
                 <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '5%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>Total</td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
                     {totalDebit.toLocaleString('en-US')}
                   </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
                     {totalCredit.toLocaleString('en-US')}
                   </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
                     <span className={totalNetDebt > 0 ? 'text-red-600' : totalNetDebt < 0 ? 'text-green-600' : ''}>
                       {totalNetDebt.toLocaleString('en-US')}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
+                  <td className="px-4 py-3 text-center text-lg" style={{ width: '9%' }}></td>
                 </tr>
               </tbody>
             </table>
@@ -3147,14 +3382,15 @@ ${debtSectionHtml}
                       {headerGroup.headers.map((header) => {
                         const getWidth = () => {
                           const columnId = header.column.id;
-                      if (columnId === 'date') return '15%';
-                      if (columnId === 'type') return '12%';
-                          if (columnId === 'number') return '15%';
-                          if (columnId === 'debit') return '15%';
-                          if (columnId === 'credit') return '15%';
-                          if (columnId === 'difference') return '20%';
-                          if (columnId === 'daysOverdue') return '20%';
-                          return '15%';
+                          if (columnId === 'select') return '5%';
+                          if (columnId === 'date') return '13%';
+                          if (columnId === 'type') return '10%';
+                          if (columnId === 'number') return '13%';
+                          if (columnId === 'debit') return '13%';
+                          if (columnId === 'credit') return '13%';
+                          if (columnId === 'difference') return '16%';
+                          if (columnId === 'daysOverdue') return '16%';
+                          return '13%';
                         };
                         return (
                           <th
@@ -3177,7 +3413,7 @@ ${debtSectionHtml}
                 <tbody>
                   {overdueTable.getRowModel().rows.length === 0 ? (
                      <tr>
-                       <td colSpan={6} className="px-4 py-8 text-center text-gray-500">
+                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
                          No overdue or open invoices found matching criteria.
                        </td>
                      </tr>
@@ -3187,14 +3423,15 @@ ${debtSectionHtml}
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
                             const columnId = cell.column.id;
-                      if (columnId === 'date') return '15%';
-                      if (columnId === 'type') return '12%';
-                            if (columnId === 'number') return '15%';
-                            if (columnId === 'debit') return '15%';
-                            if (columnId === 'credit') return '15%';
-                            if (columnId === 'difference') return '20%';
-                            if (columnId === 'daysOverdue') return '20%';
-                            return '15%';
+                            if (columnId === 'select') return '5%';
+                            if (columnId === 'date') return '13%';
+                            if (columnId === 'type') return '10%';
+                            if (columnId === 'number') return '13%';
+                            if (columnId === 'debit') return '13%';
+                            if (columnId === 'credit') return '13%';
+                            if (columnId === 'difference') return '16%';
+                            if (columnId === 'daysOverdue') return '16%';
+                            return '13%';
                           };
                           return (
                             <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
@@ -3207,21 +3444,22 @@ ${debtSectionHtml}
                   )}
                   {overdueTable.getRowModel().rows.length > 0 && (
                     <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}></td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}></td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                        {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.debit, 0).toLocaleString('en-US')}
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '5%' }}></td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>Total</td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                        {overdueTotalDebit.toLocaleString('en-US')}
                       </td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                        {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.credit, 0).toLocaleString('en-US')}
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                        {overdueTotalCredit.toLocaleString('en-US')}
                       </td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                        <span className={filteredOverdueInvoices.reduce((sum, inv) => sum + inv.difference, 0) > 0 ? 'text-red-600' : 'text-green-600'}>
-                          {filteredOverdueInvoices.reduce((sum, inv) => sum + inv.difference, 0).toLocaleString('en-US')}
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
+                        <span className={overdueTotalDifference > 0 ? 'text-red-600' : 'text-green-600'}>
+                          {overdueTotalDifference.toLocaleString('en-US')}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
+                      <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}></td>
                     </tr>
                   )}
                 </tbody>
@@ -3449,10 +3687,14 @@ ${debtSectionHtml}
             <h3 className="text-lg font-bold mb-4">Add New Note</h3>
             <div className="flex gap-4">
               <textarea
+                ref={newNoteRef}
                 value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
+                onChange={(e) => {
+                  setNewNote(e.target.value);
+                  autoResizeTextarea(e.currentTarget);
+                }}
                 placeholder="Type your note here..."
-                className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24"
+                className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-24 max-h-[360px]"
               />
               <button
                 onClick={handleAddNote}
@@ -3533,9 +3775,13 @@ ${debtSectionHtml}
                       {editingNoteId === note.rowIndex ? (
                         <div className="mt-2">
                           <textarea
+                            ref={editNoteRef}
                             value={editingNoteContent}
-                            onChange={(e) => setEditingNoteContent(e.target.value)}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none h-24 mb-2"
+                            onChange={(e) => {
+                              setEditingNoteContent(e.target.value);
+                              autoResizeTextarea(e.currentTarget);
+                            }}
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-24 max-h-[360px] mb-2"
                           />
                           <div className="flex justify-between items-center">
                             <label className="flex items-center gap-2 cursor-pointer text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded transition-colors border border-gray-200">
@@ -3550,7 +3796,11 @@ ${debtSectionHtml}
                             
                             <div className="flex gap-2">
                               <button
-                                onClick={() => setEditingNoteId(null)}
+                                onClick={() => {
+                                  setEditingNoteId(null);
+                                  setEditingNoteContent('');
+                                  requestAnimationFrame(() => autoResizeTextarea(editNoteRef.current));
+                                }}
                                 className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
                               >
                                 Cancel

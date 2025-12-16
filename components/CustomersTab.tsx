@@ -18,6 +18,39 @@ interface CustomersTabProps {
 
 const columnHelper = createColumnHelper<CustomerAnalysis>();
 
+// Helper function to copy text to clipboard (works in all browsers)
+const copyToClipboard = async (text: string): Promise<boolean> => {
+  try {
+    // Try modern clipboard API first
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+    
+    // Fallback for older browsers
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.style.position = 'fixed';
+    textArea.style.left = '-999999px';
+    textArea.style.top = '-999999px';
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+    
+    try {
+      const successful = document.execCommand('copy');
+      document.body.removeChild(textArea);
+      return successful;
+    } catch (err) {
+      document.body.removeChild(textArea);
+      return false;
+    }
+  } catch (err) {
+    console.error('Failed to copy:', err);
+    return false;
+  }
+};
+
 const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
@@ -314,6 +347,27 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
   return finalRating;
 };
 
+// Helper to identify payment transactions consistently
+const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
+  const num = (inv.number?.toString() || '').toUpperCase();
+  if (num.startsWith('BNK')) return true;
+  if ((inv.credit || 0) <= 0.01) return false;
+  return (
+    !num.startsWith('SAL') &&
+    !num.startsWith('RSAL') &&
+    !num.startsWith('BIL') &&
+    !num.startsWith('JV') &&
+    !num.startsWith('OB')
+  );
+};
+
+// Helper to calculate payment amount consistently (Credit - Debit)
+const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }): number => {
+  const credit = inv.credit || 0;
+  const debit = inv.debit || 0;
+  return credit - debit;
+};
+
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set()) => {
   // CSV format (opens in Excel)
   // Order: Customer Name, Sales Rep, Net Debt, Debt Rating, Open OB, Overdue Amount, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
@@ -553,20 +607,13 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
       const rowDate = parseDate(row.date);
       if (rowDate) {
-          // Last Payment: max date where credit > 0, excluding SAL, RSAL, BIL, JV (matching Dashboard logic)
-          if (row.credit > 0.01) {
-              const num = row.number?.toString().toUpperCase() || '';
-              // Exclude SAL, RSAL, BIL, JV, OB (same as Dashboard, plus OB)
-              if (!num.startsWith('SAL') && 
-                  !num.startsWith('RSAL') && 
-                  !num.startsWith('BIL') && 
-                  !num.startsWith('JV') &&
-                  !num.startsWith('OB')) {
-                  if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
-                      existing.lastPaymentDate = rowDate;
-                      existing.lastPaymentMatching = row.matching || 'UNMATCHED';
-                      existing.lastPaymentAmount = row.credit;
-                  }
+          // Last Payment: max date where matches payment logic AND credit > 0
+          if (isPaymentTxn(row) && (row.credit || 0) > 0.01) {
+              if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
+                  existing.lastPaymentDate = rowDate;
+                  existing.lastPaymentMatching = row.matching || 'UNMATCHED';
+                  // User-requested: Last Payment amount should be Credit - Debit
+                  existing.lastPaymentAmount = getPaymentAmount(row);
               }
           }
           // Last Sale: max date where invoice number starts with SAL (matching Dashboard logic)
@@ -817,28 +864,19 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
         const payments3m = customerInvoices
             .filter(inv => isInLast90(inv.date))
-            .filter(inv => {
-                const num = inv.number?.toString().toUpperCase() || '';
-                return inv.credit > 0.01 &&
-                    !num.startsWith('SAL') &&
-                    !num.startsWith('RSAL') &&
-                    !num.startsWith('BIL') &&
-                    !num.startsWith('JV') &&
-                    !num.startsWith('OB');
-            })
-        .reduce((s, inv) => s + inv.credit, 0);
-    const paymentsCount3m = customerInvoices
-        .filter(inv => isInLast90(inv.date))
-        .filter(inv => {
-            const num = inv.number?.toString().toUpperCase() || '';
-            return inv.credit > 0.01 &&
-                !num.startsWith('SAL') &&
-                !num.startsWith('RSAL') &&
-                !num.startsWith('BIL') &&
-                !num.startsWith('JV') &&
-                !num.startsWith('OB');
-        })
-        .length;
+            .filter(inv => isPaymentTxn(inv))
+            .reduce((s, inv) => s + getPaymentAmount(inv), 0);
+
+        const paymentsCount3m = (() => {
+            const paymentInvoices = customerInvoices
+                .filter(inv => isInLast90(inv.date))
+                .filter(inv => isPaymentTxn(inv));
+            
+            const creditCount = paymentInvoices.filter(inv => (inv.credit || 0) > 0.01).length;
+            const debitCount = paymentInvoices.filter(inv => (inv.debit || 0) > 0.01).length;
+            
+            return creditCount - debitCount;
+        })();
 
         return {
             customerName: c.customerName,
@@ -1293,17 +1331,44 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     () => [
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
-        cell: (info) => (
-          <button
-            onClick={() => setSelectedCustomer(info.getValue())}
-            className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left w-full flex items-center gap-2"
-          >
-            {info.getValue()}
-            {info.row.original.hasOpenMatchings && (
-              <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Has Open Matching"></span>
-            )}
-          </button>
-        ),
+        cell: (info) => {
+          const customerName = info.getValue();
+          const handleCopy = async (e: React.MouseEvent) => {
+            e.stopPropagation();
+            // Grab the element BEFORE awaiting (React may null out event fields after await)
+            const buttonEl = (e.currentTarget as HTMLButtonElement | null);
+            const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
+            const success = await copyToClipboard(customerName);
+            if (success) {
+              if (!buttonEl) return;
+              buttonEl.title = 'تم النسخ!';
+              setTimeout(() => {
+                buttonEl.title = originalTitle;
+              }, 2000);
+            }
+          };
+          return (
+            <div className="flex items-center gap-2 w-full">
+              <button
+                onClick={() => setSelectedCustomer(customerName)}
+                className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left flex-1 flex items-center gap-2"
+              >
+                {customerName}
+                {info.row.original.hasOpenMatchings && (
+                  <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" title="Has Open Matching"></span>
+                )}
+              </button>
+              <button
+                onClick={handleCopy}
+                className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
+                title="نسخ اسم العميل"
+              >
+                <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+              </button>
+            </div>
+          );
+        },
       }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debit',
@@ -2083,12 +2148,35 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                   {/* Customer Name */}
                   <div className="md:col-span-2">
-                    <button
-                      onClick={() => setSelectedCustomer(customer.customerName)}
-                      className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left w-full group-hover:underline"
-                    >
-                      {customer.customerName}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedCustomer(customer.customerName)}
+                        className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
+                      >
+                        {customer.customerName}
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          // Grab the element BEFORE awaiting (React may null out event fields after await)
+                          const buttonEl = (e.currentTarget as HTMLButtonElement | null);
+                          const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
+                          const success = await copyToClipboard(customer.customerName);
+                          if (success) {
+                            if (!buttonEl) return;
+                            buttonEl.title = 'تم النسخ!';
+                            setTimeout(() => {
+                              buttonEl.title = originalTitle;
+                            }, 2000);
+                          }
+                        }}
+                        className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
+                        title="نسخ اسم العميل"
+                      >
+                        <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                        <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                      </button>
+                    </div>
                   </div>
 
                   {/* Net Debit */}
