@@ -28,7 +28,6 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from '@/lib/invoiceType';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -77,6 +76,25 @@ const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
 const normalizeCustomerKey = (name: string): string =>
   name.toString().toLowerCase().trim().replace(/\s+/g, ' ');
+
+// Helper function to determine invoice type - matches logic from CustomersOpenMatchesTab
+const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | null }): string => {
+  const num = (inv.number || '').toUpperCase();
+  const credit = inv.credit ?? 0;
+
+  if (num.startsWith('OB')) {
+    return 'OB';
+  } else if (num.startsWith('SAL')) {
+    return 'Sales';
+  } else if (num.startsWith('RSAL')) {
+    return 'Return';
+  } else if (num.startsWith('JV') || num.startsWith('BIL')) {
+    return 'Discount';
+  } else if (credit > 0.01) {
+    return 'Payment';
+  }
+  return 'Invoice/Txn';
+};
 
 // Parse dates from Google Sheets while preserving original order for invalid dates
 const parseInvoiceDate = (dateStr?: string | null): Date | null => {
@@ -804,6 +822,81 @@ ${debtSectionHtml}
     );
   }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
 
+  // Calculate totals for each invoice type based on current filters (excluding type filters)
+  const invoiceTypeTotals = useMemo(() => {
+    let filtered = invoicesWithNetDebt;
+    
+    // Apply same filters as filteredInvoices but without type filters
+    // Month Filter
+    if (selectedMonthFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return selectedMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Matching Filter
+    if (selectedMatchingFilter.length > 0) {
+      if (selectedMatchingFilter.includes('All Open Matchings')) {
+        filtered = filtered.filter((inv) => inv.matching && availableMatchingsWithResidual.includes(inv.matching));
+      } else {
+        filtered = filtered.filter((inv) => inv.matching && selectedMatchingFilter.includes(inv.matching));
+      }
+    }
+
+    // Search Query
+    if (invoiceSearchQuery.trim()) {
+      const query = invoiceSearchQuery.toLowerCase();
+      filtered = filtered.filter((inv) => 
+        inv.number.toLowerCase().includes(query) ||
+        inv.matching?.toLowerCase().includes(query) ||
+        inv.date.toLowerCase().includes(query) ||
+        inv.debit.toString().includes(query) ||
+        inv.credit.toString().includes(query)
+      );
+    }
+
+    // Calculate totals for each type
+    let obTotal = 0;
+    let salesTotal = 0;
+    let returnsTotal = 0;
+    let paymentsTotal = 0;
+    let discountsTotal = 0;
+
+    filtered.forEach((inv) => {
+      const num = inv.number.toUpperCase();
+      const netDebt = inv.netDebt;
+
+      if (num.startsWith('OB')) {
+        obTotal += netDebt;
+      } else if (num.startsWith('SAL') && inv.debit > 0) {
+        salesTotal += netDebt;
+      } else if (num.startsWith('RSAL') && inv.credit > 0) {
+        returnsTotal += netDebt;
+      } else if (num.startsWith('JV') || num.startsWith('BIL')) {
+        discountsTotal += netDebt;
+      } else if (inv.credit > 0.01 && 
+                 !num.startsWith('SAL') && 
+                 !num.startsWith('RSAL') && 
+                 !num.startsWith('BIL') && 
+                 !num.startsWith('JV') &&
+                 !num.startsWith('OB')) {
+        paymentsTotal += netDebt;
+      }
+    });
+
+    return {
+      ob: obTotal,
+      sales: salesTotal,
+      returns: returnsTotal,
+      payments: paymentsTotal,
+      discounts: discountsTotal,
+    };
+  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual]);
+
   // Filter overdue invoices based on selected month filter, matching filter, and search query
   const filteredOverdueInvoices = useMemo(() => {
     let filtered = overdueInvoices;
@@ -1135,14 +1228,14 @@ ${debtSectionHtml}
         header: 'Type',
         cell: (info) => {
           const inv = info.row.original;
-          const type = getInvoiceType(inv);
+          const type = getInvoiceTypeFromRow(inv);
           const color =
-            type === 'Sale' ? 'bg-green-100 text-green-700' :
-            type === 'Return' ? 'bg-yellow-100 text-yellow-700' :
-            type === 'Payment' ? 'bg-blue-100 text-blue-700' :
-            type === 'Discount' ? 'bg-purple-100 text-purple-700' :
-            type === 'Opening Balance' ? 'bg-gray-200 text-gray-700' :
-            'bg-slate-100 text-slate-700';
+            type === 'Sales' ? 'bg-blue-100 text-blue-700' :
+            type === 'Return' ? 'bg-orange-100 text-orange-700' :
+            type === 'Payment' ? 'bg-green-100 text-green-700' :
+            type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
+            type === 'OB' ? 'bg-purple-100 text-purple-700' :
+            'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -1226,14 +1319,14 @@ ${debtSectionHtml}
         header: 'Type',
         cell: (info) => {
           const inv = info.row.original;
-          const type = getInvoiceType(inv);
+          const type = getInvoiceTypeFromRow(inv);
           const color =
-            type === 'Sale' ? 'bg-green-100 text-green-700' :
-            type === 'Return' ? 'bg-yellow-100 text-yellow-700' :
-            type === 'Payment' ? 'bg-blue-100 text-blue-700' :
-            type === 'Discount' ? 'bg-purple-100 text-purple-700' :
-            type === 'Opening Balance' ? 'bg-gray-200 text-gray-700' :
-            'bg-slate-100 text-slate-700';
+            type === 'Sales' ? 'bg-blue-100 text-blue-700' :
+            type === 'Return' ? 'bg-orange-100 text-orange-700' :
+            type === 'Payment' ? 'bg-green-100 text-green-700' :
+            type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
+            type === 'OB' ? 'bg-purple-100 text-purple-700' :
+            'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -1242,7 +1335,7 @@ ${debtSectionHtml}
         }
       }),
       overdueColumnHelper.accessor('number', {
-        header: 'Invoice Number',
+        header: 'Number',
         cell: (info) => {
           const invoiceNumber = info.getValue();
           const row = info.row.original;
@@ -1439,7 +1532,7 @@ ${debtSectionHtml}
     
     const rows = invoices.map(inv => {
       const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
-      const type = getInvoiceType(inv);
+      const type = getInvoiceTypeFromRow(inv);
       return [
         date,
         type,
@@ -2303,52 +2396,77 @@ ${debtSectionHtml}
 
         {/* Invoice Type Filters */}
         <div className="flex justify-center mt-4">
-          <div className="w-full max-w-2xl">
-            <div className="flex flex-wrap gap-4 justify-center items-center bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <label className="flex items-center gap-2 cursor-pointer">
+          <div className="w-full max-w-6xl">
+            <div className="flex flex-nowrap gap-2 justify-center items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
+              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-purple-200 hover:border-purple-400 hover:bg-purple-50 transition-all">
                 <input
                   type="checkbox"
                   checked={showOB}
                   onChange={(e) => setShowOB(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-1 focus:ring-purple-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-gray-700">OB</span>
+                <span className="text-sm font-medium text-gray-700">
+                  OB
+                </span>
+                <span className="text-sm font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
+                  {invoiceTypeTotals.ob.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all">
                 <input
                   type="checkbox"
                   checked={showSales}
                   onChange={(e) => setShowSales(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-1 focus:ring-blue-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-gray-700">المبيعات (SAL)</span>
+                <span className="text-sm font-medium text-gray-700">
+                  المبيعات (SAL)
+                </span>
+                <span className="text-sm font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+                  {invoiceTypeTotals.sales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-orange-200 hover:border-orange-400 hover:bg-orange-50 transition-all">
                 <input
                   type="checkbox"
                   checked={showReturns}
                   onChange={(e) => setShowReturns(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-1 focus:ring-orange-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-gray-700">مرتجعات المبيعات (RSAL)</span>
+                <span className="text-sm font-medium text-gray-700">
+                  مرتجعات المبيعات (RSAL)
+                </span>
+                <span className="text-sm font-semibold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded">
+                  {invoiceTypeTotals.returns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-green-200 hover:border-green-400 hover:bg-green-50 transition-all">
                 <input
                   type="checkbox"
                   checked={showPayments}
                   onChange={(e) => setShowPayments(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-1 focus:ring-green-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-gray-700">الدفعات</span>
+                <span className="text-sm font-medium text-gray-700">
+                  الدفعات
+                </span>
+                <span className="text-sm font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
+                  {invoiceTypeTotals.payments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer">
+              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-yellow-200 hover:border-yellow-400 hover:bg-yellow-50 transition-all">
                 <input
                   type="checkbox"
                   checked={showDiscounts}
                   onChange={(e) => setShowDiscounts(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-1 focus:ring-yellow-500 cursor-pointer"
                 />
-                <span className="text-sm font-medium text-gray-700">الخصومات (JV/BIL)</span>
+                <span className="text-sm font-medium text-gray-700">
+                  الخصومات (JV/BIL)
+                </span>
+                <span className="text-sm font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded">
+                  {invoiceTypeTotals.discounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
               </label>
             </div>
           </div>
