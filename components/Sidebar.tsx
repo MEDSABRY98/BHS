@@ -9,7 +9,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SidebarProps) {
-  const tabs = [
+  const allTabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
     { id: 'customers-open-matches', label: 'C Open Matches', icon: '🔗' },
     { id: 'payment-tracker', label: 'Payment Tracker', icon: '💰' },
@@ -20,7 +20,22 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     { id: 'ages', label: 'Ages', icon: '⏳' },
     { id: 'all-notes', label: 'All Notes', icon: '📝' },
     { id: 'inventory-analyze', label: 'Inventory Analyze', icon: '📦' },
+    { id: 'warehouse-cleaning', label: 'Warehouse Cleaning', icon: '🏭' },
   ];
+
+  // Tabs to hide for Mahmoud Shaker
+  const restrictedTabsForMahmoud = [
+    'customers-open-matches',
+    'discount-tracker',
+    'all-notes',
+    'inventory-analyze',
+    'warehouse-cleaning'
+  ];
+
+  // Filter tabs based on user
+  const tabs = currentUser?.name === 'Mahmoud Shaker'
+    ? allTabs.filter(tab => !restrictedTabsForMahmoud.includes(tab.id))
+    : allTabs;
 
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">

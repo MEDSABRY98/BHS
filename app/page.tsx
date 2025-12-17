@@ -12,6 +12,7 @@ import MonthsTab from '@/components/MonthsTab';
 import AgesTab from '@/components/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
 import ProductAnalyzer from '@/components/ProductAnalyzer';
+import WarehouseCleaningTab from '@/components/WarehouseCleaningTab';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
@@ -41,6 +42,23 @@ export default function Home() {
       fetchData();
     }
   }, [isAuthenticated]);
+
+  // Redirect Mahmoud Shaker away from restricted tabs
+  useEffect(() => {
+    if (isAuthenticated && currentUser?.name === 'Mahmoud Shaker') {
+      const restrictedTabsForMahmoud = [
+        'customers-open-matches',
+        'discount-tracker',
+        'all-notes',
+        'inventory-analyze',
+        'warehouse-cleaning'
+      ];
+      
+      if (restrictedTabsForMahmoud.includes(activeTab)) {
+        setActiveTab('customers');
+      }
+    }
+  }, [isAuthenticated, currentUser, activeTab]);
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
@@ -124,6 +142,20 @@ export default function Home() {
       );
     }
 
+    // Restrict access for Mahmoud Shaker
+    const restrictedTabsForMahmoud = [
+      'customers-open-matches',
+      'discount-tracker',
+      'all-notes',
+      'inventory-analyze',
+      'warehouse-cleaning'
+    ];
+
+    if (currentUser?.name === 'Mahmoud Shaker' && restrictedTabsForMahmoud.includes(activeTab)) {
+      // Redirect to customers tab if trying to access restricted tab
+      return <CustomersTab data={data} />;
+    }
+
     switch (activeTab) {
       case 'customers':
         return <CustomersTab data={data} />;
@@ -145,6 +177,8 @@ export default function Home() {
         return <AllNotesTab />;
       case 'inventory-analyze':
         return <ProductAnalyzer />;
+      case 'warehouse-cleaning':
+        return <WarehouseCleaningTab />;
       default:
         return <CustomersTab data={data} />;
     }

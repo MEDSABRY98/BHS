@@ -855,3 +855,185 @@ export async function updateInventoryItem(rowIndex: number, data: {
         throw error;
     }
 }
+
+export interface WarehouseCleaningEntry {
+    cleaningName: string;
+    organizingName: string;
+    year: string;
+    month: string;
+    date: string;
+    week: string;
+    day: string;
+    rating: string;
+}
+
+export async function getWarehouseCleaningData(): Promise<WarehouseCleaningEntry[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // First, get all sheet names to find the correct one
+    let actualSheetName = '';
+    try {
+      const spreadsheetInfo = await sheets.spreadsheets.get({
+        spreadsheetId: SPREADSHEET_ID,
+      });
+      
+      const allSheets = spreadsheetInfo.data.sheets || [];
+      const sheetNames = allSheets.map(s => s.properties?.title || '').filter(Boolean);
+      console.log('[Warehouse Cleaning] Available sheets:', sheetNames);
+      
+      // Try to find sheet with "warehouse" and "cleaning" in the name (case-insensitive)
+      const matchingSheet = sheetNames.find(name => 
+        name.toLowerCase().includes('warehouse') && name.toLowerCase().includes('cleaning')
+      );
+      
+      if (matchingSheet) {
+        actualSheetName = matchingSheet;
+        console.log(`[Warehouse Cleaning] Found matching sheet: "${actualSheetName}"`);
+      } else {
+        // Try exact match
+        const exactMatch = sheetNames.find(name => 
+          name.trim().toLowerCase() === 'warehouse cleaning'
+        );
+        if (exactMatch) {
+          actualSheetName = exactMatch;
+        } else {
+          throw new Error(
+            `Sheet "Warehouse Cleaning" not found. Available sheets: ${sheetNames.join(', ')}`
+          );
+        }
+      }
+    } catch (err) {
+      console.error('[Warehouse Cleaning] Error finding sheet:', err);
+      throw err;
+    }
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${actualSheetName}!A:H`, // Cleaning Name, Organizing Name, Year, Month, Date, Week, Day, Rating
+    });
+
+    const rows = response.data.values;
+    console.log(`[Warehouse Cleaning] Found ${rows ? rows.length : 0} rows from sheet "${actualSheetName}"`);
+    
+    if (!rows || rows.length === 0) {
+      console.log('[Warehouse Cleaning] No rows found in sheet');
+      return [];
+    }
+
+    // Skip header row and parse data
+    const data = rows.slice(1).map((row) => {
+      const [cleaningName, organizingName, year, month, date, week, day, rating] = row;
+      return {
+        cleaningName: cleaningName?.toString().trim() || '',
+        organizingName: organizingName?.toString().trim() || '',
+        year: year?.toString().trim() || '',
+        month: month?.toString().trim() || '',
+        date: date?.toString().trim() || '',
+        week: week?.toString().trim() || '',
+        day: day?.toString().trim() || '',
+        rating: rating?.toString().trim() || '',
+      };
+    }).filter(row => {
+      // Less strict filter - only filter completely empty rows
+      return row.cleaningName || row.organizingName || row.date || row.year || row.month;
+    });
+
+    console.log(`[Warehouse Cleaning] Parsed ${data.length} entries after filtering`);
+    if (data.length > 0) {
+      console.log('[Warehouse Cleaning] Sample entry:', data[0]);
+    }
+    return data;
+  } catch (error) {
+    console.error('Error fetching Warehouse Cleaning data:', error);
+    throw error;
+  }
+}
+
+export async function updateWarehouseCleaningRating(
+  year: string,
+  month: string,
+  date: string,
+  rating: string
+): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Find the sheet
+    const spreadsheetInfo = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+    
+    const allSheets = spreadsheetInfo.data.sheets || [];
+    const sheetNames = allSheets.map(s => s.properties?.title || '').filter(Boolean);
+    
+    const matchingSheet = sheetNames.find(name => 
+      name.toLowerCase().includes('warehouse') && name.toLowerCase().includes('cleaning')
+    ) || sheetNames.find(name => 
+      name.trim().toLowerCase() === 'warehouse cleaning'
+    );
+    
+    if (!matchingSheet) {
+      throw new Error(`Sheet "Warehouse Cleaning" not found`);
+    }
+    
+    // Get all data to find the row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${matchingSheet}!A:H`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      throw new Error('No data found in sheet');
+    }
+
+    // Find the row matching year, month, and date
+    let rowIndex = -1;
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const rowYear = row[2]?.toString().trim() || '';
+      const rowMonth = row[3]?.toString().trim() || '';
+      const rowDate = row[4]?.toString().trim() || '';
+      
+      if (rowYear === year && rowMonth === month && rowDate === date) {
+        rowIndex = i + 1; // 1-based row number
+        break;
+      }
+    }
+
+    if (rowIndex === -1) {
+      throw new Error(`Row not found for Year: ${year}, Month: ${month}, Date: ${date}`);
+    }
+
+    // Update the rating in column H (8th column)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `${matchingSheet}!H${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[rating]],
+      },
+    });
+
+    console.log(`[Warehouse Cleaning] Updated rating for row ${rowIndex}: ${rating}`);
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating Warehouse Cleaning rating:', error);
+    throw error;
+  }
+}
