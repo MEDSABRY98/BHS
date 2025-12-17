@@ -44,7 +44,7 @@ const WarehouseCleaningTab = () => {
       
       // Initialize ratings from data
       const ratingsMap: Record<string, string> = {};
-      result.data?.forEach(entry => {
+      result.data?.forEach((entry: WarehouseCleaningEntry) => {
         if (entry.date && entry.year && entry.month) {
           const key = `${entry.year}-${entry.month}-${entry.date}`;
           ratingsMap[key] = entry.rating || '';
