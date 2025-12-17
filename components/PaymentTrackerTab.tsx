@@ -539,37 +539,34 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
       
       // Apply date filters - default to last 12 months if no filter
+      const today = new Date();
       let startDate: Date;
       let endDate: Date;
       
       if (dateFrom || dateTo) {
-        if (dateFrom) {
-          const fromDate = parseDate(dateFrom);
-          startDate = fromDate || new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1);
-        } else {
-          const toDate = parseDate(dateTo);
-          if (toDate) {
-            endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-            startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
-          } else {
-            const today = new Date();
-            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-            startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-          }
-        }
+        // Parse dates
+        const fromDate = dateFrom ? parseDate(dateFrom) : null;
+        const toDate = dateTo ? parseDate(dateTo) : null;
         
-        if (dateTo) {
-          const toDate = parseDate(dateTo);
-          if (toDate) {
-            endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-          }
-        } else {
-          const today = new Date();
+        if (fromDate && toDate) {
+          // Both dates are set
+          startDate = fromDate;
+          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+        } else if (fromDate) {
+          // Only dateFrom is set
+          startDate = fromDate;
           endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        } else if (toDate) {
+          // Only dateTo is set
+          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+        } else {
+          // Invalid dates, use default
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
         }
       } else {
         // Default: Last 12 months
-        const today = new Date();
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
       }
