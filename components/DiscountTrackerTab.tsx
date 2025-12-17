@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DiscountTrackerEntry, InvoiceRow } from '@/types';
+import Loading from './Loading';
 
 interface DiscountTrackerTabProps {
   data: InvoiceRow[];
@@ -305,14 +306,7 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
 
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mx-auto mb-3"></div>
-          <p className="text-gray-600">Loading discount tracker...</p>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading discount tracker..." />;
   }
 
   if (error) {

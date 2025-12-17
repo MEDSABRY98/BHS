@@ -2,14 +2,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { Package, Layers, Calculator, Loader2, Search, Edit2, Save, X, Check } from 'lucide-react';
+import Loading from './Loading';
 
 interface InventoryItem {
   rowIndex: number;
   barcode: string;
+  itemCode: string;
   productName: string;
   type: string;
   qtyInPack: number;
-  qtyPerCartoon: number;
+  qtyInCartoon: number;
   weight: string;
   size: string;
 }
@@ -19,7 +21,7 @@ interface AnalyzedProduct {
   baseName: string;
   isOffer: boolean;
   pcsPerUnit: number;
-  qtyPerCartoon: number;
+  qtyInCartoon: number;
   specs: string;
   type: string;
   packType: string;
@@ -72,6 +74,16 @@ const EditModal = ({
           </div>
 
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Item Code</label>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              value={formData.itemCode}
+              onChange={(e) => handleChange('itemCode', e.target.value)}
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
             <input
               type="text"
@@ -104,12 +116,12 @@ const EditModal = ({
 
           <div className="grid grid-cols-2 gap-4">
              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Q IN C (Qty per Carton)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Q IN C (Qty in Cartoon)</label>
                 <input
                   type="number"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                  value={formData.qtyPerCartoon}
-                  onChange={(e) => handleChange('qtyPerCartoon', parseInt(e.target.value) || 0)}
+                  value={formData.qtyInCartoon}
+                  onChange={(e) => handleChange('qtyInCartoon', parseInt(e.target.value) || 0)}
                 />
              </div>
              <div>
@@ -204,7 +216,7 @@ const ProductAnalyzer = () => {
   const analyzeProduct = (product: InventoryItem): AnalyzedProduct => {
     const productName = product.productName;
     const qtyInPackFromSheet = product.qtyInPack;
-    const qtyPerCartoon = product.qtyPerCartoon;
+    const qtyInCartoon = product.qtyInCartoon;
     
     // Construct specs from sheet data
     const parts = [];
@@ -271,7 +283,7 @@ const ProductAnalyzer = () => {
       baseName,
       isOffer,
       pcsPerUnit,
-      qtyPerCartoon,
+      qtyInCartoon,
       specs: specs.join(', '),
       type: isPack ? 'Pack/Offer' : 'Single',
       packType
@@ -286,11 +298,13 @@ const ProductAnalyzer = () => {
     
     const originalName = p.original.productName;
     const barcode = p.original.barcode;
+    const itemCode = p.original.itemCode;
     
     return (
       originalName.toLowerCase().includes(query) ||
       p.baseName.toLowerCase().includes(query) ||
       barcode.toLowerCase().includes(query) ||
+      itemCode.toLowerCase().includes(query) ||
       p.specs.toLowerCase().includes(query)
     );
   });
@@ -299,8 +313,8 @@ const ProductAnalyzer = () => {
     const qty = purchaseQty[productIndex] || 0;
     const product = analyzedProducts[productIndex];
     if (!product) return 0;
-    // Calculation changed to use Q IN C (qtyPerCartoon) as requested
-    return qty * (product.qtyPerCartoon || 0);
+    // Calculation changed to use Q IN C (qtyInCartoon) as requested
+    return qty * (product.qtyInCartoon || 0);
   };
   
   // Separate helper for Summary Pack Pieces (uses Q IN P)
@@ -352,12 +366,7 @@ const ProductAnalyzer = () => {
   };
 
   if (loading && products.length === 0) {
-    return (
-        <div className="min-h-screen flex items-center justify-center">
-            <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
-            <span className="ml-2 text-gray-600">Loading Inventory...</span>
-        </div>
-    );
+    return <Loading message="Loading Inventory..." />;
   }
 
   return (
@@ -408,7 +417,7 @@ const ProductAnalyzer = () => {
                   {Object.keys(purchaseQty).reduce((sum, idx) => {
                      const qty = purchaseQty[parseInt(idx)] || 0;
                      const product = analyzedProducts[parseInt(idx)];
-                     return sum + (qty * (product.qtyPerCartoon || 0));
+                     return sum + (qty * (product.qtyInCartoon || 0));
                   }, 0)}
                 </div>
               </div>
@@ -423,7 +432,7 @@ const ProductAnalyzer = () => {
             <input
               type="text"
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Search by product name, barcode, or specs..."
+              placeholder="Search by product name, barcode, item code, or specs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -500,7 +509,7 @@ const ProductAnalyzer = () => {
                     {/* Q IN C */}
                     <td className="px-4 py-3 text-center">
                         <span className="inline-block bg-gray-100 text-gray-700 px-3 py-1 rounded-lg font-bold">
-                           {product.qtyPerCartoon || '-'}
+                           {product.qtyInCartoon || '-'}
                         </span>
                     </td>
 

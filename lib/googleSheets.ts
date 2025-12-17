@@ -781,7 +781,7 @@ export async function getInventoryData() {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory!A:G`, // BARCODE, PRODUCT NAME, TYPE, QTY IN PACK, QTY PER CARTOON, WEIGHT, SIZE
+      range: `Inventory!A:H`, // BARCODE, ITEM CODE, PRODUCT NAME, TYPE, QTY IN PACK, QTY IN CARTOON, WEIGHT, SIZE
     });
 
     const rows = response.data.values;
@@ -794,12 +794,13 @@ export async function getInventoryData() {
       return {
         rowIndex: index + 2, // 1-based index (header is 1)
         barcode: row[0] || '',
-        productName: row[1] || '',
-        type: row[2] || '',
-        qtyInPack: row[3] ? parseInt(row[3]) : 1, // Default to 1 if missing
-        qtyPerCartoon: row[4] ? parseInt(row[4]) : 0,
-        weight: row[5] || '',
-        size: row[6] || '',
+        itemCode: row[1] || '',
+        productName: row[2] || '',
+        type: row[3] || '',
+        qtyInPack: row[4] ? parseInt(row[4]) : 1, // Default to 1 if missing
+        qtyInCartoon: row[5] ? parseInt(row[5]) : 0,
+        weight: row[6] || '',
+        size: row[7] || '',
       };
     }).filter(row => row.productName);
 
@@ -812,10 +813,11 @@ export async function getInventoryData() {
 
 export async function updateInventoryItem(rowIndex: number, data: {
     barcode: string;
+    itemCode: string;
     productName: string;
     type: string;
     qtyInPack: number;
-    qtyPerCartoon: number;
+    qtyInCartoon: number;
     weight: string;
     size: string;
 }) {
@@ -829,17 +831,18 @@ export async function updateInventoryItem(rowIndex: number, data: {
 
         const values = [[
             data.barcode,
+            data.itemCode,
             data.productName,
             data.type,
             data.qtyInPack,
-            data.qtyPerCartoon,
+            data.qtyInCartoon,
             data.weight,
             data.size
         ]];
 
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
-            range: `Inventory!A${rowIndex}:G${rowIndex}`,
+            range: `Inventory!A${rowIndex}:H${rowIndex}`,
             valueInputOption: 'USER_ENTERED',
             requestBody: {
                 values,
