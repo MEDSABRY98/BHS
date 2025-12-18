@@ -2093,7 +2093,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         {activeTab === 'PARTNERS' && (
           <>
             <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-4 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-4">
+              <div className="relative flex flex-col lg:flex-row lg:items-center gap-4">
                 {/* Left Side - Total Net Debit */}
                 <div className="flex items-center gap-3">
                   <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${
@@ -2120,7 +2120,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                 </div>
                 
                 {/* Center - Filters and Search */}
-                <div className="flex-1 flex flex-col sm:flex-row gap-2 items-center justify-center max-w-3xl mx-auto">
+                <div className="flex flex-col sm:flex-row gap-2 items-center justify-center max-w-3xl mx-auto w-full lg:absolute lg:left-1/2 lg:-translate-x-1/2">
                   <select
                     value={matchingFilter}
                     onChange={(e) => setMatchingFilter(e.target.value)}

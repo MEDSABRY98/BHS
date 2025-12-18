@@ -123,6 +123,9 @@ const formatPeriodLabel = (key: string, periodType: 'daily' | 'weekly' | 'monthl
 export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period'>('dashboard');
   const [periodType, setPeriodType] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
+  const [chartPeriodType, setChartPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
+  const [chartYear, setChartYear] = useState<string>('');
+  const [chartMonth, setChartMonth] = useState<string>('');
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
@@ -147,7 +150,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     let startDate: Date;
     let endDate: Date;
     
-    if (dateFrom || dateTo) {
+    // Check if year and month are specified for chart filtering
+    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
+    
+    if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+      // Use specified year and month
+      startDate = new Date(yearNum, monthNum - 1, 1);
+      endDate = new Date(yearNum, monthNum, 0); // Last day of the month
+    } else if (dateFrom || dateTo) {
       if (dateFrom) {
         const fromDate = parseDate(dateFrom);
         startDate = fromDate || new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1);
@@ -194,36 +205,142 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
     }
 
-    const monthlyStats = new Map<string, {
-      monthLabel: string;
-      yearMonth: string;
+    // Adjust date range based on period type
+    if (chartPeriodType === 'daily') {
+      // لو محدد سنة وشهر، نستخدم نفس الشهر كما هو (يومي داخل نفس الشهر)
+      if (yearNum && monthNum && !isNaN(yearNum) && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        startDate = new Date(startDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(endDate);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        // لو مفيش سنة/شهر، نرجع للمنطق القديم (آخر 90 يوم أو المدى من الفلاتر)
+        if (!dateFrom && !dateTo) {
+          const today = new Date();
+          endDate = new Date(today);
+          endDate.setHours(23, 59, 59, 999);
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - 89);
+          startDate.setHours(0, 0, 0, 0);
+        } else {
+          // Use the filtered date range, but ensure endDate includes the full day
+          endDate = new Date(endDate);
+          endDate.setHours(23, 59, 59, 999);
+          startDate = new Date(startDate);
+          startDate.setHours(0, 0, 0, 0);
+        }
+      }
+    } else if (chartPeriodType === 'weekly') {
+      // لو محدد سنة وشهر، نستخدم نفس الشهر كنطاق أسابيع (لا نرجع لـ 52 أسبوع تلقائيًا)
+      if (yearNum && monthNum && !isNaN(yearNum) && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        startDate = new Date(startDate);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(endDate);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        // بدون سنة/شهر -> منطق 52 أسبوع أو المدى من الفلاتر
+        if (!dateFrom && !dateTo) {
+          const today = new Date();
+          endDate = new Date(today);
+          endDate.setHours(23, 59, 59, 999);
+          startDate = new Date(today);
+          startDate.setDate(startDate.getDate() - (52 * 7 - 1));
+          startDate.setHours(0, 0, 0, 0);
+        } else {
+          endDate = new Date(endDate);
+          endDate.setHours(23, 59, 59, 999);
+          startDate = new Date(startDate);
+          startDate.setHours(0, 0, 0, 0);
+        }
+      }
+    } else {
+      // Monthly view - keep existing logic
+      endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+    }
+
+    const periodStats = new Map<string, {
+      periodLabel: string;
+      periodKey: string;
       grossSales: number;
       returns: number;
       discounts: number;
       collections: number;
     }>();
 
-    // Initialize 12 months
-    let iterDate = new Date(startDate);
-    let safeguard = 0;
-    while (iterDate <= endDate && safeguard < 24) {
-      safeguard++;
-      const year = iterDate.getFullYear();
-      const month = String(iterDate.getMonth() + 1).padStart(2, '0');
-      const key = `${year}-${month}`;
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const label = `${monthNames[iterDate.getMonth()]} ${year}`;
+    // Initialize periods based on chartPeriodType
+    if (chartPeriodType === 'daily') {
+      let iterDate = new Date(startDate);
+      // Check if we're showing a single month (for shorter date format)
+      const isSingleMonth = yearNum && monthNum && !isNaN(yearNum) && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12;
+      while (iterDate <= endDate) {
+        const key = getDailyKey(iterDate);
+        // Use shorter format (DD/MM) if showing single month, otherwise full format (DD/MM/YYYY)
+        let label: string;
+        if (isSingleMonth) {
+          const day = String(iterDate.getDate()).padStart(2, '0');
+          const month = String(iterDate.getMonth() + 1).padStart(2, '0');
+          label = `${day}/${month}`;
+        } else {
+          label = formatPeriodLabel(key, 'daily');
+        }
+        
+        periodStats.set(key, {
+          periodLabel: label,
+          periodKey: key,
+          grossSales: 0,
+          returns: 0,
+          discounts: 0,
+          collections: 0
+        });
+        
+        iterDate = new Date(iterDate);
+        iterDate.setDate(iterDate.getDate() + 1);
+      }
+    } else if (chartPeriodType === 'weekly') {
+      // Collect all unique week keys in the date range
+      const weekKeys = new Set<string>();
+      let iterDate = new Date(startDate);
+      while (iterDate <= endDate) {
+        const key = getWeeklyKey(iterDate);
+        weekKeys.add(key);
+        iterDate = new Date(iterDate);
+        iterDate.setDate(iterDate.getDate() + 1);
+      }
       
-      monthlyStats.set(key, {
-        monthLabel: label,
-        yearMonth: key,
-        grossSales: 0,
-        returns: 0,
-        discounts: 0,
-        collections: 0
+      // Initialize all unique weeks
+      Array.from(weekKeys).sort().forEach(key => {
+        const label = formatPeriodLabel(key, 'weekly');
+        periodStats.set(key, {
+          periodLabel: label,
+          periodKey: key,
+          grossSales: 0,
+          returns: 0,
+          discounts: 0,
+          collections: 0
+        });
       });
-      
-      iterDate.setMonth(iterDate.getMonth() + 1);
+    } else {
+      // Monthly
+      let iterDate = new Date(startDate);
+      let safeguard = 0;
+      while (iterDate <= endDate && safeguard < 24) {
+        safeguard++;
+        const key = getMonthlyKey(iterDate);
+        const label = formatPeriodLabel(key, 'monthly');
+        
+        periodStats.set(key, {
+          periodLabel: label,
+          periodKey: key,
+          grossSales: 0,
+          returns: 0,
+          discounts: 0,
+          collections: 0
+        });
+        
+        iterDate = new Date(iterDate);
+        iterDate.setMonth(iterDate.getMonth() + 1);
+      }
     }
 
     // Apply search filter if set
@@ -251,13 +368,18 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       if (!d) return;
       if (d < startDate || d > endDate) return; 
 
-      const year = d.getFullYear();
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const key = `${year}-${month}`;
+      let key: string;
+      if (chartPeriodType === 'daily') {
+        key = getDailyKey(d);
+      } else if (chartPeriodType === 'weekly') {
+        key = getWeeklyKey(d);
+      } else {
+        key = getMonthlyKey(d);
+      }
       
-      if (!monthlyStats.has(key)) return;
+      if (!periodStats.has(key)) return;
       
-      const stats = monthlyStats.get(key)!;
+      const stats = periodStats.get(key)!;
       const type = getInvoiceType(row);
       const debit = row.debit || 0;
       const credit = row.credit || 0;
@@ -279,8 +401,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
     });
 
-    const result = Array.from(monthlyStats.values())
-        .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth))
+    const result = Array.from(periodStats.values())
+        .sort((a, b) => a.periodKey.localeCompare(b.periodKey))
         .map(item => {
             const netSales = item.grossSales - item.returns;
             const netSalesMinusDiscounts = netSales - item.discounts;
@@ -306,7 +428,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         netPaymentCount
       }
     };
-  }, [data, dateFrom, dateTo, search, selectedSalesRep]);
+  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth]);
 
   // Pre-calc matching IDs that are tied to OB (opening balance) invoices
   const obMatchingIds = useMemo(() => {
@@ -345,26 +467,46 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-      
-      // Apply date filters
-      if (dateFrom || dateTo) {
-        const d = parseDate(row.date);
-        if (!d) return false;
-        
-        if (dateFrom) {
-          const fromDate = parseDate(dateFrom);
-          if (fromDate && d < fromDate) return false;
+
+      // Apply date filters using same logic as dashboardData (year/month > date range > default)
+      const d = parseDate(row.date);
+      if (!d) return false;
+
+      const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+      const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
+      let startDate: Date;
+      let endDate: Date;
+
+      if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        startDate = new Date(yearNum, monthNum - 1, 1);
+        endDate = new Date(yearNum, monthNum, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (dateFrom || dateTo) {
+        const fromDate = dateFrom ? parseDate(dateFrom) : null;
+        const toDate = dateTo ? parseDate(dateTo) : null;
+
+        if (fromDate && toDate) {
+          startDate = fromDate;
+          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+        } else if (fromDate) {
+          const today = new Date();
+          startDate = fromDate;
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        } else if (toDate) {
+          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+        } else {
+          const today = new Date();
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
         }
-        
-        if (dateTo) {
-          const toDate = parseDate(dateTo);
-          if (toDate) {
-            const toDateEnd = new Date(toDate);
-            toDateEnd.setHours(23, 59, 59, 999);
-            if (d > toDateEnd) return false;
-          }
-        }
+      } else {
+        const today = new Date();
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
       }
+
+      if (d < startDate || d > endDate) return false;
       
       // Apply search filter
       if (searchLower) {
@@ -434,44 +576,62 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       mixedPercent: totalAmount !== 0 ? (mixedAmount / totalAmount) * 100 : 0,
       unmatchedPercent: totalAmount !== 0 ? (unmatchedAmount / totalAmount) * 100 : 0,
     };
-  }, [data, obMatchingIds, currentYearMatchingIds, dateFrom, dateTo, selectedSalesRep, search]);
+  }, [data, obMatchingIds, currentYearMatchingIds, dateFrom, dateTo, selectedSalesRep, search, chartYear, chartMonth]);
 
-  // Calculate average monthly and weekly collections - Always based on last 12 months
+  // Calculate average monthly and weekly collections - now respect same date range/year-month as dashboard
   const averageCollections = useMemo(() => {
-    // Find latest date in data (after applying sales rep and search filters first)
+    // Apply filters (sales rep + search first)
     const searchLower = search.toLowerCase().trim();
-    let tempFiltered = data.filter((row) => {
-      if (getInvoiceType(row) !== 'Payment') return false;
-      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-      if (searchLower) {
-        if (!row.customerName?.toLowerCase().includes(searchLower) && 
-            !row.number?.toLowerCase().includes(searchLower)) {
-          return false;
-        }
+    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
+
+    // Determine date range similar to dashboardData
+    let startDate: Date;
+    let endDate: Date;
+
+    if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+      startDate = new Date(yearNum, monthNum - 1, 1);
+      endDate = new Date(yearNum, monthNum, 0);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (dateFrom || dateTo) {
+      const fromDate = dateFrom ? parseDate(dateFrom) : null;
+      const toDate = dateTo ? parseDate(dateTo) : null;
+
+      if (fromDate && toDate) {
+        startDate = fromDate;
+        endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+      } else if (fromDate) {
+        const today = new Date();
+        startDate = fromDate;
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      } else if (toDate) {
+        endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+        startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+      } else {
+        const today = new Date();
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
       }
-      return true;
-    });
+    } else {
+      // Default: last 12 months from latest payment date
+      let maxDate = new Date(0);
+      data.forEach(row => {
+        if (getInvoiceType(row) !== 'Payment') return;
+        const d = parseDate(row.date);
+        if (d && d > maxDate) maxDate = d;
+      });
+      if (maxDate.getTime() === 0) maxDate = new Date();
+      endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
+      startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
+    }
     
-    let maxDate = new Date(0);
-    tempFiltered.forEach(row => {
-      const d = parseDate(row.date);
-      if (d && d > maxDate) maxDate = d;
-    });
-    
-    if (maxDate.getTime() === 0) maxDate = new Date();
-    
-    // Last 12 months range (always, regardless of year or date filters)
-    const endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
-    const startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
-    
-    // Apply filters (sales rep and search, but NOT date filters - always use last 12 months)
+    // Apply filters within date range
     let filteredPayments = data.filter((row) => {
       if (getInvoiceType(row) !== 'Payment') return false;
       
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
       
-      // Always filter by last 12 months (ignore dateFrom/dateTo filters for this calculation)
       const d = parseDate(row.date);
       if (!d) return false;
       if (d < startDate || d > endDate) return false;
@@ -516,9 +676,11 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     const totalMonthly = Array.from(monthlyTotals.values()).reduce((sum, val) => sum + val, 0);
     const totalWeekly = Array.from(weeklyTotals.values()).reduce((sum, val) => sum + val, 0);
 
-    // Always use 12 months and 52 weeks (last 12 months period)
-    const totalMonthsInPeriod = 12;
-    const totalWeeksInPeriod = 52;
+    // Use actual counts in range (at least 1 to avoid divide by zero)
+    const monthsSet = new Set(monthlyTotals.keys());
+    const weeksSet = new Set(weeklyTotals.keys());
+    const totalMonthsInPeriod = Math.max(1, monthsSet.size);
+    const totalWeeksInPeriod = Math.max(1, weeksSet.size);
 
     return {
       averageMonthly: totalMonthsInPeriod > 0 ? totalMonthly / totalMonthsInPeriod : 0,
@@ -526,7 +688,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       monthsCount: totalMonthsInPeriod,
       weeksCount: totalWeeksInPeriod,
     };
-  }, [data, selectedSalesRep, search]);
+  }, [data, selectedSalesRep, search, dateFrom, dateTo, chartYear, chartMonth]);
 
   // Calculate average collection days (average days between payments per customer)
   const averageCollectionDays = useMemo(() => {
@@ -538,12 +700,18 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
       
-      // Apply date filters - default to last 12 months if no filter
+      // Apply date filters - same logic as dashboardData (year/month > date range > default)
+      const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+      const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
       const today = new Date();
       let startDate: Date;
       let endDate: Date;
       
-      if (dateFrom || dateTo) {
+      if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        startDate = new Date(yearNum, monthNum - 1, 1);
+        endDate = new Date(yearNum, monthNum, 0);
+        endDate.setHours(23, 59, 59, 999);
+      } else if (dateFrom || dateTo) {
         // Parse dates
         const fromDate = dateFrom ? parseDate(dateFrom) : null;
         const toDate = dateTo ? parseDate(dateTo) : null;
@@ -639,7 +807,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       customersCount: customerAverages.length,
       totalPayments: filteredPayments.length,
     };
-  }, [data, dateFrom, dateTo, selectedSalesRep, search]);
+  }, [data, dateFrom, dateTo, selectedSalesRep, search, chartYear, chartMonth]);
 
   // Filter payments using the same TYPE logic as the Invoices tab (via shared getInvoiceType).
   const payments = useMemo<PaymentEntry[]>(() => {
@@ -1169,26 +1337,93 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           </div>
 
           {/* Chart */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-[650px]">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Net Sales (less Discounts) vs Collections - Last 12 Months</h3>
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-[720px]">
+            <div className="flex flex-col items-center gap-3 mb-4">
+              <h3 className="text-lg font-bold text-gray-800 text-center">
+                Net Sales (less Discounts) vs Collections - {
+                  chartPeriodType === 'daily' ? 'Last 90 Days' :
+                  chartPeriodType === 'weekly' ? 'Last 52 Weeks' :
+                  'Last 12 Months'
+                }
+              </h3>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs sm:text-sm font-semibold text-emerald-700 whitespace-nowrap">
+                  Total Payments:{' '}
+                  {dashboardData.totals.totalCollections.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}{' '}
+                  <span className="text-[10px] sm:text-xs text-emerald-600">
+                    ({dashboardData.totals.netPaymentCount.toLocaleString('en-US')} payments)
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Year"
+                  value={chartYear}
+                  onChange={(e) => setChartYear(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-24 text-center"
+                />
+                <input
+                  type="text"
+                  placeholder="Month"
+                  value={chartMonth}
+                  onChange={(e) => setChartMonth(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-24 text-center"
+                />
+                <button
+                  onClick={() => setChartPeriodType('monthly')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                    chartPeriodType === 'monthly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setChartPeriodType('weekly')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                    chartPeriodType === 'weekly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Weekly
+                </button>
+                <button
+                  onClick={() => setChartPeriodType('daily')}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
+                    chartPeriodType === 'daily'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  Daily
+                </button>
+              </div>
+            </div>
+            <ResponsiveContainer width="100%" height={600}>
               <BarChart
                 data={dashboardData.chartData}
                 margin={{
                   top: 20,
                   right: 30,
                   left: 20,
-                  bottom: 50,
+                  bottom: chartPeriodType === 'daily' ? 100 : chartPeriodType === 'weekly' ? 70 : 50,
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
                 <XAxis 
-                  dataKey="monthLabel" 
+                  dataKey="periodLabel" 
                   axisLine={false} 
                   tickLine={false} 
-                  tick={{ fill: '#6B7280', fontSize: 14, fontWeight: 'bold' }} 
-                  height={60}
+                  tick={{ fill: '#6B7280', fontSize: chartPeriodType === 'daily' ? 10 : 13, fontWeight: 'bold' }} 
+                  height={chartPeriodType === 'daily' ? 70 : chartPeriodType === 'weekly' ? 70 : 60}
                   interval={0}
+                  angle={0}
+                  textAnchor="middle"
+                  dy={8}
                 />
                 <YAxis 
                   axisLine={false} 
@@ -1211,14 +1446,14 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   name="Net Sales - Discounts" 
                   fill="#3B82F6" 
                   radius={[4, 4, 0, 0]} 
-                  barSize={30}
+                  barSize={chartPeriodType === 'daily' ? 20 : chartPeriodType === 'weekly' ? 25 : 30}
                 />
                 <Bar 
                   dataKey="displayCollections" 
                   name="Net Collections" 
                   fill="#10B981" 
                   radius={[4, 4, 0, 0]} 
-                  barSize={30}
+                  barSize={chartPeriodType === 'daily' ? 20 : chartPeriodType === 'weekly' ? 25 : 30}
                 />
               </BarChart>
             </ResponsiveContainer>

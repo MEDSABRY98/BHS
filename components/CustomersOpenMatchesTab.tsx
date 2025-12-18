@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, Fragment } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -55,6 +55,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
     pageIndex: 0,
     pageSize: 50,
   });
+  const [viewMode, setViewMode] = useState<'details' | 'byCustomer'>('details');
+  const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
 
   const openMatches = useMemo(() => {
     const customerGroups = new Map<string, InvoiceRow[]>();
@@ -231,6 +233,41 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
     return filtered;
   }, [openMatches, typeFilter, dateFrom, dateTo, searchQuery]);
 
+  const groupedByCustomer = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        customerName: string;
+        itemCount: number;
+        totalDebit: number;
+        totalCredit: number;
+        totalRemaining: number;
+      }
+    >();
+
+    filteredItems.forEach((item) => {
+      const key = item.customerName || 'Unknown';
+      if (!map.has(key)) {
+        map.set(key, {
+          customerName: key,
+          itemCount: 0,
+          totalDebit: 0,
+          totalCredit: 0,
+          totalRemaining: 0,
+        });
+      }
+      const entry = map.get(key)!;
+      entry.itemCount += 1;
+      entry.totalDebit += item.debit;
+      entry.totalCredit += item.credit;
+      entry.totalRemaining += item.remainingAmount;
+    });
+
+    return Array.from(map.values()).sort((a, b) =>
+      a.customerName.localeCompare(b.customerName),
+    );
+  }, [filteredItems]);
+
   const getTypeColor = (type: OpenMatchItem['type']) => {
     switch (type) {
       case 'Payment':
@@ -339,12 +376,38 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
       <div className="mb-6">
         <h2 className="text-2xl font-bold mb-4">Customers Open Matches</h2>
         
-        <div className="bg-blue-50 p-4 rounded-lg mb-6">
-          <p className="text-lg">
-            <span className="font-semibold">Total Open Items:</span>{' '}
-            <span className="text-blue-600">{filteredItems.length}</span>
-            {searchQuery && ` of ${openMatches.length}`}
-          </p>
+        <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div>
+            <p className="text-lg">
+              <span className="font-semibold">Total Open Items:</span>{' '}
+              <span className="text-blue-600">{filteredItems.length}</span>
+              {searchQuery && ` of ${openMatches.length}`}
+            </p>
+          </div>
+          <div className="inline-flex items-center bg-white rounded-full shadow-sm border border-blue-100 overflow-hidden text-sm">
+            <button
+              type="button"
+              onClick={() => setViewMode('details')}
+              className={`px-4 py-1.5 font-medium transition-colors ${
+                viewMode === 'details'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Detail View
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('byCustomer')}
+              className={`px-4 py-1.5 font-medium border-l border-blue-100 transition-colors ${
+                viewMode === 'byCustomer'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-blue-700 hover:bg-blue-50'
+              }`}
+            >
+              Group by Customer
+            </button>
+          </div>
         </div>
 
         {/* Filters */}
@@ -412,162 +475,413 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
         </div>
 
         <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-              <thead className="bg-gray-100">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const getWidth = () => {
-                        const columnId = header.column.id;
-                        if (columnId === 'customerName') return '15%';
-                        if (columnId === 'date') return '10%';
-                        if (columnId === 'number') return '12%';
-                        if (columnId === 'type') return '8%';
-                        if (columnId === 'debit') return '10%';
-                        if (columnId === 'credit') return '10%';
-                        if (columnId === 'remainingAmount') return '12%';
-                        if (columnId === 'matching') return '13%';
-                        return 'auto';
-                      };
-                      return (
-                        <th
-                          key={header.id}
-                          className="px-4 py-3 text-center font-semibold"
-                          style={{ width: getWidth() }}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500 text-lg">
-                      {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
-                        ? 'No open items found matching your criteria'
-                        : 'No open matches found'}
-                    </td>
-                  </tr>
-                ) : (
-                  table.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-b hover:bg-gray-50">
-                      {row.getVisibleCells().map((cell) => {
-                        const getWidth = () => {
-                          const columnId = cell.column.id;
-                          if (columnId === 'customerName') return '15%';
-                          if (columnId === 'date') return '10%';
-                          if (columnId === 'number') return '12%';
-                          if (columnId === 'type') return '8%';
-                          if (columnId === 'debit') return '10%';
-                          if (columnId === 'credit') return '10%';
-                          if (columnId === 'remainingAmount') return '12%';
-                          if (columnId === 'matching') return '13%';
-                          return 'auto';
-                        };
-                        return (
-                          <td
-                            key={cell.id}
-                            className="px-4 py-3 text-center text-lg"
-                            style={{ width: getWidth() }}
-                          >
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))
-                )}
-                {filteredItems.length > 0 && (
-                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                    <td className="px-4 py-3 text-center text-lg">Total</td>
-                    <td className="px-4 py-3 text-center text-lg">-</td>
-                    <td className="px-4 py-3 text-center text-lg">-</td>
-                    <td className="px-4 py-3 text-center text-lg">-</td>
-                    <td className="px-4 py-3 text-center text-lg">
-                      {filteredItems.reduce((sum, item) => sum + item.debit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg">
-                      {filteredItems.reduce((sum, item) => sum + item.credit, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg">
-                      {(() => {
-                        const total = filteredItems.reduce((sum, item) => sum + item.remainingAmount, 0);
-                        const isNegative = total < 0;
-                        return (
-                          <span className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'}`}>
-                            {total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg">-</td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {viewMode === 'details' ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                  <thead className="bg-gray-100">
+                    {table.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => {
+                          const getWidth = () => {
+                            const columnId = header.column.id;
+                            if (columnId === 'customerName') return '32%';
+                            if (columnId === 'date') return '8%';
+                            if (columnId === 'number') return '11%';
+                            if (columnId === 'type') return '7%';
+                            if (columnId === 'debit') return '9%';
+                            if (columnId === 'credit') return '9%';
+                            if (columnId === 'remainingAmount') return '14%';
+                            if (columnId === 'matching') return '10%';
+                            return 'auto';
+                          };
+                          const alignClass =
+                            header.column.id === 'customerName' ? 'text-left' : 'text-center';
+                          return (
+                            <th
+                              key={header.id}
+                              className={`px-4 py-3 font-semibold ${alignClass}`}
+                              style={{ width: getWidth() }}
+                            >
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500 text-lg">
+                          {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
+                            ? 'No open items found matching your criteria'
+                            : 'No open matches found'}
+                        </td>
+                      </tr>
+                    ) : (
+                      table.getRowModel().rows.map((row) => (
+                        <tr key={row.id} className="border-b hover:bg-gray-50">
+                          {row.getVisibleCells().map((cell) => {
+                            const getWidth = () => {
+                              const columnId = cell.column.id;
+                              if (columnId === 'customerName') return '32%';
+                              if (columnId === 'date') return '8%';
+                              if (columnId === 'number') return '11%';
+                              if (columnId === 'type') return '7%';
+                              if (columnId === 'debit') return '9%';
+                              if (columnId === 'credit') return '9%';
+                              if (columnId === 'remainingAmount') return '14%';
+                              if (columnId === 'matching') return '10%';
+                              return 'auto';
+                            };
+                            const alignClass =
+                              cell.column.id === 'customerName' ? 'text-left' : 'text-center';
+                            return (
+                              <td
+                                key={cell.id}
+                                className={`px-4 py-3 text-lg ${alignClass}`}
+                                style={{ width: getWidth() }}
+                              >
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    )}
+                    {filteredItems.length > 0 && (
+                      <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                        <td className="px-4 py-3 text-center text-lg">Total</td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                        <td className="px-4 py-3 text-center text-lg">
+                          {filteredItems.reduce((sum, item) => sum + item.debit, 0).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">
+                          {filteredItems.reduce((sum, item) => sum + item.credit, 0).toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">
+                          {(() => {
+                            const total = filteredItems.reduce((sum, item) => sum + item.remainingAmount, 0);
+                            const isNegative = total < 0;
+                            return (
+                              <span
+                                className={`font-semibold ${
+                                  isNegative ? 'text-green-600' : 'text-orange-600'
+                                }`}
+                              >
+                                {total.toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg">-</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-          {/* Pagination Controls */}
-          {filteredItems.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => table.setPageIndex(0)}
-                  disabled={!table.getCanPreviousPage()}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {'<<'}
-                </button>
-                <button
-                  onClick={() => table.previousPage()}
-                  disabled={!table.getCanPreviousPage()}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {'<'}
-                </button>
-                <button
-                  onClick={() => table.nextPage()}
-                  disabled={!table.getCanNextPage()}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {'>'}
-                </button>
-                <button
-                  onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-                  disabled={!table.getCanNextPage()}
-                  className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {'>>'}
-                </button>
-              </div>
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-700">
-                  Page{' '}
-                  <strong>
-                    {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
-                  </strong>
-                </span>
-                <span className="text-sm text-gray-700">
-                  Showing {table.getRowModel().rows.length} of {filteredItems.length} items
-                </span>
-                <select
-                  value={table.getState().pagination.pageSize}
-                  onChange={(e) => {
-                    table.setPageSize(Number(e.target.value));
-                  }}
-                  className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white"
-                >
-                  {[25, 50, 100, 200, 250].map((pageSize) => (
-                    <option key={pageSize} value={pageSize}>
-                      Show {pageSize}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Pagination Controls */}
+              {filteredItems.length > 0 && (
+                <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => table.setPageIndex(0)}
+                      disabled={!table.getCanPreviousPage()}
+                      className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {'<<'}
+                    </button>
+                    <button
+                      onClick={() => table.previousPage()}
+                      disabled={!table.getCanPreviousPage()}
+                      className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {'<'}
+                    </button>
+                    <button
+                      onClick={() => table.nextPage()}
+                      disabled={!table.getCanNextPage()}
+                      className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {'>'}
+                    </button>
+                    <button
+                      onClick={() => table.setPageIndex(table.getPageCount() - 1)}
+                      disabled={!table.getCanNextPage()}
+                      className="px-3 py-1 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {'>>'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-700">
+                      Page{' '}
+                      <strong>
+                        {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+                      </strong>
+                    </span>
+                    <span className="text-sm text-gray-700">
+                      Showing {table.getRowModel().rows.length} of {filteredItems.length} items
+                    </span>
+                    <select
+                      value={table.getState().pagination.pageSize}
+                      onChange={(e) => {
+                        table.setPageSize(Number(e.target.value));
+                      }}
+                      className="px-2 py-1 text-sm border border-gray-300 rounded-md bg-white"
+                    >
+                      {[25, 50, 100, 200, 250].map((pageSize) => (
+                        <option key={pageSize} value={pageSize}>
+                          Show {pageSize}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-4 py-3 text-left font-semibold" style={{ width: '35%' }}>
+                      Customer Name
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                      Open Items
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                      Total Debit
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
+                      Total Credit
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold" style={{ width: '20%' }}>
+                      Total Remaining
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedByCustomer.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-4 py-8 text-center text-gray-500 text-lg"
+                      >
+                        {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
+                          ? 'No open customers match your criteria'
+                          : 'No customers with open matches found'}
+                      </td>
+                    </tr>
+                  ) : (
+                    groupedByCustomer.map((row) => {
+                      const isNegative = row.totalRemaining < 0;
+                      const isExpanded = expandedCustomer === row.customerName;
+                      return (
+                        <Fragment key={row.customerName}>
+                          <tr
+                            className="border-b hover:bg-gray-50 cursor-pointer"
+                            onClick={() =>
+                              setExpandedCustomer((prev) =>
+                                prev === row.customerName ? null : row.customerName,
+                              )
+                            }
+                          >
+                            <td className="px-4 py-3 text-left text-base font-semibold text-gray-900">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${
+                                    isExpanded
+                                      ? 'bg-blue-600 text-white border-blue-600'
+                                      : 'bg-white text-blue-700 border-blue-300'
+                                  }`}
+                                >
+                                  {isExpanded ? '-' : '+'}
+                                </span>
+                                <span>{row.customerName}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-center text-base">
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                                {row.itemCount}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-center text-base">
+                              {row.totalDebit.toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td className="px-4 py-3 text-center text-base">
+                              {row.totalCredit.toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </td>
+                            <td className="px-4 py-3 text-center text-base">
+                              <span
+                                className={`font-semibold ${
+                                  isNegative ? 'text-green-600' : 'text-orange-600'
+                                }`}
+                              >
+                                {row.totalRemaining.toLocaleString('en-US', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </span>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="bg-gray-50 border-b">
+                              <td colSpan={5} className="px-4 py-3">
+                                <div className="text-sm font-semibold text-gray-700 mb-2">
+                                  Open items for {row.customerName}
+                                </div>
+                                <div className="overflow-x-auto">
+                                  <table className="w-full text-sm" style={{ direction: 'ltr' }}>
+                                    <thead>
+                                      <tr className="bg-gray-100">
+                                        <th className="px-3 py-2 text-center font-semibold">Date</th>
+                                        <th className="px-3 py-2 text-center font-semibold">
+                                          Invoice #
+                                        </th>
+                                        <th className="px-3 py-2 text-center font-semibold">Type</th>
+                                        <th className="px-3 py-2 text-center font-semibold">Debit</th>
+                                        <th className="px-3 py-2 text-center font-semibold">Credit</th>
+                                        <th className="px-3 py-2 text-center font-semibold">
+                                          Remaining
+                                        </th>
+                                        <th className="px-3 py-2 text-center font-semibold">
+                                          Matching
+                                        </th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {filteredItems
+                                        .filter((i) => i.customerName === row.customerName)
+                                        .map((item, idx) => {
+                                          const isNeg = item.remainingAmount < 0;
+                                          return (
+                                            <tr key={`${item.number}-${idx}`} className="border-b">
+                                              <td className="px-3 py-1.5 text-center">
+                                                {item.date.toLocaleDateString('en-US')}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center text-sm font-mono">
+                                                {item.number}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center">
+                                                <span
+                                                  className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${getTypeColor(
+                                                    item.type,
+                                                  )}`}
+                                                >
+                                                  {item.type}
+                                                </span>
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center">
+                                                {item.debit.toLocaleString('en-US', {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                })}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center">
+                                                {item.credit.toLocaleString('en-US', {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                })}
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center">
+                                                <span
+                                                  className={`font-semibold ${
+                                                    isNeg ? 'text-green-600' : 'text-orange-600'
+                                                  }`}
+                                                >
+                                                  {item.remainingAmount.toLocaleString('en-US', {
+                                                    minimumFractionDigits: 2,
+                                                    maximumFractionDigits: 2,
+                                                  })}
+                                                </span>
+                                              </td>
+                                              <td className="px-3 py-1.5 text-center text-xs text-gray-600">
+                                                {item.matching || '-'}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })
+                  )}
+                  {groupedByCustomer.length > 0 && (
+                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                      <td className="px-4 py-3 text-left text-base">
+                        Total ({groupedByCustomer.length.toLocaleString('en-US')} customer
+                        {groupedByCustomer.length === 1 ? '' : 's'})
+                      </td>
+                      <td className="px-4 py-3 text-center text-base">
+                        {groupedByCustomer.reduce((sum, row) => sum + row.itemCount, 0)}
+                      </td>
+                      <td className="px-4 py-3 text-center text-base">
+                        {groupedByCustomer
+                          .reduce((sum, row) => sum + row.totalDebit, 0)
+                          .toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                      </td>
+                      <td className="px-4 py-3 text-center text-base">
+                        {groupedByCustomer
+                          .reduce((sum, row) => sum + row.totalCredit, 0)
+                          .toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                      </td>
+                      <td className="px-4 py-3 text-center text-base">
+                        {(() => {
+                          const totalRemaining = groupedByCustomer.reduce(
+                            (sum, row) => sum + row.totalRemaining,
+                            0,
+                          );
+                          const isNegative = totalRemaining < 0;
+                          return (
+                            <span
+                              className={`font-semibold ${
+                                isNegative ? 'text-green-600' : 'text-orange-600'
+                              }`}
+                            >
+                              {totalRemaining.toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              })}
+                            </span>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
         </div>
