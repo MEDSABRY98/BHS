@@ -368,9 +368,106 @@ const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }
   return credit - debit;
 };
 
-const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set()) => {
+// Helper function to get overdue months for a customer
+const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string => {
+  const customerInvoices = invoices.filter(row => row.customerName === customerName);
+  
+  // Group invoices by matching to calculate residuals
+  const matchingGroups = new Map<string, InvoiceRow[]>();
+  customerInvoices.forEach(inv => {
+    const key = inv.matching || 'UNMATCHED';
+    const group = matchingGroups.get(key) || [];
+    group.push(inv);
+    matchingGroups.set(key, group);
+  });
+  
+  // Calculate residual for each matching group
+  const matchingResiduals = new Map<string, { residual: number; residualHolderIndex: number }>();
+  matchingGroups.forEach((group, matchingKey) => {
+    if (matchingKey === 'UNMATCHED') return;
+    
+    let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
+    if (Math.abs(groupNetDebt) <= 0.01) return;
+    
+    let maxDebit = -1;
+    let residualHolderIndex = 0;
+    group.forEach((inv, idx) => {
+      if (inv.debit > maxDebit) {
+        maxDebit = inv.debit;
+        residualHolderIndex = idx;
+      }
+    });
+    
+    matchingResiduals.set(matchingKey, {
+      residual: groupNetDebt,
+      residualHolderIndex
+    });
+  });
+  
+  // Collect overdue SAL invoices (unmatched or with residual)
+  const overdueSalesInvoices: InvoiceRow[] = [];
+  
+  matchingGroups.forEach((group, matchingKey) => {
+    if (matchingKey === 'UNMATCHED') {
+      // Unmatched invoices - check if SAL and has net debt
+      group.forEach(inv => {
+        const num = inv.number?.toString().toUpperCase() || '';
+        if (num.startsWith('SAL')) {
+          const invNetDebt = inv.debit - inv.credit;
+          if (Math.abs(invNetDebt) > 0.01) {
+            overdueSalesInvoices.push(inv);
+          }
+        }
+      });
+    } else {
+      // Matched group - check if has residual
+      const residual = matchingResiduals.get(matchingKey);
+      if (residual && Math.abs(residual.residual) > 0.01) {
+        // Get the residual holder invoice
+        const residualHolder = group[residual.residualHolderIndex];
+        const num = residualHolder.number?.toString().toUpperCase() || '';
+        if (num.startsWith('SAL')) {
+          overdueSalesInvoices.push(residualHolder);
+        }
+      }
+    }
+  });
+  
+  // Extract unique months from overdue SAL invoices with dates for sorting
+  const monthMap = new Map<string, Date>();
+  overdueSalesInvoices.forEach(inv => {
+    const d = parseDate(inv.date);
+    if (d) {
+      // Create a key for year-month combination
+      const year = d.getFullYear();
+      const month = d.getMonth();
+      const key = `${year}-${month}`;
+      
+      // Store the date (use first day of month for comparison)
+      if (!monthMap.has(key)) {
+        monthMap.set(key, new Date(year, month, 1));
+      }
+    }
+  });
+  
+  // Sort by date (oldest to newest)
+  const sortedMonths = Array.from(monthMap.entries())
+    .sort((a, b) => a[1].getTime() - b[1].getTime());
+  
+  // Format months with first letter capitalized only
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const formattedMonths = sortedMonths.map(([key, date]) => {
+    const monthName = monthNames[date.getMonth()];
+    const year = date.getFullYear().toString().slice(-2);
+    return `${monthName}${year}`;
+  });
+  
+  return formattedMonths.join(', ');
+};
+
+const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = []) => {
   // CSV format (opens in Excel)
-  // Order: Customer Name, Sales Rep, Net Debt, Debt Rating, Open OB, Overdue Amount, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
+  // Order: Customer Name, Sales Rep, Net Debt, Debt Rating, Open OB, Overdue Amount, Overdue Months, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
   const headers = [
     'Customer Name',
     'Sales Rep',
@@ -378,6 +475,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     'Debit Rating',
     'Open OB',
     'Overdue Amount',
+    'Overdue Months',
     'Collection Rate %',
     'Last Payment Date',
     'Last Payment Closure',
@@ -391,14 +489,15 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
   
   const rows = data.map(customer => {
     const collectionRate = customer.totalDebit > 0 
-      ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(2)
-      : '0.00';
+      ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(2) + '%'
+      : '0.00%';
     
     const salesRep = customer.salesReps && customer.salesReps.size > 0
       ? Array.from(customer.salesReps).join(', ')
       : '';
     
     const rating = calculateDebtRating(customer, closedCustomersSet);
+    const overdueMonths = getOverdueMonths(customer.customerName, invoices);
     
     return [
       customer.customerName || '',
@@ -406,8 +505,9 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       customer.netDebt.toFixed(2) || '0.00',
       rating,
       (customer.openOBAmount || 0).toFixed(2),
-      collectionRate,
       (customer.overdueAmount || 0).toFixed(2),
+      overdueMonths,
+      collectionRate,
       customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
       customer.lastPaymentClosure || 'Still Open',
       (customer as any).payments3m?.toFixed(2) || '0.00',
@@ -2061,7 +2161,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   </div>
 
                   <button
-                    onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
+                    onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
                     className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
                     title="Export to Excel"
                   >
