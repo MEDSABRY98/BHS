@@ -476,30 +476,32 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
       const debtSectionHtml =
         uniqueTargets.length > 1
-          ? `<p>Your current net debt details:</p>
-<ul>
+          ? `<p style="margin: 0 0 10px 0; line-height: 1.5;">Your current balance details:</p>
+<ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
 ${debtByCustomer
   .map(
     (d) =>
-      `<li><b>${d.customer}</b>: <span style="color: blue; font-weight: bold; font-size: 16px;">${d.netDebt.toLocaleString(
+      `<li style="line-height: 1.5; margin-bottom: 5px;"><b>${d.customer}</b>: <span style="color: blue; font-weight: bold; font-size: 16px;">${d.netDebt.toLocaleString(
         'en-US',
       )} AED</span></li>`,
   )
   .join('')}
 </ul>`
-          : `<p>Please find attached your account statement.<br>
-Your current net debt is: <span style="color: blue; font-weight: bold; font-size: 16px;">${debtByCustomer[0]?.netDebt.toLocaleString(
+          : `<p style="margin: 0 0 10px 0; line-height: 1.5;">Please find attached your account statement.</p>
+<ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
+<li style="line-height: 1.5; margin-bottom: 5px;"><b>Your current balance is:</b> <span style="color: blue; font-weight: bold; font-size: 16px;">${debtByCustomer[0]?.netDebt.toLocaleString(
   'en-US',
-)} AED</span></p>`;
+)} AED</span></li>
+</ul>`;
 
       const htmlBody = `<!DOCTYPE html>
 <html>
-<body style="font-family: Arial, sans-serif; font-size: 14px;">
-<p>Dear Team,</p>
-<p>We hope this email finds you well.</p>
+<body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;">
+<p style="margin: 0 0 10px 0; line-height: 1.5;">Dear Team,</p>
+<p style="margin: 0 0 10px 0; line-height: 1.5;">We hope this message finds you well.</p>
 ${debtSectionHtml}
-<p>Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
-<p>Best regards,</p>
+<p style="margin: 0 0 10px 0; line-height: 1.5;">Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
+<p style="margin: 0; line-height: 1.5;">Best regards,</p>
 </body>
 </html>`;
       const emlLines: string[] = [];

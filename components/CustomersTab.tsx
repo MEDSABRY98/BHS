@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import CustomerDetails from './CustomerDetails';
+import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
@@ -465,14 +466,61 @@ const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string 
   return formattedMonths.join(', ');
 };
 
+// Helper function to build invoices with net debt and residual (extracted for reuse)
+const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[]) => {
+  // 1. Calculate totals for each matching group
+  const matchingTotals = new Map<string, number>();
+  invList.forEach((invoice) => {
+    if (invoice.matching) {
+      const current = matchingTotals.get(invoice.matching) || 0;
+      matchingTotals.set(invoice.matching, current + (invoice.debit - invoice.credit));
+    }
+  });
+
+  // 2. Identify which invoice should display the residual per matching group (largest debit)
+  const matchingTargetIndex = new Map<string, number>();
+  invList.forEach((invoice, index) => {
+    if (!invoice.matching) return;
+    const existingTarget = matchingTargetIndex.get(invoice.matching);
+    if (existingTarget === undefined) {
+      matchingTargetIndex.set(invoice.matching, index);
+      return;
+    }
+    const existingInvoice = invList[existingTarget];
+    if ((invoice.debit || 0) > (existingInvoice?.debit || 0)) {
+      matchingTargetIndex.set(invoice.matching, index);
+    }
+  });
+
+  // 3. Map invoices preserving original order
+  return invList.map((invoice, index) => {
+    let residual: number | undefined = undefined;
+
+    if (invoice.matching) {
+      const targetIndex = matchingTargetIndex.get(invoice.matching);
+      if (targetIndex === index) {
+        const total = matchingTotals.get(invoice.matching) || 0;
+        if (Math.abs(total) > 0.01) {
+          residual = total;
+        }
+      }
+    }
+
+    return {
+      ...invoice,
+      netDebt: invoice.debit - invoice.credit,
+      residual,
+    };
+  });
+};
+
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = []) => {
-  // CSV format (opens in Excel)
-  // Order: Customer Name, Sales Rep, Net Debt, Debt Rating, Open OB, Overdue Amount, Overdue Months, Collection Rate %, Last Payment Date, Last Payment Closure, Payments Last 90d, Payments Count Last 90d, Net Sales, Last Sales Date, Sales Last 90d, Sales Count Last 90d
-  const headers = [
+  // Sheet 1: Customer Summary
+  const summaryHeaders = [
     'Customer Name',
     'Sales Rep',
     'Net Debit',
-    'Debit Rating',
+    'Debt Rating',
     'Open OB',
     'Overdue Amount',
     'Overdue Months',
@@ -487,7 +535,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     'Sales Count Last 90d',
   ];
   
-  const rows = data.map(customer => {
+  const summaryRows = data.map(customer => {
     const collectionRate = customer.totalDebit > 0 
       ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(2) + '%'
       : '0.00%';
@@ -518,23 +566,109 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       (customer as any).salesCount3m ?? 0,
     ];
   });
+
+  // Sheet 2: Net Only Invoice Details
+  const netOnlyHeaders = [
+    'Customer Name',
+    'Date',
+    'Type',
+    'Invoice Number',
+    'Debit',
+    'Credit',
+    'Net Debt'
+  ];
+
+  const netOnlyRows: any[] = [];
+
+  // Process each customer to get Net Only invoices
+  for (const customer of data) {
+    const customerInvoices = invoices.filter(row => row.customerName === customer.customerName);
+    
+    if (customerInvoices.length === 0) {
+      continue;
+    }
+
+    // Build invoices with net debt and residual
+    const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
+
+    // Apply Net Only filter: Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
+    const netOnlyInvoices = invoicesWithNetDebt
+      .filter(inv => {
+        // Keep if no matching ID (Unmatched)
+        if (!inv.matching) return true;
+        
+        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      })
+      .map(inv => {
+        if (inv.matching && inv.residual !== undefined) {
+          // It's a condensed open invoice
+          // Calculate "Paid" amount to show in Credit
+          // Credit = Debit - Residual
+          return {
+            ...inv,
+            credit: inv.debit - inv.residual,
+            netDebt: inv.residual
+          };
+        }
+        return inv;
+      });
+
+    // Add rows for this customer
+    netOnlyInvoices.forEach(inv => {
+      const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
+      const type = getInvoiceType(inv);
+      
+      netOnlyRows.push([
+        customer.customerName,
+        date,
+        type,
+        inv.number || '',
+        (inv.debit || 0).toFixed(2),
+        (inv.credit || 0).toFixed(2),
+        (inv.netDebt || 0).toFixed(2)
+      ]);
+    });
+  }
+
+  // Create Excel workbook with multiple sheets
+  const workbook = XLSX.utils.book_new();
   
-  const csvContent = [
-    headers.join(','),
-    ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-  ].join('\n');
+  // Sheet 1: Customer Summary
+  const summaryData = [summaryHeaders, ...summaryRows];
+  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Customer Summary');
   
-  // Add BOM for UTF-8 to ensure Excel opens it correctly
-  const BOM = '\uFEFF';
-  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement('a');
-  const url = URL.createObjectURL(blob);
-  link.setAttribute('href', url);
-  link.setAttribute('download', `${filename}.csv`);
-  link.style.visibility = 'hidden';
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+  // Sheet 2: Net Only Details
+  if (netOnlyRows.length > 0) {
+    const netOnlyData = [netOnlyHeaders, ...netOnlyRows];
+    const netOnlySheet = XLSX.utils.aoa_to_sheet(netOnlyData);
+    XLSX.utils.book_append_sheet(workbook, netOnlySheet, 'Net Only Details');
+  }
+  
+  // Write and download
+  XLSX.writeFile(workbook, `${filename}.xlsx`);
+};
+
+// Helper function to get invoice type
+const getInvoiceType = (inv: { number?: string | null; credit?: number | null }): string => {
+  const num = (inv.number || '').toUpperCase();
+  const credit = inv.credit ?? 0;
+
+  if (num.startsWith('OB')) {
+    return 'Opening Balance';
+  } else if (num.startsWith('BNK')) {
+    return 'Payment';
+  } else if (num.startsWith('SAL')) {
+    return 'Sale';
+  } else if (num.startsWith('RSAL')) {
+    return 'Return';
+  } else if (num.startsWith('JV') || num.startsWith('BIL')) {
+    return 'Discount';
+  } else if (credit > 0.01) {
+    return 'Payment';
+  }
+  return 'Invoice/Txn';
 };
 
 export default function CustomersTab({ data }: CustomersTabProps) {
@@ -560,6 +694,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any>(null);
+  
+  // Bulk download state
+  const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Advanced Filters
   const [debtOperator, setDebtOperator] = useState<'GT' | 'LT' | ''>('');
@@ -1427,10 +1565,161 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     return filtered;
   }, [unmatchedPayments, lastPaymentSearchQuery, lastPaymentDateFrom, lastPaymentDateTo]);
 
+  // Handle checkbox toggle
+  const toggleCustomerSelection = (customerName: string) => {
+    setSelectedCustomersForDownload(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(customerName)) {
+        newSet.delete(customerName);
+      } else {
+        newSet.add(customerName);
+      }
+      return newSet;
+    });
+  };
+
+  // Handle select all / deselect all
+  const toggleSelectAll = () => {
+    if (selectedCustomersForDownload.size === filteredData.length) {
+      setSelectedCustomersForDownload(new Set());
+    } else {
+      setSelectedCustomersForDownload(new Set(filteredData.map(c => c.customerName)));
+    }
+  };
+
+  // Helper function to build invoices with net debt and residual (same logic as CustomerDetails)
+  const buildInvoicesWithNetDebt = (invList: InvoiceRow[]) => {
+    // 1. Calculate totals for each matching group
+    const matchingTotals = new Map<string, number>();
+    invList.forEach((invoice) => {
+      if (invoice.matching) {
+        const current = matchingTotals.get(invoice.matching) || 0;
+        matchingTotals.set(invoice.matching, current + (invoice.debit - invoice.credit));
+      }
+    });
+
+    // 2. Identify which invoice should display the residual per matching group (largest debit)
+    const matchingTargetIndex = new Map<string, number>();
+    invList.forEach((invoice, index) => {
+      if (!invoice.matching) return;
+      const existingTarget = matchingTargetIndex.get(invoice.matching);
+      if (existingTarget === undefined) {
+        matchingTargetIndex.set(invoice.matching, index);
+        return;
+      }
+      const existingInvoice = invList[existingTarget];
+      if ((invoice.debit || 0) > (existingInvoice?.debit || 0)) {
+        matchingTargetIndex.set(invoice.matching, index);
+      }
+    });
+
+    // 3. Map invoices preserving original order
+    return invList.map((invoice, index) => {
+      let residual: number | undefined = undefined;
+
+      if (invoice.matching) {
+        const targetIndex = matchingTargetIndex.get(invoice.matching);
+        if (targetIndex === index) {
+          const total = matchingTotals.get(invoice.matching) || 0;
+          if (Math.abs(total) > 0.01) {
+            residual = total;
+          }
+        }
+      }
+
+      return {
+        ...invoice,
+        netDebt: invoice.debit - invoice.credit,
+        residual,
+      };
+    });
+  };
+
+  // Bulk download function with Net Only filter
+  const handleBulkDownload = async () => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('يرجى اختيار عملاء للتحميل');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      
+      // Process each customer
+      for (const customerName of selectedCustomersForDownload) {
+        // Get customer invoices
+        const customerInvoices = data.filter(row => row.customerName === customerName);
+        
+        if (customerInvoices.length === 0) {
+          console.warn(`No invoices found for customer: ${customerName}`);
+          continue;
+        }
+
+        // Build invoices with net debt and residual
+        const invoicesWithNetDebt = buildInvoicesWithNetDebt(customerInvoices);
+
+        // Apply Net Only filter: Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
+        const netOnlyInvoices = invoicesWithNetDebt
+          .filter(inv => {
+            // Keep if no matching ID (Unmatched)
+            if (!inv.matching) return true;
+            
+            // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+          })
+          .map(inv => {
+            if (inv.matching && inv.residual !== undefined) {
+              // It's a condensed open invoice
+              // Calculate "Paid" amount to show in Credit
+              // Credit = Debit - Residual
+              return {
+                ...inv,
+                credit: inv.debit - inv.residual,
+                netDebt: inv.residual
+              };
+            }
+            return inv;
+          });
+
+        if (netOnlyInvoices.length === 0) {
+          console.warn(`No open/unmatched invoices found for customer: ${customerName}`);
+          continue;
+        }
+
+        // Generate PDF with Net Only label
+        await generateAccountStatementPDF(customerName, netOnlyInvoices, false, 'All Months (Net Only)');
+        
+        // Small delay to prevent browser from blocking multiple downloads
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      setSelectedCustomersForDownload(new Set());
+    } catch (error) {
+      console.error('Error in bulk download:', error);
+      alert('حدث خطأ أثناء التحميل. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+
   const columns = useMemo(
     () => [
       columnHelper.accessor('customerName', {
-        header: 'Customer Name',
+        header: () => (
+          <div className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filteredData.length > 0 && selectedCustomersForDownload.size === filteredData.length}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+              title="تحديد الكل / إلغاء التحديد"
+              onClick={(e) => e.stopPropagation()}
+            />
+            <span>Customer Name</span>
+          </div>
+        ),
         cell: (info) => {
           const customerName = info.getValue();
           const handleCopy = async (e: React.MouseEvent) => {
@@ -1449,6 +1738,13 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           };
           return (
             <div className="flex items-center gap-2 w-full">
+              <input
+                type="checkbox"
+                checked={selectedCustomersForDownload.has(customerName)}
+                onChange={() => toggleCustomerSelection(customerName)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 shrink-0"
+              />
               <button
                 onClick={() => setSelectedCustomer(customerName)}
                 className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer text-left flex-1 flex items-center gap-2"
@@ -1529,7 +1825,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         },
       }),
     ],
-    [closedCustomers]
+    [closedCustomers, selectedCustomersForDownload, filteredData]
   );
 
   const table = useReactTable({
@@ -2163,12 +2459,39 @@ export default function CustomersTab({ data }: CustomersTabProps) {
                   <button
                     onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
                     className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
-                    title="Export to Excel"
+                    title="Export to Excel (Summary + Net Only Details)"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                     </svg>
                   </button>
+
+                  {/* Bulk Download Button */}
+                  {selectedCustomersForDownload.size > 0 && (
+                    <button
+                      onClick={handleBulkDownload}
+                      disabled={isDownloading}
+                      className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                      title={`Download ${selectedCustomersForDownload.size} account statements`}
+                    >
+                      {isDownloading ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Downloading...</span>
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          <span dir="ltr">Download ({selectedCustomersForDownload.size})</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2200,25 +2523,33 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             <div key={headerGroup.id} className="contents">
               {headerGroup.headers.map((header, index) => {
                 const columnId = header.column.id;
-                const isFirstColumn = index === 0;
+                const isSelectColumn = columnId === 'select';
                 return (
-                  <button
+                  <div
                     key={header.id}
-                    onClick={header.column.getToggleSortingHandler()}
-                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg hover:bg-white transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${
-                      isFirstColumn ? 'md:col-span-2' : ''
-                    }`}
+                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${
+                      columnId === 'customerName' ? 'md:col-span-2' : ''
+                    } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
                   >
-                    {flexRender(header.column.columnDef.header, header.getContext())}
-                    <span className="text-blue-600">
-                      {{
-                        asc: '↑',
-                        desc: '↓',
-                      }[header.column.getIsSorted() as string] ?? (
-                        <span className="text-gray-300">↕</span>
-                      )}
-                    </span>
-                  </button>
+                    {isSelectColumn ? (
+                      flexRender(header.column.columnDef.header, header.getContext())
+                    ) : (
+                      <button
+                        onClick={header.column.getToggleSortingHandler()}
+                        className="flex items-center justify-center gap-2 w-full"
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        <span className="text-blue-600">
+                          {{
+                            asc: '↑',
+                            desc: '↓',
+                          }[header.column.getIsSorted() as string] ?? (
+                            <span className="text-gray-300">↕</span>
+                          )}
+                        </span>
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -2246,9 +2577,16 @@ export default function CustomersTab({ data }: CustomersTabProps) {
             >
               <div className="p-5">
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                  {/* Customer Name */}
+                  {/* Customer Name with Checkbox */}
                   <div className="md:col-span-2">
                     <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomersForDownload.has(customer.customerName)}
+                        onChange={() => toggleCustomerSelection(customer.customerName)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                      />
                       <button
                         onClick={() => setSelectedCustomer(customer.customerName)}
                         className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
