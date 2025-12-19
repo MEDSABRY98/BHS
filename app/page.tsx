@@ -43,10 +43,11 @@ export default function Home() {
     }
   }, [isAuthenticated]);
 
-  // Redirect Mahmoud Shaker away from restricted tabs
+  // Redirect restricted users away from restricted tabs
   useEffect(() => {
-    if (isAuthenticated && currentUser?.name === 'Mahmoud Shaker') {
-      const restrictedTabsForMahmoud = [
+    const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
+    if (isAuthenticated && restrictedUsers.includes(currentUser?.name)) {
+      const restrictedTabs = [
         'customers-open-matches',
         'discount-tracker',
         'all-notes',
@@ -54,7 +55,7 @@ export default function Home() {
         'warehouse-cleaning'
       ];
       
-      if (restrictedTabsForMahmoud.includes(activeTab)) {
+      if (restrictedTabs.includes(activeTab)) {
         setActiveTab('customers');
       }
     }
@@ -142,8 +143,9 @@ export default function Home() {
       );
     }
 
-    // Restrict access for Mahmoud Shaker
-    const restrictedTabsForMahmoud = [
+    // Restrict access for restricted users
+    const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
+    const restrictedTabs = [
       'customers-open-matches',
       'discount-tracker',
       'all-notes',
@@ -151,7 +153,7 @@ export default function Home() {
       'warehouse-cleaning'
     ];
 
-    if (currentUser?.name === 'Mahmoud Shaker' && restrictedTabsForMahmoud.includes(activeTab)) {
+    if (restrictedUsers.includes(currentUser?.name) && restrictedTabs.includes(activeTab)) {
       // Redirect to customers tab if trying to access restricted tab
       return <CustomersTab data={data} />;
     }

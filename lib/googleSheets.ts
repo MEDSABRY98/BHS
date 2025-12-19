@@ -781,7 +781,7 @@ export async function getInventoryData() {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory!A:H`, // BARCODE, ITEM CODE, PRODUCT NAME, TYPE, QTY IN PACK, QTY IN CARTOON, WEIGHT, SIZE
+      range: `Inventory!A:H`, // BARCODE, ITEM CODE, PRODUCT NAME, TAGS, TYPE, QTY IN BOX, WEIGHT, SIZE
     });
 
     const rows = response.data.values;
@@ -796,9 +796,9 @@ export async function getInventoryData() {
         barcode: row[0] || '',
         itemCode: row[1] || '',
         productName: row[2] || '',
-        type: row[3] || '',
-        qtyInPack: row[4] ? parseInt(row[4]) : 1, // Default to 1 if missing
-        qtyInCartoon: row[5] ? parseInt(row[5]) : 0,
+        tags: row[3] || '',
+        type: row[4] || '',
+        qtyInBox: row[5] ? parseInt(row[5]) : 0,
         weight: row[6] || '',
         size: row[7] || '',
       };
@@ -815,9 +815,9 @@ export async function updateInventoryItem(rowIndex: number, data: {
     barcode: string;
     itemCode: string;
     productName: string;
+    tags: string;
     type: string;
-    qtyInPack: number;
-    qtyInCartoon: number;
+    qtyInBox: number;
     weight: string;
     size: string;
 }) {
@@ -833,9 +833,9 @@ export async function updateInventoryItem(rowIndex: number, data: {
             data.barcode,
             data.itemCode,
             data.productName,
+            data.tags,
             data.type,
-            data.qtyInPack,
-            data.qtyInCartoon,
+            data.qtyInBox,
             data.weight,
             data.size
         ]];

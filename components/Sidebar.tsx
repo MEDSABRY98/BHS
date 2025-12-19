@@ -23,8 +23,11 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     { id: 'warehouse-cleaning', label: 'Warehouse Cleaning', icon: '🏭' },
   ];
 
-  // Tabs to hide for Mahmoud Shaker
-  const restrictedTabsForMahmoud = [
+  // Users with restricted access
+  const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
+  
+  // Tabs to hide for restricted users
+  const restrictedTabs = [
     'customers-open-matches',
     'discount-tracker',
     'all-notes',
@@ -33,8 +36,8 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   ];
 
   // Filter tabs based on user
-  const tabs = currentUser?.name === 'Mahmoud Shaker'
-    ? allTabs.filter(tab => !restrictedTabsForMahmoud.includes(tab.id))
+  const tabs = restrictedUsers.includes(currentUser?.name)
+    ? allTabs.filter(tab => !restrictedTabs.includes(tab.id))
     : allTabs;
 
   return (

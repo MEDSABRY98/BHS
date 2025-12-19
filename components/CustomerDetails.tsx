@@ -352,6 +352,10 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
+  
+  // Users with restricted access
+  const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
+  const isRestrictedUser = restrictedUsers.includes(currentUserName);
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
   const [emailCustomers, setEmailCustomers] = useState<string[]>([]);
 
@@ -2198,7 +2202,7 @@ ${debtSectionHtml}
                ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
              </span>
           )}
-          {customerEmails.length > 0 && (
+          {customerEmails.length > 0 && !isRestrictedUser && (
             <button
               onClick={handleEmail}
               className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
@@ -2208,7 +2212,7 @@ ${debtSectionHtml}
           )}
           <button
             onClick={() => {
-              if (currentUserName === 'Mahmoud Shaker') {
+              if (isRestrictedUser) {
                 handleDirectExport();
               } else {
                 setExportMode('combined');
@@ -2219,7 +2223,7 @@ ${debtSectionHtml}
           >
             📄 Export
           </button>
-          {currentUserName !== 'Mahmoud Shaker' && (
+          {!isRestrictedUser && (
             <button
               onClick={() => {
                 setExportMode('separated');

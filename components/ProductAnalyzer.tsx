@@ -9,9 +9,9 @@ interface InventoryItem {
   barcode: string;
   itemCode: string;
   productName: string;
+  tags: string;
   type: string;
-  qtyInPack: number;
-  qtyInCartoon: number;
+  qtyInBox: number;
   weight: string;
   size: string;
 }
@@ -20,8 +20,7 @@ interface AnalyzedProduct {
   original: InventoryItem;
   baseName: string;
   isOffer: boolean;
-  pcsPerUnit: number;
-  qtyInCartoon: number;
+  qtyInBox: number;
   specs: string;
   type: string;
   packType: string;
@@ -93,6 +92,16 @@ const EditModal = ({
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
+            <input
+              type="text"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              value={formData.tags}
+              onChange={(e) => handleChange('tags', e.target.value)}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
@@ -104,26 +113,17 @@ const EditModal = ({
                 />
              </div>
              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Q IN P (Qty in Pack)</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Q IN BOX (Qty in Box)</label>
                 <input
                   type="number"
                   className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                  value={formData.qtyInPack}
-                  onChange={(e) => handleChange('qtyInPack', parseInt(e.target.value) || 0)}
+                  value={formData.qtyInBox}
+                  onChange={(e) => handleChange('qtyInBox', parseInt(e.target.value) || 0)}
                 />
              </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-             <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Q IN C (Qty in Cartoon)</label>
-                <input
-                  type="number"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
-                  value={formData.qtyInCartoon}
-                  onChange={(e) => handleChange('qtyInCartoon', parseInt(e.target.value) || 0)}
-                />
-             </div>
              <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
                 <input
@@ -133,9 +133,7 @@ const EditModal = ({
                   onChange={(e) => handleChange('weight', e.target.value)}
                 />
              </div>
-          </div>
-          
-           <div>
+             <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
                 <input
                   type="text"
@@ -144,6 +142,7 @@ const EditModal = ({
                   onChange={(e) => handleChange('size', e.target.value)}
                 />
              </div>
+          </div>
         </div>
 
         <div className="mt-8 flex justify-end gap-3">
@@ -215,77 +214,45 @@ const ProductAnalyzer = () => {
 
   const analyzeProduct = (product: InventoryItem): AnalyzedProduct => {
     const productName = product.productName;
-    const qtyInPackFromSheet = product.qtyInPack;
-    const qtyInCartoon = product.qtyInCartoon;
+    // Use only data from Google Sheets - no parsing from product name
+    const qtyInBox = product.qtyInBox || 0;
+    const typeFromSheet = product.type || ''; // TYPE column from sheet
     
-    // Construct specs from sheet data
+    // Construct specs ONLY from sheet data (Weight and Size columns)
     const parts = [];
     if (product.weight) parts.push(product.weight);
     if (product.size) parts.push(product.size);
     const specsFromSheet = parts.join(', ');
 
-    const lowerName = productName.toLowerCase();
-    const isOffer = lowerName.includes('offer');
+    // Determine if offer based ONLY on TYPE column from Google Sheets
+    const lowerType = typeFromSheet.toLowerCase();
+    const isOffer = lowerType.includes('offer');
     
-    // Attempt to parse quantity from name (fallback or verification)
-    const pcsMatch = productName.match(/(\d+)\s*pcs/i);
-    const xMatch = productName.match(/x\s*(\d+)/i);
-    const bpMatch = productName.match(/BP\s*-?\s*(\d+)/i);
+    // Base Name - keep original name or clean it for display (this is just for UI)
+    let baseName = productName.trim();
     
-    let parsedPcs = 1;
-    if (pcsMatch) {
-      parsedPcs = parseInt(pcsMatch[1]);
-    } else if (bpMatch) {
-      parsedPcs = parseInt(bpMatch[1]);
-    } else if (xMatch && isOffer) {
-      parsedPcs = parseInt(xMatch[1]);
-    }
-
-    let pcsPerUnit = qtyInPackFromSheet;
+    // Specs - use ONLY from Google Sheets (Weight and Size columns)
+    const specs = specsFromSheet;
     
-    // Base Name cleaning
-    let baseName = productName
-      .replace(/\d+\s*pcs/gi, '')
-      .replace(/offer/gi, '')
-      .replace(/x\s*(\d+)/gi, '')
-      .replace(/BP\s*-?\s*\d+/gi, '')
-      .replace(/PW/gi, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    // Specs extraction (regex)
-    const specs = [];
-    if (specsFromSheet) {
-        specs.push(specsFromSheet);
-    } else {
-        // Fallback to regex specs if string input or no sheet specs
-        const sizeMatch = productName.match(/(\d+cm\s*[xX×]\s*\d+cm)/gi);
-        const weightMatch = productName.match(/(\d+(?:\.\d+)?(?:g|gm|kg|sq\.ft))/gi);
-        const modelMatch = productName.match(/(CR\d+|LR\d+|AAA|AA)/gi);
-        
-        if (modelMatch) specs.push(...modelMatch);
-        if (sizeMatch) specs.push(...sizeMatch);
-        if (weightMatch) specs.push(...weightMatch);
-        
-        if (bpMatch) {
-            specs.push(`BP-${bpMatch[1]}`);
-        }
-    }
-    
-    const isPack = pcsPerUnit > 1;
+    // Determine pack type based on TYPE column from sheet
     let packType = 'Single';
-    if (bpMatch) packType = 'Blister Pack';
-    else if (isOffer) packType = 'Offer';
-    else if (isPack) packType = 'Pack';
+    
+    // Check TYPE column from sheet
+    if (lowerType.includes('blister') || lowerType.includes('bp')) {
+      packType = 'Blister Pack';
+    } else if (lowerType.includes('offer')) {
+      packType = 'Offer';
+    } else if (lowerType.includes('pack')) {
+      packType = 'Pack';
+    }
 
     return {
       original: product,
       baseName,
       isOffer,
-      pcsPerUnit,
-      qtyInCartoon,
-      specs: specs.join(', '),
-      type: isPack ? 'Pack/Offer' : 'Single',
+      qtyInBox,
+      specs: specs || '-', // Show '-' if no specs from sheet
+      type: typeFromSheet || 'Single',
       packType
     };
   };
@@ -299,12 +266,14 @@ const ProductAnalyzer = () => {
     const originalName = p.original.productName;
     const barcode = p.original.barcode;
     const itemCode = p.original.itemCode;
+    const tags = p.original.tags || '';
     
     return (
       originalName.toLowerCase().includes(query) ||
       p.baseName.toLowerCase().includes(query) ||
       barcode.toLowerCase().includes(query) ||
       itemCode.toLowerCase().includes(query) ||
+      tags.toLowerCase().includes(query) ||
       p.specs.toLowerCase().includes(query)
     );
   });
@@ -313,16 +282,8 @@ const ProductAnalyzer = () => {
     const qty = purchaseQty[productIndex] || 0;
     const product = analyzedProducts[productIndex];
     if (!product) return 0;
-    // Calculation changed to use Q IN C (qtyInCartoon) as requested
-    return qty * (product.qtyInCartoon || 0);
-  };
-  
-  // Separate helper for Summary Pack Pieces (uses Q IN P)
-  const calculatePackPieces = (productIndex: number) => {
-    const qty = purchaseQty[productIndex] || 0;
-    const product = analyzedProducts[productIndex];
-    if (!product) return 0;
-    return qty * product.pcsPerUnit;
+    // Calculation uses Q IN BOX (qtyInBox) from Google Sheets
+    return qty * (product.qtyInBox || 0);
   };
   
   const handleQtyChange = (originalIndex: number, val: number) => {
@@ -385,45 +346,6 @@ const ProductAnalyzer = () => {
             </div>
           </div>
 
-          {/* Summary */}
-          <div className="mt-4 border border-gray-200 rounded-xl p-4 bg-gray-50">
-            <h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wider">Summary</h3>
-            <div className="grid grid-cols-5 gap-2">
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm text-center">
-                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Products</div>
-                <div className="text-2xl font-bold text-gray-900">{products.length}</div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm text-center">
-                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Singles</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {analyzedProducts.filter(p => p.pcsPerUnit <= 1).length}
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm text-center">
-                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Offers</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {analyzedProducts.filter(p => p.pcsPerUnit > 1).length}
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm text-center">
-                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Total Pieces (Pack)</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {Object.keys(purchaseQty).reduce((sum, idx) => sum + calculatePackPieces(parseInt(idx)), 0)}
-                </div>
-              </div>
-              <div className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm text-center">
-                <div className="text-[10px] text-gray-500 uppercase font-bold mb-1">Total Pieces (Carton)</div>
-                <div className="text-2xl font-bold text-gray-900">
-                  {Object.keys(purchaseQty).reduce((sum, idx) => {
-                     const qty = purchaseQty[parseInt(idx)] || 0;
-                     const product = analyzedProducts[parseInt(idx)];
-                     return sum + (qty * (product.qtyInCartoon || 0));
-                  }, 0)}
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Search Box */}
           <div className="relative mt-4">
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -432,7 +354,7 @@ const ProductAnalyzer = () => {
             <input
               type="text"
               className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              placeholder="Search by product name, barcode, item code, or specs..."
+              placeholder="Search by product name, barcode, item code, tags, or specs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -451,15 +373,13 @@ const ProductAnalyzer = () => {
             <table className="w-full">
               <thead className="bg-indigo-600 text-white">
                 <tr>
-                  <th className="px-4 py-4 text-left">#</th>
-                  <th className="px-4 py-4 text-left w-24">Barcode</th>
-                  <th className="px-4 py-4 text-left">Product Name</th>
-                  <th className="px-4 py-4 text-center w-24">Type</th>
-                  <th className="px-4 py-4 text-center w-24">Q IN P</th>
-                  <th className="px-4 py-4 text-center w-24">Q IN C</th>
-                  <th className="px-4 py-4 text-left w-32">Specs (W/S)</th>
-                  <th className="px-4 py-4 text-center w-28">Purchase Qty</th>
-                  <th className="px-4 py-4 text-center">Total Pieces</th>
+                  <th className="px-4 py-4 text-center">#</th>
+                  <th className="px-4 py-4 text-center w-24">Barcode</th>
+                  <th className="px-4 py-4 text-center">Product Name</th>
+                  <th className="px-4 py-4 text-center">Tags</th>
+                  <th className="px-4 py-4 text-center w-40 whitespace-nowrap">Type</th>
+                  <th className="px-4 py-4 text-center w-24 whitespace-nowrap">Q IN BOX</th>
+                  <th className="px-4 py-4 text-center w-32">Specs (W/S)</th>
                   <th className="px-4 py-4 text-center w-16">Edit</th>
                 </tr>
               </thead>
@@ -469,79 +389,49 @@ const ProductAnalyzer = () => {
 
                   return (
                   <tr key={originalIndex} className={`border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="px-4 py-3 text-gray-600 font-semibold">{originalIndex + 1}</td>
+                    <td className="px-4 py-3 text-center text-gray-600 font-semibold">{idx + 1}</td>
                     
                     {/* Barcode */}
-                    <td className="px-4 py-3 text-gray-800 font-mono text-sm">
+                    <td className="px-4 py-3 text-center text-gray-800 font-mono text-sm">
                         {product.original.barcode || '-'}
                     </td>
 
                     {/* Product Name */}
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-center">
                         <div className="text-sm font-medium text-gray-800">
                            {product.original.productName}
                         </div>
                     </td>
 
-                    {/* Type */}
+                    {/* Tags - Display directly from Google Sheets */}
                     <td className="px-4 py-3 text-center">
-                        {product.pcsPerUnit > 1 ? (
-                            <span className="inline-flex items-center gap-1 bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm font-semibold">
-                              <Layers className="w-3 h-3" />
-                              {product.packType}
+                        <div className="text-sm text-gray-700">
+                           {product.original.tags || '-'}
+                        </div>
+                    </td>
+
+                    {/* Type - Display directly from Google Sheets */}
+                    <td className="px-4 py-3 text-center">
+                        {product.original.type ? (
+                            <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap">
+                              {product.original.type}
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
-                              <Package className="w-3 h-3" />
-                              Single
-                            </span>
+                            <span className="text-gray-400">-</span>
                           )
                       }
                     </td>
 
-                    {/* Q IN P */}
+                    {/* Q IN BOX - Display directly from Google Sheets */}
                     <td className="px-4 py-3 text-center">
                         <span className="inline-block bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-bold">
-                           {product.pcsPerUnit}
-                        </span>
-                    </td>
-
-                    {/* Q IN C */}
-                    <td className="px-4 py-3 text-center">
-                        <span className="inline-block bg-gray-100 text-gray-700 px-3 py-1 rounded-lg font-bold">
-                           {product.qtyInCartoon || '-'}
+                           {product.original.qtyInBox || '-'}
                         </span>
                     </td>
 
                     {/* Specs (Weight/Size) */}
-                    <td className="px-4 py-3 text-sm text-gray-600">
+                    <td className="px-4 py-3 text-center text-sm text-gray-600">
                            {product.specs || '-'}
-                    </td>
-
-                    {/* Purchase Qty (Always Editable) */}
-                    <td className="px-4 py-3 text-center">
-                      <input
-                        type="number"
-                        min="0"
-                        value={purchaseQty[originalIndex] || ''}
-                        onChange={(e) => handleQtyChange(originalIndex, parseInt(e.target.value) || 0)}
-                        className="w-20 px-3 py-2 border-2 border-gray-200 rounded-lg text-center focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200"
-                        placeholder="0"
-                      />
-                    </td>
-
-                    {/* Total Pieces */}
-                    <td className="px-4 py-3 text-center">
-                      {purchaseQty[originalIndex] ? (
-                        <div className="flex items-center justify-center gap-2">
-                          <Calculator className="w-4 h-4 text-indigo-600" />
-                          <span className="text-lg font-bold text-indigo-600">
-                            {calculateTotalPieces(originalIndex)}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-gray-400">-</span>
-                      )}
                     </td>
 
                     {/* Actions */}
