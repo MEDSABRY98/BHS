@@ -20,6 +20,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     { id: 'ages', label: 'Ages', icon: '⏳' },
     { id: 'all-notes', label: 'All Notes', icon: '📝' },
     { id: 'inventory-analyze', label: 'Inventory Analyze', icon: '📦' },
+    { id: 'inventory-counting', label: 'Inventory Counting', icon: '🔢' },
     { id: 'warehouse-cleaning', label: 'Warehouse Cleaning', icon: '🏭' },
   ];
 

@@ -13,6 +13,7 @@ import AgesTab from '@/components/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
 import ProductAnalyzer from '@/components/ProductAnalyzer';
 import WarehouseCleaningTab from '@/components/WarehouseCleaningTab';
+import InventoryCountingTab from '@/components/InventoryCountingTab';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
@@ -181,6 +182,8 @@ export default function Home() {
         return <ProductAnalyzer />;
       case 'warehouse-cleaning':
         return <WarehouseCleaningTab />;
+      case 'inventory-counting':
+        return <InventoryCountingTab />;
       default:
         return <CustomersTab data={data} />;
     }

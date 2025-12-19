@@ -1037,3 +1037,127 @@ export async function updateWarehouseCleaningRating(
     throw error;
   }
 }
+
+export interface InventoryCountingProduct {
+  rowIndex: number;
+  barcode: string;
+  productName: string;
+  qtyInBox: number;
+  totalQty: number;
+}
+
+export async function getInventoryCountingData(): Promise<InventoryCountingProduct[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Inventory Counting!A:D`, // BARCODE, PRODUCT NAME, QTY IN BOX, TOTAL QTY
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    const data = rows.slice(1).map((row, index) => {
+      return {
+        rowIndex: index + 2, // 1-based index (header is 1)
+        barcode: row[0]?.toString().trim() || '',
+        productName: row[1]?.toString().trim() || '',
+        qtyInBox: row[2] ? parseInt(row[2].toString()) : 0,
+        totalQty: row[3] ? parseInt(row[3].toString()) : 0,
+      };
+    }).filter(row => row.barcode && row.productName); // Filter out empty rows
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching inventory counting data:', error);
+    throw error;
+  }
+}
+
+export async function updateInventoryCountingProduct(
+  rowIndex: number,
+  data: {
+    barcode: string;
+    productName: string;
+    qtyInBox: number;
+    totalQty: number;
+  }
+): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const values = [[
+      data.barcode,
+      data.productName,
+      data.qtyInBox,
+      data.totalQty
+    ]];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Inventory Counting!A${rowIndex}:D${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values,
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating inventory counting product:', error);
+    throw error;
+  }
+}
+
+export async function addInventoryCountingProduct(
+  data: {
+    barcode: string;
+    productName: string;
+    qtyInBox: number;
+    totalQty: number;
+  }
+): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Inventory Counting!A:D`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          data.barcode,
+          data.productName,
+          data.qtyInBox,
+          data.totalQty
+        ]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding inventory counting product:', error);
+    throw error;
+  }
+}
