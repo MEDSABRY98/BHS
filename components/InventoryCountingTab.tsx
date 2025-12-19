@@ -112,7 +112,7 @@ const InventoryCountingTab = () => {
     // Validate QTY IN BOX - must be greater than 0
     const qtyInBox = parseInt(qtyInBoxInput) || 0;
     if (qtyInBox <= 0) {
-      setErrorMessage('يرجى إدخال قيمة صحيحة لـ QTY IN BOX (يجب أن تكون أكبر من صفر)');
+      setErrorMessage('دخل عدد البوكس الواحد');
       setTimeout(() => setErrorMessage(''), 4000);
       return;
     }
@@ -195,7 +195,7 @@ const InventoryCountingTab = () => {
       
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="bg-white shadow-lg rounded-xl mb-6 sticky top-6 z-10">
+        <div className="bg-white shadow-lg rounded-xl mb-6">
           <div className="px-6 py-5">
             <div className="flex items-center gap-3 mb-4">
               <Package className="w-8 h-8 text-indigo-600" />
