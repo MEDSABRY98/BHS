@@ -28,6 +28,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
+import { Mail, FileText, Calendar, ArrowLeft } from 'lucide-react';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -2205,9 +2206,10 @@ ${debtSectionHtml}
           {customerEmails.length > 0 && !isRestrictedUser && (
             <button
               onClick={handleEmail}
-              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+              className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+              title="Email"
             >
-              📧 Email
+              <Mail className="w-5 h-5" />
             </button>
           )}
           <button
@@ -2219,9 +2221,10 @@ ${debtSectionHtml}
                 setShowExportModal(true);
               }
             }}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+            className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+            title="Export"
           >
-            📄 Export
+            <FileText className="w-5 h-5" />
           </button>
           {!isRestrictedUser && (
             <button
@@ -2229,16 +2232,18 @@ ${debtSectionHtml}
                 setExportMode('separated');
                 setShowExportModal(true);
               }}
-              className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
+              className="p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
+              title="Export Monthly"
             >
-              📑 Export Monthly
+              <Calendar className="w-5 h-5" />
             </button>
           )}
           <button
             onClick={onBack}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+            title="Back to Customers"
           >
-            ← Back to Customers
+            <ArrowLeft className="w-5 h-5" />
           </button>
         </div>
       </div>

@@ -251,6 +251,165 @@ export async function generateAccountStatementPDF(
   doc.save(fileName);
 }
 
+export async function generateWaterCreditNotePDF(
+  data: {
+    companyName: string;
+    creditNoteNumber: string;
+    date: string;
+    lines: Array<{ itemName: string; quantity: number; unitType: 'Outer' }>;
+    total: { outer: number; pcs: number };
+    signatures?: string[];
+  },
+  returnBlob: boolean = false
+) {
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+  
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  const doc = new jsPDF('p', 'mm', 'a4');
+  await addArabicFont(doc);
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 20;
+  let yPosition = 20;
+
+  // Title
+  doc.setFontSize(20);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Credit Note Water', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 10;
+
+  // Company Name
+  doc.setFontSize(14);
+  doc.setTextColor(0, 155, 77);
+  doc.setFont('helvetica', 'bold');
+  doc.text(data.companyName, pageWidth / 2, yPosition, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  yPosition += 15;
+
+  // Credit Note Number and Date
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const leftInfo = `Credit Note No: ${data.creditNoteNumber || 'N/A'}`;
+  const rightInfo = `Date: ${data.date || new Date().toISOString().split('T')[0]}`;
+  doc.text(leftInfo, margin, yPosition);
+  doc.text(rightInfo, pageWidth - margin - doc.getTextWidth(rightInfo), yPosition);
+  yPosition += 15;
+
+  // Table
+  const tableData = data.lines
+    .filter(line => line.itemName && line.quantity > 0)
+    .map(line => [
+      line.itemName,
+      line.quantity.toString(),
+      line.unitType
+    ]);
+
+  // Add total rows - one for Outer, one for PCS
+  if (data.total.outer > 0) {
+    tableData.push([
+      'TOTAL OUTER',
+      data.total.outer.toString(),
+      'Outer'
+    ]);
+  }
+  if (data.total.pcs > 0) {
+    tableData.push([
+      'TOTAL PCS',
+      data.total.pcs.toString(),
+      'PCS'
+    ]);
+  }
+
+  const tableOptions: any = {
+    startY: yPosition,
+    head: [['Item Name', 'Quantity', 'Unit Type']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: {
+      fillColor: [0, 155, 77],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    bodyStyles: {
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 100 },
+      1: { halign: 'center', cellWidth: 40 },
+      2: { halign: 'center', cellWidth: 40 }
+    },
+    styles: {
+      fontSize: 10,
+      cellPadding: 3
+    },
+    didParseCell: (hookData: any) => {
+      // Make total row bold
+      const totalRowsStart = tableData.length - (data.total.outer > 0 ? 1 : 0);
+      if (hookData.row.index >= totalRowsStart) {
+        hookData.cell.styles.fontStyle = 'bold';
+        hookData.cell.styles.fillColor = [240, 240, 240];
+      }
+    }
+  };
+
+  if (typeof (doc as any).autoTable === 'function') {
+    (doc as any).autoTable(tableOptions);
+  } else if (typeof autoTable === 'function') {
+    autoTable(doc, tableOptions);
+  }
+
+  const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 50;
+
+  // Signatures section
+  yPosition = finalY + 20;
+  if (yPosition > 250) {
+    doc.addPage();
+    yPosition = 20;
+  }
+  
+  // Signature names
+  const signatureNames = ['MONAI', 'OMAR', 'SALAM'];
+  const signatureCount = signatureNames.length;
+  const signatureBoxWidth = (pageWidth - 2 * margin) / signatureCount;
+  const signatureBoxHeight = 30;
+  const signatureY = yPosition;
+  
+  signatureNames.forEach((name, index) => {
+    const xPos = margin + (index * signatureBoxWidth);
+    
+    // Draw box
+    doc.setDrawColor(0, 0, 0);
+    doc.setLineWidth(0.5);
+    doc.rect(xPos + 5, signatureY, signatureBoxWidth - 10, signatureBoxHeight);
+    
+    // Add name
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.text(name, xPos + (signatureBoxWidth / 2), signatureY + 8, { align: 'center' });
+    
+    // Add signature line
+    doc.setLineWidth(0.3);
+    doc.line(xPos + 15, signatureY + 20, xPos + signatureBoxWidth - 15, signatureY + 20);
+    
+    // Add "Signature" label
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Signature', xPos + (signatureBoxWidth / 2), signatureY + 26, { align: 'center' });
+  });
+
+  const fileName = `Credit_Note_Water_${data.creditNoteNumber || 'CN'}_${data.date || 'date'}.pdf`;
+
+  if (returnBlob) {
+    return doc.output('blob');
+  }
+
+  doc.save(fileName);
+}
+
 export async function generateMonthlySeparatedPDF(
   customerName: string,
   invoices: Array<{

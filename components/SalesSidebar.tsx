@@ -1,6 +1,6 @@
 'use client';
 
-interface SidebarProps {
+interface SalesSidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   onLogout: () => void;
@@ -8,42 +8,20 @@ interface SidebarProps {
   lastUpdated?: string | null;
 }
 
-export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SidebarProps) {
+export default function SalesSidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SalesSidebarProps) {
   const allTabs = [
-    { id: 'customers', label: 'Customers', icon: '👥' },
-    { id: 'customers-open-matches', label: 'C Open Matches', icon: '🔗' },
-    { id: 'payment-tracker', label: 'Payment Tracker', icon: '💰' },
-    { id: 'discount-tracker', label: 'Discount Tracker', icon: '🏷️' },
-    { id: 'salesreps', label: 'Sales Reps', icon: '👔' },
-    { id: 'years', label: 'Years', icon: '📅' },
-    { id: 'months', label: 'Months', icon: '📆' },
-    { id: 'ages', label: 'Ages', icon: '⏳' },
-    { id: 'all-notes', label: 'All Notes', icon: '📝' },
-    { id: 'inventory-analyze', label: 'Inventory Analyze', icon: '📦' },
-    { id: 'warehouse-cleaning', label: 'Warehouse Cleaning', icon: '🏭' },
+    { id: 'sales-overview', label: 'Overview', icon: '📊' },
+    { id: 'sales-customers', label: 'Customers', icon: '👥' },
+    { id: 'sales-products', label: 'Products', icon: '📦' },
   ];
 
-  // Users with restricted access
-  const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-  
-  // Tabs to hide for restricted users
-  const restrictedTabs = [
-    'customers-open-matches',
-    'discount-tracker',
-    'all-notes',
-    'inventory-analyze',
-    'warehouse-cleaning'
-  ];
-
-  // Filter tabs based on user
-  const tabs = restrictedUsers.includes(currentUser?.name)
-    ? allTabs.filter(tab => !restrictedTabs.includes(tab.id))
-    : allTabs;
+  // Filter tabs based on user (can add restrictions later if needed)
+  const tabs = allTabs;
 
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-800 text-center">Debit Analysis</h1>
+        <h1 className="text-xl font-bold text-gray-800 text-center">Sales Analysis</h1>
         {lastUpdated && (
           <div className="mt-3 text-center">
             <div className="text-sm font-medium text-gray-700">
@@ -60,7 +38,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
             onClick={() => onTabChange(tab.id)}
             className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${
               activeTab === tab.id
-                ? 'bg-blue-600 text-white shadow-md'
+                ? 'bg-green-600 text-white shadow-md'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
             }`}
           >
@@ -75,7 +53,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
           <div className="mb-4 px-3 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
             <div className="text-xs text-gray-500 uppercase font-bold mb-1">Current User</div>
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
+              <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center font-bold text-sm">
                 {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
               </div>
               <div className="font-medium text-gray-700 truncate" title={currentUser.name}>
@@ -86,12 +64,12 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
         )}
         
         <button
-          onClick={() => window.location.href = '/sales'}
-          className="w-full flex items-center justify-center p-3 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 border border-green-200 transition-colors duration-200 mb-2"
-          title="Go to Sales Analysis"
+          onClick={() => window.location.href = '/debit'}
+          className="w-full flex items-center justify-center p-3 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors duration-200 mb-2"
+          title="Go to Debit Analysis"
         >
-          <span className="mr-2">📈</span>
-          <span className="font-medium">Sales Analysis</span>
+          <span className="mr-2">💰</span>
+          <span className="font-medium">Debit Analysis</span>
         </button>
         
         <button
@@ -106,3 +84,4 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     </div>
   );
 }
+

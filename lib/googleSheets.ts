@@ -309,7 +309,7 @@ export async function getCustomerEmail(customerName: string): Promise<string | n
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `EMAILS!A:B`, // CUSTOMER NAME, EMAIL
+      range: `EMAILS!A:C`, // CUSTOMER ID, CUSTOMER NAME, EMAIL
     });
 
     const rows = response.data.values;
@@ -319,12 +319,13 @@ export async function getCustomerEmail(customerName: string): Promise<string | n
 
     // Skip header row (assuming row 1 is header)
     // Find customer row (case-insensitive)
+    // CUSTOMER NAME is now in column B (index 1)
     const customerRow = rows.slice(1).find(row => 
-      row[0]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase()
+      row[1]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase()
     );
 
-    if (customerRow && customerRow[1]) {
-      return customerRow[1].toString().trim();
+    if (customerRow && customerRow[2]) {
+      return customerRow[2].toString().trim();
     }
 
     return null;
@@ -357,7 +358,7 @@ export async function resolveCustomerEmailTargets(customerName: string): Promise
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `EMAILS!A:B`, // CUSTOMER NAME, EMAIL
+      range: `EMAILS!A:C`, // CUSTOMER ID, CUSTOMER NAME, EMAIL
     });
 
     const rows = response.data.values;
@@ -366,9 +367,10 @@ export async function resolveCustomerEmailTargets(customerName: string): Promise
     }
 
     const dataRows = rows.slice(1).map((row) => {
-      const name = row[0]?.toString().trim() || '';
-      const email = row[1]?.toString().trim() || '';
-      return { name, email };
+      const customerId = row[0]?.toString().trim() || '';
+      const name = row[1]?.toString().trim() || ''; // CUSTOMER NAME is now in column B (index 1)
+      const email = row[2]?.toString().trim() || ''; // EMAIL is now in column C (index 2)
+      return { customerId, name, email };
     }).filter(r => r.name);
 
     const emailByCustomer = new Map<string, string>();
@@ -440,7 +442,7 @@ export async function getAllCustomerEmails(): Promise<string[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `EMAILS!A:B`, // CUSTOMER NAME, EMAIL
+      range: `EMAILS!A:C`, // CUSTOMER ID, CUSTOMER NAME, EMAIL
     });
 
     const rows = response.data.values;
@@ -449,9 +451,10 @@ export async function getAllCustomerEmails(): Promise<string[]> {
     }
 
     // Skip header row and return names of customers with emails
+    // CUSTOMER NAME is now in column B (index 1), EMAIL is in column C (index 2)
     const customersWithEmails = rows.slice(1)
-      .filter(row => row[0] && row[1] && row[1].toString().trim() !== '')
-      .map(row => row[0].toString().trim());
+      .filter(row => row[1] && row[2] && row[2].toString().trim() !== '')
+      .map(row => row[1].toString().trim());
 
     return customersWithEmails;
   } catch (error) {
@@ -679,7 +682,7 @@ export async function getClosedCustomers(): Promise<Set<string>> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `CUSTOMER REMARKS!A:A`, // CUSTOMER NAME column
+      range: `CUSTOMER CLOSED!A:B`, // CUSTOMER ID, CUSTOMER NAME
     });
 
     const rows = response.data.values;
@@ -688,9 +691,10 @@ export async function getClosedCustomers(): Promise<Set<string>> {
     }
 
     // Skip header row and return set of customer names (normalized for exact match)
+    // CUSTOMER NAME is now in column B (index 1)
     const closedCustomers = new Set<string>();
     rows.slice(1).forEach((row) => {
-      const customerName = row[0]?.toString().trim();
+      const customerName = row[1]?.toString().trim(); // CUSTOMER NAME is in column B
       if (customerName) {
         // Normalize: lowercase, trim, and normalize whitespace only (exact match - keep punctuation)
         const normalized = customerName.toLowerCase().trim().replace(/\s+/g, ' ');
@@ -1038,15 +1042,21 @@ export async function updateWarehouseCleaningRating(
   }
 }
 
-export interface InventoryCountingProduct {
-  rowIndex: number;
+// Sales Data Interface
+export interface SalesInvoice {
+  invoiceDate: string;
+  invoiceNumber: string;
+  customerName: string;
+  merchandiser: string;
+  salesRep: string;
   barcode: string;
-  productName: string;
-  qtyInBox: number;
-  totalQty: number;
+  product: string;
+  amount: number;
+  qty: number;
 }
 
-export async function getInventoryCountingData(): Promise<InventoryCountingProduct[]> {
+// Get Sales Data from "Sales - Invoices" sheet
+export async function getSalesData(): Promise<SalesInvoice[]> {
   try {
     const credentials = getServiceAccountCredentials();
     
@@ -1059,7 +1069,7 @@ export async function getInventoryCountingData(): Promise<InventoryCountingProdu
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory Counting!A:D`, // BARCODE, PRODUCT NAME, QTY IN BOX, TOTAL QTY
+      range: `Sales - Invoices!A:I`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER NAME, MERCHANDISER, SALESREP, BARCODE, PRODUCT, AMOUNT, QTY
     });
 
     const rows = response.data.values;
@@ -1068,96 +1078,85 @@ export async function getInventoryCountingData(): Promise<InventoryCountingProdu
     }
 
     // Skip header row
-    const data = rows.slice(1).map((row, index) => {
+    const data = rows.slice(1).map((row) => {
+      const invoiceNumber = row[1]?.toString().trim() || '';
+      const isSale = invoiceNumber.toUpperCase().startsWith('SAL');
+      const isReturn = invoiceNumber.toUpperCase().startsWith('RSAL');
+      
+      // Calculate net amount: SAL (positive) - RSAL (negative)
+      let netAmount = 0;
+      let netQty = 0;
+      
+      if (isSale) {
+        // Sales: use amount and qty as positive
+        netAmount = row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0;
+        netQty = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
+      } else if (isReturn) {
+        // Returns: use amount and qty as negative
+        netAmount = -(row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0);
+        netQty = -(row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0);
+      } else {
+        // Other invoices: use as is
+        netAmount = row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0;
+        netQty = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
+      }
+      
       return {
-        rowIndex: index + 2, // 1-based index (header is 1)
-        barcode: row[0]?.toString().trim() || '',
-        productName: row[1]?.toString().trim() || '',
-        qtyInBox: row[2] ? parseInt(row[2].toString()) : 0,
-        totalQty: row[3] ? parseInt(row[3].toString()) : 0,
+        invoiceDate: row[0]?.toString().trim() || '',
+        invoiceNumber: invoiceNumber,
+        customerName: row[2]?.toString().trim() || '',
+        merchandiser: row[3]?.toString().trim() || '',
+        salesRep: row[4]?.toString().trim() || '',
+        barcode: row[5]?.toString().trim() || '',
+        product: row[6]?.toString().trim() || '',
+        amount: netAmount,
+        qty: netQty,
       };
-    }).filter(row => row.barcode && row.productName); // Filter out empty rows
+    }).filter(row => row.customerName && row.product); // Filter out empty rows
 
     return data;
   } catch (error) {
-    console.error('Error fetching inventory counting data:', error);
+    console.error('Error fetching sales data:', error);
     throw error;
   }
 }
 
-export async function updateInventoryCountingProduct(
-  rowIndex: number,
-  data: {
-    barcode: string;
-    productName: string;
-    qtyInBox: number;
-    totalQty: number;
-  }
-): Promise<{ success: boolean }> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const values = [[
-      data.barcode,
-      data.productName,
-      data.qtyInBox,
-      data.totalQty
-    ]];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory Counting!A${rowIndex}:D${rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values,
-      },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error updating inventory counting product:', error);
-    throw error;
-  }
+// Get Water Credit Note Data from "Water - Credit Note" sheet
+export interface WaterCreditNoteItem {
+  itemName: string;
 }
 
-export async function addInventoryCountingProduct(
-  data: {
-    barcode: string;
-    productName: string;
-    qtyInBox: number;
-    totalQty: number;
-  }
-): Promise<{ success: boolean }> {
+export async function getWaterCreditNoteData(): Promise<WaterCreditNoteItem[]> {
   try {
     const credentials = getServiceAccountCredentials();
+    
     const auth = new google.auth.GoogleAuth({
       credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
+
     const sheets = google.sheets({ version: 'v4', auth });
-
-    await sheets.spreadsheets.values.append({
+    
+    const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory Counting!A:D`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[
-          data.barcode,
-          data.productName,
-          data.qtyInBox,
-          data.totalQty
-        ]],
-      },
+      range: `Water - Credit Note!A:A`, // ITEM NAME
     });
 
-    return { success: true };
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    const data = rows.slice(1).map((row) => {
+      return {
+        itemName: row[0]?.toString().trim() || '',
+      };
+    }).filter(row => row.itemName); // Filter out empty rows
+
+    return data;
   } catch (error) {
-    console.error('Error adding inventory counting product:', error);
+    console.error('Error fetching water credit note data:', error);
     throw error;
   }
 }

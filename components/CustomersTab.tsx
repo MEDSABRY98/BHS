@@ -169,7 +169,7 @@ const calculateCustomerMonthlyBreakdown = (customerName: string, invoices: Invoi
 };
 
 const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>, returnBreakdown: boolean = false): 'Good' | 'Medium' | 'Bad' | any => {
-  // 🎯 أولاً: التحقق من شيت CUSTOMER REMARKS - عمل xlookup باسم العميل
+  // 🎯 أولاً: التحقق من شيت CUSTOMER CLOSED - عمل xlookup باسم العميل
   // لو لقيته في الشيت → Bad فوراً بدون أي حسابات أخرى
   // Normalize: lowercase, trim, and normalize whitespace only (exact match - keep punctuation, same as in getClosedCustomers)
   const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
