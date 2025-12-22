@@ -191,6 +191,7 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
       qty: item.qty,
       isNegativeAmount: item.amount < 0,
       isNegativeQty: item.qty < 0,
+      isMaxMonth: false,
     }));
     // Reverse to show oldest to newest (left to right)
     const reversedData = [...data].reverse();
