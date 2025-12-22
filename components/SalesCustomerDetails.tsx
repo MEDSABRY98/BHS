@@ -200,8 +200,19 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       isNegativeQty: item.qty < 0,
     }));
     // Reverse to show oldest to newest (left to right)
-    return [...data].reverse();
+    const reversedData = [...data].reverse();
+    
+    // Find max month by amount (highest positive amount, or least negative if all negative)
+    if (reversedData.length > 0) {
+      const maxAmount = Math.max(...reversedData.map(d => d.amount));
+      reversedData.forEach(item => {
+        item.isMaxMonth = item.amount === maxAmount;
+      });
+    }
+    
+    return reversedData;
   }, [monthlySales]);
+
 
   const exportProductsToExcel = () => {
     const workbook = XLSX.utils.book_new();
@@ -390,10 +401,57 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   {/* Amount Chart */}
                   <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Amount</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <div className="relative" style={{ height: '380px' }}>
+                      {/* Top labels row with connecting lines */}
+                      <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
+                        <div className="relative w-full h-full">
+                          <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+                            {chartData.map((item, index) => {
+                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                              return (
+                                <line
+                                  key={index}
+                                  x1={`${xPercent}%`}
+                                  y1="30"
+                                  x2={`${xPercent}%`}
+                                  y2="12"
+                                  stroke="#d1d5db"
+                                  strokeWidth="1"
+                                  strokeDasharray="2,2"
+                                />
+                              );
+                            })}
+                          </svg>
+                          <div className="relative w-full" style={{ height: '30px' }}>
+                            {chartData.map((item, index) => {
+                              const value = item.amount;
+                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                              const isNegative = value < 0;
+                              return (
+                                <div 
+                                  key={index} 
+                                  className="absolute text-base font-bold text-center"
+                                  style={{ 
+                                    left: `${xPercent}%`,
+                                    transform: 'translateX(-50%)',
+                                    top: 0,
+                                    color: isNegative ? '#ef4444' : '#374151'
+                                  }}
+                                >
+                                  {value.toLocaleString('en-US', {
+                                    minimumFractionDigits: value % 1 !== 0 ? 2 : 0,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    <ResponsiveContainer width="100%" height={350}>
                       <LineChart 
                         data={chartData}
-                        margin={{ top: 10, right: 30, left: 40, bottom: 0 }}
+                        margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                         <XAxis 
@@ -447,15 +505,21 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           dot={(props: any) => {
                             const { cx, cy, payload } = props;
                             const isNegative = payload?.isNegativeAmount;
+                            const isMaxMonth = payload?.isMaxMonth;
+                            const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
                             return (
                               <circle 
                                 cx={cx} 
                                 cy={cy} 
-                                r={isNegative ? 6 : 4} 
-                                fill={isNegative ? "#ef4444" : "#10b981"}
-                                stroke={isNegative ? "#dc2626" : "#059669"}
-                                strokeWidth={isNegative ? 2 : 0}
-                                style={{ filter: isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))' }}
+                                r={radius} 
+                                fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
+                                stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
+                                strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
+                                style={{ 
+                                  filter: isMaxMonth 
+                                    ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))' 
+                                    : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
+                                }}
                               />
                             );
                           }}
@@ -463,15 +527,63 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                    </div>
                   </div>
 
                   {/* Quantity Chart */}
                   <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
                     <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Quantity</h3>
-                    <ResponsiveContainer width="100%" height={300}>
+                    <div className="relative" style={{ height: '380px' }}>
+                      {/* Top labels row with connecting lines */}
+                      <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
+                        <div className="relative w-full h-full">
+                          <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+                            {chartData.map((item, index) => {
+                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                              return (
+                                <line
+                                  key={index}
+                                  x1={`${xPercent}%`}
+                                  y1="30"
+                                  x2={`${xPercent}%`}
+                                  y2="12"
+                                  stroke="#d1d5db"
+                                  strokeWidth="1"
+                                  strokeDasharray="2,2"
+                                />
+                              );
+                            })}
+                          </svg>
+                          <div className="relative w-full" style={{ height: '30px' }}>
+                            {chartData.map((item, index) => {
+                              const value = item.qty;
+                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                              const isNegative = value < 0;
+                              return (
+                                <div 
+                                  key={index} 
+                                  className="absolute text-base font-bold text-center"
+                                  style={{ 
+                                    left: `${xPercent}%`,
+                                    transform: 'translateX(-50%)',
+                                    top: 0,
+                                    color: isNegative ? '#ef4444' : '#374151'
+                                  }}
+                                >
+                                  {value.toLocaleString('en-US', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                  })}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    <ResponsiveContainer width="100%" height={350}>
                       <LineChart 
                         data={chartData}
-                        margin={{ top: 10, right: 30, left: 40, bottom: 0 }}
+                        margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
                         <XAxis 
@@ -525,15 +637,21 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           dot={(props: any) => {
                             const { cx, cy, payload } = props;
                             const isNegative = payload?.isNegativeQty;
+                            const isMaxMonth = payload?.isMaxMonth;
+                            const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
                             return (
                               <circle 
                                 cx={cx} 
                                 cy={cy} 
-                                r={isNegative ? 6 : 4} 
-                                fill={isNegative ? "#ef4444" : "#3b82f6"}
-                                stroke={isNegative ? "#dc2626" : "#2563eb"}
-                                strokeWidth={isNegative ? 2 : 0}
-                                style={{ filter: isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))' }}
+                                r={radius} 
+                                fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
+                                stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
+                                strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
+                                style={{ 
+                                  filter: isMaxMonth 
+                                    ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))' 
+                                    : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
+                                }}
                               />
                             );
                           }}
@@ -541,6 +659,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                         />
                       </LineChart>
                     </ResponsiveContainer>
+                    </div>
                   </div>
                 </div>
               ) : (

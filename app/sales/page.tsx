@@ -60,6 +60,22 @@ export default function SalesPage() {
       
       setData(result.data);
 
+      // Find the latest date from INVOICE DATE column
+      if (result.data && result.data.length > 0) {
+        const dates = result.data
+          .map((row: SalesInvoice) => row.invoiceDate ? new Date(row.invoiceDate).getTime() : 0)
+          .filter((time: number) => !isNaN(time) && time > 0);
+        
+        if (dates.length > 0) {
+          const maxDate = new Date(Math.max(...dates));
+          setLastUpdated(maxDate.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          }));
+        }
+      }
+
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

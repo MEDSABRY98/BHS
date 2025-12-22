@@ -251,10 +251,10 @@ export async function generateAccountStatementPDF(
   doc.save(fileName);
 }
 
-export async function generateWaterCreditNotePDF(
+export async function generateWaterDeliveryNotePDF(
   data: {
     companyName: string;
-    creditNoteNumber: string;
+    deliveryNoteNumber: string;
     date: string;
     lines: Array<{ itemName: string; quantity: number; unitType: 'Outer' }>;
     total: { outer: number; pcs: number };
@@ -278,7 +278,7 @@ export async function generateWaterCreditNotePDF(
   // Title
   doc.setFontSize(20);
   doc.setFont('helvetica', 'bold');
-  doc.text('Credit Note Water', pageWidth / 2, yPosition, { align: 'center' });
+  doc.text('Water - Delivery Note', pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 10;
 
   // Company Name
@@ -289,14 +289,14 @@ export async function generateWaterCreditNotePDF(
   doc.setTextColor(0, 0, 0);
   yPosition += 15;
 
-  // Credit Note Number and Date
+  // Delivery Note Number and Date
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  const leftInfo = `Credit Note No: ${data.creditNoteNumber || 'N/A'}`;
+  const leftInfo = `Delivery Note No: ${data.deliveryNoteNumber || 'N/A'}`;
   const rightInfo = `Date: ${data.date || new Date().toISOString().split('T')[0]}`;
   doc.text(leftInfo, margin, yPosition);
   doc.text(rightInfo, pageWidth - margin - doc.getTextWidth(rightInfo), yPosition);
-  yPosition += 15;
+  yPosition += 11; // Reduced by 25% (from 15 to 11)
 
   // Table
   const tableData = data.lines
@@ -401,7 +401,7 @@ export async function generateWaterCreditNotePDF(
     doc.text('Signature', xPos + (signatureBoxWidth / 2), signatureY + 26, { align: 'center' });
   });
 
-  const fileName = `Credit_Note_Water_${data.creditNoteNumber || 'CN'}_${data.date || 'date'}.pdf`;
+  const fileName = `Water_Delivery_Note_${data.deliveryNoteNumber || 'DN'}_${data.date || 'date'}.pdf`;
 
   if (returnBlob) {
     return doc.output('blob');

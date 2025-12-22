@@ -16,8 +16,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     window.location.href = '/sales';
   };
 
-  const handleSelectCreditNote = () => {
-    window.location.href = '/credit-note-water';
+  const handleSelectDeliveryNote = () => {
+    window.location.href = '/water-delivery-note';
   };
 
   return (
@@ -75,9 +75,9 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             <h2 className="text-2xl font-bold text-gray-800 mb-3">Sales Analysis</h2>
           </div>
 
-          {/* Credit Note Water Card */}
+          {/* Water - Delivery Note Card */}
           <div
-            onClick={handleSelectCreditNote}
+            onClick={handleSelectDeliveryNote}
             className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-8 border-2 border-transparent hover:border-purple-300"
           >
             <div className="flex items-center justify-between mb-6">
@@ -86,7 +86,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               </div>
               <ArrowRight className="w-6 h-6 text-gray-400" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-3">Credit Note Water</h2>
+            <h2 className="text-2xl font-bold text-gray-800 mb-3">Water - Delivery Note</h2>
           </div>
         </div>
       </div>

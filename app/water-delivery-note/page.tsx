@@ -1,36 +1,48 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, Printer, ArrowLeft } from 'lucide-react';
-import { generateWaterCreditNotePDF } from '@/lib/pdfUtils';
+import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { generateWaterDeliveryNotePDF } from '@/lib/pdfUtils';
 
-interface WaterCreditNoteItem {
+interface WaterDeliveryNoteItem {
   itemName: string;
   signature: string;
 }
 
-interface CreditNoteLine {
+interface DeliveryNoteLine {
   itemName: string;
   quantity: number;
   unitType: 'Outer';
 }
 
-export default function CreditNoteWaterPage() {
-  const [items, setItems] = useState<WaterCreditNoteItem[]>([]);
+export default function WaterDeliveryNotePage() {
+  const [items, setItems] = useState<WaterDeliveryNoteItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [lines, setLines] = useState<CreditNoteLine[]>([
+  const [saving, setSaving] = useState(false);
+  const [lines, setLines] = useState<DeliveryNoteLine[]>([
     { itemName: '', quantity: 0, unitType: 'Outer' }
   ]);
-  const [creditNoteNumber, setCreditNoteNumber] = useState('');
+  const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await fetch('/api/water-credit-note');
-        const data = await response.json();
-        if (data.data) {
-          setItems(data.data);
+        // Fetch items
+        const itemsResponse = await fetch('/api/water-delivery-note');
+        const itemsData = await itemsResponse.json();
+        if (itemsData.data) {
+          setItems(itemsData.data);
+        }
+
+        // Fetch next delivery note number
+        const numberResponse = await fetch('/api/water-delivery-note?action=next-number');
+        const numberData = await numberResponse.json();
+        if (numberData.nextNumber) {
+          setDeliveryNoteNumber(numberData.nextNumber);
+        } else {
+          // Fallback to DN-001 if no number returned
+          setDeliveryNoteNumber('DN-001');
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -51,7 +63,7 @@ export default function CreditNoteWaterPage() {
     }
   };
 
-  const updateLine = (index: number, field: keyof CreditNoteLine, value: string | number) => {
+  const updateLine = (index: number, field: keyof DeliveryNoteLine, value: string | number) => {
     const newLines = [...lines];
     newLines[index] = { ...newLines[index], [field]: value };
     setLines(newLines);
@@ -65,18 +77,92 @@ export default function CreditNoteWaterPage() {
     return totals;
   };
 
+  const fetchNextDeliveryNoteNumber = async () => {
+    try {
+      const numberResponse = await fetch('/api/water-delivery-note?action=next-number');
+      const numberData = await numberResponse.json();
+      if (numberData.nextNumber) {
+        setDeliveryNoteNumber(numberData.nextNumber);
+      } else {
+        setDeliveryNoteNumber('DN-001');
+      }
+    } catch (error) {
+      console.error('Error fetching next number:', error);
+      setDeliveryNoteNumber('DN-001');
+    }
+  };
+
   const handlePrint = async () => {
     try {
-      await generateWaterCreditNotePDF({
+      // Validate required fields
+      if (!deliveryNoteNumber.trim()) {
+        alert('Delivery Note Number is missing. Please refresh the page.');
+        return;
+      }
+
+      if (!date) {
+        alert('Please select a date');
+        return;
+      }
+
+      const validLines = lines.filter(line => line.itemName && line.quantity > 0);
+      if (validLines.length === 0) {
+        alert('Please add at least one item with quantity');
+        return;
+      }
+
+      setSaving(true);
+
+      // Save to Google Sheets first
+      try {
+        const saveResponse = await fetch('/api/water-delivery-note', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            date,
+            deliveryNoteNumber,
+            items: validLines.map(line => ({
+              itemName: line.itemName,
+              quantity: line.quantity
+            }))
+          }),
+        });
+
+        if (!saveResponse.ok) {
+          const errorData = await saveResponse.json();
+          console.error('Error saving to sheets:', errorData);
+          alert('Error saving to Google Sheets. Please try again.');
+          setSaving(false);
+          return;
+        }
+      } catch (saveError) {
+        console.error('Error saving to sheets:', saveError);
+        alert('Error saving to Google Sheets. Please try again.');
+        setSaving(false);
+        return;
+      }
+
+      // Generate PDF after successful save
+      await generateWaterDeliveryNotePDF({
         companyName: 'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
-        creditNoteNumber,
+        deliveryNoteNumber,
         date,
         lines,
         total: calculateTotal()
       });
+
+      // Clear form and get next number
+      setLines([{ itemName: '', quantity: 0, unitType: 'Outer' }]);
+      setDate(new Date().toISOString().split('T')[0]);
+      await fetchNextDeliveryNoteNumber();
+
+      setSaving(false);
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Error generating PDF. Please try again.');
+      console.error('Error:', error);
+      alert('Error processing request. Please try again.');
+      setSaving(false);
     }
   };
 
@@ -97,7 +183,7 @@ export default function CreditNoteWaterPage() {
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Credit Note Water</h1>
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">Water - Delivery Note</h1>
           </div>
           <button
             onClick={() => window.location.href = '/'}
@@ -113,14 +199,14 @@ export default function CreditNoteWaterPage() {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Credit Note Number
+                Delivery Note Number
               </label>
               <input
                 type="text"
-                value={creditNoteNumber}
-                onChange={(e) => setCreditNoteNumber(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                placeholder="CN-001"
+                value={deliveryNoteNumber}
+                readOnly
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                placeholder="DN-001"
               />
             </div>
             <div>
@@ -209,13 +295,27 @@ export default function CreditNoteWaterPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex gap-4">
+          <div className="flex gap-4 justify-center">
             <button
               onClick={handlePrint}
-              className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center gap-2"
+              disabled={saving}
+              className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                saving
+                  ? 'bg-blue-400 text-white cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
             >
-              <Printer className="w-5 h-5" />
-              Print and Download
+              {saving ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  Save & Print
+                </>
+              )}
             </button>
           </div>
         </div>

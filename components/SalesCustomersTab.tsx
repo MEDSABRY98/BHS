@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, memo } from 'react';
+import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Users, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -49,6 +49,8 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -200,6 +202,23 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     setCurrentPage(1);
   }, [debouncedSearchQuery]);
 
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showExportMenu]);
+
   const exportToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
@@ -245,6 +264,135 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
 
     const filename = `sales_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
+    setShowExportMenu(false);
+  };
+
+  const exportToExcelByMonths = () => {
+    if (!data || data.length === 0) return;
+
+    // Group data by customer and month
+    const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
+    const allMonths = new Set<string>();
+
+    data.forEach(item => {
+      if (!item.invoiceDate) return;
+      
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+      allMonths.add(monthKey);
+
+      const customer = item.customerName;
+      if (!customerMonthMap.has(customer)) {
+        customerMonthMap.set(customer, new Map());
+      }
+
+      const customerMonths = customerMonthMap.get(customer)!;
+      if (!customerMonths.has(monthKey)) {
+        customerMonths.set(monthKey, { amount: 0, qty: 0 });
+      }
+
+      const monthData = customerMonths.get(monthKey)!;
+      monthData.amount += item.amount;
+      monthData.qty += item.qty;
+    });
+
+    // Sort months chronologically
+    const sortedMonths = Array.from(allMonths).sort();
+    const monthLabels = sortedMonths.map(monthKey => {
+      const [year, month] = monthKey.split('-');
+      const date = new Date(parseInt(year), parseInt(month) - 1);
+      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+    });
+
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+
+    // Sheet 1: Amount
+    const amountHeaders = ['Customer', ...monthLabels, 'Total'];
+    const amountRows: any[][] = [];
+
+    customerMonthMap.forEach((months, customer) => {
+      const row: any[] = [customer];
+      let total = 0;
+
+      sortedMonths.forEach(monthKey => {
+        const monthData = months.get(monthKey);
+        const value = monthData ? monthData.amount : 0;
+        row.push(value.toFixed(2));
+        total += value;
+      });
+
+      row.push(total.toFixed(2));
+      amountRows.push(row);
+    });
+
+    // Sort by customer name
+    amountRows.sort((a, b) => a[0].localeCompare(b[0]));
+
+    // Add total row - calculate from original data
+    const amountTotals = new Array(sortedMonths.length + 1).fill(0);
+    customerMonthMap.forEach((months) => {
+      sortedMonths.forEach((monthKey, index) => {
+        const monthData = months.get(monthKey);
+        if (monthData) {
+          amountTotals[index] += monthData.amount;
+        }
+      });
+    });
+    amountTotals[amountTotals.length - 1] = amountTotals.slice(0, -1).reduce((a, b) => a + b, 0);
+    amountRows.push(['Total', ...amountTotals.map(t => t.toFixed(2))]);
+
+    const amountData = [amountHeaders, ...amountRows];
+    const amountSheet = XLSX.utils.aoa_to_sheet(amountData);
+    XLSX.utils.book_append_sheet(workbook, amountSheet, 'Amount');
+
+    // Sheet 2: Quantity
+    const qtyHeaders = ['Customer', ...monthLabels, 'Total'];
+    const qtyRows: any[][] = [];
+
+    customerMonthMap.forEach((months, customer) => {
+      const row: any[] = [customer];
+      let total = 0;
+
+      sortedMonths.forEach(monthKey => {
+        const monthData = months.get(monthKey);
+        const value = monthData ? monthData.qty : 0;
+        row.push(value.toFixed(0));
+        total += value;
+      });
+
+      row.push(total.toFixed(0));
+      qtyRows.push(row);
+    });
+
+    // Sort by customer name
+    qtyRows.sort((a, b) => a[0].localeCompare(b[0]));
+
+    // Add total row - calculate from original data
+    const qtyTotals = new Array(sortedMonths.length + 1).fill(0);
+    customerMonthMap.forEach((months) => {
+      sortedMonths.forEach((monthKey, index) => {
+        const monthData = months.get(monthKey);
+        if (monthData) {
+          qtyTotals[index] += monthData.qty;
+        }
+      });
+    });
+    qtyTotals[qtyTotals.length - 1] = qtyTotals.slice(0, -1).reduce((a, b) => a + b, 0);
+    qtyRows.push(['Total', ...qtyTotals.map(t => t.toFixed(0))]);
+
+    const qtyData = [qtyHeaders, ...qtyRows];
+    const qtySheet = XLSX.utils.aoa_to_sheet(qtyData);
+    XLSX.utils.book_append_sheet(workbook, qtySheet, 'Qty');
+
+    const filename = `sales_customers_by_months_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setShowExportMenu(false);
   };
 
   if (loading) {
@@ -275,13 +423,31 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         {/* Header */}
         <div className="mb-8 flex items-center gap-3">
           <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
-          <button
-            onClick={exportToExcel}
-            className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-            title="Export to Excel"
-          >
-            <Download className="w-5 h-5" />
-          </button>
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+              title="Export to Excel"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                <button
+                  onClick={exportToExcel}
+                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors"
+                >
+                  Export Current Table
+                </button>
+                <button
+                  onClick={exportToExcelByMonths}
+                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors border-t border-gray-200"
+                >
+                  Export by Months (Amount & Qty)
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Search Box */}

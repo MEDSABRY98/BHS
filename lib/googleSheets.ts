@@ -1080,26 +1080,10 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     // Skip header row
     const data = rows.slice(1).map((row) => {
       const invoiceNumber = row[1]?.toString().trim() || '';
-      const isSale = invoiceNumber.toUpperCase().startsWith('SAL');
-      const isReturn = invoiceNumber.toUpperCase().startsWith('RSAL');
       
-      // Calculate net amount: SAL (positive) - RSAL (negative)
-      let netAmount = 0;
-      let netQty = 0;
-      
-      if (isSale) {
-        // Sales: use amount and qty as positive
-        netAmount = row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0;
-        netQty = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
-      } else if (isReturn) {
-        // Returns: use amount and qty as negative
-        netAmount = -(row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0);
-        netQty = -(row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0);
-      } else {
-        // Other invoices: use as is
-        netAmount = row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0;
-        netQty = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
-      }
+      // Use amount and qty values as they are from Google Sheets (can be positive or negative)
+      const amount = row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0;
+      const qty = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
       
       return {
         invoiceDate: row[0]?.toString().trim() || '',
@@ -1109,8 +1093,8 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
         salesRep: row[4]?.toString().trim() || '',
         barcode: row[5]?.toString().trim() || '',
         product: row[6]?.toString().trim() || '',
-        amount: netAmount,
-        qty: netQty,
+        amount: amount,
+        qty: qty,
       };
     }).filter(row => row.customerName && row.product); // Filter out empty rows
 
@@ -1121,12 +1105,12 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
   }
 }
 
-// Get Water Credit Note Data from "Water - Credit Note" sheet
-export interface WaterCreditNoteItem {
+// Get Water Delivery Note Data from "Water - Delivery Note" sheet
+export interface WaterDeliveryNoteItem {
   itemName: string;
 }
 
-export async function getWaterCreditNoteData(): Promise<WaterCreditNoteItem[]> {
+export async function getWaterDeliveryNoteData(): Promise<WaterDeliveryNoteItem[]> {
   try {
     const credentials = getServiceAccountCredentials();
     
@@ -1139,7 +1123,7 @@ export async function getWaterCreditNoteData(): Promise<WaterCreditNoteItem[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Water - Credit Note!A:A`, // ITEM NAME
+      range: `Water - Delivery Note!A:A`, // ITEM NAME
     });
 
     const rows = response.data.values;
@@ -1156,7 +1140,105 @@ export async function getWaterCreditNoteData(): Promise<WaterCreditNoteItem[]> {
 
     return data;
   } catch (error) {
-    console.error('Error fetching water credit note data:', error);
+    console.error('Error fetching water delivery note data:', error);
     throw error;
+  }
+}
+
+// Save Water Delivery Note to "Water - Delivery Note" sheet in columns C:F
+export async function saveWaterDeliveryNote(data: {
+  date: string;
+  deliveryNoteNumber: string;
+  items: Array<{ itemName: string; quantity: number }>;
+}): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Prepare rows: each item gets its own row
+    // Columns: C (Date), D (Delivery Note Number), E (Item Name), F (Quantity)
+    const values = data.items
+      .filter(item => item.itemName && item.quantity > 0)
+      .map(item => [
+        data.date,
+        data.deliveryNoteNumber,
+        item.itemName,
+        item.quantity.toString()
+      ]);
+
+    if (values.length === 0) {
+      throw new Error('No valid items to save');
+    }
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Water - Delivery Note!C:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: values,
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving water delivery note:', error);
+    throw error;
+  }
+}
+
+// Get the next Delivery Note Number from "Water - Delivery Note" sheet
+export async function getNextDeliveryNoteNumber(): Promise<string> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Get all delivery note numbers from column D
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Water - Delivery Note!D:D`, // Delivery Note Number column
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      // If no data, start with DN-001
+      return 'DN-001';
+    }
+
+    // Skip header row and find the highest number
+    const numbers = rows.slice(1)
+      .map(row => row[0]?.toString().trim() || '')
+      .filter(num => num && num.startsWith('DN-'))
+      .map(num => {
+        // Extract number from DN-XXX format
+        const match = num.match(/DN-(\d+)/);
+        return match ? parseInt(match[1], 10) : 0;
+      })
+      .filter(num => num > 0);
+
+    if (numbers.length === 0) {
+      return 'DN-001';
+    }
+
+    const maxNumber = Math.max(...numbers);
+    const nextNumber = maxNumber + 1;
+    
+    // Format as DN-XXX with leading zeros
+    return `DN-${String(nextNumber).padStart(3, '0')}`;
+  } catch (error) {
+    console.error('Error getting next delivery note number:', error);
+    // Return default if error
+    return 'DN-001';
   }
 }
