@@ -45,6 +45,10 @@ export interface SalesRepAnalysis {
   netDebt: number;
   customerCount: number;
   transactionCount: number;
+  collectionRate: number;
+  goodCustomersCount: number;
+  mediumCustomersCount: number;
+  badCustomersCount: number;
 }
 
 export interface YearAnalysis {
@@ -53,6 +57,10 @@ export interface YearAnalysis {
   totalCredit: number;
   netDebt: number;
   transactionCount: number;
+  collectionRate: number;
+  goodCustomersCount: number;
+  mediumCustomersCount: number;
+  badCustomersCount: number;
 }
 
 export interface MonthAnalysis {
@@ -62,6 +70,10 @@ export interface MonthAnalysis {
   totalCredit: number;
   netDebt: number;
   transactionCount: number;
+  collectionRate: number;
+  goodCustomersCount: number;
+  mediumCustomersCount: number;
+  badCustomersCount: number;
 }
 
 export interface Note {

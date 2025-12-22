@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { TrendingUp, Package, Users, DollarSign, BarChart3, ArrowUp, ArrowDown } from 'lucide-react';
+import { TrendingUp, Package, Users, DollarSign, BarChart3, ArrowUp, ArrowDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface SalesOverviewTabProps {
   data: SalesInvoice[];
@@ -220,6 +221,66 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     setCustomerSortDirection(customerSortDirection === 'asc' ? 'desc' : 'asc');
   };
 
+  const exportToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    // Sheet 1: Customers
+    const customerHeaders = ['#', 'Customer', 'Amount', 'Qty', 'Transactions'];
+    const customerRows = sortedCustomers.map((item, index) => [
+      index + 1,
+      item.customer,
+      item.totalAmount.toFixed(2),
+      item.totalQty.toFixed(0),
+      item.transactions
+    ]);
+    
+    // Add total row
+    if (sortedCustomers.length > 0) {
+      customerRows.push([
+        '',
+        'Total',
+        customerTotals.totalAmount.toFixed(2),
+        customerTotals.totalQty.toFixed(0),
+        customerTotals.totalTransactions
+      ]);
+    }
+
+    const customerData = [customerHeaders, ...customerRows];
+    const customerSheet = XLSX.utils.aoa_to_sheet(customerData);
+    XLSX.utils.book_append_sheet(workbook, customerSheet, 'Customers');
+
+    // Sheet 2: Products
+    const productHeaders = ['#', 'BARCODE', 'Product', 'Amount', 'Qty', 'Transactions'];
+    const productRows = sortedProducts.map((item, index) => [
+      index + 1,
+      item.barcode,
+      item.products.join(', '), // Join multiple product names with comma
+      item.totalAmount.toFixed(2),
+      item.totalQty.toFixed(0),
+      item.transactions
+    ]);
+    
+    // Add total row
+    if (sortedProducts.length > 0) {
+      productRows.push([
+        '',
+        '',
+        'Total',
+        productTotals.totalAmount.toFixed(2),
+        productTotals.totalQty.toFixed(0),
+        productTotals.totalTransactions
+      ]);
+    }
+
+    const productData = [productHeaders, ...productRows];
+    const productSheet = XLSX.utils.aoa_to_sheet(productData);
+    XLSX.utils.book_append_sheet(workbook, productSheet, 'Products');
+
+    // Write and download
+    const filename = `sales_overview_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
   // Calculate totals for customers
   const customerTotals = useMemo(() => {
     if (sortedCustomers.length === 0) {
@@ -260,8 +321,15 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Sales Overview</h1>
+        <div className="mb-8 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-800">Sales Overview</h1>
+          <button
+            onClick={exportToExcel}
+            className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+            title="Export to Excel"
+          >
+            <Download className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Metrics Cards */}
@@ -359,32 +427,30 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
           </div>
         </div>
 
-        {/* Top Count Input */}
-        <div className="mb-6 flex items-center justify-end">
-          <div className="flex items-center gap-3">
-            <label htmlFor="topCount" className="text-sm font-medium text-gray-700">
-              Show Top:
-            </label>
-            <input
-              id="topCount"
-              type="number"
-              min="1"
-              max="100"
-              value={topCount}
-              onChange={(e) => {
-                const value = parseInt(e.target.value);
-                if (value > 0 && value <= 100) {
-                  setTopCount(value);
-                }
-              }}
-              className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center font-medium"
-            />
-          </div>
-        </div>
-
         {/* Customers Section */}
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Top Customers</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-800">Top Customers</h2>
+            <div className="flex items-center gap-3">
+              <label htmlFor="topCount" className="text-sm font-medium text-gray-700">
+                Show Top:
+              </label>
+              <input
+                id="topCount"
+                type="number"
+                min="1"
+                max="100"
+                value={topCount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value > 0 && value <= 100) {
+                    setTopCount(value);
+                  }
+                }}
+                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center font-medium"
+              />
+            </div>
+          </div>
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">

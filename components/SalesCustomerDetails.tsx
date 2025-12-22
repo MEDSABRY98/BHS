@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   LineChart,
   Line,
@@ -201,6 +202,28 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // Reverse to show oldest to newest (left to right)
     return [...data].reverse();
   }, [monthlySales]);
+
+  const exportProductsToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = ['#', 'Barcode', 'Product', 'Amount', 'Quantity'];
+
+    const rows = productsData.map((item: any, index: number) => [
+      index + 1,
+      item.barcode || '-',
+      item.product,
+      item.amount.toFixed(2),
+      item.qty.toFixed(0),
+    ]);
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
+
+    const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
+    const filename = `sales_customer_products_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -578,16 +601,25 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         {/* Products Tab */}
         {activeTab === 'products' && (
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Products Sales</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Products Sales</h2>
+              <button
+                onClick={exportProductsToExcel}
+                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                title="Export Products to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Barcode</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Product</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">#</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Barcode</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Product</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -598,20 +630,20 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                         item.isDuplicate ? 'bg-yellow-50 hover:bg-yellow-100' : ''
                       }`}
                     >
-                      <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{index + 1}</td>
-                      <td className={`py-3 px-4 text-sm font-medium text-center ${
+                      <td className="py-3 px-4 text-base text-gray-600 font-medium text-center">{index + 1}</td>
+                      <td className={`py-3 px-4 text-base font-medium text-center ${
                         item.isDuplicate ? 'text-red-600 font-bold' : 'text-gray-800'
                       }`}>
                         {item.barcode || '-'}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">{item.product}</td>
-                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.product}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.amount.toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.qty.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0

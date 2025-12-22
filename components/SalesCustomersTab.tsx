@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Users, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 
 interface SalesCustomersTabProps {
@@ -199,6 +200,53 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     setCurrentPage(1);
   }, [debouncedSearchQuery]);
 
+  const exportToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = [
+      '#',
+      'Customer Name',
+      'Amount',
+      'Average Amount',
+      'Qty',
+      'Average Qty',
+      'Products Count',
+      'Transactions',
+    ];
+
+    const rows = filteredCustomers.map((item, index) => [
+      index + 1,
+      item.customer,
+      item.totalAmount.toFixed(2),
+      item.averageAmount.toFixed(2),
+      item.totalQty.toFixed(0),
+      item.averageQty.toFixed(2),
+      item.productsCount,
+      item.transactions,
+    ]);
+
+    // Totals row (same as table footer)
+    if (filteredCustomers.length > 0) {
+      rows.push([
+        '',
+        'Total',
+        totals.totalAmount.toFixed(2),
+        totals.totalAverageAmount.toFixed(2),
+        totals.totalQty.toFixed(0),
+        totals.totalAverageQty.toFixed(2),
+        totals.totalProductsCount,
+        totals.totalTransactions,
+      ]);
+    }
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Customers');
+
+    const filename = `sales_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -225,8 +273,15 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Customers</h1>
+        <div className="mb-8 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
+          <button
+            onClick={exportToExcel}
+            className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+            title="Export to Excel"
+          >
+            <Download className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Search Box */}

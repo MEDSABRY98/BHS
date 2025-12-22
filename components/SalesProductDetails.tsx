@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   LineChart,
   Line,
@@ -194,6 +195,26 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     // Reverse to show oldest to newest (left to right)
     return [...data].reverse();
   }, [monthlySales]);
+
+  const exportCustomersToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+    const headers = ['#', 'Customer Name', 'Amount', 'Quantity'];
+
+    const rows = customersData.map((item: any, index: number) => [
+      index + 1,
+      item.customer,
+      item.amount.toFixed(2),
+      item.qty.toFixed(0),
+    ]);
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Customers');
+
+    const safeBarcode = (barcode || 'product').replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'product';
+    const filename = `sales_product_customers_${safeBarcode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
@@ -574,29 +595,38 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
         {/* Customers Tab */}
         {activeTab === 'products' && (
           <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Customers Sales</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Customers Sales</h2>
+              <button
+                onClick={exportCustomersToExcel}
+                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                title="Export to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Customer Name</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">#</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Customer Name</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
                   </tr>
                 </thead>
                 <tbody>
                   {customersData.map((item, index) => (
                     <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{index + 1}</td>
-                      <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">{item.customer}</td>
-                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                      <td className="py-3 px-4 text-base text-gray-600 font-medium text-center">{index + 1}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.customer}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.amount.toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
                       </td>
-                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.qty.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0

@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Package, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Package, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import SalesProductDetails from './SalesProductDetails';
 
 interface SalesProductsTabProps {
@@ -166,6 +167,41 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
     setCurrentPage(1);
   }, [debouncedSearchQuery]);
 
+  const exportToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = ['#', 'Barcode', 'Product Name', 'Amount', 'Qty', 'Transactions'];
+
+    // Use all filtered products (not just current page), same columns as table
+    const rows = filteredProducts.map((item, index) => [
+      index + 1,
+      item.barcode || '-',
+      item.product,
+      item.amount.toFixed(2),
+      item.qty.toFixed(0),
+      item.transactions,
+    ]);
+
+    // Totals row (same logic as table footer)
+    if (filteredProducts.length > 0) {
+      rows.push([
+        '',
+        '',
+        'Total',
+        totals.totalAmount.toFixed(2),
+        totals.totalQty.toFixed(0),
+        totals.totalTransactions,
+      ]);
+    }
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
+
+    const filename = `sales_products_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -192,8 +228,15 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Products</h1>
+        <div className="mb-8 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-800">Products</h1>
+          <button
+            onClick={exportToExcel}
+            className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+            title="Export to Excel"
+          >
+            <Download className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Search Box */}
