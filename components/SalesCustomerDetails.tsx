@@ -83,7 +83,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
   // Monthly sales data
   const monthlySales = useMemo(() => {
-    const monthMap = new Map<string, { month: string; amount: number; qty: number; invoiceNumbers: Set<string> }>();
+    const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number; invoiceNumbers: Set<string> }>();
 
     customerData.forEach(item => {
       if (!item.invoiceDate) return;

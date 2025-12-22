@@ -1,5 +1,7 @@
 'use client';
 
+import { ArrowLeft } from 'lucide-react';
+
 interface SidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -43,7 +45,16 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 border-b border-gray-200">
-        <h1 className="text-xl font-bold text-gray-800 text-center">Debit Analysis</h1>
+        <div className="flex items-center justify-center gap-2 mb-3">
+          <button
+            onClick={() => window.location.href = '/'}
+            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            title="Back to Home"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <h1 className="text-xl font-bold text-gray-800 text-center">Debit Analysis</h1>
+        </div>
         {lastUpdated && (
           <div className="mt-3 text-center">
             <div className="text-sm font-medium text-gray-700">
@@ -84,15 +95,6 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
             </div>
           </div>
         )}
-        
-        <button
-          onClick={() => window.location.href = '/sales'}
-          className="w-full flex items-center justify-center p-3 rounded-lg bg-green-50 text-green-600 hover:bg-green-100 border border-green-200 transition-colors duration-200 mb-2"
-          title="Go to Sales Analysis"
-        >
-          <span className="mr-2">📈</span>
-          <span className="font-medium">Sales Analysis</span>
-        </button>
         
         <button
           onClick={onLogout}

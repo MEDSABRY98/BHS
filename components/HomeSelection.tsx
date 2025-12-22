@@ -25,7 +25,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
       <div className="max-w-6xl w-full">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to Debit Analysis</h1>
+          <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to BHS Analysis</h1>
           <p className="text-gray-600">Choose the system you want to access</p>
           {currentUser && (
             <div className="mt-4 flex items-center justify-center gap-4">

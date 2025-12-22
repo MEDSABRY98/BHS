@@ -89,7 +89,7 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
 
   // Monthly sales data
   const monthlySales = useMemo(() => {
-    const monthMap = new Map<string, { month: string; amount: number; qty: number; invoiceNumbers: Set<string> }>();
+    const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number; invoiceNumbers: Set<string> }>();
 
     productData.forEach(item => {
       if (!item.invoiceDate) return;
