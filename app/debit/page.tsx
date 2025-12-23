@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import CustomersTab from '@/components/CustomersTab';
 import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
@@ -22,6 +22,7 @@ export default function DebitPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -56,6 +57,13 @@ export default function DebitPage() {
       }
     }
   }, [isAuthenticated, currentUser, activeTab]);
+
+  // Reset scroll position when tab changes
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
@@ -186,7 +194,7 @@ export default function DebitPage() {
         currentUser={currentUser}
         lastUpdated={lastUpdated}
       />
-      <main className="flex-1 ml-64 overflow-y-auto">
+      <main ref={mainContentRef} className="flex-1 ml-64 overflow-y-auto">
         {renderTabContent()}
       </main>
     </div>

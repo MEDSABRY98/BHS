@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SalesSidebar from '@/components/SalesSidebar';
 import SalesOverviewTab from '@/components/SalesOverviewTab';
 import SalesCustomersTab from '@/components/SalesCustomersTab';
@@ -16,6 +16,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const mainContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -34,6 +35,13 @@ export default function SalesPage() {
       fetchData();
     }
   }, [isAuthenticated]);
+
+  // Reset scroll position when tab changes
+  useEffect(() => {
+    if (mainContentRef.current) {
+      mainContentRef.current.scrollTop = 0;
+    }
+  }, [activeTab]);
 
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
@@ -139,7 +147,7 @@ export default function SalesPage() {
         currentUser={currentUser}
         lastUpdated={lastUpdated}
       />
-      <main className="flex-1 ml-64 overflow-y-auto">
+      <main ref={mainContentRef} className="flex-1 ml-64 overflow-y-auto">
         {renderTabContent()}
       </main>
     </div>

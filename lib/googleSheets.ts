@@ -166,7 +166,7 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!A:B`, // CUSTOMER NAME, RECONCILIATION
+      range: `DISCOUNTS!A:C`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION
     });
 
     const rows = response.data.values;
@@ -174,8 +174,8 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
 
     return rows.slice(1) // skip header
       .map((row) => {
-        const customerName = row[0]?.toString().trim() || '';
-        const reconciliationRaw = row[1]?.toString() || '';
+        const customerName = row[1]?.toString().trim() || ''; // Column B: CUSTOMER NAME
+        const reconciliationRaw = row[2]?.toString() || ''; // Column C: RECONCILIATION
 
         const tokens = reconciliationRaw
           .split(/[,;\s]+/)
@@ -218,12 +218,12 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!A:B`, // CUSTOMER NAME, RECONCILIATION
+      range: `DISCOUNTS!A:C`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION
     });
 
     const rows = response.data.values || [];
     const customerIndex = rows.slice(1).findIndex(
-      (row) => row[0]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase(),
+      (row) => row[1]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase(), // Column B: CUSTOMER NAME
     );
 
     if (customerIndex === -1) {
@@ -231,7 +231,7 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
     }
 
     const rowNumber = customerIndex + 2; // account for header
-    const existingCell = rows[rowNumber - 1]?.[1]?.toString() || '';
+    const existingCell = rows[rowNumber - 1]?.[2]?.toString() || ''; // Column C: RECONCILIATION
     const existingNormalized = existingCell
       .split(/[,;\s]+/)
       .map((t: string) => normalizeMonthKeyFlexible(t, new Date().getFullYear()))
@@ -245,7 +245,7 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!B${rowNumber}`,
+      range: `DISCOUNTS!C${rowNumber}`, // Column C: RECONCILIATION
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[tokensForSheet]] },
     });
@@ -682,7 +682,7 @@ export async function getClosedCustomers(): Promise<Set<string>> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `CUSTOMER CLOSED!A:B`, // CUSTOMER ID, CUSTOMER NAME
+      range: `CLOSED!A:B`, // CUSTOMER ID, CUSTOMER NAME
     });
 
     const rows = response.data.values;

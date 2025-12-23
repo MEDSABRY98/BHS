@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Package, Layers, Calculator, Loader2, Search, Edit2, Save, X, Check, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Package, Layers, Calculator, Loader2, Search, Edit2, Save, X, Check, ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react';
 import Loading from './Loading';
 
 interface InventoryItem {
@@ -183,6 +183,10 @@ const ProductAnalyzer = () => {
   const [purchaseQty, setPurchaseQty] = useState<Record<number, number>>({});
   const [searchQuery, setSearchQuery] = useState('');
   
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 50;
+  
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalData, setModalData] = useState<InventoryItem | null>(null);
@@ -259,24 +263,37 @@ const ProductAnalyzer = () => {
 
   const analyzedProducts = products.map(p => analyzeProduct(p));
 
-  const filteredProducts = analyzedProducts.filter(p => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    
-    const originalName = p.original.productName;
-    const barcode = p.original.barcode;
-    const itemCode = p.original.itemCode;
-    const tags = p.original.tags || '';
-    
-    return (
-      originalName.toLowerCase().includes(query) ||
-      p.baseName.toLowerCase().includes(query) ||
-      barcode.toLowerCase().includes(query) ||
-      itemCode.toLowerCase().includes(query) ||
-      tags.toLowerCase().includes(query) ||
-      p.specs.toLowerCase().includes(query)
-    );
-  });
+  const filteredProducts = useMemo(() => {
+    return analyzedProducts.filter(p => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      
+      const originalName = p.original.productName;
+      const barcode = p.original.barcode;
+      const itemCode = p.original.itemCode;
+      const tags = p.original.tags || '';
+      
+      return (
+        originalName.toLowerCase().includes(query) ||
+        p.baseName.toLowerCase().includes(query) ||
+        barcode.toLowerCase().includes(query) ||
+        itemCode.toLowerCase().includes(query) ||
+        tags.toLowerCase().includes(query) ||
+        p.specs.toLowerCase().includes(query)
+      );
+    });
+  }, [analyzedProducts, searchQuery]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredProducts.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
+
+  // Reset to page 1 when search query changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery]);
 
   const calculateTotalPieces = (productIndex: number) => {
     const qty = purchaseQty[productIndex] || 0;
@@ -352,6 +369,11 @@ const ProductAnalyzer = () => {
               <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
                 <span className="text-blue-700 font-semibold">
                   {filteredProducts.length} {filteredProducts.length === 1 ? 'Product' : 'Products'}
+                  {totalPages > 1 && (
+                    <span className="text-blue-600 font-normal ml-2">
+                      (Page {currentPage} of {totalPages})
+                    </span>
+                  )}
                 </span>
               </div>
             )}
@@ -391,34 +413,36 @@ const ProductAnalyzer = () => {
               </p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
-                  <tr>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">#</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-32">Barcode</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">Product Name</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">Tags</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-40 whitespace-nowrap">Type</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-28 whitespace-nowrap">Q IN BOX</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-40">Specs (W/S)</th>
-                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-20">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {filteredProducts.map((product, idx) => {
-                    const originalIndex = analyzedProducts.indexOf(product);
+            <>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
+                    <tr>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">#</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-32">Barcode</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">Product Name</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">Tags</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-40 whitespace-nowrap">Type</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-28 whitespace-nowrap">Q IN BOX</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-40">Specs (W/S)</th>
+                      <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-20">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {paginatedProducts.map((product, idx) => {
+                      const originalIndex = analyzedProducts.indexOf(product);
+                      const globalIndex = startIndex + idx + 1;
 
-                    return (
-                      <tr 
-                        key={originalIndex} 
-                        className={`hover:bg-blue-50/50 transition-all duration-150 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
-                      >
-                        <td className="px-6 py-4 text-center">
-                          <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-700 rounded-full font-semibold text-sm">
-                            {idx + 1}
-                          </span>
-                        </td>
+                      return (
+                        <tr 
+                          key={originalIndex} 
+                          className={`hover:bg-blue-50/50 transition-all duration-150 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                        >
+                          <td className="px-6 py-4 text-center">
+                            <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-700 rounded-full font-semibold text-sm">
+                              {globalIndex}
+                            </span>
+                          </td>
                         
                         {/* Barcode */}
                         <td className="px-6 py-4 text-center">
@@ -489,10 +513,78 @@ const ProductAnalyzer = () => {
                         </td>
                       </tr>
                     );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
+              {totalPages > 1 && (
+                <div className="bg-gray-50 border-t border-gray-200 px-6 py-4 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing <span className="font-semibold text-gray-800">{startIndex + 1}</span> to{' '}
+                    <span className="font-semibold text-gray-800">{Math.min(endIndex, filteredProducts.length)}</span> of{' '}
+                    <span className="font-semibold text-gray-800">{filteredProducts.length}</span> products
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                        currentPage === 1
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
+                      }`}
+                    >
+                      <ChevronLeft className="w-4 h-4" />
+                      Previous
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (currentPage <= 3) {
+                          pageNum = i + 1;
+                        } else if (currentPage >= totalPages - 2) {
+                          pageNum = totalPages - 4 + i;
+                        } else {
+                          pageNum = currentPage - 2 + i;
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setCurrentPage(pageNum)}
+                            className={`w-10 h-10 rounded-lg font-medium transition-all ${
+                              currentPage === pageNum
+                                ? 'bg-blue-600 text-white shadow-md'
+                                : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${
+                        currentPage === totalPages
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                          : 'bg-white text-gray-700 hover:bg-blue-50 hover:text-blue-600 border border-gray-300'
+                      }`}
+                    >
+                      Next
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
