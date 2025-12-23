@@ -38,8 +38,16 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   }, [searchQuery]);
 
   // Filter data for this customer with search and date filters
+  // Note: customerName is used for display, but we need to find by customerId if available
   const customerData = useMemo(() => {
-    let filtered = data.filter(item => item.customerName === customerName);
+    // First, find the customerId for this customerName (use first match)
+    const firstMatch = data.find(item => item.customerName === customerName);
+    const customerId = firstMatch?.customerId;
+    
+    // Filter by customerId if available, otherwise by customerName
+    let filtered = customerId 
+      ? data.filter(item => item.customerId === customerId)
+      : data.filter(item => item.customerName === customerName);
     
     // Date filter
     if (dateFrom || dateTo) {
@@ -174,15 +182,39 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     const totalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = customerData.reduce((sum, item) => sum + item.qty, 0);
     const uniqueProducts = new Set(customerData.map(item => item.barcode || item.product)).size;
-    const uniqueMonths = monthlySales.length;
-    const avgMonthlyAmount = uniqueMonths > 0 ? totalAmount / uniqueMonths : 0;
-    const avgMonthlyQty = uniqueMonths > 0 ? totalQty / uniqueMonths : 0;
+    
+    // Calculate months from first month to current month (not just active months)
+    let totalMonths = 1;
+    if (monthlySales.length > 0) {
+      // Find earliest month from monthlySales
+      const sortedMonths = [...monthlySales].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+      const firstMonthKey = sortedMonths[0].monthKey;
+      const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+      
+      // Get current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 1-based for comparison
+      
+      // Calculate months from first month to current month (inclusive)
+      const firstDate = new Date(firstYear, firstMonth - 1, 1);
+      const lastDate = new Date(currentYear, currentMonth - 1, 1);
+      
+      // Calculate difference in months
+      const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
+      const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
+      totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
+    }
+    
+    const avgMonthlyAmount = totalMonths > 0 ? totalAmount / totalMonths : 0;
+    const avgMonthlyQty = totalMonths > 0 ? totalQty / totalMonths : 0;
 
     return {
       totalAmount,
       totalQty,
       uniqueProducts,
-      uniqueMonths,
+      uniqueMonths: monthlySales.length, // Keep for display (active months)
+      totalMonths, // Total months from start to now
       avgMonthlyAmount,
       avgMonthlyQty
     };

@@ -133,38 +133,44 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     }));
   }, [data]);
 
-  // Customers data
+  // Customers data - grouped by customerId, display customerName
   const customersData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
     const customerMap = new Map<string, { 
-      customer: string; 
+      customerId: string;
+      customerName: string; 
       totalAmount: number; 
       totalQty: number;
       invoiceNumbers: Set<string>;
     }>();
     
     data.forEach(item => {
-      const key = item.customerName;
-      const existing = customerMap.get(key) || { 
-        customer: key, 
-        totalAmount: 0, 
-        totalQty: 0,
-        invoiceNumbers: new Set<string>()
-      };
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
+      const key = item.customerId || item.customerName; // Fallback to customerName if customerId is missing
+      const existing = customerMap.get(key);
+      
+      if (!existing) {
+        customerMap.set(key, { 
+          customerId: key,
+          customerName: item.customerName, 
+          totalAmount: 0, 
+          totalQty: 0,
+          invoiceNumbers: new Set<string>()
+        });
+      }
+      
+      const customer = customerMap.get(key)!;
+      customer.totalAmount += item.amount;
+      customer.totalQty += item.qty;
       
       // Add invoice number for transaction count
       if (item.invoiceNumber) {
-        existing.invoiceNumbers.add(item.invoiceNumber);
+        customer.invoiceNumbers.add(item.invoiceNumber);
       }
-      
-      customerMap.set(key, existing);
     });
 
     return Array.from(customerMap.values()).map(item => ({
-      customer: item.customer,
+      customer: item.customerName, // Display customerName
       totalAmount: item.totalAmount,
       totalQty: item.totalQty,
       transactions: item.invoiceNumbers.size

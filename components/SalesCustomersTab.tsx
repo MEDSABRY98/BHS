@@ -62,11 +62,12 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Group data by customer - optimized
+  // Group data by customerId - optimized
   const customersData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
     const customerMap = new Map<string, { 
+      customerId: string;
       customer: string;
       merchandiser: string;
       salesRep: string;
@@ -80,12 +81,13 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     // Pre-compile date parsing to avoid repeated try-catch
     for (let i = 0; i < data.length; i++) {
       const item = data[i];
-      const key = item.customerName;
+      const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
       let existing = customerMap.get(key);
       
       if (!existing) {
         existing = { 
-          customer: key,
+          customerId: key,
+          customer: item.customerName, // Display customerName
           merchandiser: item.merchandiser || '',
           salesRep: item.salesRep || '',
           totalAmount: 0, 
@@ -99,7 +101,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       
       existing.totalAmount += item.amount;
       existing.totalQty += item.qty;
-      existing.barcodes.add(item.barcode);
+      // Use barcode || product as key to match SalesCustomerDetails logic
+      const productKey = item.barcode || item.product;
+      existing.barcodes.add(productKey);
       
       // Add invoice number for transaction count
       if (item.invoiceNumber) {
@@ -122,8 +126,30 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     const result = new Array(customerMap.size);
     let index = 0;
     
+    // Get current date for calculating months span
+    const currentDate = new Date();
+    const currentYear = currentDate.getFullYear();
+    const currentMonth = currentDate.getMonth(); // 0-based (0 = January)
+    
     customerMap.forEach(item => {
-      const totalMonths = item.months.size || 1;
+      // Calculate months from first month to current month
+      let totalMonths = 1;
+      if (item.months.size > 0) {
+        // Find earliest month
+        const sortedMonths = Array.from(item.months).sort();
+        const firstMonthKey = sortedMonths[0];
+        const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+        
+        // Calculate months from first month to current month (inclusive)
+        const firstDate = new Date(firstYear, firstMonth - 1, 1);
+        const lastDate = new Date(currentYear, currentMonth, 1);
+        
+        // Calculate difference in months
+        const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
+        const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
+        totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
+      }
+      
       result[index++] = {
         customer: item.customer,
         totalAmount: item.totalAmount,
@@ -270,8 +296,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const exportToExcelByMonths = () => {
     if (!data || data.length === 0) return;
 
-    // Group data by customer and month
+    // Group data by customerId and month, but keep customerName for display
     const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
+    const customerNameMap = new Map<string, string>(); // Map customerId to customerName
     const allMonths = new Set<string>();
 
     data.forEach(item => {
@@ -286,12 +313,17 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
 
       allMonths.add(monthKey);
 
-      const customer = item.customerName;
-      if (!customerMonthMap.has(customer)) {
-        customerMonthMap.set(customer, new Map());
+      const customerId = item.customerId || item.customerName; // Use customerId for grouping
+      if (!customerMonthMap.has(customerId)) {
+        customerMonthMap.set(customerId, new Map());
+      }
+      
+      // Store customerName for this customerId (use first occurrence)
+      if (!customerNameMap.has(customerId)) {
+        customerNameMap.set(customerId, item.customerName);
       }
 
-      const customerMonths = customerMonthMap.get(customer)!;
+      const customerMonths = customerMonthMap.get(customerId)!;
       if (!customerMonths.has(monthKey)) {
         customerMonths.set(monthKey, { amount: 0, qty: 0 });
       }
@@ -316,8 +348,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     const amountHeaders = ['Customer', ...monthLabels, 'Total'];
     const amountRows: any[][] = [];
 
-    customerMonthMap.forEach((months, customer) => {
-      const row: any[] = [customer];
+    customerMonthMap.forEach((months, customerId) => {
+      const customerName = customerNameMap.get(customerId) || customerId; // Use customerName for display
+      const row: any[] = [customerName];
       let total = 0;
 
       sortedMonths.forEach(monthKey => {
@@ -355,8 +388,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     const qtyHeaders = ['Customer', ...monthLabels, 'Total'];
     const qtyRows: any[][] = [];
 
-    customerMonthMap.forEach((months, customer) => {
-      const row: any[] = [customer];
+    customerMonthMap.forEach((months, customerId) => {
+      const customerName = customerNameMap.get(customerId) || customerId; // Use customerName for display
+      const row: any[] = [customerName];
       let total = 0;
 
       sortedMonths.forEach(monthKey => {

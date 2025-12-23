@@ -140,22 +140,26 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     });
   }, [productData]);
 
-  // Customers data
+  // Customers data - grouped by customerId, display customerName
   const customersData = useMemo(() => {
-    const customerMap = new Map<string, { customer: string; amount: number; qty: number }>();
+    const customerMap = new Map<string, { customerId: string; customer: string; amount: number; qty: number }>();
 
     productData.forEach(item => {
-      const key = item.customerName;
-      const existing = customerMap.get(key) || {
-        customer: key,
-        amount: 0,
-        qty: 0
-      };
-
-      existing.amount += item.amount;
-      existing.qty += item.qty;
-
-      customerMap.set(key, existing);
+      const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
+      const existing = customerMap.get(key);
+      
+      if (!existing) {
+        customerMap.set(key, {
+          customerId: key,
+          customer: item.customerName, // Display customerName
+          amount: 0,
+          qty: 0
+        });
+      }
+      
+      const customer = customerMap.get(key)!;
+      customer.amount += item.amount;
+      customer.qty += item.qty;
     });
 
     // Sort by amount descending
@@ -166,16 +170,42 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
   const dashboardMetrics = useMemo(() => {
     const totalAmount = productData.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = productData.reduce((sum, item) => sum + item.qty, 0);
-    const uniqueCustomers = new Set(productData.map(item => item.customerName)).size;
-    const uniqueMonths = monthlySales.length;
-    const avgMonthlyAmount = uniqueMonths > 0 ? totalAmount / uniqueMonths : 0;
-    const avgMonthlyQty = uniqueMonths > 0 ? totalQty / uniqueMonths : 0;
+    // Count unique customers by customerId
+    const uniqueCustomerIds = new Set(productData.map(item => item.customerId || item.customerName));
+    const uniqueCustomers = uniqueCustomerIds.size;
+    
+    // Calculate months from first month to current month (not just active months)
+    let totalMonths = 1;
+    if (monthlySales.length > 0) {
+      // Find earliest month from monthlySales
+      const sortedMonths = [...monthlySales].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+      const firstMonthKey = sortedMonths[0].monthKey;
+      const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+      
+      // Get current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 1-based for comparison
+      
+      // Calculate months from first month to current month (inclusive)
+      const firstDate = new Date(firstYear, firstMonth - 1, 1);
+      const lastDate = new Date(currentYear, currentMonth - 1, 1);
+      
+      // Calculate difference in months
+      const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
+      const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
+      totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
+    }
+    
+    const avgMonthlyAmount = totalMonths > 0 ? totalAmount / totalMonths : 0;
+    const avgMonthlyQty = totalMonths > 0 ? totalQty / totalMonths : 0;
 
     return {
       totalAmount,
       totalQty,
       uniqueCustomers,
-      uniqueMonths,
+      uniqueMonths: monthlySales.length, // Keep for display (active months)
+      totalMonths, // Total months from start to now
       avgMonthlyAmount,
       avgMonthlyQty
     };

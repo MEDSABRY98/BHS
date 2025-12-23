@@ -1046,6 +1046,7 @@ export async function updateWarehouseCleaningRating(
 export interface SalesInvoice {
   invoiceDate: string;
   invoiceNumber: string;
+  customerId: string;
   customerName: string;
   merchandiser: string;
   salesRep: string;
@@ -1069,7 +1070,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Sales - Invoices!A:I`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER NAME, MERCHANDISER, SALESREP, BARCODE, PRODUCT, AMOUNT, QTY
+      range: `Sales - Invoices!A:J`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER NAME, MERCHANDISER, SALESREP, BARCODE, PRODUCT, AMOUNT, QTY
     });
 
     const rows = response.data.values;
@@ -1080,23 +1081,26 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     // Skip header row
     const data = rows.slice(1).map((row) => {
       const invoiceNumber = row[1]?.toString().trim() || '';
+      const customerId = row[2]?.toString().trim() || '';
+      const customerName = row[3]?.toString().trim() || '';
       
       // Use amount and qty values as they are from Google Sheets (can be positive or negative)
-      const amount = row[7] ? parseFloat(row[7].toString().replace(/,/g, '')) || 0 : 0;
-      const qty = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
+      const amount = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
+      const qty = row[9] ? parseFloat(row[9].toString().replace(/,/g, '')) || 0 : 0;
       
       return {
         invoiceDate: row[0]?.toString().trim() || '',
         invoiceNumber: invoiceNumber,
-        customerName: row[2]?.toString().trim() || '',
-        merchandiser: row[3]?.toString().trim() || '',
-        salesRep: row[4]?.toString().trim() || '',
-        barcode: row[5]?.toString().trim() || '',
-        product: row[6]?.toString().trim() || '',
+        customerId: customerId,
+        customerName: customerName,
+        merchandiser: row[4]?.toString().trim() || '',
+        salesRep: row[5]?.toString().trim() || '',
+        barcode: row[6]?.toString().trim() || '',
+        product: row[7]?.toString().trim() || '',
         amount: amount,
         qty: qty,
       };
-    }).filter(row => row.customerName && row.product); // Filter out empty rows
+    }).filter(row => row.customerId && row.customerName && row.product); // Filter out empty rows
 
     return data;
   } catch (error) {
