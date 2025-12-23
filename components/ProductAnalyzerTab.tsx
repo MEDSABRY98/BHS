@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Package, Layers, Calculator, Loader2, Search, Edit2, Save, X, Check } from 'lucide-react';
+import { Package, Layers, Calculator, Loader2, Search, Edit2, Save, X, Check, ArrowLeft } from 'lucide-react';
 import Loading from './Loading';
 
 interface InventoryItem {
@@ -66,7 +66,7 @@ const EditModal = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Barcode</label>
             <input
               type="text"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               value={formData.barcode}
               onChange={(e) => handleChange('barcode', e.target.value)}
             />
@@ -76,7 +76,7 @@ const EditModal = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Item Code</label>
             <input
               type="text"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               value={formData.itemCode}
               onChange={(e) => handleChange('itemCode', e.target.value)}
             />
@@ -86,7 +86,7 @@ const EditModal = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
             <input
               type="text"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               value={formData.productName}
               onChange={(e) => handleChange('productName', e.target.value)}
             />
@@ -96,7 +96,7 @@ const EditModal = ({
             <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
             <input
               type="text"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
               value={formData.tags}
               onChange={(e) => handleChange('tags', e.target.value)}
             />
@@ -107,7 +107,7 @@ const EditModal = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Type</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   value={formData.type}
                   onChange={(e) => handleChange('type', e.target.value)}
                 />
@@ -116,7 +116,7 @@ const EditModal = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Q IN BOX (Qty in Box)</label>
                 <input
                   type="number"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   value={formData.qtyInBox}
                   onChange={(e) => handleChange('qtyInBox', parseInt(e.target.value) || 0)}
                 />
@@ -128,7 +128,7 @@ const EditModal = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   value={formData.weight}
                   onChange={(e) => handleChange('weight', e.target.value)}
                 />
@@ -137,7 +137,7 @@ const EditModal = ({
                 <label className="block text-sm font-medium text-gray-700 mb-1">Size</label>
                 <input
                   type="text"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   value={formData.size}
                   onChange={(e) => handleChange('size', e.target.value)}
                 />
@@ -155,7 +155,7 @@ const EditModal = ({
           </button>
           <button
             onClick={() => onSave(formData)}
-            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-all shadow-md hover:shadow-lg"
+            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 transition-all shadow-md hover:shadow-lg"
             disabled={isSaving}
           >
             {isSaving ? (
@@ -331,29 +331,40 @@ const ProductAnalyzer = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-6" dir="ltr">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-6">
-          <div className="flex items-center justify-between mb-4">
+    <div className="min-h-screen bg-white" dir="ltr">
+      <div className="max-w-7xl mx-auto pt-6 pb-6">
+        {/* Header Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-6 border border-gray-100">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-4">
-                <div className="bg-indigo-600 p-3 rounded-xl">
-                <Package className="w-8 h-8 text-white" />
-                </div>
-                <div>
+              <button
+                onClick={() => window.location.href = '/'}
+                className="p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to Home"
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-600" />
+              </button>
+              <div>
                 <h1 className="text-3xl font-bold text-gray-800">Inventory Analyzer</h1>
-                </div>
+              </div>
             </div>
+            {filteredProducts.length > 0 && (
+              <div className="bg-blue-50 px-4 py-2 rounded-lg border border-blue-200">
+                <span className="text-blue-700 font-semibold">
+                  {filteredProducts.length} {filteredProducts.length === 1 ? 'Product' : 'Products'}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Search Box */}
-          <div className="relative mt-4">
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-gray-400" />
             </div>
             <input
               type="text"
-              className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="block w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl leading-5 bg-gray-50 placeholder-gray-400 focus:outline-none focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all sm:text-sm"
               placeholder="Search by product name, barcode, item code, tags, or specs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -361,95 +372,128 @@ const ProductAnalyzer = () => {
           </div>
           
           {error && (
-              <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg border border-red-200">
-                  {error}
+            <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-lg border-2 border-red-200 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <X className="w-5 h-5" />
+                <span className="font-medium">{error}</span>
               </div>
+            </div>
           )}
         </div>
 
         {/* Products Table */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-indigo-600 text-white">
-                <tr>
-                  <th className="px-4 py-4 text-center">#</th>
-                  <th className="px-4 py-4 text-center w-24">Barcode</th>
-                  <th className="px-4 py-4 text-center">Product Name</th>
-                  <th className="px-4 py-4 text-center">Tags</th>
-                  <th className="px-4 py-4 text-center w-40 whitespace-nowrap">Type</th>
-                  <th className="px-4 py-4 text-center w-24 whitespace-nowrap">Q IN BOX</th>
-                  <th className="px-4 py-4 text-center w-32">Specs (W/S)</th>
-                  <th className="px-4 py-4 text-center w-16">Edit</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.map((product, idx) => {
-                  const originalIndex = analyzedProducts.indexOf(product);
+        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+          {filteredProducts.length === 0 ? (
+            <div className="p-12 text-center">
+              <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500 text-lg font-medium">
+                {searchQuery ? 'No products found matching your search' : 'No products available'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white">
+                  <tr>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">#</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-32">Barcode</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">Product Name</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider">Tags</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-40 whitespace-nowrap">Type</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-28 whitespace-nowrap">Q IN BOX</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-40">Specs (W/S)</th>
+                    <th className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider w-20">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {filteredProducts.map((product, idx) => {
+                    const originalIndex = analyzedProducts.indexOf(product);
 
-                  return (
-                  <tr key={originalIndex} className={`border-b hover:bg-gray-50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}`}>
-                    <td className="px-4 py-3 text-center text-gray-600 font-semibold">{idx + 1}</td>
-                    
-                    {/* Barcode */}
-                    <td className="px-4 py-3 text-center text-gray-800 font-mono text-sm">
-                        {product.original.barcode || '-'}
-                    </td>
+                    return (
+                      <tr 
+                        key={originalIndex} 
+                        className={`hover:bg-blue-50/50 transition-all duration-150 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                      >
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 text-blue-700 rounded-full font-semibold text-sm">
+                            {idx + 1}
+                          </span>
+                        </td>
+                        
+                        {/* Barcode */}
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-block bg-gray-100 text-gray-800 font-mono text-xs px-3 py-1.5 rounded-lg border border-gray-200">
+                            {product.original.barcode || '-'}
+                          </span>
+                        </td>
 
-                    {/* Product Name */}
-                    <td className="px-4 py-3 text-center">
-                        <div className="text-sm font-medium text-gray-800">
-                           {product.original.productName}
-                        </div>
-                    </td>
+                        {/* Product Name */}
+                        <td className="px-6 py-4 text-center">
+                          <div className="text-sm font-semibold text-gray-800">
+                            {product.original.productName}
+                          </div>
+                          {product.original.itemCode && (
+                            <div className="text-xs text-gray-500 mt-1">Code: {product.original.itemCode}</div>
+                          )}
+                        </td>
 
-                    {/* Tags - Display directly from Google Sheets */}
-                    <td className="px-4 py-3 text-center">
-                        <div className="text-sm text-gray-700">
-                           {product.original.tags || '-'}
-                        </div>
-                    </td>
+                        {/* Tags */}
+                        <td className="px-6 py-4 text-center">
+                          {product.original.tags ? (
+                            <span className="inline-block bg-cyan-100 text-cyan-700 px-3 py-1 rounded-lg text-xs font-medium">
+                              {product.original.tags}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </td>
 
-                    {/* Type - Display directly from Google Sheets */}
-                    <td className="px-4 py-3 text-center">
-                        {product.original.type ? (
-                            <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold whitespace-nowrap">
+                        {/* Type */}
+                        <td className="px-6 py-4 text-center">
+                          {product.original.type ? (
+                            <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap shadow-sm">
                               {product.original.type}
                             </span>
                           ) : (
-                            <span className="text-gray-400">-</span>
-                          )
-                      }
-                    </td>
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </td>
 
-                    {/* Q IN BOX - Display directly from Google Sheets */}
-                    <td className="px-4 py-3 text-center">
-                        <span className="inline-block bg-indigo-100 text-indigo-700 px-3 py-1 rounded-lg font-bold">
-                           {product.original.qtyInBox || '-'}
-                        </span>
-                    </td>
+                        {/* Q IN BOX */}
+                        <td className="px-6 py-4 text-center">
+                          <span className="inline-flex items-center justify-center w-12 h-10 bg-gradient-to-br from-blue-100 to-cyan-100 text-blue-700 px-3 py-1.5 rounded-lg font-bold text-sm shadow-sm border border-blue-200">
+                            {product.original.qtyInBox || '-'}
+                          </span>
+                        </td>
 
-                    {/* Specs (Weight/Size) */}
-                    <td className="px-4 py-3 text-center text-sm text-gray-600">
-                           {product.specs || '-'}
-                    </td>
+                        {/* Specs (Weight/Size) */}
+                        <td className="px-6 py-4 text-center">
+                          {product.specs && product.specs !== '-' ? (
+                            <span className="inline-block bg-amber-50 text-amber-700 px-3 py-1 rounded-lg text-xs font-medium border border-amber-200">
+                              {product.specs}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-sm">-</span>
+                          )}
+                        </td>
 
-                    {/* Actions */}
-                    <td className="px-4 py-3 text-center">
-                        <button 
-                          onClick={() => openEditModal(product.original)}
-                          className="p-2 text-gray-400 hover:text-indigo-600 transition-colors"
-                          title="Edit Product"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                    </td>
-                  </tr>
-                );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {/* Actions */}
+                        <td className="px-6 py-4 text-center">
+                          <button 
+                            onClick={() => openEditModal(product.original)}
+                            className="inline-flex items-center justify-center p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-150"
+                            title="Edit Product"
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
       

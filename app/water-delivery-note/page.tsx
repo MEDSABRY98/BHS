@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X } from 'lucide-react';
 import { generateWaterDeliveryNotePDF } from '@/lib/pdfUtils';
+import { NotificationContainer, NotificationType } from '@/components/Notification';
 
 interface WaterDeliveryNoteItem {
   itemName: string;
@@ -24,6 +25,24 @@ export default function WaterDeliveryNotePage() {
   ]);
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  
+  // Search and edit states
+  const [searchNumber, setSearchNumber] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [foundDeliveryNote, setFoundDeliveryNote] = useState<any>(null);
+  
+  // Notifications state
+  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: NotificationType }>>([]);
+
+  const showNotification = (message: string, type: NotificationType = 'info') => {
+    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+    setNotifications((prev) => [...prev, { id, message, type }]);
+  };
+
+  const removeNotification = (id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -92,56 +111,178 @@ export default function WaterDeliveryNotePage() {
     }
   };
 
-  const handlePrint = async () => {
+  const handleSearch = async () => {
+    if (!searchNumber.trim()) {
+      showNotification('Please enter a delivery note number', 'warning');
+      return;
+    }
+
+    setIsSearching(true);
     try {
-      // Validate required fields
+      const response = await fetch(`/api/water-delivery-note?number=${encodeURIComponent(searchNumber.trim())}`);
+      if (response.status === 404) {
+        showNotification('Delivery note not found', 'error');
+        setFoundDeliveryNote(null);
+        setIsSearching(false);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Failed to search');
+      }
+
+      const data = await response.json();
+      if (data.data) {
+        setFoundDeliveryNote(data.data);
+        setDeliveryNoteNumber(data.data.deliveryNoteNumber);
+        setDate(data.data.date);
+        setLines(data.data.items.map((item: any) => ({
+          itemName: item.itemName,
+          quantity: item.quantity,
+          unitType: 'Outer' as const
+        })));
+        setIsEditing(true);
+        showNotification('Delivery note loaded successfully', 'success');
+      }
+    } catch (error) {
+      console.error('Error searching:', error);
+      showNotification('Error searching for delivery note. Please try again.', 'error');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleCancelEdit = async () => {
+    setIsEditing(false);
+    setFoundDeliveryNote(null);
+    setSearchNumber('');
+    setLines([{ itemName: '', quantity: 0, unitType: 'Outer' }]);
+    setDate(new Date().toISOString().split('T')[0]);
+    await fetchNextDeliveryNoteNumber();
+  };
+
+  const handleUpdate = async () => {
+    try {
       if (!deliveryNoteNumber.trim()) {
-        alert('Delivery Note Number is missing. Please refresh the page.');
+        showNotification('Delivery Note Number is missing.', 'warning');
         return;
       }
 
       if (!date) {
-        alert('Please select a date');
+        showNotification('Please select a date', 'warning');
         return;
       }
 
       const validLines = lines.filter(line => line.itemName && line.quantity > 0);
       if (validLines.length === 0) {
-        alert('Please add at least one item with quantity');
+        showNotification('Please add at least one item with quantity', 'warning');
         return;
       }
 
       setSaving(true);
 
-      // Save to Google Sheets first
-      try {
-        const saveResponse = await fetch('/api/water-delivery-note', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            date,
-            deliveryNoteNumber,
-            items: validLines.map(line => ({
-              itemName: line.itemName,
-              quantity: line.quantity
-            }))
-          }),
-        });
+      const updateResponse = await fetch('/api/water-delivery-note', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          deliveryNoteNumber,
+          date,
+          items: validLines.map(line => ({
+            itemName: line.itemName,
+            quantity: line.quantity
+          }))
+        }),
+      });
 
-        if (!saveResponse.ok) {
-          const errorData = await saveResponse.json();
-          console.error('Error saving to sheets:', errorData);
-          alert('Error saving to Google Sheets. Please try again.');
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json();
+        console.error('Error updating:', errorData);
+        showNotification('Error updating delivery note. Please try again.', 'error');
+        setSaving(false);
+        return;
+      }
+
+      showNotification('Delivery note updated successfully!', 'success');
+
+      // Generate PDF after successful update
+      try {
+        await generateWaterDeliveryNotePDF({
+          companyName: 'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
+          deliveryNoteNumber,
+          date,
+          lines,
+          total: calculateTotal()
+        });
+        showNotification('PDF generated successfully!', 'success');
+      } catch (pdfError) {
+        console.error('Error generating PDF:', pdfError);
+        showNotification('Delivery note updated but failed to generate PDF. You can print it manually.', 'warning');
+      }
+
+      await handleCancelEdit();
+      setSaving(false);
+    } catch (error) {
+      console.error('Error updating:', error);
+      showNotification('Error updating delivery note. Please try again.', 'error');
+      setSaving(false);
+    }
+  };
+
+  const handlePrint = async () => {
+    try {
+      // Validate required fields
+      if (!deliveryNoteNumber.trim()) {
+        showNotification('Delivery Note Number is missing. Please refresh the page.', 'error');
+        return;
+      }
+
+      if (!date) {
+        showNotification('Please select a date', 'warning');
+        return;
+      }
+
+      const validLines = lines.filter(line => line.itemName && line.quantity > 0);
+      if (validLines.length === 0) {
+        showNotification('Please add at least one item with quantity', 'warning');
+        return;
+      }
+
+      setSaving(true);
+
+      // Save to Google Sheets first (only if not editing)
+      if (!isEditing) {
+        try {
+          const saveResponse = await fetch('/api/water-delivery-note', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              date,
+              deliveryNoteNumber,
+              items: validLines.map(line => ({
+                itemName: line.itemName,
+                quantity: line.quantity
+              }))
+            }),
+          });
+
+          if (!saveResponse.ok) {
+            const errorData = await saveResponse.json();
+            console.error('Error saving to sheets:', errorData);
+            showNotification('Error saving to Google Sheets. Please try again.', 'error');
+            setSaving(false);
+            return;
+          }
+          showNotification('Delivery note saved successfully!', 'success');
+        } catch (saveError) {
+          console.error('Error saving to sheets:', saveError);
+          showNotification('Error saving to Google Sheets. Please try again.', 'error');
           setSaving(false);
           return;
         }
-      } catch (saveError) {
-        console.error('Error saving to sheets:', saveError);
-        alert('Error saving to Google Sheets. Please try again.');
-        setSaving(false);
-        return;
       }
 
       // Generate PDF after successful save
@@ -153,15 +294,19 @@ export default function WaterDeliveryNotePage() {
         total: calculateTotal()
       });
 
-      // Clear form and get next number
-      setLines([{ itemName: '', quantity: 0, unitType: 'Outer' }]);
-      setDate(new Date().toISOString().split('T')[0]);
-      await fetchNextDeliveryNoteNumber();
+      showNotification('PDF generated successfully!', 'success');
+
+      // Clear form and get next number (only if not editing)
+      if (!isEditing) {
+        setLines([{ itemName: '', quantity: 0, unitType: 'Outer' }]);
+        setDate(new Date().toISOString().split('T')[0]);
+        await fetchNextDeliveryNoteNumber();
+      }
 
       setSaving(false);
     } catch (error) {
       console.error('Error:', error);
-      alert('Error processing request. Please try again.');
+      showNotification('Error processing request. Please try again.', 'error');
       setSaving(false);
     }
   };
@@ -179,6 +324,7 @@ export default function WaterDeliveryNotePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
+      <NotificationContainer notifications={notifications} onRemove={removeNotification} />
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between">
@@ -192,6 +338,65 @@ export default function WaterDeliveryNotePage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Search Section */}
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+          <div className="flex items-center gap-4">
+            <div className="flex-1">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Search by Delivery Note Number
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={searchNumber}
+                  onChange={(e) => setSearchNumber(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                  placeholder="e.g., DN-001"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  disabled={isSearching || isEditing}
+                />
+                <button
+                  onClick={handleSearch}
+                  disabled={isSearching || isEditing}
+                  className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                    isSearching || isEditing
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                  }`}
+                >
+                  {isSearching ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Searching...
+                    </>
+                  ) : (
+                    <>
+                      <Search className="w-5 h-5" />
+                      Search
+                    </>
+                  )}
+                </button>
+                {isEditing && (
+                  <button
+                    onClick={handleCancelEdit}
+                    className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+                  >
+                    <X className="w-5 h-5" />
+                    Cancel
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          {isEditing && foundDeliveryNote && (
+            <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-green-800 font-medium">
+                Editing: {foundDeliveryNote.deliveryNoteNumber} - {foundDeliveryNote.date}
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Form */}
@@ -296,27 +501,51 @@ export default function WaterDeliveryNotePage() {
 
           {/* Actions */}
           <div className="flex gap-4 justify-center">
-            <button
-              onClick={handlePrint}
-              disabled={saving}
-              className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                saving
-                  ? 'bg-blue-400 text-white cursor-not-allowed'
-                  : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
-            >
-              {saving ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" />
-                  Save & Print
-                </>
-              )}
-            </button>
+            {isEditing ? (
+              <button
+                onClick={handleUpdate}
+                disabled={saving}
+                className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                  saving
+                    ? 'bg-green-400 text-white cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700'
+                }`}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Edit2 className="w-5 h-5" />
+                    Update
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                onClick={handlePrint}
+                disabled={saving}
+                className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
+                  saving
+                    ? 'bg-blue-400 text-white cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {saving ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-5 h-5" />
+                    Save & Print
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>

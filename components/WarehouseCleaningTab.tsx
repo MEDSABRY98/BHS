@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Calendar, Trash2, PackageOpen, ChevronDown, BarChart3 } from 'lucide-react';
+import { Calendar, Trash2, PackageOpen, ChevronDown, BarChart3, ArrowLeft } from 'lucide-react';
 import { WarehouseCleaningEntry } from '@/lib/googleSheets';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import Loading from './Loading';
@@ -411,10 +411,21 @@ const WarehouseCleaningTab = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
       <div className="max-w-6xl mx-auto">
         {/* Main Title */}
-        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8 text-center">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Calendar className="w-10 h-10 text-indigo-600" />
-            <h1 className="text-4xl font-bold text-gray-800">Warehouse Tasks Schedule</h1>
+        <div className="bg-white rounded-2xl shadow-xl p-8 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <button
+                onClick={() => window.location.href = '/'}
+                className="p-3 hover:bg-gray-100 rounded-lg transition-colors"
+                title="Back to Home"
+              >
+                <ArrowLeft className="w-6 h-6 text-gray-600" />
+              </button>
+              <div className="flex items-center gap-3">
+                <Calendar className="w-10 h-10 text-indigo-600" />
+                <h1 className="text-4xl font-bold text-gray-800">Warehouse Tasks Schedule</h1>
+              </div>
+            </div>
           </div>
         </div>
 

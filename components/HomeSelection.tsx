@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -18,6 +18,14 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
   const handleSelectDeliveryNote = () => {
     window.location.href = '/water-delivery-note';
+  };
+
+  const handleSelectInventory = () => {
+    window.location.href = '/inventory-analyze';
+  };
+
+  const handleSelectWarehouse = () => {
+    window.location.href = '/warehouse-cleaning';
   };
 
   return (
@@ -46,48 +54,86 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         </div>
 
         {/* Selection Cards */}
-        <div className="grid md:grid-cols-3 gap-8">
+        <div className={`grid gap-6 ${
+          currentUser?.name === 'MED Sabry' ? 'md:grid-cols-5' : 
+          currentUser?.name === 'Monai' ? 'md:grid-cols-4' : 
+          'md:grid-cols-2'
+        }`}>
           {/* Debit Analysis Card */}
           <div
             onClick={handleSelectDebit}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-8 border-2 border-transparent hover:border-blue-300"
+            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-red-300 flex flex-col min-h-[180px]"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-16 h-16 bg-red-100 rounded-xl flex items-center justify-center">
-                <DollarSign className="w-8 h-8 text-red-600" />
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <DollarSign className="w-7 h-7 text-red-600" />
               </div>
-              <ArrowRight className="w-6 h-6 text-gray-400" />
+              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-3">Debit Analysis</h2>
+            <h2 className="text-xl font-bold text-gray-800 leading-tight">Debit Analysis</h2>
           </div>
 
           {/* Sales Analysis Card */}
           <div
             onClick={handleSelectSales}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-8 border-2 border-transparent hover:border-green-300"
+            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-green-300 flex flex-col min-h-[180px]"
           >
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-16 h-16 bg-green-100 rounded-xl flex items-center justify-center">
-                <TrendingUp className="w-8 h-8 text-green-600" />
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <TrendingUp className="w-7 h-7 text-green-600" />
               </div>
-              <ArrowRight className="w-6 h-6 text-gray-400" />
+              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-3">Sales Analysis</h2>
+            <h2 className="text-xl font-bold text-gray-800 leading-tight">Sales Analysis</h2>
           </div>
 
-          {/* Water - Delivery Note Card */}
-          <div
-            onClick={handleSelectDeliveryNote}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-8 border-2 border-transparent hover:border-purple-300"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <div className="w-16 h-16 bg-purple-100 rounded-xl flex items-center justify-center">
-                <FileText className="w-8 h-8 text-purple-600" />
+          {/* Inventory Analyze Card - Only visible for MED Sabry and Monai */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+            <div
+              onClick={handleSelectInventory}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-indigo-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Package className="w-7 h-7 text-indigo-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
               </div>
-              <ArrowRight className="w-6 h-6 text-gray-400" />
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Inventory Analyze</h2>
             </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-3">Water - Delivery Note</h2>
-          </div>
+          )}
+
+          {/* Water - Delivery Note Card - Only visible for MED Sabry and Monai */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+            <div
+              onClick={handleSelectDeliveryNote}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-purple-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-7 h-7 text-purple-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Water - Delivery Note</h2>
+            </div>
+          )}
+
+          {/* Warehouse Cleaning Card - Only visible for MED Sabry */}
+          {currentUser?.name === 'MED Sabry' && (
+            <div
+              onClick={handleSelectWarehouse}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-orange-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Warehouse className="w-7 h-7 text-orange-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Warehouse Cleaning</h2>
+            </div>
+          )}
         </div>
       </div>
     </div>

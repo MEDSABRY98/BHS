@@ -32,6 +32,7 @@ const columnHelper = createColumnHelper<CustomerAgingSummary>();
 export default function AgesTab({ data }: AgesTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
 
   const agingData = useMemo(() => {
     // Group by customer first
@@ -167,13 +168,39 @@ export default function AgesTab({ data }: AgesTabProps) {
     return summaries.sort((a, b) => b.total - a.total);
   }, [data]);
 
+  // Get unique sales reps
+  const salesReps = useMemo(() => {
+    const repsSet = new Set<string>();
+    agingData.forEach((customer) => {
+      customer.salesReps.forEach((rep) => {
+        if (rep && rep.trim()) {
+          repsSet.add(rep.trim());
+        }
+      });
+    });
+    return Array.from(repsSet).sort();
+  }, [agingData]);
+
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return agingData;
-    const query = searchQuery.toLowerCase();
-    return agingData.filter((customer) =>
-      customer.customerName.toLowerCase().includes(query)
-    );
-  }, [agingData, searchQuery]);
+    let filtered = agingData;
+
+    // Filter by sales rep
+    if (selectedSalesRep !== 'all') {
+      filtered = filtered.filter((customer) =>
+        customer.salesReps.includes(selectedSalesRep)
+      );
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter((customer) =>
+        customer.customerName.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [agingData, searchQuery, selectedSalesRep]);
 
   const exportToExcel = () => {
     const headers = ['Customer Name', 'Sales Rep', 'AT DATE', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
@@ -206,39 +233,55 @@ export default function AgesTab({ data }: AgesTabProps) {
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
         cell: (info) => (
-            <span className="font-medium text-gray-900">
+            <div className="font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={info.getValue()}>
                 {info.getValue()}
-            </span>
+            </div>
         ),
       }),
       columnHelper.accessor('atDate', {
         header: 'AT DATE',
         cell: (info) => (
-            <span className="text-green-600 font-semibold">
+            <span className="text-green-600 font-semibold whitespace-nowrap">
                 {info.getValue().toLocaleString('en-US')}
             </span>
         ),
       }),
       columnHelper.accessor('oneToThirty', {
         header: '1 - 30',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
+        cell: (info) => (
+            <span className="whitespace-nowrap">
+                {info.getValue().toLocaleString('en-US')}
+            </span>
+        ),
       }),
       columnHelper.accessor('thirtyOneToSixty', {
         header: '31 - 60',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
+        cell: (info) => (
+            <span className="whitespace-nowrap">
+                {info.getValue().toLocaleString('en-US')}
+            </span>
+        ),
       }),
       columnHelper.accessor('sixtyOneToNinety', {
         header: '61 - 90',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
+        cell: (info) => (
+            <span className="whitespace-nowrap">
+                {info.getValue().toLocaleString('en-US')}
+            </span>
+        ),
       }),
       columnHelper.accessor('ninetyOneToOneTwenty', {
         header: '91 - 120',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
+        cell: (info) => (
+            <span className="whitespace-nowrap">
+                {info.getValue().toLocaleString('en-US')}
+            </span>
+        ),
       }),
       columnHelper.accessor('older', {
         header: 'OLDER',
         cell: (info) => (
-            <span className="text-red-600 font-semibold">
+            <span className="text-red-600 font-semibold whitespace-nowrap">
                 {info.getValue().toLocaleString('en-US')}
             </span>
         ),
@@ -248,9 +291,9 @@ export default function AgesTab({ data }: AgesTabProps) {
         cell: (info) => {
             const value = info.getValue();
              return (
-            <span className={`font-bold ${value > 0 ? 'text-gray-900' : 'text-green-600'}`}>
-              {value.toLocaleString('en-US')}
-            </span>
+             <span className={`font-bold whitespace-nowrap ${value > 0 ? 'text-gray-900' : 'text-green-600'}`}>
+               {value.toLocaleString('en-US')}
+             </span>
           );
         },
       }),
@@ -285,7 +328,19 @@ export default function AgesTab({ data }: AgesTabProps) {
         <h2 className="text-2xl font-bold mb-2">Ages Analysis</h2>
       </div>
 
-      <div className="mb-4 flex justify-center items-center gap-3">
+      <div className="mb-4 flex justify-center items-center gap-3 flex-wrap">
+        <select
+          value={selectedSalesRep}
+          onChange={(e) => setSelectedSalesRep(e.target.value)}
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
+        >
+          <option value="all">All Sales Reps</option>
+          {salesReps.map((rep) => (
+            <option key={rep} value={rep}>
+              {rep}
+            </option>
+          ))}
+        </select>
         <input
           type="text"
           placeholder="Search by customer name..."
@@ -308,80 +363,84 @@ export default function AgesTab({ data }: AgesTabProps) {
         </button>
       </div>
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full" style={{ tableLayout: 'fixed' }}>
-            <thead className="bg-gray-100">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => {
-                    const getWidth = () => {
-                        const columnId = header.column.id;
-                        if (columnId === 'customerName') return '20%';
-                        // 7 numeric columns remaining = 80% / 7 ~ 11.4%
-                        return '11.4%';
-                    };
-                    return (
-                    <th
-                      key={header.id}
-                      className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
-                      style={{ width: getWidth() }}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {{
-                        asc: ' ↑',
-                        desc: ' ↓',
-                      }[header.column.getIsSorted() as string] ?? null}
-                    </th>
-                    );
-                  })}
-                </tr>
-              ))}
-            </thead>
-            <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b hover:bg-gray-50">
-                  {row.getVisibleCells().map((cell) => {
+       <div className="bg-white rounded-lg shadow overflow-hidden">
+         <div className="overflow-x-auto">
+           <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
+             <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+               {table.getHeaderGroups().map((headerGroup) => (
+                 <tr key={headerGroup.id}>
+                   {headerGroup.headers.map((header) => {
                      const getWidth = () => {
-                        const columnId = cell.column.id;
-                        if (columnId === 'customerName') return '20%';
-                        return '11.4%';
-                    };
-                    return (
-                      <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-              <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                  Total
-                </td>
-                <td className="px-4 py-3 text-center text-lg text-green-700" style={{ width: '11.4%' }}>
-                  {totalAtDate.toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '11.4%' }}>
-                  {total1To30.toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '11.4%' }}>
-                  {total31To60.toLocaleString('en-US')}
-                </td>
-                 <td className="px-4 py-3 text-center text-lg" style={{ width: '11.4%' }}>
-                  {total61To90.toLocaleString('en-US')}
-                </td>
-                 <td className="px-4 py-3 text-center text-lg" style={{ width: '11.4%' }}>
-                  {total91To120.toLocaleString('en-US')}
-                </td>
-                 <td className="px-4 py-3 text-center text-lg text-red-700" style={{ width: '11.4%' }}>
-                  {totalOlder.toLocaleString('en-US')}
-                </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '11.4%' }}>
+                         const columnId = header.column.id;
+                         if (columnId === 'customerName') return '25%';
+                         // 7 numeric columns remaining = 75% / 7 ~ 10.7%
+                         return '10.7%';
+                     };
+                     return (
+                     <th
+                       key={header.id}
+                       className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider cursor-pointer hover:bg-blue-700 transition-colors whitespace-nowrap"
+                       style={{ width: getWidth() }}
+                       onClick={header.column.getToggleSortingHandler()}
+                     >
+                       {flexRender(header.column.columnDef.header, header.getContext())}
+                       {{
+                         asc: ' ↑',
+                         desc: ' ↓',
+                       }[header.column.getIsSorted() as string] ?? null}
+                     </th>
+                     );
+                   })}
+                 </tr>
+               ))}
+             </thead>
+             <tbody className="divide-y divide-gray-200">
+               {table.getRowModel().rows.map((row, idx) => (
+                 <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                   {row.getVisibleCells().map((cell) => {
+                      const getWidth = () => {
+                         const columnId = cell.column.id;
+                         if (columnId === 'customerName') return '25%';
+                         return '10.7%';
+                     };
+                     return (
+                       <td 
+                         key={cell.id} 
+                         className="px-6 py-4 text-center text-sm whitespace-nowrap"
+                         style={{ width: getWidth() }}
+                       >
+                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                       </td>
+                     );
+                   })}
+                 </tr>
+               ))}
+               <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
+                 <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '25%' }}>
+                   TOTAL
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg text-green-700 whitespace-nowrap" style={{ width: '10.7%' }}>
+                   {totalAtDate.toLocaleString('en-US')}
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                   {total1To30.toLocaleString('en-US')}
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                   {total31To60.toLocaleString('en-US')}
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                   {total61To90.toLocaleString('en-US')}
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                   {total91To120.toLocaleString('en-US')}
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '10.7%' }}>
+                   {totalOlder.toLocaleString('en-US')}
+                 </td>
+                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
                    {grandTotal.toLocaleString('en-US')}
-                </td>
-              </tr>
+                 </td>
+               </tr>
             </tbody>
           </table>
         </div>

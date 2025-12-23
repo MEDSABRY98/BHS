@@ -11,8 +11,6 @@ import YearsTab from '@/components/YearsTab';
 import MonthsTab from '@/components/MonthsTab';
 import AgesTab from '@/components/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
-import ProductAnalyzer from '@/components/ProductAnalyzer';
-import WarehouseCleaningTab from '@/components/WarehouseCleaningTab';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 
@@ -50,9 +48,7 @@ export default function DebitPage() {
       const restrictedTabs = [
         'customers-open-matches',
         'discount-tracker',
-        'all-notes',
-        'inventory-analyze',
-        'warehouse-cleaning'
+        'all-notes'
       ];
       
       if (restrictedTabs.includes(activeTab)) {
@@ -145,9 +141,7 @@ export default function DebitPage() {
     const restrictedTabs = [
       'customers-open-matches',
       'discount-tracker',
-      'all-notes',
-      'inventory-analyze',
-      'warehouse-cleaning'
+      'all-notes'
     ];
 
     if (restrictedUsers.includes(currentUser?.name) && restrictedTabs.includes(activeTab)) {
@@ -174,10 +168,6 @@ export default function DebitPage() {
         return <AgesTab data={data} />;
       case 'all-notes':
         return <AllNotesTab />;
-      case 'inventory-analyze':
-        return <ProductAnalyzer />;
-      case 'warehouse-cleaning':
-        return <WarehouseCleaningTab />;
       default:
         return <CustomersTab data={data} />;
     }

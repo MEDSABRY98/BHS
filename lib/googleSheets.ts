@@ -1246,3 +1246,178 @@ export async function getNextDeliveryNoteNumber(): Promise<string> {
     return 'DN-001';
   }
 }
+
+// Get Water Delivery Note by Delivery Note Number
+export interface WaterDeliveryNoteData {
+  date: string;
+  deliveryNoteNumber: string;
+  items: Array<{ itemName: string; quantity: number }>;
+  rowIndices: number[]; // Store row indices for updating
+}
+
+export async function getWaterDeliveryNoteByNumber(deliveryNoteNumber: string): Promise<WaterDeliveryNoteData | null> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Get all data from columns C:F (Date, Delivery Note Number, Item Name, Quantity)
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Water - Delivery Note!C:F`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return null;
+    }
+
+    // Skip header row (index 1 in sheet, but 0 in array)
+    // Find all rows matching the delivery note number
+    const matchingRows: Array<{ rowIndex: number; date: string; itemName: string; quantity: number }> = [];
+    
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      if (row && row.length >= 2 && row[1]?.toString().trim() === deliveryNoteNumber.trim()) {
+        matchingRows.push({
+          rowIndex: i + 1, // +1 because sheet rows are 1-indexed
+          date: row[0]?.toString().trim() || '',
+          itemName: row[2]?.toString().trim() || '',
+          quantity: parseFloat(row[3]?.toString() || '0') || 0
+        });
+      }
+    }
+
+    if (matchingRows.length === 0) {
+      return null;
+    }
+
+    // All rows should have the same date and delivery note number
+    const date = matchingRows[0].date;
+    const items = matchingRows.map(row => ({
+      itemName: row.itemName,
+      quantity: row.quantity
+    }));
+    const rowIndices = matchingRows.map(row => row.rowIndex);
+
+    return {
+      date,
+      deliveryNoteNumber: deliveryNoteNumber.trim(),
+      items,
+      rowIndices
+    };
+  } catch (error) {
+    console.error('Error fetching water delivery note by number:', error);
+    throw error;
+  }
+}
+
+// Update Water Delivery Note in Google Sheet
+export async function updateWaterDeliveryNote(
+  deliveryNoteNumber: string,
+  data: {
+    date: string;
+    items: Array<{ itemName: string; quantity: number }>;
+  }
+): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // First, get the existing rows for this delivery note
+    const existingData = await getWaterDeliveryNoteByNumber(deliveryNoteNumber);
+    if (!existingData) {
+      throw new Error('Delivery note not found');
+    }
+
+    const existingRowIndices = existingData.rowIndices;
+    const newItems = data.items.filter(item => item.itemName && item.quantity > 0);
+
+    // Get sheet ID for batch operations
+    const sheetId = await getSheetId('Water - Delivery Note');
+    if (!sheetId) {
+      throw new Error('Sheet "Water - Delivery Note" not found');
+    }
+    
+    const requests: any[] = [];
+    
+    // Prepare values for all rows (update existing + new)
+    const values = newItems.map(item => [
+      data.date,
+      deliveryNoteNumber,
+      item.itemName,
+      item.quantity.toString()
+    ]);
+
+    // Update existing rows one by one to handle non-consecutive rows
+    const rowsToUpdate = Math.min(newItems.length, existingRowIndices.length);
+    for (let i = 0; i < rowsToUpdate; i++) {
+      const rowIndex = existingRowIndices[i];
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Water - Delivery Note!C${rowIndex}:F${rowIndex}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [values[i]]
+        }
+      });
+    }
+
+    // Delete excess rows if any (from bottom to top to maintain indices)
+    if (existingRowIndices.length > newItems.length) {
+      for (let i = existingRowIndices.length - 1; i >= newItems.length; i--) {
+        requests.push({
+          deleteDimension: {
+            range: {
+              sheetId: sheetId,
+              dimension: 'ROWS',
+              startIndex: existingRowIndices[i] - 1,
+              endIndex: existingRowIndices[i]
+            }
+          }
+        });
+      }
+    }
+
+    // Add new rows if we have more items than existing rows
+    if (newItems.length > existingRowIndices.length) {
+      const additionalValues = values.slice(existingRowIndices.length);
+      if (additionalValues.length > 0) {
+        await sheets.spreadsheets.values.append({
+          spreadsheetId: SPREADSHEET_ID,
+          range: `Water - Delivery Note!C:F`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: additionalValues
+          }
+        });
+      }
+    }
+
+    // Execute delete requests if any
+    if (requests.length > 0) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          requests: requests
+        }
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating water delivery note:', error);
+    throw error;
+  }
+}
