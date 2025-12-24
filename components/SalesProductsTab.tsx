@@ -54,7 +54,7 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Group data by barcode
+  // Group data by product ID
   const productsData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
@@ -68,7 +68,7 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
     
     for (let i = 0; i < data.length; i++) {
       const item = data[i];
-      const key = item.barcode || item.product;
+      const key = item.productId || item.barcode || item.product;
       let existing = productMap.get(key);
       
       if (!existing) {

@@ -101,8 +101,8 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       
       existing.totalAmount += item.amount;
       existing.totalQty += item.qty;
-      // Use barcode || product as key to match SalesCustomerDetails logic
-      const productKey = item.barcode || item.product;
+      // Use productId || barcode || product as key to match SalesCustomerDetails logic
+      const productKey = item.productId || item.barcode || item.product;
       existing.barcodes.add(productKey);
       
       // Add invoice number for transaction count

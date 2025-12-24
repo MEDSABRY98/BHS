@@ -15,6 +15,7 @@ export default function SalesSidebar({ activeTab, onTabChange, onLogout, current
     { id: 'sales-overview', label: 'Overview', icon: '📊' },
     { id: 'sales-customers', label: 'Customers', icon: '👥' },
     { id: 'sales-products', label: 'Products', icon: '📦' },
+    { id: 'sales-download-form', label: 'Download Form', icon: '📥' },
   ];
 
   // Filter tabs based on user (can add restrictions later if needed)

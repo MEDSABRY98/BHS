@@ -145,10 +145,10 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   // Products data
   const productsData = useMemo(() => {
     const productMap = new Map<string, { barcode: string; product: string; amount: number; qty: number }>();
-    const barcodeCount = new Map<string, number>();
+    const productIdCount = new Map<string, number>();
 
     customerData.forEach(item => {
-      const key = item.barcode || item.product;
+      const key = item.productId || item.barcode || item.product;
       const existing = productMap.get(key) || {
         barcode: item.barcode,
         product: item.product,
@@ -161,27 +161,29 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
       productMap.set(key, existing);
 
-      // Count barcode occurrences
-      if (item.barcode) {
-        barcodeCount.set(item.barcode, (barcodeCount.get(item.barcode) || 0) + 1);
-      }
+      // Count productId occurrences for duplicate detection
+      const productId = item.productId || item.barcode || item.product;
+      productIdCount.set(productId, (productIdCount.get(productId) || 0) + 1);
     });
 
     // Sort by amount descending and mark duplicates
     const result = Array.from(productMap.values()).sort((a, b) => b.amount - a.amount);
     
-    // Mark duplicates
-    return result.map(item => ({
-      ...item,
-      isDuplicate: item.barcode ? (barcodeCount.get(item.barcode) || 0) > 1 : false
-    }));
+    // Mark duplicates based on productId
+    return result.map(item => {
+      const productId = item.barcode || item.product;
+      return {
+        ...item,
+        isDuplicate: productId ? (productIdCount.get(productId) || 0) > 1 : false
+      };
+    });
   }, [customerData]);
 
   // Dashboard metrics
   const dashboardMetrics = useMemo(() => {
     const totalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = customerData.reduce((sum, item) => sum + item.qty, 0);
-    const uniqueProducts = new Set(customerData.map(item => item.barcode || item.product)).size;
+    const uniqueProducts = new Set(customerData.map(item => item.productId || item.barcode || item.product)).size;
     
     // Calculate months from first month to current month (not just active months)
     let totalMonths = 1;

@@ -5,6 +5,7 @@ import SalesSidebar from '@/components/SalesSidebar';
 import SalesOverviewTab from '@/components/SalesOverviewTab';
 import SalesCustomersTab from '@/components/SalesCustomersTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
+import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import Login from '@/components/Login';
 import { SalesInvoice } from '@/lib/googleSheets';
 
@@ -129,6 +130,8 @@ export default function SalesPage() {
         return <SalesCustomersTab data={data} loading={loading} />;
       case 'sales-products':
         return <SalesProductsTab data={data} loading={loading} />;
+      case 'sales-download-form':
+        return <SalesDownloadFormTab data={data} loading={loading} />;
       default:
         return <SalesOverviewTab data={data} loading={loading} />;
     }

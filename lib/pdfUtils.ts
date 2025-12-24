@@ -623,3 +623,117 @@ export async function generateMonthlySeparatedPDF(
 
   doc.save(`${customerName}_Detailed_Statement.pdf`);
 }
+
+export async function generateDownloadFormPDF(
+  customerName: string,
+  products: Array<{ barcode: string; product: string }>
+) {
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+  
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  const doc = new jsPDF('p', 'mm', 'a4');
+  await addArabicFont(doc);
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 20;
+  let yPosition = 25;
+
+  // Calculate table width first to know where it starts
+  const tableWidth = 15 + 50 + 85 + 40; // # + Barcode + Product + Quantity
+  const tableLeftMargin = (pageWidth - tableWidth) / 2; // Center the table
+
+  // Company Name (top, centered, larger)
+  doc.setFontSize(16);
+  doc.setTextColor(0, 155, 77);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 10;
+
+  // Customer Name Header (centered, bold, adjust size to fit on one line)
+  doc.setTextColor(0, 0, 0);
+  doc.setFont('helvetica', 'bold');
+  const maxWidth = pageWidth - 40; // Leave some margin
+  let fontSize = 16;
+  let textWidth = doc.getTextWidth(customerName);
+  
+  // Reduce font size if customer name is too long to fit on one line
+  while (textWidth > maxWidth && fontSize > 10) {
+    fontSize -= 0.5;
+    doc.setFontSize(fontSize);
+    textWidth = doc.getTextWidth(customerName);
+  }
+  
+  doc.setFontSize(fontSize);
+  doc.text(customerName, pageWidth / 2, yPosition, { align: 'center', maxWidth: maxWidth });
+  yPosition += 4.6875; // Increased by 25% (from 3.75 to 4.6875)
+
+  // Date (aligned with table start, smaller)
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const dateStr = new Date().toLocaleDateString('en-US', { 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  });
+  doc.text(`Date: ${dateStr}`, tableLeftMargin, yPosition, { align: 'left' });
+  yPosition += 3; // Reduced by 75% (from 12 to 3)
+
+  // Table data
+  const tableData = products.map((product, index) => [
+    (index + 1).toString(),
+    product.barcode || '-',
+    product.product || '-',
+    '' // Empty column for quantity
+  ]);
+
+  // Table options with centered table
+  const tableOptions = {
+    startY: yPosition,
+    head: [['#', 'Barcode', 'Product', 'Quantity']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [0, 155, 77],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      fontSize: 11,
+      halign: 'center',
+    },
+    bodyStyles: {
+      fontSize: 10,
+      cellPadding: 3,
+    },
+    columnStyles: {
+      0: { cellWidth: 15, halign: 'center' }, // #
+      1: { cellWidth: 50, halign: 'center' }, // Barcode (centered)
+      2: { cellWidth: 85, halign: 'center' }, // Product (centered)
+      3: { cellWidth: 40, halign: 'center' }, // Quantity (empty, centered)
+    },
+    margin: { left: tableLeftMargin, right: tableLeftMargin },
+    showHead: 'everyPage',
+    styles: {
+      font: 'helvetica',
+      fontSize: 10,
+    },
+    alternateRowStyles: {
+      fillColor: [245, 245, 245],
+    },
+  };
+
+  // Draw Table
+  if (typeof (doc as any).autoTable === 'function') {
+    (doc as any).autoTable(tableOptions);
+  } else if (typeof autoTable === 'function') {
+    autoTable(doc, tableOptions as any);
+  }
+
+  // File name
+  const safeCustomerName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
+  const fileName = `Inventory_Form_${safeCustomerName}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+  doc.save(fileName);
+}

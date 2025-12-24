@@ -1050,6 +1050,7 @@ export interface SalesInvoice {
   customerName: string;
   merchandiser: string;
   salesRep: string;
+  productId: string;
   barcode: string;
   product: string;
   amount: number;
@@ -1070,7 +1071,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Sales - Invoices!A:J`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER NAME, MERCHANDISER, SALESREP, BARCODE, PRODUCT, AMOUNT, QTY
+      range: `Sales - Invoices!A:K`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER NAME, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, AMOUNT, QTY
     });
 
     const rows = response.data.values;
@@ -1085,8 +1086,8 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
       const customerName = row[3]?.toString().trim() || '';
       
       // Use amount and qty values as they are from Google Sheets (can be positive or negative)
-      const amount = row[8] ? parseFloat(row[8].toString().replace(/,/g, '')) || 0 : 0;
-      const qty = row[9] ? parseFloat(row[9].toString().replace(/,/g, '')) || 0 : 0;
+      const amount = row[9] ? parseFloat(row[9].toString().replace(/,/g, '')) || 0 : 0;
+      const qty = row[10] ? parseFloat(row[10].toString().replace(/,/g, '')) || 0 : 0;
       
       return {
         invoiceDate: row[0]?.toString().trim() || '',
@@ -1095,8 +1096,9 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
         customerName: customerName,
         merchandiser: row[4]?.toString().trim() || '',
         salesRep: row[5]?.toString().trim() || '',
-        barcode: row[6]?.toString().trim() || '',
-        product: row[7]?.toString().trim() || '',
+        productId: row[6]?.toString().trim() || '',
+        barcode: row[7]?.toString().trim() || '',
+        product: row[8]?.toString().trim() || '',
         amount: amount,
         qty: qty,
       };

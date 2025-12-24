@@ -86,12 +86,13 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     };
   }, [data]);
 
-  // Products data - grouped by BARCODE
+  // Products data - grouped by PRODUCT ID
   const productsData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    const barcodeMap = new Map<string, { 
-      barcode: string; 
+    const productMap = new Map<string, { 
+      productId: string;
+      barcodes: Set<string>; 
       products: string[]; 
       totalAmount: number; 
       totalQty: number;
@@ -99,14 +100,20 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     }>();
     
     data.forEach(item => {
-      const key = item.barcode;
-      const existing = barcodeMap.get(key) || { 
-        barcode: key, 
+      const key = item.productId || item.barcode || item.product;
+      const existing = productMap.get(key) || { 
+        productId: item.productId || '',
+        barcodes: new Set<string>(),
         products: [], 
         totalAmount: 0, 
         totalQty: 0,
         invoiceNumbers: new Set<string>()
       };
+      
+      // Add barcode if it exists
+      if (item.barcode) {
+        existing.barcodes.add(item.barcode);
+      }
       
       // Add product name if not already in the list
       if (!existing.products.includes(item.product)) {
@@ -121,11 +128,12 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
       
-      barcodeMap.set(key, existing);
+      productMap.set(key, existing);
     });
 
-    return Array.from(barcodeMap.values()).map(item => ({
-      barcode: item.barcode,
+    return Array.from(productMap.values()).map(item => ({
+      productId: item.productId,
+      barcode: Array.from(item.barcodes).join(', ') || '-',
       products: item.products,
       totalAmount: item.totalAmount,
       totalQty: item.totalQty,
