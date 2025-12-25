@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import CustomersTab from '@/components/CustomersTab';
 import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
+import AllTransactionsTab from '@/components/AllTransactionsTab';
 import DiscountTrackerTab from '@/components/DiscountTrackerTab';
 import PaymentTrackerTab from '@/components/PaymentTrackerTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
@@ -160,6 +161,8 @@ export default function DebitPage() {
     switch (activeTab) {
       case 'customers':
         return <CustomersTab data={data} />;
+      case 'all-transactions':
+        return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':
         return <CustomersOpenMatchesTab data={data} />;
       case 'discount-tracker':

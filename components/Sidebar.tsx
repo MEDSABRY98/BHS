@@ -13,6 +13,7 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SidebarProps) {
   const allTabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
+    { id: 'all-transactions', label: 'All Transactions', icon: '📋' },
     { id: 'customers-open-matches', label: 'C Open Matches', icon: '🔗' },
     { id: 'payment-tracker', label: 'Payment Tracker', icon: '💰' },
     { id: 'discount-tracker', label: 'Discount Tracker', icon: '🏷️' },

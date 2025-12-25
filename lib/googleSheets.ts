@@ -1516,10 +1516,11 @@ export async function saveEmployeeOvertime(data: {
     ];
 
     // Use append to add new row at the end
-    // The range A:I specifies which columns to use, but append will add to the end automatically
+    // Use A:I range (without row numbers) so append finds the next empty row
+    // and writes data starting from column A
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A:I`,
+      range: `'Employee Overtime'!A:I`,  // Use quotes for sheet name with space, range A:I
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [rowValues],

@@ -9,6 +9,7 @@ export default function EmployeeOvertimeTab() {
   const [employeeNames, setEmployeeNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingRecords, setLoadingRecords] = useState(false);
+  const [loadingNames, setLoadingNames] = useState(false);
   const recordsFetchedRef = useRef(false);
   const [currentRows, setCurrentRows] = useState([{
     id: Date.now(),
@@ -45,7 +46,7 @@ export default function EmployeeOvertimeTab() {
 
   const fetchEmployeeNames = async () => {
     try {
-      setLoading(true);
+      setLoadingNames(true);
       const response = await fetch('/api/employee-overtime?type=names');
       const data = await response.json();
       if (response.ok) {
@@ -56,7 +57,7 @@ export default function EmployeeOvertimeTab() {
     } catch (error) {
       console.error('Error fetching employee names:', error);
     } finally {
-      setLoading(false);
+      setLoadingNames(false);
     }
   };
 
@@ -404,57 +405,42 @@ export default function EmployeeOvertimeTab() {
             <div className="space-y-3 mb-6">
               {currentRows.map((row, index) => (
                 <div key={row.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  {/* Employee Name - Full Width */}
-                  <div className="mb-3">
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                      Employee Name
-                    </label>
-                    <div className="relative">
-                      <select
-                        value={row.employeeName}
-                        onChange={(e) => updateRow(row.id, 'employeeName', e.target.value)}
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-medium text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all cursor-pointer appearance-none pr-8"
-                      >
-                        <option value="" disabled className="text-gray-400 font-medium">
-                          Select Employee
-                        </option>
-                        {employeeNames.map((name) => (
-                          <option 
-                            key={name} 
-                            value={name} 
-                            className="text-gray-900 font-medium"
-                          >
-                            {name}
+                  {/* Employee Name, Time From, Time To, Delete Button - In one row */}
+                  <div className="grid grid-cols-12 gap-3 items-end mb-3">
+                    {/* Employee Name */}
+                    <div className="col-span-12 md:col-span-5">
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Employee Name
+                      </label>
+                      <div className="relative">
+                        <select
+                          value={row.employeeName}
+                          onChange={(e) => updateRow(row.id, 'employeeName', e.target.value)}
+                          className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-medium text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all cursor-pointer appearance-none pr-8"
+                        >
+                          <option value="" disabled className="text-gray-400 font-medium">
+                            Select Employee
                           </option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
-                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
+                          {employeeNames.map((name) => (
+                            <option 
+                              key={name} 
+                              value={name} 
+                              className="text-gray-900 font-medium"
+                            >
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Description - Full Width */}
-                  <div className="mb-3">
-                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
-                      Description
-                    </label>
-                    <textarea
-                      value={row.description}
-                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                      placeholder="Enter description..."
-                      rows={2}
-                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all resize-y text-sm font-medium leading-relaxed hover:border-gray-400"
-                      style={{ minHeight: '60px' }}
-                    />
-                  </div>
-
-                  {/* Time Fields and Delete Button - In one row */}
-                  <div className="grid grid-cols-12 gap-3 items-end">
                     {/* Time From */}
-                    <div className="col-span-12 sm:col-span-4">
+                    <div className="col-span-6 md:col-span-2">
                       <label className="block text-xs font-medium text-gray-600 mb-1.5">
                         Time From
                       </label>
@@ -468,7 +454,7 @@ export default function EmployeeOvertimeTab() {
                     </div>
 
                     {/* Time To */}
-                    <div className="col-span-12 sm:col-span-4">
+                    <div className="col-span-6 md:col-span-2">
                       <label className="block text-xs font-medium text-gray-600 mb-1.5">
                         Time To
                       </label>
@@ -482,11 +468,11 @@ export default function EmployeeOvertimeTab() {
                     </div>
 
                     {/* Delete Button */}
-                    <div className="col-span-12 sm:col-span-4 flex justify-end">
+                    <div className="col-span-12 md:col-span-3 flex justify-end">
                       <button
                         onClick={() => deleteRow(row.id)}
                         disabled={currentRows.length === 1}
-                        className={`w-full sm:w-auto px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium ${
+                        className={`w-full md:w-auto px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium ${
                           currentRows.length === 1
                             ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                             : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300'
@@ -496,6 +482,21 @@ export default function EmployeeOvertimeTab() {
                         Remove
                       </button>
                     </div>
+                  </div>
+
+                  {/* Description - Full Width */}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      Description
+                    </label>
+                    <textarea
+                      value={row.description}
+                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                      placeholder="Enter description..."
+                      rows={2}
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all resize-y text-sm font-medium leading-relaxed hover:border-gray-400"
+                      style={{ minHeight: '60px' }}
+                    />
                   </div>
                 </div>
               ))}
@@ -507,7 +508,7 @@ export default function EmployeeOvertimeTab() {
                 className="flex-1 bg-white text-gray-700 border border-gray-300 py-2.5 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2 text-sm"
               >
                 <Plus className="w-4 h-4" />
-                Add New Row
+                Add New Employee
               </button>
               <button
                 onClick={saveAllRecords}
@@ -517,7 +518,7 @@ export default function EmployeeOvertimeTab() {
                 }`}
               >
                 <Save className="w-4 h-4" />
-                {loading ? 'Saving...' : 'Save All Records'}
+                {loading ? 'Saving Data...' : 'Save All Records'}
               </button>
             </div>
           </div>
@@ -544,7 +545,7 @@ export default function EmployeeOvertimeTab() {
                   <svg className={`w-4 h-4 ${loadingRecords ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  {loadingRecords ? 'Loading...' : 'Refresh'}
+                  {loadingRecords ? 'Loading Data...' : 'Refresh'}
                 </button>
               </div>
               
@@ -718,7 +719,7 @@ export default function EmployeeOvertimeTab() {
                   className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Save className="w-5 h-5" />
-                  {isSaving ? 'Saving...' : 'Save Changes'}
+                  {isSaving ? 'Saving Data...' : 'Save Changes'}
                 </button>
               </div>
             </div>
