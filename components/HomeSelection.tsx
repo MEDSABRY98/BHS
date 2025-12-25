@@ -34,7 +34,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-6">
-      <div className="max-w-6xl w-full">
+      <div className="max-w-7xl w-full">
         {/* Header */}
         <div className="text-center mb-12">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to BHS Analysis</h1>
@@ -60,8 +60,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         {/* Selection Cards */}
         <div className={`grid gap-6 ${
           currentUser?.name === 'MED Sabry' ? 'md:grid-cols-6' : 
-          currentUser?.name === 'Monai' ? 'md:grid-cols-5' : 
-          'md:grid-cols-3'
+          currentUser?.name === 'Monai' ? 'md:grid-cols-6' : 
+          'md:grid-cols-2'
         }`}>
           {/* Debit Analysis Card */}
           <div
@@ -139,8 +139,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Warehouse Cleaning Card - Only visible for MED Sabry */}
-          {currentUser?.name === 'MED Sabry' && (
+          {/* Warehouse Cleaning Card - Only visible for MED Sabry and Monai */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
             <div
               onClick={handleSelectWarehouse}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-orange-300 flex flex-col min-h-[180px]"
