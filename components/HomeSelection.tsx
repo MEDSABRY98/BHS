@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -26,6 +26,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
   const handleSelectWarehouse = () => {
     window.location.href = '/warehouse-cleaning';
+  };
+
+  const handleSelectOvertime = () => {
+    window.location.href = '/employee-overtime';
   };
 
   return (
@@ -55,9 +59,9 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
         {/* Selection Cards */}
         <div className={`grid gap-6 ${
-          currentUser?.name === 'MED Sabry' ? 'md:grid-cols-5' : 
-          currentUser?.name === 'Monai' ? 'md:grid-cols-4' : 
-          'md:grid-cols-2'
+          currentUser?.name === 'MED Sabry' ? 'md:grid-cols-6' : 
+          currentUser?.name === 'Monai' ? 'md:grid-cols-5' : 
+          'md:grid-cols-3'
         }`}>
           {/* Debit Analysis Card */}
           <div
@@ -100,6 +104,22 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
                 <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
               </div>
               <h2 className="text-xl font-bold text-gray-800 leading-tight">Inventory Analyze</h2>
+            </div>
+          )}
+
+          {/* Employee Overtime Card - Only visible for MED Sabry and Monai */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+            <div
+              onClick={handleSelectOvertime}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-blue-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-7 h-7 text-blue-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Employee Overtime</h2>
             </div>
           )}
 

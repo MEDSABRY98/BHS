@@ -1423,3 +1423,198 @@ export async function updateWaterDeliveryNote(
     throw error;
   }
 }
+
+// Get all unique employee names from "Employee Overtime" sheet column D (Employee Name (En))
+export async function getEmployeeNames(): Promise<string[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Employee Overtime!D:D`, // Employee Name (En) column
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row and get unique employee names (no duplicates)
+    const uniqueNames = new Set<string>();
+    
+    rows.slice(1).forEach((row) => {
+      const name = row[0]?.toString().trim();
+      if (name && name.length > 0) {
+        uniqueNames.add(name); // Set automatically prevents duplicates
+      }
+    });
+
+    // Convert Set to Array - Set ensures each name appears only once
+    const uniqueNamesArray = Array.from(uniqueNames);
+    
+    // Sort alphabetically
+    return uniqueNamesArray.sort();
+  } catch (error) {
+    console.error('Error fetching employee names:', error);
+    throw error;
+  }
+}
+
+// Save Employee Overtime record to "Employee Overtime" sheet
+// Columns: A (Date), B (Employee ID - empty), C (Employee Name Ar - empty), 
+//          D (Employee Name En), E (Particulars), F (From Time - empty), 
+//          G (FTime), H (From Time - empty), I (TTime)
+export async function saveEmployeeOvertime(data: {
+  date: string;
+  employeeName: string;
+  description: string;
+  timeFrom: string;
+  timeTo: string;
+}): Promise<{ success: boolean }> {
+  try {
+    // Validate required fields
+    if (!data.date || !data.employeeName || !data.description || !data.timeFrom || !data.timeTo) {
+      throw new Error('Missing required fields: date, employeeName, description, timeFrom, or timeTo');
+    }
+
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Prepare row data according to sheet structure:
+    // A: Date
+    // B: Employee ID (empty)
+    // C: Employee Name (Ar) (empty)
+    // D: Employee Name (En)
+    // E: Particulars
+    // F: FROM AM/PM (always PM)
+    // G: FTime (timeFrom)
+    // H: TO AM/PM (always PM)
+    // I: TTime (timeTo)
+    const rowValues = [
+      data.date.trim(),           // A: Date
+      '',                         // B: Employee ID (empty)
+      '',                         // C: Employee Name (Ar) (empty)
+      data.employeeName.trim(),   // D: Employee Name (En)
+      data.description.trim(),    // E: Particulars
+      'PM',                       // F: FROM AM/PM (always PM)
+      data.timeFrom.trim(),       // G: FTime
+      'PM',                       // H: TO AM/PM (always PM)
+      data.timeTo.trim()          // I: TTime
+    ];
+
+    // Use append to add new row at the end
+    // The range A:I specifies which columns to use, but append will add to the end automatically
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Employee Overtime!A:I`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving employee overtime:', error);
+    throw error;
+  }
+}
+
+// Get all Employee Overtime records from "Employee Overtime" sheet
+export async function getEmployeeOvertimeRecords(): Promise<Array<{
+  id: string;
+  date: string;
+  employeeName: string;
+  description: string;
+  timeFrom: string;
+  timeTo: string;
+  hours: string;
+  rowIndex: number;
+}>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Employee Overtime!A:I`, // All columns
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    const records = rows.slice(1).map((row, index) => {
+      const date = row[0]?.toString().trim() || '';
+      const employeeName = row[3]?.toString().trim() || ''; // D: Employee Name (En)
+      const description = row[4]?.toString().trim() || ''; // E: Particulars
+      const timeFrom = row[6]?.toString().trim() || ''; // G: FTime
+      const timeTo = row[8]?.toString().trim() || ''; // I: TTime
+
+      // Calculate hours
+      let hours = '0.00';
+      if (timeFrom && timeTo) {
+        // Handle different time formats: "4", "4.30", "4:30"
+        const parseTime = (timeStr: string): { hours: number; minutes: number } => {
+          if (!timeStr) return { hours: 0, minutes: 0 };
+          
+          if (timeStr.includes(':')) {
+            const [h, m] = timeStr.split(':').map(Number);
+            return { hours: h || 0, minutes: m || 0 };
+          } else if (timeStr.includes('.')) {
+            const [h, m] = timeStr.split('.').map(Number);
+            return { hours: h || 0, minutes: m || 0 };
+          } else {
+            return { hours: parseInt(timeStr) || 0, minutes: 0 };
+          }
+        };
+        
+        const fromTime = parseTime(timeFrom);
+        const toTime = parseTime(timeTo);
+        
+        const fromMins = fromTime.hours * 60 + fromTime.minutes;
+        let toMins = toTime.hours * 60 + toTime.minutes;
+        if (toMins < fromMins) toMins += 24 * 60;
+        const calculatedHours = (toMins - fromMins) / 60;
+        hours = isNaN(calculatedHours) ? '0.00' : calculatedHours.toFixed(2);
+      }
+
+      return {
+        id: `row_${index + 2}`, // Unique ID based on row index
+        date,
+        employeeName,
+        description,
+        timeFrom,
+        timeTo,
+        hours,
+        rowIndex: index + 2, // 1-based index (header is 1, so first data row is 2)
+      };
+    }).filter(record => record.employeeName && record.date); // Filter out empty rows
+
+    return records;
+  } catch (error) {
+    console.error('Error fetching employee overtime records:', error);
+    throw error;
+  }
+}
