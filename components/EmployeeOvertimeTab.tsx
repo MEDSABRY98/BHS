@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Plus, List, Trash2, Save, ArrowLeft } from 'lucide-react';
+import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2 } from 'lucide-react';
 
 export default function EmployeeOvertimeTab() {
   const [activeTab, setActiveTab] = useState('register');
@@ -19,6 +19,16 @@ export default function EmployeeOvertimeTab() {
     hours: '0.00'
   }]);
   const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [editingRecord, setEditingRecord] = useState({
+    date: '',
+    employeeName: '',
+    description: '',
+    timeFrom: '',
+    timeTo: ''
+  });
+  const [isSaving, setIsSaving] = useState(false);
 
   // Fetch employee names on component mount
   useEffect(() => {
@@ -206,6 +216,100 @@ export default function EmployeeOvertimeTab() {
 
   const totalHours = overtimeRecords.reduce((sum, r) => sum + parseFloat(r.hours || 0), 0);
 
+  const openEditModal = (record: any) => {
+    setSelectedRecord(record);
+    setEditingRecord({
+      date: record.date,
+      employeeName: record.employeeName,
+      description: record.description,
+      timeFrom: record.timeFrom,
+      timeTo: record.timeTo
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => {
+    setIsModalOpen(false);
+    setSelectedRecord(null);
+    setEditingRecord({
+      date: '',
+      employeeName: '',
+      description: '',
+      timeFrom: '',
+      timeTo: ''
+    });
+  };
+
+  const handleUpdateRecord = async () => {
+    if (!selectedRecord) return;
+    
+    if (!editingRecord.employeeName || !editingRecord.description || !editingRecord.timeFrom || !editingRecord.timeTo) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/employee-overtime', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rowIndex: selectedRecord.rowIndex,
+          ...editingRecord
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        closeModal();
+        fetchRecords(); // Refresh the list
+      } else {
+        alert(data.error || 'Failed to update record');
+      }
+    } catch (error) {
+      console.error('Error updating record:', error);
+      alert('Failed to update record');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!selectedRecord) return;
+    
+    if (!confirm('Are you sure you want to delete this record?')) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const response = await fetch('/api/employee-overtime', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          rowIndex: selectedRecord.rowIndex
+        }),
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        closeModal();
+        fetchRecords(); // Refresh the list
+      } else {
+        alert(data.error || 'Failed to delete record');
+      }
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      alert('Failed to delete record');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const formatTime = (time: string) => {
     if (!time) return '';
     
@@ -230,174 +334,189 @@ export default function EmployeeOvertimeTab() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-[95%] mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => window.location.href = '/'}
-            className="mb-6 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors font-medium"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back to Home Selection
-          </button>
-          <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-black rounded-xl mb-4">
-              <Clock className="w-8 h-8 text-white" />
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex">
+      {/* Sidebar */}
+      <div className="w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col shadow-lg">
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => window.location.href = '/'}
+              className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-all"
+              title="Back to Home"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <div className="w-12 h-12 bg-gradient-to-br from-gray-900 to-gray-800 rounded-xl flex items-center justify-center shadow-md">
+              <Clock className="w-6 h-6 text-white" />
             </div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Overtime Tracking System</h1>
+            <h1 className="text-lg font-bold text-gray-900">Overtime</h1>
           </div>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="flex gap-4 mb-6">
+        {/* Sidebar Navigation */}
+        <nav className="p-4 flex-1 overflow-y-auto">
           <button
             onClick={() => setActiveTab('register')}
-            className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-semibold transition-all ${
+            className={`w-full text-left p-4 mb-3 rounded-xl transition-all flex items-center gap-3 ${
               activeTab === 'register'
-                ? 'bg-black text-white'
-                : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
+                ? 'bg-gray-900 text-white shadow-md'
+                : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
             }`}
           >
-            <Plus className="w-5 h-5" />
-            Register Overtime
+            <Plus className={`w-5 h-5 ${activeTab === 'register' ? 'text-white' : 'text-gray-600'}`} />
+            <span className="font-semibold">Register Overtime</span>
           </button>
           <button
             onClick={() => setActiveTab('view')}
-            className={`flex-1 flex items-center justify-center gap-2 px-6 py-4 rounded-lg font-semibold transition-all ${
+            className={`w-full text-left p-4 mb-3 rounded-xl transition-all flex items-center gap-3 ${
               activeTab === 'view'
-                ? 'bg-black text-white'
-                : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
+                ? 'bg-gray-900 text-white shadow-md'
+                : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
             }`}
           >
-            <List className="w-5 h-5" />
-            View Records
+            <List className={`w-5 h-5 ${activeTab === 'view' ? 'text-white' : 'text-gray-600'}`} />
+            <span className="font-semibold">View Records</span>
           </button>
-        </div>
+        </nav>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 ml-64 p-4 md:p-6 lg:p-8">
+        <div className="max-w-7xl mx-auto">
 
         {/* Register Tab */}
         {activeTab === 'register' && (
-          <div className="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <Plus className="w-6 h-6" />
-                Register Overtime
-              </h2>
-              <div className="flex items-center gap-2">
-                <label className="text-gray-700 font-medium">Date:</label>
+          <div className="bg-white rounded-2xl p-6 md:p-8 shadow-lg border border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-6 border-b border-gray-200">
+              <h2 className="text-2xl font-bold text-gray-900">Register Overtime</h2>
+              <div className="flex items-center gap-3">
+                <label className="text-gray-700 font-semibold whitespace-nowrap">Date:</label>
                 <input
                   type="date"
                   value={currentDate}
                   onChange={(e) => setCurrentDate(e.target.value)}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+                  className="px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all shadow-sm hover:border-gray-400"
                 />
               </div>
             </div>
 
-            <div className="overflow-x-auto mb-6">
-              <table className="w-full">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-200">
-                    <th className="px-4 py-3 text-center text-gray-700 font-semibold w-[20%]">Employee Name</th>
-                    <th className="px-4 py-3 text-center text-gray-700 font-semibold w-[40%]">Description</th>
-                    <th className="px-4 py-3 text-center text-gray-700 font-semibold w-[10%]">Time From</th>
-                    <th className="px-4 py-3 text-center text-gray-700 font-semibold w-[10%]">Time To</th>
-                    <th className="px-4 py-3 text-center text-gray-700 font-semibold w-[10%]">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {currentRows.map((row) => (
-                    <tr key={row.id} className="border-b border-gray-100">
-                      <td className="px-4 py-3 w-[20%]">
-                        <div className="relative">
-                          <select
-                            value={row.employeeName}
-                            onChange={(e) => updateRow(row.id, 'employeeName', e.target.value)}
-                            className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-medium text-sm shadow-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all cursor-pointer appearance-none pr-10 h-[42px]"
+            <div className="space-y-3 mb-6">
+              {currentRows.map((row, index) => (
+                <div key={row.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  {/* Employee Name - Full Width */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      Employee Name
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={row.employeeName}
+                        onChange={(e) => updateRow(row.id, 'employeeName', e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-medium text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all cursor-pointer appearance-none pr-8"
+                      >
+                        <option value="" disabled className="text-gray-400 font-medium">
+                          Select Employee
+                        </option>
+                        {employeeNames.map((name) => (
+                          <option 
+                            key={name} 
+                            value={name} 
+                            className="text-gray-900 font-medium"
                           >
-                            <option value="" disabled className="text-gray-400 font-medium text-sm py-2">
-                              Select Employee
-                            </option>
-                            {employeeNames.map((name) => (
-                              <option 
-                                key={name} 
-                                value={name} 
-                                className="text-gray-900 font-medium text-sm py-2"
-                              >
-                                {name}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 w-[40%]">
-                        <textarea
-                          value={row.description}
-                          onChange={(e) => updateRow(row.id, 'description', e.target.value)}
-                          placeholder="Enter description here..."
-                          rows={3}
-                          className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-black transition-all resize-y text-sm font-medium leading-relaxed shadow-sm hover:border-gray-400"
-                          style={{ minHeight: '80px' }}
-                        />
-                      </td>
-                      <td className="px-4 py-3 w-[10%]">
-                        <input
-                          type="text"
-                          value={row.timeFrom}
-                          onChange={(e) => updateRow(row.id, 'timeFrom', e.target.value)}
-                          placeholder="4, 5, 6, 4.30, 5.20 (PM)"
-                          className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-sm font-medium h-[42px]"
-                        />
-                      </td>
-                      <td className="px-4 py-3 w-[10%]">
-                        <input
-                          type="text"
-                          value={row.timeTo}
-                          onChange={(e) => updateRow(row.id, 'timeTo', e.target.value)}
-                          placeholder="4, 5, 6, 4.30, 5.20 (PM)"
-                          className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent text-sm font-medium h-[42px]"
-                        />
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => deleteRow(row.id)}
-                          disabled={currentRows.length === 1}
-                          className={`p-2 rounded-lg transition-colors inline-block ${
-                            currentRows.length === 1
-                              ? 'text-gray-300 cursor-not-allowed'
-                              : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-                          }`}
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Description - Full Width */}
+                  <div className="mb-3">
+                    <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                      Description
+                    </label>
+                    <textarea
+                      value={row.description}
+                      onChange={(e) => updateRow(row.id, 'description', e.target.value)}
+                      placeholder="Enter description..."
+                      rows={2}
+                      className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all resize-y text-sm font-medium leading-relaxed hover:border-gray-400"
+                      style={{ minHeight: '60px' }}
+                    />
+                  </div>
+
+                  {/* Time Fields and Delete Button - In one row */}
+                  <div className="grid grid-cols-12 gap-3 items-end">
+                    {/* Time From */}
+                    <div className="col-span-12 sm:col-span-4">
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Time From
+                      </label>
+                      <input
+                        type="text"
+                        value={row.timeFrom}
+                        onChange={(e) => updateRow(row.id, 'timeFrom', e.target.value)}
+                        placeholder="4, 5, 4.30"
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                      />
+                    </div>
+
+                    {/* Time To */}
+                    <div className="col-span-12 sm:col-span-4">
+                      <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                        Time To
+                      </label>
+                      <input
+                        type="text"
+                        value={row.timeTo}
+                        onChange={(e) => updateRow(row.id, 'timeTo', e.target.value)}
+                        placeholder="4, 5, 4.30"
+                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                      />
+                    </div>
+
+                    {/* Delete Button */}
+                    <div className="col-span-12 sm:col-span-4 flex justify-end">
+                      <button
+                        onClick={() => deleteRow(row.id)}
+                        disabled={currentRows.length === 1}
+                        className={`w-full sm:w-auto px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium ${
+                          currentRows.length === 1
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300'
+                        }`}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-200">
               <button
                 onClick={addNewRow}
-                className="flex-1 bg-white text-gray-700 border border-gray-300 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-all flex items-center justify-center gap-2"
+                className="flex-1 bg-white text-gray-700 border border-gray-300 py-2.5 rounded-lg font-medium hover:bg-gray-50 hover:border-gray-400 transition-all flex items-center justify-center gap-2 text-sm"
               >
-                <Plus className="w-5 h-5" />
+                <Plus className="w-4 h-4" />
                 Add New Row
               </button>
               <button
                 onClick={saveAllRecords}
                 disabled={loading}
-                className={`flex-1 bg-black text-white py-3 rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 ${
+                className={`flex-1 bg-gray-900 text-white py-2.5 rounded-lg font-medium hover:bg-gray-800 transition-all flex items-center justify-center gap-2 text-sm ${
                   loading ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               >
-                <Save className="w-5 h-5" />
+                <Save className="w-4 h-4" />
                 {loading ? 'Saving...' : 'Save All Records'}
               </button>
             </div>
@@ -407,71 +526,70 @@ export default function EmployeeOvertimeTab() {
         {/* View Tab */}
         {activeTab === 'view' && (
           <div className="space-y-6">
-            {/* Summary Card */}
-            <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-gray-600 text-sm font-medium">Total Overtime Hours</p>
-                  <p className="text-5xl font-bold text-gray-900 mt-2">{totalHours.toFixed(2)}</p>
-                  <p className="text-gray-500 mt-1">hours</p>
-                </div>
-                <div className="bg-gray-100 rounded-full p-4">
-                  <Clock className="w-12 h-12 text-gray-900" />
-                </div>
-              </div>
-            </div>
-
             {/* Records Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  <List className="w-6 h-6" />
-                  Overtime Records ({overtimeRecords.length})
+            <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
+              <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <List className="w-5 h-5 text-gray-700" />
+                  </div>
+                  Overtime Records 
+                  <span className="text-lg text-gray-500 font-normal">({overtimeRecords.length})</span>
                 </h2>
                 <button
                   onClick={fetchRecords}
                   disabled={loadingRecords}
-                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                  className="px-5 py-2.5 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all font-semibold shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 >
+                  <svg className={`w-4 h-4 ${loadingRecords ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
                   {loadingRecords ? 'Loading...' : 'Refresh'}
                 </button>
               </div>
               
               {loadingRecords ? (
-                <div className="p-12 text-center">
-                  <p className="text-gray-600">Loading records...</p>
-                </div>
-              ) : overtimeRecords.length === 0 ? (
-                <div className="p-12 text-center">
-                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4">
+                <div className="p-16 text-center">
+                  <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4 animate-pulse">
                     <Clock className="w-8 h-8 text-gray-400" />
                   </div>
-                  <p className="text-gray-600 text-lg">No overtime records yet</p>
-                  <p className="text-gray-400 mt-2">Start by registering your first overtime entry</p>
+                  <p className="text-gray-600 text-lg font-medium">Loading records...</p>
+                </div>
+              ) : overtimeRecords.length === 0 ? (
+                <div className="p-16 text-center">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-2xl mb-6">
+                    <Clock className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <p className="text-gray-700 text-xl font-semibold mb-2">No overtime records yet</p>
+                  <p className="text-gray-500">Start by registering your first overtime entry in the Register tab</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full table-fixed">
                     <thead>
-                      <tr className="bg-gray-50 border-b border-gray-200">
-                        <th className="px-6 py-4 text-center text-gray-700 font-semibold">Date</th>
-                        <th className="px-6 py-4 text-center text-gray-700 font-semibold">Employee</th>
-                        <th className="px-6 py-4 text-center text-gray-700 font-semibold">Description</th>
-                        <th className="px-6 py-4 text-center text-gray-700 font-semibold">From</th>
-                        <th className="px-6 py-4 text-center text-gray-700 font-semibold">To</th>
-                        <th className="px-6 py-4 text-center text-gray-700 font-semibold">Hours</th>
+                      <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                        <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[12%]">Date</th>
+                        <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[18%]">Employee</th>
+                        <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[35%]">Description</th>
+                        <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[12%]">From</th>
+                        <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[12%]">To</th>
+                        <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[11%]">Hours</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-100">
                       {overtimeRecords.map((record, index) => (
-                        <tr key={record.id} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                          <td className="px-6 py-4 text-center text-gray-900">{record.date}</td>
-                          <td className="px-6 py-4 text-center text-gray-900 font-medium">{record.employeeName}</td>
-                          <td className="px-6 py-4 text-center text-gray-600">{record.description}</td>
-                          <td className="px-6 py-4 text-center text-gray-600">{formatTime(record.timeFrom)}</td>
-                          <td className="px-6 py-4 text-center text-gray-600">{formatTime(record.timeTo)}</td>
+                        <tr 
+                          key={record.id} 
+                          onClick={() => openEditModal(record)}
+                          className={`hover:bg-gray-100 cursor-pointer transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                        >
+                          <td className="px-6 py-4 text-center text-gray-900 font-medium truncate" title={record.date}>{record.date}</td>
+                          <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>
+                          <td className="px-6 py-4 text-center text-gray-600 truncate" title={record.description}>{record.description}</td>
+                          <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeFrom)}</td>
+                          <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo)}</td>
                           <td className="px-6 py-4 text-center">
-                            <span className="inline-block bg-gray-900 text-white px-3 py-1 rounded-lg font-semibold text-sm">
+                            <span className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
                               {record.hours && !isNaN(parseFloat(record.hours)) ? `${record.hours}h` : '0.00h'}
                             </span>
                           </td>
@@ -484,6 +602,129 @@ export default function EmployeeOvertimeTab() {
             </div>
           </div>
         )}
+
+        {/* Edit/Delete Modal */}
+        {isModalOpen && (
+          <div className="fixed inset-0 backdrop-blur-[2px] bg-white/25 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <Edit2 className="w-6 h-6" />
+                  Edit Overtime Record
+                </h2>
+                <button
+                  onClick={closeModal}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5 text-gray-500" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4">
+                {/* Date */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={editingRecord.date}
+                    onChange={(e) => setEditingRecord({ ...editingRecord, date: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-medium focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all"
+                  />
+                </div>
+
+                {/* Employee Name */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Employee Name
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={editingRecord.employeeName}
+                      onChange={(e) => setEditingRecord({ ...editingRecord, employeeName: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-medium text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all cursor-pointer appearance-none pr-10"
+                    >
+                      <option value="" disabled>Select Employee</option>
+                      {employeeNames.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Description
+                  </label>
+                  <textarea
+                    value={editingRecord.description}
+                    onChange={(e) => setEditingRecord({ ...editingRecord, description: e.target.value })}
+                    placeholder="Enter description..."
+                    rows={3}
+                    className="w-full px-4 py-3 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all resize-none text-sm font-medium"
+                  />
+                </div>
+
+                {/* Time From and To */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Time From
+                    </label>
+                    <input
+                      type="text"
+                      value={editingRecord.timeFrom}
+                      onChange={(e) => setEditingRecord({ ...editingRecord, timeFrom: e.target.value })}
+                      placeholder="4, 5, 4.30 (PM)"
+                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Time To
+                    </label>
+                    <input
+                      type="text"
+                      value={editingRecord.timeTo}
+                      onChange={(e) => setEditingRecord({ ...editingRecord, timeTo: e.target.value })}
+                      placeholder="4, 5, 4.30 (PM)"
+                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-6 border-t border-gray-200 flex gap-3">
+                <button
+                  onClick={handleDeleteRecord}
+                  disabled={isSaving}
+                  className="flex-1 px-4 py-3 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Trash2 className="w-5 h-5" />
+                  Delete
+                </button>
+                <button
+                  onClick={handleUpdateRecord}
+                  disabled={isSaving}
+                  className="flex-1 px-4 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-5 h-5" />
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        </div>
       </div>
     </div>
   );

@@ -1618,3 +1618,106 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
     throw error;
   }
 }
+
+// Update Employee Overtime record
+// Columns: A (Date), B (Employee ID - empty), C (Employee Name Ar - empty), 
+//          D (Employee Name En), E (Particulars), F (FROM AM/PM), G (FTime), H (TO AM/PM), I (TTime)
+export async function updateEmployeeOvertime(rowIndex: number, data: {
+  date: string;
+  employeeName: string;
+  description: string;
+  timeFrom: string;
+  timeTo: string;
+}): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Prepare row data based on the column order
+    const rowValues = [
+      data.date.trim(),           // A: Date
+      '',                         // B: Employee ID (empty)
+      '',                         // C: Employee Name (Ar) (empty)
+      data.employeeName.trim(),   // D: Employee Name (En)
+      data.description.trim(),    // E: Particulars
+      'PM',                       // F: FROM AM/PM (auto-filled)
+      data.timeFrom.trim(),       // G: FTime
+      'PM',                       // H: TO AM/PM (auto-filled)
+      data.timeTo.trim()          // I: TTime
+    ];
+
+    // Update the row at the specified index
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Employee Overtime!A${rowIndex}:I${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating employee overtime:', error);
+    throw error;
+  }
+}
+
+// Delete Employee Overtime record
+export async function deleteEmployeeOvertime(rowIndex: number): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // First, get the sheet ID for "Employee Overtime"
+    const spreadsheetInfo = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+    
+    const sheet = spreadsheetInfo.data.sheets?.find(s => 
+      s.properties?.title === 'Employee Overtime'
+    );
+    
+    if (!sheet || !sheet.properties?.sheetId) {
+      throw new Error('Employee Overtime sheet not found');
+    }
+
+    const sheetId = sheet.properties.sheetId;
+
+    // Delete the row using batchUpdate
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1, // Convert to 0-based index
+                endIndex: rowIndex,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting employee overtime:', error);
+    throw error;
+  }
+}
