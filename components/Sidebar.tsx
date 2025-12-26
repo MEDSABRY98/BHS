@@ -34,10 +34,26 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     'all-notes'
   ];
 
+  // Tabs visible only for MED Sabry
+  const medSabryOnlyTabs = [
+    'all-transactions',
+    'customers-open-matches',
+    'discount-tracker',
+    'all-notes'
+  ];
+
   // Filter tabs based on user
-  const tabs = restrictedUsers.includes(currentUser?.name)
-    ? allTabs.filter(tab => !restrictedTabs.includes(tab.id))
-    : allTabs;
+  let tabs = allTabs;
+  
+  // Hide restricted tabs for restricted users
+  if (restrictedUsers.includes(currentUser?.name)) {
+    tabs = allTabs.filter(tab => !restrictedTabs.includes(tab.id));
+  }
+  
+  // Show MED Sabry only tabs only for MED Sabry
+  if (currentUser?.name !== 'MED Sabry') {
+    tabs = tabs.filter(tab => !medSabryOnlyTabs.includes(tab.id));
+  }
 
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">

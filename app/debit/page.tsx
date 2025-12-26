@@ -76,6 +76,7 @@ export default function DebitPage() {
     setIsAuthenticated(false);
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('userPassword');
     setActiveTab('customers');
   };
 

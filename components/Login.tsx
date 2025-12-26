@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { User, ChevronDown } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: any) => void;
@@ -13,10 +14,70 @@ export default function Login({ onLogin }: LoginProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(true);
+  const [openUserDropdown, setOpenUserDropdown] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setOpenUserDropdown(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   useEffect(() => {
     fetchUsers();
+    // Auto-login if user exists in localStorage
+    autoLoginIfSaved();
   }, []);
+
+  const autoLoginIfSaved = async () => {
+    try {
+      const savedUser = localStorage.getItem('currentUser');
+      const savedPassword = localStorage.getItem('userPassword');
+      
+      if (savedUser && savedPassword) {
+        const userData = JSON.parse(savedUser);
+        if (userData && userData.name) {
+          // Try to auto-login with saved credentials
+          const response = await fetch('/api/users', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: userData.name,
+              password: savedPassword,
+            }),
+          });
+
+          const result = await response.json();
+          
+          if (response.ok && result.success) {
+            // User still exists and credentials are valid, auto-login
+            onLogin(result.user);
+            // Save password again to ensure it's up to date
+            localStorage.setItem('userPassword', savedPassword);
+            return;
+          } else {
+            // User deleted or password changed, clear localStorage
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('userPassword');
+          }
+        }
+      }
+    } catch (err) {
+      // If auto-login fails, just clear localStorage and show login page
+      localStorage.removeItem('currentUser');
+      localStorage.removeItem('userPassword');
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -24,9 +85,7 @@ export default function Login({ onLogin }: LoginProps) {
       const data = await response.json();
       if (data.users) {
         setUsers(data.users);
-        if (data.users.length > 0) {
-          setSelectedUser(data.users[0].name);
-        }
+        // Don't auto-select first user, let user choose
       }
     } catch (err) {
       console.error('Error fetching users:', err);
@@ -39,6 +98,12 @@ export default function Login({ onLogin }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    
+    if (!selectedUser) {
+      setError('Please select a user');
+      return;
+    }
+    
     setLoading(true);
 
     try {
@@ -56,6 +121,8 @@ export default function Login({ onLogin }: LoginProps) {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        // Save password to localStorage for auto-login
+        localStorage.setItem('userPassword', password);
         onLogin(result.user);
       } else {
         setError(result.error || 'Invalid credentials');
@@ -69,7 +136,7 @@ export default function Login({ onLogin }: LoginProps) {
 
   if (fetchingUsers) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
+      <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
           <p className="text-gray-600 font-medium">Loading system...</p>
@@ -79,7 +146,7 @@ export default function Login({ onLogin }: LoginProps) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-100 to-indigo-200 py-12 px-4 sm:px-6 lg:px-8" dir="ltr">
+    <div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8" dir="ltr">
       <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl transform transition-all hover:shadow-2xl">
         <div className="text-center">
           <div className="mx-auto h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-lg">
@@ -97,30 +164,63 @@ export default function Login({ onLogin }: LoginProps) {
         
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1 ml-1">
+            <div className="relative" ref={userDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-600" />
                 Select User
               </label>
               <div className="relative">
-                <select
-                  id="username"
-                  name="username"
-                  required
-                  className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out bg-gray-50 hover:bg-white"
-                  value={selectedUser}
-                  onChange={(e) => setSelectedUser(e.target.value)}
+                <button
+                  type="button"
+                  onClick={() => setOpenUserDropdown(!openUserDropdown)}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
+                    openUserDropdown
+                      ? 'border-blue-500 ring-2 ring-blue-500/20'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
                 >
-                  {users.map((user) => (
-                    <option key={user.name} value={user.name}>
-                      {user.name}
-                    </option>
-                  ))}
-                </select>
-                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-700">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                  <span className={selectedUser ? 'text-gray-800' : 'text-gray-400'}>
+                    {selectedUser || 'Select a user'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+                      openUserDropdown ? 'transform rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {openUserDropdown && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setSelectedUser('');
+                        setOpenUserDropdown(false);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
+                        selectedUser === ''
+                          ? 'bg-blue-50 text-blue-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      Select User
+                    </div>
+                    {users.map((user, index) => (
+                      <div
+                        key={user.name}
+                        onClick={() => {
+                          setSelectedUser(user.name);
+                          setOpenUserDropdown(false);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                          selectedUser === user.name
+                            ? 'bg-blue-50 text-blue-700 font-semibold'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {user.name}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
             

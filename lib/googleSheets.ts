@@ -1571,9 +1571,13 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
     // Skip header row
     const records = rows.slice(1).map((row, index) => {
       const date = row[0]?.toString().trim() || '';
+      const employeeId = row[1]?.toString().trim() || ''; // B: Employee ID
+      const employeeNameAr = row[2]?.toString().trim() || ''; // C: Employee Name (Ar)
       const employeeName = row[3]?.toString().trim() || ''; // D: Employee Name (En)
       const description = row[4]?.toString().trim() || ''; // E: Particulars
+      const fromAmPm = row[5]?.toString().trim() || 'PM'; // F: FROM AM/PM
       const timeFrom = row[6]?.toString().trim() || ''; // G: FTime
+      const toAmPm = row[7]?.toString().trim() || 'PM'; // H: TO AM/PM
       const timeTo = row[8]?.toString().trim() || ''; // I: TTime
 
       // Calculate hours
@@ -1607,9 +1611,13 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
       return {
         id: `row_${index + 2}`, // Unique ID based on row index
         date,
+        employeeId,
+        employeeNameAr,
         employeeName,
         description,
+        fromAmPm,
         timeFrom,
+        toAmPm,
         timeTo,
         hours,
         rowIndex: index + 2, // 1-based index (header is 1, so first data row is 2)

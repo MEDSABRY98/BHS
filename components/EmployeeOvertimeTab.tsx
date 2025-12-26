@@ -1,10 +1,38 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function EmployeeOvertimeTab() {
-  const [activeTab, setActiveTab] = useState('register');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parsing user:', e);
+      }
+    }
+  }, []);
+  
+  const [activeTab, setActiveTab] = useState(() => {
+    // If user is Overtime Export, default to 'view' tab
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        const user = JSON.parse(savedUser);
+        if (user?.name === 'Overtime Export') {
+          return 'view';
+        }
+      } catch (e) {
+        // Ignore error
+      }
+    }
+    return 'register';
+  });
   const [overtimeRecords, setOvertimeRecords] = useState<any[]>([]);
   const [employeeNames, setEmployeeNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
@@ -30,6 +58,8 @@ export default function EmployeeOvertimeTab() {
     timeTo: ''
   });
   const [isSaving, setIsSaving] = useState(false);
+  const [filterYear, setFilterYear] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
 
   // Fetch employee names on component mount
   useEffect(() => {
@@ -311,6 +341,71 @@ export default function EmployeeOvertimeTab() {
     }
   };
 
+  // Filter records by year and month
+  const filteredRecords = useMemo(() => {
+    let filtered = [...overtimeRecords];
+
+    // Year filter
+    if (filterYear.trim()) {
+      const yearNum = parseInt(filterYear.trim(), 10);
+      if (!isNaN(yearNum)) {
+        filtered = filtered.filter(record => {
+          if (!record.date) return false;
+          try {
+            const date = new Date(record.date);
+            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    // Month filter
+    if (filterMonth.trim()) {
+      const monthNum = parseInt(filterMonth.trim(), 10);
+      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        filtered = filtered.filter(record => {
+          if (!record.date) return false;
+          try {
+            const date = new Date(record.date);
+            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    return filtered;
+  }, [overtimeRecords, filterYear, filterMonth]);
+
+  // Export to Excel
+  const exportToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = ['Date', 'Employee ID', 'Employee Name (Ar)', 'Employee Name (En)', 'Particulars', 'FROM AM/PM', 'FTime', 'TO AM/PM', 'TTime'];
+    
+    const rows = filteredRecords.map(record => [
+      record.date || '',
+      record.employeeId || '',
+      record.employeeNameAr || '',
+      record.employeeName || '',
+      record.description || '',
+      record.fromAmPm || 'PM',
+      record.timeFrom || '',
+      record.toAmPm || 'PM',
+      record.timeTo || '',
+    ]);
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Overtime Records');
+
+    const filename = `employee_overtime_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
   const formatTime = (time: string) => {
     if (!time) return '';
     
@@ -357,17 +452,20 @@ export default function EmployeeOvertimeTab() {
 
         {/* Sidebar Navigation */}
         <nav className="p-4 flex-1 overflow-y-auto">
-          <button
-            onClick={() => setActiveTab('register')}
-            className={`w-full text-left p-4 mb-3 rounded-xl transition-all flex items-center gap-3 ${
-              activeTab === 'register'
-                ? 'bg-gray-900 text-white shadow-md'
-                : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
-            }`}
-          >
-            <Plus className={`w-5 h-5 ${activeTab === 'register' ? 'text-white' : 'text-gray-600'}`} />
-            <span className="font-semibold">Register Overtime</span>
-          </button>
+          {/* Register Overtime Tab - Hidden for Overtime Export */}
+          {currentUser?.name !== 'Overtime Export' && (
+            <button
+              onClick={() => setActiveTab('register')}
+              className={`w-full text-left p-4 mb-3 rounded-xl transition-all flex items-center gap-3 ${
+                activeTab === 'register'
+                  ? 'bg-gray-900 text-white shadow-md'
+                  : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+              }`}
+            >
+              <Plus className={`w-5 h-5 ${activeTab === 'register' ? 'text-white' : 'text-gray-600'}`} />
+              <span className="font-semibold">Register Overtime</span>
+            </button>
+          )}
           <button
             onClick={() => setActiveTab('view')}
             className={`w-full text-left p-4 mb-3 rounded-xl transition-all flex items-center gap-3 ${
@@ -386,8 +484,8 @@ export default function EmployeeOvertimeTab() {
       <div className="flex-1 ml-64 p-4 md:p-6 lg:p-8">
         <div className="max-w-7xl mx-auto">
 
-        {/* Register Tab */}
-        {activeTab === 'register' && (
+        {/* Register Tab - Hidden for Overtime Export */}
+        {activeTab === 'register' && currentUser?.name !== 'Overtime Export' && (
           <div className="bg-white rounded-2xl p-6 md:p-8 shadow-lg border border-gray-200">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 pb-6 border-b border-gray-200">
               <h2 className="text-2xl font-bold text-gray-900">Register Overtime</h2>
@@ -530,13 +628,22 @@ export default function EmployeeOvertimeTab() {
             {/* Records Table */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
               <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                    <List className="w-5 h-5 text-gray-700" />
-                  </div>
-                  Overtime Records 
-                  <span className="text-lg text-gray-500 font-normal">({overtimeRecords.length})</span>
-                </h2>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                      <List className="w-5 h-5 text-gray-700" />
+                    </div>
+                    Overtime Records 
+                    <span className="text-lg text-gray-500 font-normal">({filteredRecords.length})</span>
+                  </h2>
+                  <button
+                    onClick={exportToExcel}
+                    className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                    title="Export to Excel"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                </div>
                 <button
                   onClick={fetchRecords}
                   disabled={loadingRecords}
@@ -548,6 +655,58 @@ export default function EmployeeOvertimeTab() {
                   {loadingRecords ? 'Loading Data...' : 'Refresh'}
                 </button>
               </div>
+
+              {/* Filters */}
+              <div className="p-4 bg-gray-50 border-b border-gray-200">
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="filterYear" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      Year:
+                    </label>
+                    <input
+                      id="filterYear"
+                      type="number"
+                      placeholder="e.g., 2024"
+                      value={filterYear}
+                      onChange={(e) => setFilterYear(e.target.value)}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                      min="2000"
+                      max="2100"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="filterMonth" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      Month (1-12):
+                    </label>
+                    <input
+                      id="filterMonth"
+                      type="number"
+                      placeholder="e.g., 1-12"
+                      value={filterMonth}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
+                          setFilterMonth(value);
+                        }
+                      }}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                      min="1"
+                      max="12"
+                    />
+                  </div>
+                  {(filterYear || filterMonth) && (
+                    <button
+                      onClick={() => {
+                        setFilterYear('');
+                        setFilterMonth('');
+                      }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+              </div>
               
               {loadingRecords ? (
                 <div className="p-16 text-center">
@@ -556,7 +715,7 @@ export default function EmployeeOvertimeTab() {
                   </div>
                   <p className="text-gray-600 text-lg font-medium">Loading records...</p>
                 </div>
-              ) : overtimeRecords.length === 0 ? (
+              ) : filteredRecords.length === 0 ? (
                 <div className="p-16 text-center">
                   <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-2xl mb-6">
                     <Clock className="w-10 h-10 text-gray-400" />
@@ -578,11 +737,15 @@ export default function EmployeeOvertimeTab() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {overtimeRecords.map((record, index) => (
+                      {filteredRecords.map((record, index) => (
                         <tr 
                           key={record.id} 
-                          onClick={() => openEditModal(record)}
-                          className={`hover:bg-gray-100 cursor-pointer transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                          onClick={() => {
+                            if (currentUser?.name !== 'Overtime Export') {
+                              openEditModal(record);
+                            }
+                          }}
+                          className={`${currentUser?.name !== 'Overtime Export' ? 'hover:bg-gray-100 cursor-pointer' : ''} transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
                         >
                           <td className="px-6 py-4 text-center text-gray-900 font-medium truncate" title={record.date}>{record.date}</td>
                           <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>

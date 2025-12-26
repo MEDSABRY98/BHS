@@ -61,35 +61,42 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         <div className={`grid gap-6 ${
           currentUser?.name === 'MED Sabry' ? 'md:grid-cols-6' : 
           currentUser?.name === 'Monai' ? 'md:grid-cols-6' : 
+          currentUser?.name === 'Mr. Ali Farouk' ? 'md:grid-cols-2' :
+          currentUser?.name === 'Mahmoud Shaker' ? 'md:grid-cols-1' :
+          currentUser?.name === 'Overtime Export' ? 'md:grid-cols-1' :
           'md:grid-cols-2'
         }`}>
-          {/* Debit Analysis Card */}
-          <div
-            onClick={handleSelectDebit}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-red-300 flex flex-col min-h-[180px]"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <DollarSign className="w-7 h-7 text-red-600" />
+          {/* Debit Analysis Card - Hidden for Overtime Export */}
+          {currentUser?.name !== 'Overtime Export' && (
+            <div
+              onClick={handleSelectDebit}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-red-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-7 h-7 text-red-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
               </div>
-              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Debit Analysis</h2>
             </div>
-            <h2 className="text-xl font-bold text-gray-800 leading-tight">Debit Analysis</h2>
-          </div>
+          )}
 
-          {/* Sales Analysis Card */}
-          <div
-            onClick={handleSelectSales}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-green-300 flex flex-col min-h-[180px]"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <TrendingUp className="w-7 h-7 text-green-600" />
+          {/* Sales Analysis Card - Hidden for Mahmoud Shaker and Overtime Export */}
+          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && (
+            <div
+              onClick={handleSelectSales}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-green-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <TrendingUp className="w-7 h-7 text-green-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
               </div>
-              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Sales Analysis</h2>
             </div>
-            <h2 className="text-xl font-bold text-gray-800 leading-tight">Sales Analysis</h2>
-          </div>
+          )}
 
           {/* Inventory Analyze Card - Only visible for MED Sabry and Monai */}
           {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
@@ -107,8 +114,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Employee Overtime Card - Only visible for MED Sabry and Monai */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+          {/* Employee Overtime Card - Visible for MED Sabry, Monai, and Overtime Export, not for Mr. Ali Farouk */}
+          {((currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Overtime Export') && currentUser?.name !== 'Mr. Ali Farouk') && (
             <div
               onClick={handleSelectOvertime}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-blue-300 flex flex-col min-h-[180px]"
@@ -123,8 +130,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Water - Delivery Note Card - Only visible for MED Sabry and Monai */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+          {/* Water - Delivery Note Card - Only visible for MED Sabry and Monai, not for Mr. Ali Farouk */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && currentUser?.name !== 'Mr. Ali Farouk' && (
             <div
               onClick={handleSelectDeliveryNote}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-purple-300 flex flex-col min-h-[180px]"
@@ -139,8 +146,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Warehouse Cleaning Card - Only visible for MED Sabry and Monai */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+          {/* Warehouse Cleaning Card - Only visible for MED Sabry and Monai, not for Mr. Ali Farouk */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && currentUser?.name !== 'Mr. Ali Farouk' && (
             <div
               onClick={handleSelectWarehouse}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-orange-300 flex flex-col min-h-[180px]"

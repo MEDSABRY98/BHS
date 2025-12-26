@@ -2,7 +2,8 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
+import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   LineChart,
   Line,
@@ -355,6 +356,83 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     
     return data;
   }, [monthlySales]);
+
+  // Monthly sales table data - sorted from newest to oldest, showing ALL months
+  const monthlyTableData = useMemo(() => {
+    // Get all months from filtered data (not just last 12)
+    const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
+    
+    filteredData.forEach(item => {
+      if (!item.invoiceDate) return;
+      
+      try {
+        const date = new Date(item.invoiceDate);
+        if (isNaN(date.getTime())) return;
+
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+        
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
+
+        const existing = monthMap.get(monthKey) || {
+          month: monthLabel,
+          monthKey,
+          amount: 0,
+          qty: 0,
+        };
+
+        existing.amount += item.amount;
+        existing.qty += item.qty;
+
+        monthMap.set(monthKey, existing);
+      } catch (e) {
+        // Skip invalid dates
+      }
+    });
+
+    // Sort from newest to oldest (descending by monthKey)
+    const sorted = Array.from(monthMap.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+    
+    return sorted.map((item, index) => {
+      // Get previous month for comparison
+      const previousMonth = index < sorted.length - 1 ? sorted[index + 1] : null;
+      
+      const amountDiff = previousMonth ? item.amount - previousMonth.amount : 0;
+      const qtyDiff = previousMonth ? item.qty - previousMonth.qty : 0;
+      
+      return {
+        month: item.month,
+        monthKey: item.monthKey,
+        amount: item.amount,
+        amountDiff: amountDiff,
+        qty: item.qty,
+        qtyDiff: qtyDiff,
+      };
+    });
+  }, [filteredData]);
+
+  // Export monthly table to Excel
+  const exportMonthlyTableToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = ['Month', 'Amount', 'Amount Change', 'Quantity', 'Quantity Change'];
+    const rows = monthlyTableData.map(item => [
+      item.month,
+      item.amount,
+      item.amountDiff !== 0 ? (item.amountDiff > 0 ? '+' : '') + item.amountDiff : '-',
+      item.qty,
+      item.qtyDiff !== 0 ? (item.qtyDiff > 0 ? '+' : '') + item.qtyDiff : '-',
+    ]);
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Monthly Sales');
+
+    const filename = `sales_monthly_table_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
 
 
 
@@ -1087,6 +1165,97 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
               <p>No sales data available for chart</p>
             </div>
           )}
+        </div>
+
+        {/* Monthly Sales Table */}
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <h2 className="text-xl font-bold text-gray-800">Monthly Sales</h2>
+            <button
+              onClick={exportMonthlyTableToExcel}
+              className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+              title="Export to Excel"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount Change</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyTableData.map((item, index) => (
+                  <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50">
+                    <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.month}</td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.amount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })}
+                    </td>
+                    <td className={`py-3 px-4 text-base text-center font-semibold ${
+                      item.amountDiff > 0 
+                        ? 'text-green-600' 
+                        : item.amountDiff < 0 
+                        ? 'text-red-600' 
+                        : 'text-gray-600'
+                    }`}>
+                      {item.amountDiff !== 0 ? (
+                        <>
+                          {item.amountDiff > 0 ? '+' : ''}
+                          {item.amountDiff.toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          })}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                      {item.qty.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })}
+                    </td>
+                    <td className={`py-3 px-4 text-base text-center font-semibold ${
+                      item.qtyDiff > 0 
+                        ? 'text-green-600' 
+                        : item.qtyDiff < 0 
+                        ? 'text-red-600' 
+                        : 'text-gray-600'
+                    }`}>
+                      {item.qtyDiff !== 0 ? (
+                        <>
+                          {item.qtyDiff > 0 ? '+' : ''}
+                          {item.qtyDiff.toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          })}
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </td>
+                  </tr>
+                ))}
+                {monthlyTableData.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="py-8 text-center text-gray-500">
+                      No monthly sales data available
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>

@@ -5,6 +5,7 @@ import SalesSidebar from '@/components/SalesSidebar';
 import SalesOverviewTab from '@/components/SalesOverviewTab';
 import SalesTop10Tab from '@/components/SalesTop10Tab';
 import SalesCustomersTab from '@/components/SalesCustomersTab';
+import SalesStatisticsTab from '@/components/SalesStatisticsTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import Login from '@/components/Login';
@@ -55,6 +56,7 @@ export default function SalesPage() {
     setIsAuthenticated(false);
     setCurrentUser(null);
     localStorage.removeItem('currentUser');
+    localStorage.removeItem('userPassword');
     setActiveTab('sales-overview');
   };
 
@@ -131,6 +133,8 @@ export default function SalesPage() {
         return <SalesTop10Tab data={data} loading={loading} />;
       case 'sales-customers':
         return <SalesCustomersTab data={data} loading={loading} />;
+      case 'sales-statistics':
+        return <SalesStatisticsTab data={data} loading={loading} />;
       case 'sales-products':
         return <SalesProductsTab data={data} loading={loading} />;
       case 'sales-download-form':

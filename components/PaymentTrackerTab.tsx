@@ -39,6 +39,8 @@ interface PaymentByCustomer {
   totalPayments: number;
   paymentCount: number;
   payments: PaymentEntry[];
+  lastPayment: PaymentEntry | null;
+  daysSinceLastPayment: number | null;
 }
 
 interface PaymentByPeriod {
@@ -132,6 +134,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   const [showOBClosedPayments, setShowOBClosedPayments] = useState(true);
   const [showOtherPayments, setShowOtherPayments] = useState(true);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('');
+  const [sortColumn, setSortColumn] = useState<'customerName' | 'totalPayments' | 'paymentCount' | 'lastPayment' | 'daysSince'>('totalPayments');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Get unique sales reps from data
   const salesReps = useMemo(() => {
@@ -902,14 +906,32 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         // This excludes reversals or purely debit adjustments that might have been included in the list
         const paymentCount = paymentList.filter(p => p.rawCredit > 0.01).length;
         
+        const sortedPayments = paymentList.sort((a, b) => {
+          if (!a.parsedDate || !b.parsedDate) return 0;
+          return b.parsedDate.getTime() - a.parsedDate.getTime();
+        });
+        
+        // Get last payment (most recent)
+        const lastPayment = sortedPayments.find(p => p.rawCredit > 0.01) || null;
+        
+        // Calculate days since last payment
+        let daysSinceLastPayment: number | null = null;
+        if (lastPayment && lastPayment.parsedDate) {
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const lastPaymentDate = new Date(lastPayment.parsedDate);
+          lastPaymentDate.setHours(0, 0, 0, 0);
+          const diffTime = today.getTime() - lastPaymentDate.getTime();
+          daysSinceLastPayment = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        }
+        
         return {
           customerName,
           totalPayments,
           paymentCount,
-          payments: paymentList.sort((a, b) => {
-            if (!a.parsedDate || !b.parsedDate) return 0;
-            return b.parsedDate.getTime() - a.parsedDate.getTime();
-          }),
+          payments: sortedPayments,
+          lastPayment,
+          daysSinceLastPayment,
         };
       })
       .sort((a, b) => b.totalPayments - a.totalPayments);
@@ -1004,14 +1026,55 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return relevantPayments.reduce((sum, p) => sum + (p.credit || 0), 0);
   }, [visiblePayments, search, activeSubTab]);
 
-  // Filter by search
+  // Filter by search and sort
   const filteredByCustomer = useMemo(() => {
-    if (!search) return paymentsByCustomer;
+    let filtered = paymentsByCustomer;
+    
+    // Apply search filter
+    if (search) {
     const searchLower = search.toLowerCase();
-    return paymentsByCustomer.filter(
+      filtered = filtered.filter(
       (item) => item.customerName.toLowerCase().includes(searchLower)
     );
-  }, [paymentsByCustomer, search]);
+    }
+    
+    // Apply sorting
+    const sorted = [...filtered].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+      
+      switch (sortColumn) {
+        case 'customerName':
+          aValue = a.customerName.toLowerCase();
+          bValue = b.customerName.toLowerCase();
+          break;
+        case 'totalPayments':
+          aValue = a.totalPayments;
+          bValue = b.totalPayments;
+          break;
+        case 'paymentCount':
+          aValue = a.paymentCount;
+          bValue = b.paymentCount;
+          break;
+        case 'lastPayment':
+          aValue = a.lastPayment?.parsedDate?.getTime() || 0;
+          bValue = b.lastPayment?.parsedDate?.getTime() || 0;
+          break;
+        case 'daysSince':
+          aValue = a.daysSinceLastPayment ?? Infinity;
+          bValue = b.daysSinceLastPayment ?? Infinity;
+          break;
+        default:
+          return 0;
+      }
+      
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    
+    return sorted;
+  }, [paymentsByCustomer, search, sortColumn, sortDirection]);
 
   const filteredByPeriod = useMemo(() => paymentsByPeriod, [paymentsByPeriod]);
 
@@ -1225,28 +1288,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       {/* Dashboard - Cards & Chart */}
       {activeSubTab === 'dashboard' && (
         <div className="space-y-4 animate-fadeIn">
-          {/* First Row - 6 Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Net Sales - Discounts (12M)</h3>
-              <div className="text-2xl font-bold text-blue-600">
-                {dashboardData.totals.totalNetSalesMinusDiscounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Net Sales after returns & discounts</p>
-            </div>
-            
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Sales vs Collections Gap</h3>
-              <div className={`text-2xl font-bold ${dashboardData.totals.difference > 0 ? 'text-amber-600' : 'text-emerald-600'}`}>
-                {dashboardData.totals.difference.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {dashboardData.totals.difference > 0 
-                  ? 'More Sales than Collections' 
-                  : 'More Collections than Sales'}
-              </p>
-            </div>
-
+          {/* First Row - 4 Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Collections (12M)</h3>
               <div className="text-2xl font-bold text-green-600">
@@ -1340,7 +1383,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-[720px]">
             <div className="flex flex-col items-center gap-3 mb-4">
               <h3 className="text-lg font-bold text-gray-800 text-center">
-                Net Sales (less Discounts) vs Collections - {
+                Collections - {
                   chartPeriodType === 'daily' ? 'Last 90 Days' :
                   chartPeriodType === 'weekly' ? 'Last 52 Weeks' :
                   'Last 12 Months'
@@ -1442,13 +1485,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 />
                 <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
                 <Bar 
-                  dataKey="displaySales" 
-                  name="Net Sales - Discounts" 
-                  fill="#3B82F6" 
-                  radius={[4, 4, 0, 0]} 
-                  barSize={chartPeriodType === 'daily' ? 20 : chartPeriodType === 'weekly' ? 25 : 30}
-                />
-                <Bar 
                   dataKey="displayCollections" 
                   name="Net Collections" 
                   fill="#10B981" 
@@ -1527,13 +1563,110 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       {activeSubTab === 'customer' && detailMode === 'none' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
                 <tr>
-                  <th className="px-5 py-3 text-left font-semibold">Customer Name</th>
-                  <th className="px-5 py-3 text-right font-semibold">Total Payments</th>
-                  <th className="px-5 py-3 text-center font-semibold">Payment Count</th>
-                  <th className="px-5 py-3 text-center font-semibold">Actions</th>
+                  <th 
+                    className="px-5 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                    onClick={() => {
+                      if (sortColumn === 'customerName') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortColumn('customerName');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center gap-2">
+                      Customer Name
+                      {sortColumn === 'customerName' && (
+                        <span className="text-blue-600">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                    onClick={() => {
+                      if (sortColumn === 'totalPayments') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortColumn('totalPayments');
+                        setSortDirection('desc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      Total Payments
+                      {sortColumn === 'totalPayments' && (
+                        <span className="text-blue-600">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                    onClick={() => {
+                      if (sortColumn === 'paymentCount') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortColumn('paymentCount');
+                        setSortDirection('desc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      Payment Count
+                      {sortColumn === 'paymentCount' && (
+                        <span className="text-blue-600">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                    onClick={() => {
+                      if (sortColumn === 'lastPayment') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortColumn('lastPayment');
+                        setSortDirection('desc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      Last Payment
+                      {sortColumn === 'lastPayment' && (
+                        <span className="text-blue-600">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                    onClick={() => {
+                      if (sortColumn === 'daysSince') {
+                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                      } else {
+                        setSortColumn('daysSince');
+                        setSortDirection('asc');
+                      }
+                    }}
+                  >
+                    <div className="flex items-center justify-center gap-2">
+                      Days Since
+                      {sortColumn === 'daysSince' && (
+                        <span className="text-blue-600">
+                          {sortDirection === 'asc' ? '↑' : '↓'}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                  <th className="px-5 py-3 text-center font-semibold w-40">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -1547,15 +1680,38 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                         <div className="font-semibold text-gray-900">{item.customerName}</div>
                       </div>
                     </td>
-                    <td className="px-5 py-4 text-right font-semibold text-gray-900">
+                    <td className="px-5 py-4 text-center font-semibold text-gray-900 w-40">
                       {item.totalPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-5 py-4 text-center w-40">
                       <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                         {item.paymentCount}
                       </span>
                     </td>
-                    <td className="px-5 py-4 text-center">
+                    <td className="px-5 py-4 text-center w-40">
+                      {item.lastPayment ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="text-sm font-semibold text-gray-900">
+                            {item.lastPayment.credit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {item.lastPayment.parsedDate ? item.lastPayment.parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : item.lastPayment.date}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-center w-40">
+                      {item.daysSinceLastPayment !== null ? (
+                        <span className="text-sm font-semibold text-gray-900">
+                          {item.daysSinceLastPayment} {item.daysSinceLastPayment === 1 ? 'day' : 'days'}
+                        </span>
+                      ) : (
+                        <span className="text-sm text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-5 py-4 text-center w-40">
                       <button
                         onClick={() => {
                           setSelectedCustomer(item);
@@ -1571,7 +1727,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 ))}
                 {filteredByCustomer.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
                       No payments match your search.
                     </td>
                   </tr>
@@ -1580,14 +1736,16 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
                 <tr>
                   <td className="px-5 py-3 text-left">Total</td>
-                  <td className="px-5 py-3 text-right">
+                  <td className="px-5 py-3 text-center w-40">
                     {customerTotals.totalPayments.toLocaleString('en-US', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}
                   </td>
-                  <td className="px-5 py-3 text-center">{customerTotals.paymentCount}</td>
-                  <td className="px-5 py-3"></td>
+                  <td className="px-5 py-3 text-center w-40">{customerTotals.paymentCount}</td>
+                  <td className="px-5 py-3 text-center w-40">-</td>
+                  <td className="px-5 py-3 text-center w-40">-</td>
+                  <td className="px-5 py-3 text-center w-40"></td>
                 </tr>
               </tfoot>
             </table>
