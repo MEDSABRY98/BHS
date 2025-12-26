@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import SalesSidebar from '@/components/SalesSidebar';
 import SalesOverviewTab from '@/components/SalesOverviewTab';
+import SalesTop10Tab from '@/components/SalesTop10Tab';
 import SalesCustomersTab from '@/components/SalesCustomersTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
@@ -126,6 +127,8 @@ export default function SalesPage() {
     switch (activeTab) {
       case 'sales-overview':
         return <SalesOverviewTab data={data} loading={loading} />;
+      case 'sales-top10':
+        return <SalesTop10Tab data={data} loading={loading} />;
       case 'sales-customers':
         return <SalesCustomersTab data={data} loading={loading} />;
       case 'sales-products':

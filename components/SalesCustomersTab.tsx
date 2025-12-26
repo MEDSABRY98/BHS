@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Users, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 
@@ -51,6 +51,38 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [filterYear, setFilterYear] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [filterArea, setFilterArea] = useState('');
+  const [filterMerchandiser, setFilterMerchandiser] = useState('');
+  const [filterSalesRep, setFilterSalesRep] = useState('');
+  const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
+  
+  const areaDropdownRef = useRef<HTMLDivElement>(null);
+  const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
+  const salesRepDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'area' ? null : prev);
+      }
+      if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
+      }
+      if (salesRepDropdownRef.current && !salesRepDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'salesrep' ? null : prev);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Debounce search query
   useEffect(() => {
@@ -62,9 +94,90 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
+  // Filter data based on filters
+  const filteredData = useMemo(() => {
+    let filtered = [...data];
+
+    // Year filter
+    if (filterYear.trim()) {
+      const yearNum = parseInt(filterYear.trim(), 10);
+      if (!isNaN(yearNum)) {
+        filtered = filtered.filter(item => {
+          if (!item.invoiceDate) return false;
+          try {
+            const date = new Date(item.invoiceDate);
+            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    // Month filter
+    if (filterMonth.trim()) {
+      const monthNum = parseInt(filterMonth.trim(), 10);
+      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        filtered = filtered.filter(item => {
+          if (!item.invoiceDate) return false;
+          try {
+            const date = new Date(item.invoiceDate);
+            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    // Date range filter
+    if (dateFrom || dateTo) {
+      filtered = filtered.filter(item => {
+        if (!item.invoiceDate) return false;
+        try {
+          const itemDate = new Date(item.invoiceDate);
+          if (isNaN(itemDate.getTime())) return false;
+          
+          if (dateFrom) {
+            const fromDate = new Date(dateFrom);
+            fromDate.setHours(0, 0, 0, 0);
+            if (itemDate < fromDate) return false;
+          }
+          
+          if (dateTo) {
+            const toDate = new Date(dateTo);
+            toDate.setHours(23, 59, 59, 999);
+            if (itemDate > toDate) return false;
+          }
+          
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+    }
+
+    // Area filter
+    if (filterArea) {
+      filtered = filtered.filter(item => item.area === filterArea);
+    }
+
+    // Merchandiser filter
+    if (filterMerchandiser) {
+      filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
+    }
+
+    // SalesRep filter
+    if (filterSalesRep) {
+      filtered = filtered.filter(item => item.salesRep === filterSalesRep);
+    }
+
+    return filtered;
+  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep]);
+
   // Group data by customerId - optimized
   const customersData = useMemo(() => {
-    if (!data || data.length === 0) return [];
+    if (!filteredData || filteredData.length === 0) return [];
     
     const customerMap = new Map<string, { 
       customerId: string;
@@ -79,8 +192,8 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     }>();
     
     // Pre-compile date parsing to avoid repeated try-catch
-    for (let i = 0; i < data.length; i++) {
-      const item = data[i];
+    for (let i = 0; i < filteredData.length; i++) {
+      const item = filteredData[i];
       const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
       let existing = customerMap.get(key);
       
@@ -162,6 +275,37 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     });
     
     return result;
+  }, [filteredData]);
+
+  // Get unique values for dropdown filters
+  const uniqueAreas = useMemo(() => {
+    const areas = new Set<string>();
+    data.forEach(item => {
+      if (item.area && item.area.trim()) {
+        areas.add(item.area.trim());
+      }
+    });
+    return Array.from(areas).sort();
+  }, [data]);
+
+  const uniqueMerchandisers = useMemo(() => {
+    const merchandisers = new Set<string>();
+    data.forEach(item => {
+      if (item.merchandiser && item.merchandiser.trim()) {
+        merchandisers.add(item.merchandiser.trim());
+      }
+    });
+    return Array.from(merchandisers).sort();
+  }, [data]);
+
+  const uniqueSalesReps = useMemo(() => {
+    const salesReps = new Set<string>();
+    data.forEach(item => {
+      if (item.salesRep && item.salesRep.trim()) {
+        salesReps.add(item.salesRep.trim());
+      }
+    });
+    return Array.from(salesReps).sort();
   }, [data]);
 
   // Filter and sort customers - optimized
@@ -482,6 +626,287 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
               </div>
             )}
           </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+          <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Year Filter */}
+            <div>
+              <label htmlFor="filterYear" className="block text-sm font-medium text-gray-700 mb-1">
+                Year
+              </label>
+              <input
+                id="filterYear"
+                type="number"
+                placeholder="e.g., 2024"
+                value={filterYear}
+                onChange={(e) => setFilterYear(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                min="2000"
+                max="2100"
+              />
+            </div>
+
+            {/* Month Filter */}
+            <div>
+              <label htmlFor="filterMonth" className="block text-sm font-medium text-gray-700 mb-1">
+                Month (1-12)
+              </label>
+              <input
+                id="filterMonth"
+                type="number"
+                placeholder="e.g., 1-12"
+                value={filterMonth}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
+                    setFilterMonth(value);
+                  }
+                }}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                min="1"
+                max="12"
+              />
+            </div>
+
+            {/* Date From */}
+            <div>
+              <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                From Date
+              </label>
+              <input
+                id="dateFrom"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+
+            {/* Date To */}
+            <div>
+              <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
+                <Calendar className="w-4 h-4" />
+                To Date
+              </label>
+              <input
+                id="dateTo"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+              />
+            </div>
+          </div>
+
+          {/* Dropdown Filters */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+            {/* Area Filter */}
+            <div className="relative" ref={areaDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-green-600" />
+                Area
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
+                    openDropdown === 'area'
+                      ? 'border-green-500 ring-2 ring-green-500/20'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterArea || 'All Areas'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === 'area' ? 'transform rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {openDropdown === 'area' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterArea('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
+                        filterArea === ''
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      All Areas
+                    </div>
+                    {uniqueAreas.map(area => (
+                      <div
+                        key={area}
+                        onClick={() => {
+                          setFilterArea(area);
+                          setOpenDropdown(null);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                          filterArea === area
+                            ? 'bg-green-50 text-green-700 font-semibold'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {area}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Merchandiser Filter */}
+            <div className="relative" ref={merchandiserDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-green-600" />
+                Merchandiser
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
+                    openDropdown === 'merchandiser'
+                      ? 'border-green-500 ring-2 ring-green-500/20'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterMerchandiser || 'All Merchandisers'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {openDropdown === 'merchandiser' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterMerchandiser('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
+                        filterMerchandiser === ''
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      All Merchandisers
+                    </div>
+                    {uniqueMerchandisers.map(merchandiser => (
+                      <div
+                        key={merchandiser}
+                        onClick={() => {
+                          setFilterMerchandiser(merchandiser);
+                          setOpenDropdown(null);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                          filterMerchandiser === merchandiser
+                            ? 'bg-green-50 text-green-700 font-semibold'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {merchandiser}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* SalesRep Filter */}
+            <div className="relative" ref={salesRepDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <UserCircle className="w-4 h-4 text-green-600" />
+                Sales Rep
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
+                    openDropdown === 'salesrep'
+                      ? 'border-green-500 ring-2 ring-green-500/20'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterSalesRep || 'All Sales Reps'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === 'salesrep' ? 'transform rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {openDropdown === 'salesrep' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterSalesRep('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
+                        filterSalesRep === ''
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      All Sales Reps
+                    </div>
+                    {uniqueSalesReps.map(salesRep => (
+                      <div
+                        key={salesRep}
+                        onClick={() => {
+                          setFilterSalesRep(salesRep);
+                          setOpenDropdown(null);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                          filterSalesRep === salesRep
+                            ? 'bg-green-50 text-green-700 font-semibold'
+                            : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {salesRep}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Clear Filters Button */}
+          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep) && (
+            <div className="mt-3">
+              <button
+                onClick={() => {
+                  setFilterYear('');
+                  setFilterMonth('');
+                  setDateFrom('');
+                  setDateTo('');
+                  setFilterArea('');
+                  setFilterMerchandiser('');
+                  setFilterSalesRep('');
+                }}
+                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Search Box */}

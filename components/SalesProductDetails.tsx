@@ -142,7 +142,14 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
 
   // Customers data - grouped by customerId, display customerName
   const customersData = useMemo(() => {
-    const customerMap = new Map<string, { customerId: string; customer: string; amount: number; qty: number }>();
+    const customerMap = new Map<string, { 
+      customerId: string; 
+      customer: string; 
+      amount: number; 
+      qty: number;
+      invoiceNumbers: Set<string>;
+      lastInvoiceDate: string | null;
+    }>();
 
     productData.forEach(item => {
       const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
@@ -153,17 +160,46 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
           customerId: key,
           customer: item.customerName, // Display customerName
           amount: 0,
-          qty: 0
+          qty: 0,
+          invoiceNumbers: new Set<string>(),
+          lastInvoiceDate: null
         });
       }
       
       const customer = customerMap.get(key)!;
       customer.amount += item.amount;
       customer.qty += item.qty;
+
+      // Add invoice number if available
+      if (item.invoiceNumber) {
+        customer.invoiceNumbers.add(item.invoiceNumber);
+      }
+
+      // Update last invoice date
+      if (item.invoiceDate) {
+        try {
+          const itemDate = new Date(item.invoiceDate);
+          if (!isNaN(itemDate.getTime())) {
+            if (!customer.lastInvoiceDate) {
+              customer.lastInvoiceDate = item.invoiceDate;
+            } else {
+              const existingDate = new Date(customer.lastInvoiceDate);
+              if (itemDate > existingDate) {
+                customer.lastInvoiceDate = item.invoiceDate;
+              }
+            }
+          }
+        } catch (e) {
+          // Invalid date, skip
+        }
+      }
     });
 
-    // Sort by amount descending
-    return Array.from(customerMap.values()).sort((a, b) => b.amount - a.amount);
+    // Sort by amount descending and add invoice count
+    return Array.from(customerMap.values()).map(customer => ({
+      ...customer,
+      invoiceCount: customer.invoiceNumbers.size
+    })).sort((a, b) => b.amount - a.amount);
   }, [productData]);
 
   // Dashboard metrics
@@ -239,13 +275,19 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
 
   const exportCustomersToExcel = () => {
     const workbook = XLSX.utils.book_new();
-    const headers = ['#', 'Customer Name', 'Amount', 'Quantity'];
+    const headers = ['#', 'Customer Name', 'Amount', 'Quantity', 'Purchase Count', 'Last Invoice Date'];
 
     const rows = customersData.map((item: any, index: number) => [
       index + 1,
       item.customer,
       item.amount.toFixed(2),
       item.qty.toFixed(0),
+      item.invoiceCount || 0,
+      item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }) : '-',
     ]);
 
     const sheetData = [headers, ...rows];
@@ -762,6 +804,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Customer Name</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Purchase Count</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Last Invoice Date</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -781,11 +825,21 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                           maximumFractionDigits: 0
                         })}
                       </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.invoiceCount || 0}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
+                        {item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        }) : '-'}
+                      </td>
                     </tr>
                   ))}
                   {customersData.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-gray-500">
+                      <td colSpan={6} className="py-8 text-center text-gray-500">
                         No customers data available
                       </td>
                     </tr>

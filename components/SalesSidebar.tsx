@@ -13,6 +13,7 @@ interface SalesSidebarProps {
 export default function SalesSidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SalesSidebarProps) {
   const allTabs = [
     { id: 'sales-overview', label: 'Overview', icon: '📊' },
+    { id: 'sales-top10', label: 'TOP10', icon: '🏆' },
     { id: 'sales-customers', label: 'Customers', icon: '👥' },
     { id: 'sales-products', label: 'Products', icon: '📦' },
     { id: 'sales-download-form', label: 'Download Form', icon: '📥' },

@@ -144,7 +144,14 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
   // Products data
   const productsData = useMemo(() => {
-    const productMap = new Map<string, { barcode: string; product: string; amount: number; qty: number }>();
+    const productMap = new Map<string, { 
+      barcode: string; 
+      product: string; 
+      amount: number; 
+      qty: number;
+      invoiceNumbers: Set<string>;
+      lastInvoiceDate: string | null;
+    }>();
     const productIdCount = new Map<string, number>();
 
     customerData.forEach(item => {
@@ -153,11 +160,37 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         barcode: item.barcode,
         product: item.product,
         amount: 0,
-        qty: 0
+        qty: 0,
+        invoiceNumbers: new Set<string>(),
+        lastInvoiceDate: null
       };
 
       existing.amount += item.amount;
       existing.qty += item.qty;
+
+      // Add invoice number if available
+      if (item.invoiceNumber) {
+        existing.invoiceNumbers.add(item.invoiceNumber);
+      }
+
+      // Update last invoice date
+      if (item.invoiceDate) {
+        try {
+          const itemDate = new Date(item.invoiceDate);
+          if (!isNaN(itemDate.getTime())) {
+            if (!existing.lastInvoiceDate) {
+              existing.lastInvoiceDate = item.invoiceDate;
+            } else {
+              const existingDate = new Date(existing.lastInvoiceDate);
+              if (itemDate > existingDate) {
+                existing.lastInvoiceDate = item.invoiceDate;
+              }
+            }
+          }
+        } catch (e) {
+          // Invalid date, skip
+        }
+      }
 
       productMap.set(key, existing);
 
@@ -169,12 +202,16 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // Sort by amount descending and mark duplicates
     const result = Array.from(productMap.values()).sort((a, b) => b.amount - a.amount);
     
-    // Mark duplicates based on productId
+    // Mark duplicates based on productId and format invoice numbers
     return result.map(item => {
       const productId = item.barcode || item.product;
+      const invoiceNumbersArray = Array.from(item.invoiceNumbers).sort();
       return {
         ...item,
-        isDuplicate: productId ? (productIdCount.get(productId) || 0) > 1 : false
+        isDuplicate: productId ? (productIdCount.get(productId) || 0) > 1 : false,
+        invoiceCount: item.invoiceNumbers.size,
+        invoiceNumbers: invoiceNumbersArray.join(', '),
+        lastInvoiceDate: item.lastInvoiceDate
       };
     });
   }, [customerData]);
@@ -252,7 +289,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   const exportProductsToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    const headers = ['#', 'Barcode', 'Product', 'Amount', 'Quantity'];
+    const headers = ['#', 'Barcode', 'Product', 'Amount', 'Quantity', 'Purchase Count', 'Last Invoice Date'];
 
     const rows = productsData.map((item: any, index: number) => [
       index + 1,
@@ -260,6 +297,12 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       item.product,
       item.amount.toFixed(2),
       item.qty.toFixed(0),
+      item.invoiceCount || 0,
+      item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }) : '-',
     ]);
 
     const sheetData = [headers, ...rows];
@@ -774,6 +817,8 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Product</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Purchase Count</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Last Invoice Date</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -803,11 +848,21 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           maximumFractionDigits: 0
                         })}
                       </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.invoiceCount || 0}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
+                        {item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        }) : '-'}
+                      </td>
                     </tr>
                   ))}
                   {productsData.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500">
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
                         No products data available
                       </td>
                     </tr>

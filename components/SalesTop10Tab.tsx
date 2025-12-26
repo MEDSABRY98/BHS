@@ -1,48 +1,19 @@
 'use client';
 
-import { useState, useMemo, useEffect, memo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Package, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
+import { Package, Users, ArrowUp, ArrowDown, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import SalesProductDetails from './SalesProductDetails';
 
-interface SalesProductsTabProps {
+interface SalesTop10TabProps {
   data: SalesInvoice[];
   loading: boolean;
 }
 
-const ITEMS_PER_PAGE = 50;
+type SortDirection = 'asc' | 'desc';
 
-// Memoized row component for better performance
-const ProductRow = memo(({ item, rowNumber, onBarcodeClick }: { item: { barcode: string; product: string; amount: number; qty: number; transactions: number }; rowNumber: number; onBarcodeClick: (barcode: string) => void }) => {
-  return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{rowNumber}</td>
-      <td 
-        className="py-3 px-4 text-sm text-gray-800 font-medium text-center cursor-pointer hover:text-green-600 hover:underline"
-        onClick={() => item.barcode && onBarcodeClick(item.barcode)}
-      >
-        {item.barcode || '-'}
-      </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">{item.product}</td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-      </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
-    </tr>
-  );
-});
-
-ProductRow.displayName = 'ProductRow';
-
-export default function SalesProductsTab({ data, loading }: SalesProductsTabProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [selectedBarcode, setSelectedBarcode] = useState<string | null>(null);
+export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
+  const [topCount, setTopCount] = useState<number>(10);
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -75,16 +46,14 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-
-  // Debounce search query
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchQuery(searchQuery);
-      setCurrentPage(1); // Reset to first page when search changes
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
+  
+  // Sorting states for products
+  const [productSortBy, setProductSortBy] = useState<'amount' | 'qty'>('amount');
+  const [productSortDirection, setProductSortDirection] = useState<SortDirection>('desc');
+  
+  // Sorting states for customers
+  const [customerSortBy, setCustomerSortBy] = useState<'amount' | 'qty'>('amount');
+  const [customerSortDirection, setCustomerSortDirection] = useState<SortDirection>('desc');
 
   // Filter data based on filters
   const filteredData = useMemo(() => {
@@ -167,32 +136,38 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
     return filtered;
   }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep]);
 
-  // Group data by product ID
+  // Products data - grouped by PRODUCT ID
   const productsData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
     
     const productMap = new Map<string, { 
-      barcode: string; 
-      product: string;
+      productId: string;
+      barcodes: Set<string>; 
+      products: string[]; 
       totalAmount: number; 
       totalQty: number;
       invoiceNumbers: Set<string>;
     }>();
     
-    for (let i = 0; i < filteredData.length; i++) {
-      const item = filteredData[i];
+    filteredData.forEach(item => {
       const key = item.productId || item.barcode || item.product;
-      let existing = productMap.get(key);
+      const existing = productMap.get(key) || { 
+        productId: item.productId || '',
+        barcodes: new Set<string>(),
+        products: [], 
+        totalAmount: 0, 
+        totalQty: 0,
+        invoiceNumbers: new Set<string>()
+      };
       
-      if (!existing) {
-        existing = { 
-          barcode: item.barcode || '',
-          product: item.product,
-          totalAmount: 0, 
-          totalQty: 0,
-          invoiceNumbers: new Set<string>()
-        };
-        productMap.set(key, existing);
+      // Add barcode if it exists
+      if (item.barcode) {
+        existing.barcodes.add(item.barcode);
+      }
+      
+      // Add product name if not already in the list
+      if (!existing.products.includes(item.product)) {
+        existing.products.push(item.product);
       }
       
       existing.totalAmount += item.amount;
@@ -202,23 +177,62 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       if (item.invoiceNumber) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
-    }
-
-    // Pre-calculate array length
-    const result = new Array(productMap.size);
-    let index = 0;
-    
-    productMap.forEach(item => {
-      result[index++] = {
-        barcode: item.barcode,
-        product: item.product,
-        amount: item.totalAmount,
-        qty: item.totalQty,
-        transactions: item.invoiceNumbers.size
-      };
+      
+      productMap.set(key, existing);
     });
+
+    return Array.from(productMap.values()).map(item => ({
+      productId: item.productId,
+      barcode: Array.from(item.barcodes).join(', ') || '-',
+      products: item.products,
+      totalAmount: item.totalAmount,
+      totalQty: item.totalQty,
+      transactions: item.invoiceNumbers.size
+    }));
+  }, [filteredData]);
+
+  // Customers data - grouped by customerId, display customerName
+  const customersData = useMemo(() => {
+    if (!filteredData || filteredData.length === 0) return [];
     
-    return result;
+    const customerMap = new Map<string, { 
+      customerId: string;
+      customerName: string; 
+      totalAmount: number; 
+      totalQty: number;
+      invoiceNumbers: Set<string>;
+    }>();
+    
+    filteredData.forEach(item => {
+      const key = item.customerId || item.customerName; // Fallback to customerName if customerId is missing
+      const existing = customerMap.get(key);
+      
+      if (!existing) {
+        customerMap.set(key, { 
+          customerId: key,
+          customerName: item.customerName, 
+          totalAmount: 0, 
+          totalQty: 0,
+          invoiceNumbers: new Set<string>()
+        });
+      }
+      
+      const customer = customerMap.get(key)!;
+      customer.totalAmount += item.amount;
+      customer.totalQty += item.qty;
+      
+      // Add invoice number for transaction count
+      if (item.invoiceNumber) {
+        customer.invoiceNumbers.add(item.invoiceNumber);
+      }
+    });
+
+    return Array.from(customerMap.values()).map(item => ({
+      customer: item.customerName, // Display customerName
+      totalAmount: item.totalAmount,
+      totalQty: item.totalQty,
+      transactions: item.invoiceNumbers.size
+    }));
   }, [filteredData]);
 
   // Get unique values for dropdown filters
@@ -252,97 +266,137 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
     return Array.from(salesReps).sort();
   }, [data]);
 
-  // Filter and sort products - optimized
-  const filteredProducts = useMemo(() => {
-    if (productsData.length === 0) return [];
+  // Sorted and limited products
+  const sortedProducts = useMemo(() => {
+    let sorted = [...productsData];
     
-    let filtered: typeof productsData;
-    
-    // Apply search filter using debounced query
-    if (debouncedSearchQuery.trim()) {
-      const query = debouncedSearchQuery.toLowerCase().trim();
-      filtered = productsData.filter(item => 
-        item.product.toLowerCase().includes(query) ||
-        item.barcode.toLowerCase().includes(query)
+    if (productSortBy === 'amount') {
+      sorted.sort((a, b) => 
+        productSortDirection === 'asc' 
+          ? a.totalAmount - b.totalAmount 
+          : b.totalAmount - a.totalAmount
       );
     } else {
-      filtered = productsData;
+      sorted.sort((a, b) => 
+        productSortDirection === 'asc' 
+          ? a.totalQty - b.totalQty 
+          : b.totalQty - a.totalQty
+      );
     }
     
-    // Sort by amount descending (in-place for better performance)
-    filtered.sort((a, b) => b.amount - a.amount);
+    return sorted.slice(0, topCount);
+  }, [productsData, productSortBy, productSortDirection, topCount]);
+
+  // Sorted and limited customers
+  const sortedCustomers = useMemo(() => {
+    let sorted = [...customersData];
     
-    return filtered;
-  }, [productsData, debouncedSearchQuery]);
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredProducts.length / ITEMS_PER_PAGE);
-  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedProducts = filteredProducts.slice(startIndex, endIndex);
-
-  // Calculate totals (for all filtered products, not just current page) - optimized single pass
-  const totals = useMemo(() => {
-    if (filteredProducts.length === 0) {
-      return {
-        totalAmount: 0,
-        totalQty: 0,
-        totalTransactions: 0
-      };
+    if (customerSortBy === 'amount') {
+      sorted.sort((a, b) => 
+        customerSortDirection === 'asc' 
+          ? a.totalAmount - b.totalAmount 
+          : b.totalAmount - a.totalAmount
+      );
+    } else {
+      sorted.sort((a, b) => 
+        customerSortDirection === 'asc' 
+          ? a.totalQty - b.totalQty 
+          : b.totalQty - a.totalQty
+      );
     }
+    
+    return sorted.slice(0, topCount);
+  }, [customersData, customerSortBy, customerSortDirection, topCount]);
 
-    // Single reduce pass instead of 3 separate reduces
-    const result = filteredProducts.reduce((acc, item) => {
-      acc.totalAmount += item.amount;
-      acc.totalQty += item.qty;
-      acc.totalTransactions += item.transactions;
-      return acc;
-    }, {
-      totalAmount: 0,
-      totalQty: 0,
-      totalTransactions: 0
-    });
+  const toggleProductSortDirection = () => {
+    setProductSortDirection(productSortDirection === 'asc' ? 'desc' : 'asc');
+  };
 
-    return result;
-  }, [filteredProducts]);
+  const toggleCustomerSortDirection = () => {
+    setCustomerSortDirection(customerSortDirection === 'asc' ? 'desc' : 'asc');
+  };
 
-  // Reset to first page when filtered products change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearchQuery]);
+  // Calculate totals for customers
+  const customerTotals = useMemo(() => {
+    if (sortedCustomers.length === 0) {
+      return { totalAmount: 0, totalQty: 0, totalTransactions: 0 };
+    }
+    return {
+      totalAmount: sortedCustomers.reduce((sum, item) => sum + item.totalAmount, 0),
+      totalQty: sortedCustomers.reduce((sum, item) => sum + item.totalQty, 0),
+      totalTransactions: sortedCustomers.reduce((sum, item) => sum + item.transactions, 0),
+    };
+  }, [sortedCustomers]);
+
+  // Calculate totals for products
+  const productTotals = useMemo(() => {
+    if (sortedProducts.length === 0) {
+      return { totalAmount: 0, totalQty: 0, totalTransactions: 0 };
+    }
+    return {
+      totalAmount: sortedProducts.reduce((sum, item) => sum + item.totalAmount, 0),
+      totalQty: sortedProducts.reduce((sum, item) => sum + item.totalQty, 0),
+      totalTransactions: sortedProducts.reduce((sum, item) => sum + item.transactions, 0),
+    };
+  }, [sortedProducts]);
 
   const exportToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    const headers = ['#', 'Barcode', 'Product Name', 'Amount', 'Qty', 'Transactions'];
-
-    // Use all filtered products (not just current page), same columns as table
-    const rows = filteredProducts.map((item, index) => [
+    // Sheet 1: Customers
+    const customerHeaders = ['#', 'Customer', 'Amount', 'Qty', 'Transactions'];
+    const customerRows = sortedCustomers.map((item, index) => [
       index + 1,
-      item.barcode || '-',
-      item.product,
-      item.amount.toFixed(2),
-      item.qty.toFixed(0),
-      item.transactions,
+      item.customer,
+      item.totalAmount.toFixed(2),
+      item.totalQty.toFixed(0),
+      item.transactions
     ]);
-
-    // Totals row (same logic as table footer)
-    if (filteredProducts.length > 0) {
-      rows.push([
-        '',
+    
+    // Add total row
+    if (sortedCustomers.length > 0) {
+      customerRows.push([
         '',
         'Total',
-        totals.totalAmount.toFixed(2),
-        totals.totalQty.toFixed(0),
-        totals.totalTransactions,
+        customerTotals.totalAmount.toFixed(2),
+        customerTotals.totalQty.toFixed(0),
+        customerTotals.totalTransactions
       ]);
     }
 
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
+    const customerData = [customerHeaders, ...customerRows];
+    const customerSheet = XLSX.utils.aoa_to_sheet(customerData);
+    XLSX.utils.book_append_sheet(workbook, customerSheet, 'Customers');
 
-    const filename = `sales_products_${new Date().toISOString().split('T')[0]}.xlsx`;
+    // Sheet 2: Products
+    const productHeaders = ['#', 'BARCODE', 'Product', 'Amount', 'Qty', 'Transactions'];
+    const productRows = sortedProducts.map((item, index) => [
+      index + 1,
+      item.barcode,
+      item.products.join(', '), // Join multiple product names with comma
+      item.totalAmount.toFixed(2),
+      item.totalQty.toFixed(0),
+      item.transactions
+    ]);
+    
+    // Add total row
+    if (sortedProducts.length > 0) {
+      productRows.push([
+        '',
+        '',
+        'Total',
+        productTotals.totalAmount.toFixed(2),
+        productTotals.totalQty.toFixed(0),
+        productTotals.totalTransactions
+      ]);
+    }
+
+    const productData = [productHeaders, ...productRows];
+    const productSheet = XLSX.utils.aoa_to_sheet(productData);
+    XLSX.utils.book_append_sheet(workbook, productSheet, 'Products');
+
+    // Write and download
+    const filename = `sales_top10_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
   };
 
@@ -351,20 +405,9 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading products data...</p>
+          <p className="text-gray-600">Loading sales data...</p>
         </div>
       </div>
-    );
-  }
-
-  // If a barcode is selected, show its details
-  if (selectedBarcode) {
-    return (
-      <SalesProductDetails
-        barcode={selectedBarcode}
-        data={data}
-        onBack={() => setSelectedBarcode(null)}
-      />
     );
   }
 
@@ -373,7 +416,7 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-800">Products</h1>
+          <h1 className="text-3xl font-bold text-gray-800">TOP10</h1>
           <button
             onClick={exportToExcel}
             className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
@@ -384,7 +427,7 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+        <div className="bg-white rounded-xl shadow-md p-4 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Year Filter */}
@@ -664,127 +707,217 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
           )}
         </div>
 
-        {/* Search Box */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by product name or barcode..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
+        {/* Customers Section */}
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-2xl font-bold text-gray-800">Top Customers</h2>
+            <div className="flex items-center gap-3">
+              <label htmlFor="topCount" className="text-sm font-medium text-gray-700">
+                Show Top:
+              </label>
+              <input
+                id="topCount"
+                type="number"
+                min="1"
+                max="100"
+                value={topCount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value);
+                  if (value > 0 && value <= 100) {
+                    setTopCount(value);
+                  }
+                }}
+                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center font-medium"
+              />
+            </div>
           </div>
-        </div>
-
-        {/* Products Table */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Barcode</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Product Name</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedProducts.map((item, index) => (
-                  <ProductRow 
-                    key={`${item.barcode}-${item.product}-${startIndex + index}`}
-                    item={item}
-                    rowNumber={startIndex + index + 1}
-                    onBarcodeClick={setSelectedBarcode}
-                  />
-                ))}
-                {filteredProducts.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
-                      {searchQuery ? 'No products found matching your search' : 'No data available'}
-                    </td>
-                  </tr>
-                )}
-                {filteredProducts.length > 0 && (
-                  <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={3}>Total</td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAmount.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalQty.toLocaleString('en-US', { 
-                        minimumFractionDigits: 0, 
-                        maximumFractionDigits: 0 
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalTransactions}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          {filteredProducts.length > ITEMS_PER_PAGE && (
-            <div className="mt-6 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} products
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Users className="w-5 h-5 text-purple-600" />
+                Top {topCount} Customers
+              </h3>
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700">Sort by:</label>
+                <select
+                  value={customerSortBy}
+                  onChange={(e) => setCustomerSortBy(e.target.value as 'amount' | 'qty')}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 text-sm font-medium"
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                          currentPage === pageNum
-                            ? 'bg-green-600 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
+                  <option value="amount">Value (Amount)</option>
+                  <option value="qty">Quantity</option>
+                </select>
                 <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  onClick={toggleCustomerSortDirection}
+                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Toggle sort direction"
                 >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
+                  {customerSortDirection === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
                 </button>
               </div>
             </div>
-          )}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Customer</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedCustomers.map((item, index) => (
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{index + 1}</td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">{item.customer}</td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                        {item.totalAmount.toLocaleString('en-US', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                        {item.totalQty.toLocaleString('en-US', { 
+                          minimumFractionDigits: 0, 
+                          maximumFractionDigits: 0 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
+                    </tr>
+                  ))}
+                  {sortedCustomers.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-gray-500">
+                        No data available
+                      </td>
+                    </tr>
+                  )}
+                  {sortedCustomers.length > 0 && (
+                    <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                        {customerTotals.totalAmount.toLocaleString('en-US', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                        {customerTotals.totalQty.toLocaleString('en-US', { 
+                          minimumFractionDigits: 0, 
+                          maximumFractionDigits: 0 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                        {customerTotals.totalTransactions}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Products Section */}
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">Top Products</h2>
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                <Package className="w-5 h-5 text-green-600" />
+                Top {topCount} Products
+              </h3>
+              <div className="flex items-center gap-3">
+                <label className="text-sm font-medium text-gray-700">Sort by:</label>
+                <select
+                  value={productSortBy}
+                  onChange={(e) => setProductSortBy(e.target.value as 'amount' | 'qty')}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-sm font-medium"
+                >
+                  <option value="amount">Value (Amount)</option>
+                  <option value="qty">Quantity</option>
+                </select>
+                <button
+                  onClick={toggleProductSortDirection}
+                  className="p-2 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Toggle sort direction"
+                >
+                  {productSortDirection === 'desc' ? <ArrowDown className="w-4 h-4" /> : <ArrowUp className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">BARCODE</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Product</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
+                    <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedProducts.map((item, index) => (
+                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                      <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{index + 1}</td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center font-mono">{item.barcode}</td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">
+                        <div className="flex flex-col gap-1">
+                          {item.products.map((product, idx) => (
+                            <div key={idx}>{product}</div>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                        {item.totalAmount.toLocaleString('en-US', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+                        {item.totalQty.toLocaleString('en-US', { 
+                          minimumFractionDigits: 0, 
+                          maximumFractionDigits: 0 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
+                    </tr>
+                  ))}
+                  {sortedProducts.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-gray-500">
+                        No data available
+                      </td>
+                    </tr>
+                  )}
+                  {sortedProducts.length > 0 && (
+                    <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={3}>Total</td>
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                        {productTotals.totalAmount.toLocaleString('en-US', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                        {productTotals.totalQty.toLocaleString('en-US', { 
+                          minimumFractionDigits: 0, 
+                          maximumFractionDigits: 0 
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-800 text-center">
+                        {productTotals.totalTransactions}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </div>
