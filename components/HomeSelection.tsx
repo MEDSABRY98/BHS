@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock, Receipt } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -32,11 +32,15 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     window.location.href = '/employee-overtime';
   };
 
+  const handleSelectCashReceipt = () => {
+    window.location.href = '/cash-receipt';
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center p-6">
-      <div className="max-w-7xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
+      <div className="max-w-7xl w-full mx-auto">
         {/* Header */}
-        <div className="text-center mb-12">
+        <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Welcome to BHS Analysis</h1>
           <p className="text-gray-600">Choose the system you want to access</p>
           {currentUser && (
@@ -59,13 +63,27 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
         {/* Selection Cards */}
         <div className={`grid gap-6 ${
-          currentUser?.name === 'MED Sabry' ? 'md:grid-cols-6' : 
-          currentUser?.name === 'Monai' ? 'md:grid-cols-6' : 
+          currentUser?.name === 'MED Sabry' ? 'md:grid-cols-5' : 
+          currentUser?.name === 'Monai' ? 'md:grid-cols-5' : 
           currentUser?.name === 'Mr. Ali Farouk' ? 'md:grid-cols-2' :
           currentUser?.name === 'Mahmoud Shaker' ? 'md:grid-cols-1' :
           currentUser?.name === 'Overtime Export' ? 'md:grid-cols-1' :
           'md:grid-cols-2'
         }`}>
+          {/* Cash Receipt Card - Visible for all users - First */}
+          <div
+            onClick={handleSelectCashReceipt}
+            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-teal-300 flex flex-col min-h-[180px]"
+          >
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-14 h-14 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                <Receipt className="w-7 h-7 text-teal-600" />
+              </div>
+              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+            </div>
+            <h2 className="text-xl font-bold text-gray-800 leading-tight">Cash Receipt</h2>
+          </div>
+
           {/* Debit Analysis Card - Hidden for Overtime Export */}
           {currentUser?.name !== 'Overtime Export' && (
             <div
