@@ -290,10 +290,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-4">All Transactions</h2>
-        
-        <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+      <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <p className="text-lg">
               <span className="font-semibold">Total Transactions:</span>{' '}
@@ -802,7 +799,6 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
             </div>
           )}
         </div>
-      </div>
 
       {/* Invoice Number Popup */}
       {selectedInvoiceNumber && (

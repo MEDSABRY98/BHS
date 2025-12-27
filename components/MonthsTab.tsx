@@ -577,7 +577,6 @@ export default function MonthsTab({ data }: MonthsTabProps) {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Months Analysis</h2>
         <div className="bg-blue-50 p-4 rounded-lg relative">
           <div className="flex items-center">
             <div>

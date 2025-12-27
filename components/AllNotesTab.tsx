@@ -310,18 +310,6 @@ export default function AllNotesTab() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Header */}
-      <div className="mb-6 flex items-center gap-3">
-        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center shadow-lg">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        </div>
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Notes Center</h1>
-        </div>
-      </div>
-
       {/* Tabs Navigation */}
       <div className="flex gap-2 border-b-2 border-gray-200 mb-6 bg-gray-50/50 p-1 rounded-t-xl">
         <button

@@ -324,9 +324,6 @@ export default function AgesTab({ data }: AgesTabProps) {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Ages Analysis</h2>
-      </div>
 
       <div className="mb-4 flex justify-center items-center gap-3 flex-wrap">
         <select

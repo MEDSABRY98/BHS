@@ -14,6 +14,7 @@ import AgesTab from '@/components/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
 import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
+import { Menu, X } from 'lucide-react';
 
 export default function DebitPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -23,6 +24,7 @@ export default function DebitPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const mainContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -117,6 +119,19 @@ export default function DebitPage() {
     }
   };
 
+  const allTabs = [
+    { id: 'customers', label: 'Customers' },
+    { id: 'all-transactions', label: 'All Transactions' },
+    { id: 'customers-open-matches', label: 'C Open Matches' },
+    { id: 'payment-tracker', label: 'Payment Tracker' },
+    { id: 'discount-tracker', label: 'Discount Tracker' },
+    { id: 'salesreps', label: 'Sales Reps' },
+    { id: 'years', label: 'Years' },
+    { id: 'months', label: 'Months' },
+    { id: 'ages', label: 'Ages' },
+    { id: 'all-notes', label: 'All Notes' },
+  ];
+
   const renderTabContent = () => {
     if (loading) {
       return (
@@ -197,10 +212,25 @@ export default function DebitPage() {
         onLogout={handleLogout}
         currentUser={currentUser}
         lastUpdated={lastUpdated}
+        sidebarOpen={sidebarOpen}
       />
-      <main ref={mainContentRef} className="flex-1 ml-64 overflow-y-auto">
-        {renderTabContent()}
-      </main>
+      <div className="flex-1 overflow-auto">
+        {/* Top Bar */}
+        <div className="bg-white shadow-md p-5 flex items-center gap-4 sticky top-0 z-10">
+          <button
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
+          <h2 className="text-2xl font-bold text-gray-800">
+            {allTabs.find(t => t.id === activeTab)?.label || 'Debit Analysis'}
+          </h2>
+        </div>
+        <main ref={mainContentRef} className="overflow-y-auto">
+          {renderTabContent()}
+        </main>
+      </div>
     </div>
   );
 }

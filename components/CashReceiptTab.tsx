@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Printer, Calendar, User, FileText, DollarSign, Hash, ArrowLeft } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function CashReceiptTab() {
   const [formData, setFormData] = useState({
     receivedFrom: '',
+    sendBy: '',
     amount: '',
     amountInWords: '',
     reason: '',
@@ -58,13 +61,72 @@ export default function CashReceiptTab() {
     }));
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handlePrint = async () => {
+    const receiptElement = document.getElementById('receipt');
+    if (!receiptElement) return;
+
+    const receiptNumber = formData.receiptNumber || 'Receipt';
+    const date = formData.date || new Date().toISOString().split('T')[0];
+    const filename = `${receiptNumber}_${date}`;
+
+    try {
+      const canvas = await html2canvas(receiptElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+      });
+
+      const imgWidth = 210;
+      const pageHeight = 297;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      let position = 0;
+
+      pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const cleanFilename = filename.replace(/[^a-zA-Z0-9_-]/g, '_');
+      pdf.save(`${cleanFilename}.pdf`);
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      window.print();
+    }
   };
 
   const handleBack = () => {
     window.location.href = '/';
   };
+
+  // Set document title for PDF filename when printing
+  useEffect(() => {
+    const handleBeforePrint = () => {
+      const receiptNumber = formData.receiptNumber || 'Receipt';
+      const date = formData.date || new Date().toISOString().split('T')[0];
+      const filename = `${receiptNumber}_${date}`;
+      document.title = filename;
+    };
+
+    const handleAfterPrint = () => {
+      document.title = 'BHS Analysis';
+    };
+
+    window.addEventListener('beforeprint', handleBeforePrint);
+    window.addEventListener('afterprint', handleAfterPrint);
+
+    return () => {
+      window.removeEventListener('beforeprint', handleBeforePrint);
+      window.removeEventListener('afterprint', handleAfterPrint);
+    };
+  }, [formData.receiptNumber, formData.date]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 p-8">
@@ -76,8 +138,8 @@ export default function CashReceiptTab() {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        {/* Receipt Preview */}
-        <div id="receipt" className="bg-white shadow-2xl mb-8 overflow-hidden" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+        {/* Receipt Preview - Hidden from view, but visible for PDF generation */}
+        <div id="receipt" className="absolute -left-[9999px] w-full" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
           
           {/* Modern Header with Gradient */}
           <div className="bg-gradient-to-r from-gray-900 to-black text-white p-8">
@@ -122,6 +184,19 @@ export default function CashReceiptTab() {
               <div className="col-span-2">
                 <div className="text-xl font-bold text-gray-900 border-b-2 border-black pb-1 min-h-8">
                   {formData.receivedFrom}
+                </div>
+              </div>
+            </div>
+
+            {/* Send By */}
+            <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
+              <div className="flex items-center gap-2 text-gray-700">
+                <User className="w-5 h-5" />
+                <span className="font-semibold">Send By:</span>
+              </div>
+              <div className="col-span-2">
+                <div className="text-xl font-bold text-gray-900 border-b-2 border-black pb-1 min-h-8">
+                  {formData.sendBy}
                 </div>
               </div>
             </div>
@@ -248,6 +323,21 @@ export default function CashReceiptTab() {
                 onChange={handleChange}
                 className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black transition-colors"
                 placeholder="Enter full name"
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="flex items-center gap-2 text-sm font-bold mb-2 text-gray-700">
+                <User className="w-4 h-4" />
+                Send By
+              </label>
+              <input
+                type="text"
+                name="sendBy"
+                value={formData.sendBy}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:border-black transition-colors"
+                placeholder="Enter sender name"
               />
             </div>
 

@@ -8,9 +8,10 @@ interface SidebarProps {
   onLogout: () => void;
   currentUser?: any;
   lastUpdated?: string | null;
+  sidebarOpen?: boolean;
 }
 
-export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SidebarProps) {
+export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated, sidebarOpen = true }: SidebarProps) {
   const allTabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
     { id: 'all-transactions', label: 'All Transactions', icon: '📋' },
@@ -56,7 +57,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   }
 
   return (
-    <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
+    <div className={`${sidebarOpen ? 'w-64' : 'w-0'} bg-gray-100 border-r border-gray-200 h-screen transition-all duration-300 overflow-hidden flex flex-col`}>
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-center gap-2 mb-3">
           <button

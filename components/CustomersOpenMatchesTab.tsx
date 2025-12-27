@@ -373,9 +373,6 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-4">Customers Open Matches</h2>
-        
         <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
           <div>
             <p className="text-lg">
@@ -885,7 +882,6 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
             </div>
           )}
         </div>
-      </div>
 
       {/* Invoice Number Popup */}
       {selectedInvoiceNumber && (

@@ -1152,9 +1152,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Payment Tracker</h2>
-      </div>
 
       {/* Search, Total and Date Filters - Above all tabs */}
       <div className="mb-3 flex flex-col lg:flex-row gap-4 items-center lg:items-end justify-between">

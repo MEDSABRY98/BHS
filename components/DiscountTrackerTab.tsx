@@ -331,9 +331,6 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h2 className="text-2xl font-bold mb-2">Discount Tracker</h2>
-      </div>
 
       <div className="mb-4 flex flex-col sm:flex-row items-center justify-center gap-3">
         <input
