@@ -5,6 +5,7 @@ import SalesSidebar from '@/components/SalesSidebar';
 import SalesOverviewTab from '@/components/SalesOverviewTab';
 import SalesTop10Tab from '@/components/SalesTop10Tab';
 import SalesCustomersTab from '@/components/SalesCustomersTab';
+import SalesInactiveCustomersTab from '@/components/SalesInactiveCustomersTab';
 import SalesStatisticsTab from '@/components/SalesStatisticsTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
@@ -133,6 +134,8 @@ export default function SalesPage() {
         return <SalesTop10Tab data={data} loading={loading} />;
       case 'sales-customers':
         return <SalesCustomersTab data={data} loading={loading} />;
+      case 'sales-inactive-customers':
+        return <SalesInactiveCustomersTab data={data} loading={loading} />;
       case 'sales-statistics':
         return <SalesStatisticsTab data={data} loading={loading} />;
       case 'sales-products':

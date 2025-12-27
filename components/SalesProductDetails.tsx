@@ -117,8 +117,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
         existing.amount += item.amount;
         existing.qty += item.qty;
         
-        // Add invoice number for transaction count
-        if (item.invoiceNumber) {
+        // Add invoice number for transaction count (only invoices starting with "SAL")
+        if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
           existing.invoiceNumbers.add(item.invoiceNumber);
         }
 
@@ -129,7 +129,7 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     });
 
     // Sort by date descending (newest first)
-    return Array.from(monthMap.values()).map(item => ({
+    const sorted = Array.from(monthMap.values()).map(item => ({
       month: item.month,
       monthKey: item.monthKey,
       amount: item.amount,
@@ -138,6 +138,91 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     })).sort((a, b) => {
       return b.monthKey.localeCompare(a.monthKey);
     });
+
+    // Fill in missing months from first sale month to current month
+    if (sorted.length > 0) {
+      // Find first month (oldest) and last month (newest)
+      const firstMonthKey = sorted[sorted.length - 1].monthKey; // Oldest (last in descending order)
+      const lastMonthKey = sorted[0].monthKey; // Newest (first in descending order)
+      
+      // Parse first month
+      const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+      
+      // Get current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 1-based
+      const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+      
+      // Use current month or last sale month, whichever is newer
+      const endMonthKey = currentMonthKey > lastMonthKey ? currentMonthKey : lastMonthKey;
+      const [endYear, endMonth] = endMonthKey.split('-').map(Number);
+      
+      // Create a map for quick lookup
+      const monthDataMap = new Map(sorted.map(item => [item.monthKey, item]));
+      
+      // Generate all months from first to end
+      const allMonths: Array<{
+        month: string;
+        monthKey: string;
+        amount: number;
+        qty: number;
+        count: number;
+        isZeroMonth: boolean;
+      }> = [];
+      
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      let year = firstYear;
+      let month = firstMonth;
+      
+      while (year < endYear || (year === endYear && month <= endMonth)) {
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const monthLabel = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
+        
+        const existingData = monthDataMap.get(monthKey);
+        
+        if (existingData) {
+          allMonths.push({
+            ...existingData,
+            isZeroMonth: false
+          });
+        } else {
+          // Zero month - no sales
+          allMonths.push({
+            month: monthLabel,
+            monthKey,
+            amount: 0,
+            qty: 0,
+            count: 0,
+            isZeroMonth: true
+          });
+        }
+        
+        // Move to next month
+        month++;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+      }
+      
+      // Sort by date descending (newest first)
+      allMonths.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+      
+      // Calculate amount change from previous month
+      return allMonths.map((item, index) => {
+        const previousAmount = index < allMonths.length - 1 ? allMonths[index + 1].amount : null;
+        const amountChange = previousAmount !== null ? item.amount - previousAmount : null;
+        
+        return {
+          ...item,
+          amountChange
+        };
+      });
+    }
+
+    return [];
   }, [productData]);
 
   // Customers data - grouped by customerId, display customerName
@@ -170,8 +255,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
       customer.amount += item.amount;
       customer.qty += item.qty;
 
-      // Add invoice number if available
-      if (item.invoiceNumber) {
+      // Add invoice number if available (only invoices starting with "SAL")
+      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         customer.invoiceNumbers.add(item.invoiceNumber);
       }
 
@@ -236,11 +321,14 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     const avgMonthlyAmount = totalMonths > 0 ? totalAmount / totalMonths : 0;
     const avgMonthlyQty = totalMonths > 0 ? totalQty / totalMonths : 0;
 
+    // Count only months where product actually had sales (not zero months)
+    const activeMonths = monthlySales.filter(month => !month.isZeroMonth && month.count > 0).length;
+
     return {
       totalAmount,
       totalQty,
       uniqueCustomers,
-      uniqueMonths: monthlySales.length, // Keep for display (active months)
+      uniqueMonths: activeMonths, // Only months with actual sales
       totalMonths, // Total months from start to now
       avgMonthlyAmount,
       avgMonthlyQty
@@ -747,32 +835,63 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                   <tr className="border-b border-gray-200">
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Change</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Transactions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {monthlySales.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.month}</td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                    <tr 
+                      key={index} 
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${
+                        item.isZeroMonth ? 'bg-gray-50 opacity-60' : ''
+                      }`}
+                    >
+                      <td className={`py-3 px-4 text-base font-medium text-center ${
+                        item.isZeroMonth ? 'text-gray-500 line-through' : 'text-gray-800'
+                      }`}>
+                        {item.month}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${
+                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                      }`}>
                         {item.amount.toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
                       </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                      <td className="py-3 px-4 text-base font-semibold text-center">
+                        {item.amountChange !== null ? (
+                          <span className={item.amountChange >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {item.amountChange >= 0 ? '+' : ''}
+                            {item.amountChange.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${
+                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                      }`}>
                         {item.qty.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0
                         })}
                       </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.count}</td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${
+                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                      }`}>
+                        {item.count}
+                      </td>
                     </tr>
                   ))}
                   {monthlySales.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-gray-500">
+                      <td colSpan={5} className="py-8 text-center text-gray-500">
                         No monthly data available
                       </td>
                     </tr>

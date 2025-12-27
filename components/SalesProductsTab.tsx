@@ -198,8 +198,8 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       existing.totalAmount += item.amount;
       existing.totalQty += item.qty;
       
-      // Add invoice number for transaction count
-      if (item.invoiceNumber) {
+      // Add invoice number for transaction count (only invoices starting with "SAL")
+      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
     }

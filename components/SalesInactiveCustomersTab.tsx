@@ -6,7 +6,7 @@ import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, S
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 
-interface SalesCustomersTabProps {
+interface SalesInactiveCustomersTabProps {
   data: SalesInvoice[];
   loading: boolean;
 }
@@ -14,7 +14,20 @@ interface SalesCustomersTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (customer: string) => void }) => {
+const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick }: { 
+  item: { 
+    customer: string; 
+    lastPurchaseDate: Date | null;
+    daysSinceLastPurchase: number;
+    totalAmount: number; 
+    averageOrderValue: number;
+    purchaseFrequency: number;
+    orderCount: number;
+    status: string;
+  }; 
+  rowNumber: number; 
+  onCustomerClick: (customer: string) => void 
+}) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{rowNumber}</td>
@@ -25,44 +38,51 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
         {item.customer}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+        {item.lastPurchaseDate ? new Date(item.lastPurchaseDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }) : '-'}
+      </td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+        {item.daysSinceLastPurchase}
+      </td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
         {item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.averageAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        {item.averageOrderValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+        {item.purchaseFrequency > 0 ? item.purchaseFrequency.toFixed(1) : '-'}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.averageQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.productsCount}</td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.orderCount}</td>
     </tr>
   );
 });
 
-CustomerRow.displayName = 'CustomerRow';
+InactiveCustomerRow.displayName = 'InactiveCustomerRow';
 
-export default function SalesCustomersTab({ data, loading }: SalesCustomersTabProps) {
+export default function SalesInactiveCustomersTab({ data, loading }: SalesInactiveCustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [filterDays, setFilterDays] = useState('');
+  const [filterMinAmount, setFilterMinAmount] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
   const [filterArea, setFilterArea] = useState('');
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | 'status' | null>(null);
+  const [excludedCustomerIds, setExcludedCustomerIds] = useState<Set<string>>(new Set());
   
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
+  const statusDropdownRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -76,12 +96,37 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       if (salesRepDropdownRef.current && !salesRepDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'salesrep' ? null : prev);
       }
+      if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'status' ? null : prev);
+      }
     };
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
+  }, []);
+
+  // Fetch excluded customer IDs from exceptions sheet
+  useEffect(() => {
+    const fetchExceptions = async () => {
+      try {
+        const response = await fetch('/api/inactive-customer-exceptions');
+        if (response.ok) {
+          const result = await response.json();
+          const excludedIds = new Set<string>();
+          result.data.forEach((item: { customerId: string }) => {
+            if (item.customerId) {
+              excludedIds.add(item.customerId.trim());
+            }
+          });
+          setExcludedCustomerIds(excludedIds);
+        }
+      } catch (error) {
+        console.error('Error fetching inactive customer exceptions:', error);
+      }
+    };
+    fetchExceptions();
   }, []);
 
   // Debounce search query
@@ -98,186 +143,144 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const filteredData = useMemo(() => {
     let filtered = [...data];
 
-    // Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Date range filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          if (isNaN(itemDate.getTime())) return false;
-          
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            fromDate.setHours(0, 0, 0, 0);
-            if (itemDate < fromDate) return false;
-          }
-          
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            if (itemDate > toDate) return false;
-          }
-          
-          return true;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Area filter
+    // Filter by area
     if (filterArea) {
       filtered = filtered.filter(item => item.area === filterArea);
     }
 
-    // Merchandiser filter
+    // Filter by merchandiser
     if (filterMerchandiser) {
       filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
     }
 
-    // SalesRep filter
+    // Filter by sales rep
     if (filterSalesRep) {
       filtered = filtered.filter(item => item.salesRep === filterSalesRep);
     }
 
     return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep]);
+  }, [data, filterArea, filterMerchandiser, filterSalesRep]);
 
-  // Group data by customerId - optimized
-  const customersData = useMemo(() => {
+  // Group data by customer and calculate inactive customer metrics
+  const inactiveCustomersData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
     
     const customerMap = new Map<string, { 
       customerId: string;
       customer: string;
-      merchandiser: string;
-      salesRep: string;
-      totalAmount: number; 
-      totalQty: number;
-      barcodes: Set<string>;
-      months: Set<string>;
+      lastPurchaseDate: Date | null;
+      totalAmount: number;
       invoiceNumbers: Set<string>;
+      invoiceDates: Date[];
     }>();
     
-    // Pre-compile date parsing to avoid repeated try-catch
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    
+    // Process all invoices to get customer data
     for (let i = 0; i < filteredData.length; i++) {
       const item = filteredData[i];
-      const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
+      const key = item.customerId || item.customerName;
       let existing = customerMap.get(key);
       
       if (!existing) {
         existing = { 
           customerId: key,
-          customer: item.customerName, // Display customerName
-          merchandiser: item.merchandiser || '',
-          salesRep: item.salesRep || '',
-          totalAmount: 0, 
-          totalQty: 0,
-          barcodes: new Set<string>(),
-          months: new Set<string>(),
-          invoiceNumbers: new Set<string>()
+          customer: item.customerName,
+          lastPurchaseDate: null,
+          totalAmount: 0,
+          invoiceNumbers: new Set<string>(),
+          invoiceDates: []
         };
         customerMap.set(key, existing);
       }
       
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-      
-      // Add invoice number for transaction count (only invoices starting with "SAL")
+      // Only count invoices starting with "SAL"
       if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+        existing.totalAmount += item.amount;
         existing.invoiceNumbers.add(item.invoiceNumber);
         
-        // Add product to count (only for invoices starting with "SAL")
-        // Use productId || barcode || product as key to match SalesCustomerDetails logic
-        const productKey = item.productId || item.barcode || item.product;
-        existing.barcodes.add(productKey);
-      }
-      
-      // Optimized date parsing
-      if (item.invoiceDate) {
-        const date = new Date(item.invoiceDate);
-        if (!isNaN(date.getTime())) {
-          const year = date.getFullYear();
-          const month = date.getMonth() + 1;
-          const monthKey = `${year}-${month < 10 ? '0' : ''}${month}`;
-          existing.months.add(monthKey);
+        if (item.invoiceDate) {
+          const date = new Date(item.invoiceDate);
+          if (!isNaN(date.getTime())) {
+            existing.invoiceDates.push(date);
+            // Update last purchase date
+            if (!existing.lastPurchaseDate || date > existing.lastPurchaseDate) {
+              existing.lastPurchaseDate = date;
+            }
+          }
         }
       }
     }
 
-    // Pre-calculate array length
-    const result = new Array(customerMap.size);
-    let index = 0;
-    
-    // Get current date for calculating months span
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth(); // 0-based (0 = January)
+    // Convert to array and calculate metrics
+    const result: Array<{
+      customer: string;
+      lastPurchaseDate: Date | null;
+      daysSinceLastPurchase: number;
+      totalAmount: number;
+      averageOrderValue: number;
+      purchaseFrequency: number;
+      orderCount: number;
+      status: string;
+    }> = [];
     
     customerMap.forEach(item => {
-      // Calculate months from first month to current month
-      let totalMonths = 1;
-      if (item.months.size > 0) {
-        // Find earliest month
-        const sortedMonths = Array.from(item.months).sort();
-        const firstMonthKey = sortedMonths[0];
-        const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
-        
-        // Calculate months from first month to current month (inclusive)
-        const firstDate = new Date(firstYear, firstMonth - 1, 1);
-        const lastDate = new Date(currentYear, currentMonth, 1);
-        
-        // Calculate difference in months
-        const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
-        const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
-        totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
+      if (!item.lastPurchaseDate) return; // Skip customers with no valid purchase date
+      
+      // Skip customers in exceptions list
+      if (excludedCustomerIds.has(item.customerId)) return;
+      
+      // Calculate days since last purchase
+      const daysSince = Math.floor((currentDate.getTime() - item.lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
+      
+      // Only include customers with 10+ days since last purchase
+      if (daysSince < 10) return;
+      
+      // Calculate average order value
+      const orderCount = item.invoiceNumbers.size;
+      const averageOrderValue = orderCount > 0 ? item.totalAmount / orderCount : 0;
+      
+      // Calculate purchase frequency (average days between purchases)
+      let purchaseFrequency = 0;
+      if (item.invoiceDates.length > 1) {
+        // Sort dates
+        const sortedDates = [...item.invoiceDates].sort((a, b) => a.getTime() - b.getTime());
+        // Calculate total days span
+        const firstDate = sortedDates[0];
+        const lastDate = sortedDates[sortedDates.length - 1];
+        const totalDays = Math.floor((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+        // Average days between orders
+        purchaseFrequency = totalDays > 0 && sortedDates.length > 1 ? totalDays / (sortedDates.length - 1) : 0;
       }
       
-      result[index++] = {
+      // Determine status
+      let status = '';
+      if (daysSince >= 10 && daysSince < 30) {
+        status = 'At Risk';
+      } else if (daysSince >= 30 && daysSince < 60) {
+        status = 'Inactive';
+      } else if (daysSince >= 60) {
+        status = 'Lost';
+      }
+      
+      result.push({
         customer: item.customer,
+        lastPurchaseDate: item.lastPurchaseDate,
+        daysSinceLastPurchase: daysSince,
         totalAmount: item.totalAmount,
-        totalQty: item.totalQty,
-        averageAmount: item.totalAmount / totalMonths,
-        averageQty: item.totalQty / totalMonths,
-        productsCount: item.barcodes.size,
-        transactions: item.invoiceNumbers.size
-      };
+        averageOrderValue,
+        purchaseFrequency,
+        orderCount,
+        status
+      });
     });
     
+    // Sort by days since last purchase (descending - most inactive first)
+    result.sort((a, b) => b.daysSinceLastPurchase - a.daysSinceLastPurchase);
+    
     return result;
-  }, [filteredData]);
+  }, [filteredData, excludedCustomerIds]);
 
   // Get unique values for dropdown filters
   const uniqueAreas = useMemo(() => {
@@ -310,27 +313,45 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     return Array.from(salesReps).sort();
   }, [data]);
 
-  // Filter and sort customers - optimized
+  // Filter and sort customers
   const filteredCustomers = useMemo(() => {
-    if (customersData.length === 0) return [];
+    if (inactiveCustomersData.length === 0) return [];
     
-    let filtered: typeof customersData;
+    let filtered: typeof inactiveCustomersData;
     
     // Apply search filter using debounced query
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
-      filtered = customersData.filter(item => 
+      filtered = inactiveCustomersData.filter(item => 
         item.customer.toLowerCase().includes(query)
       );
     } else {
-      filtered = customersData;
+      filtered = inactiveCustomersData;
     }
     
-    // Sort by amount descending (in-place for better performance)
-    filtered.sort((a, b) => b.totalAmount - a.totalAmount);
+    // Filter by days
+    if (filterDays) {
+      const days = parseInt(filterDays);
+      if (!isNaN(days) && days >= 0) {
+        filtered = filtered.filter(item => item.daysSinceLastPurchase >= days);
+      }
+    }
+    
+    // Filter by minimum amount
+    if (filterMinAmount) {
+      const minAmount = parseFloat(filterMinAmount);
+      if (!isNaN(minAmount) && minAmount >= 0) {
+        filtered = filtered.filter(item => item.totalAmount >= minAmount);
+      }
+    }
+    
+    // Filter by status
+    if (filterStatus) {
+      filtered = filtered.filter(item => item.status === filterStatus);
+    }
     
     return filtered;
-  }, [customersData, debouncedSearchQuery]);
+  }, [inactiveCustomersData, debouncedSearchQuery, filterDays, filterMinAmount, filterStatus]);
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
@@ -338,32 +359,25 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const endIndex = startIndex + ITEMS_PER_PAGE;
   const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
 
-  // Calculate totals (for all filtered customers, not just current page) - optimized single pass
+  // Calculate totals
   const totals = useMemo(() => {
     if (filteredCustomers.length === 0) {
       return {
         totalAmount: 0,
-        totalAverageAmount: 0,
-        totalQty: 0,
-        totalAverageQty: 0,
-        totalProductsCount: 0
+        totalAverageOrderValue: 0,
+        totalOrderCount: 0
       };
     }
 
-    // Single reduce pass instead of 5 separate reduces
     const result = filteredCustomers.reduce((acc, item) => {
       acc.totalAmount += item.totalAmount;
-      acc.totalAverageAmount += item.averageAmount;
-      acc.totalQty += item.totalQty;
-      acc.totalAverageQty += item.averageQty;
-      acc.totalProductsCount += item.productsCount;
+      acc.totalAverageOrderValue += item.averageOrderValue;
+      acc.totalOrderCount += item.orderCount;
       return acc;
     }, {
       totalAmount: 0,
-      totalAverageAmount: 0,
-      totalQty: 0,
-      totalAverageQty: 0,
-      totalProductsCount: 0
+      totalAverageOrderValue: 0,
+      totalOrderCount: 0
     });
 
     return result;
@@ -397,180 +411,51 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     const headers = [
       '#',
       'Customer Name',
-      'Amount',
-      'Average Amount',
-      'Qty',
-      'Average Qty',
-      'Transactions',
-      'Products Count',
+      'Status',
+      'Last Purchase Date',
+      'Days Since Last Purchase',
+      'Total Amount',
+      'Average Order Value',
+      'Purchase Frequency (Days)',
+      'Order Count',
     ];
 
     const rows = filteredCustomers.map((item, index) => [
       index + 1,
       item.customer,
+      item.status,
+      item.lastPurchaseDate ? new Date(item.lastPurchaseDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }) : '-',
+      item.daysSinceLastPurchase,
       item.totalAmount.toFixed(2),
-      item.averageAmount.toFixed(2),
-      item.totalQty.toFixed(0),
-      item.averageQty.toFixed(2),
-      item.transactions,
-      item.productsCount,
+      item.averageOrderValue.toFixed(2),
+      item.purchaseFrequency > 0 ? item.purchaseFrequency.toFixed(1) : '-',
+      item.orderCount,
     ]);
 
-    // Totals row (same as table footer)
+    // Totals row
     if (filteredCustomers.length > 0) {
       rows.push([
         '',
         'Total',
+        '',
+        '',
+        '',
         totals.totalAmount.toFixed(2),
-        totals.totalAverageAmount.toFixed(2),
-        totals.totalQty.toFixed(0),
-        totals.totalAverageQty.toFixed(2),
-        totals.totalTransactions,
-        totals.totalProductsCount,
+        (totals.totalAverageOrderValue / filteredCustomers.length).toFixed(2),
+        '',
+        totals.totalOrderCount,
       ]);
     }
 
     const sheetData = [headers, ...rows];
     const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Customers');
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Inactive Customers');
 
-    const filename = `sales_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
-    setShowExportMenu(false);
-  };
-
-  const exportToExcelByMonths = () => {
-    if (!data || data.length === 0) return;
-
-    // Group data by customerId and month, but keep customerName for display
-    const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
-    const customerNameMap = new Map<string, string>(); // Map customerId to customerName
-    const allMonths = new Set<string>();
-
-    data.forEach(item => {
-      if (!item.invoiceDate) return;
-      
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-
-      allMonths.add(monthKey);
-
-      const customerId = item.customerId || item.customerName; // Use customerId for grouping
-      if (!customerMonthMap.has(customerId)) {
-        customerMonthMap.set(customerId, new Map());
-      }
-      
-      // Store customerName for this customerId (use first occurrence)
-      if (!customerNameMap.has(customerId)) {
-        customerNameMap.set(customerId, item.customerName);
-      }
-
-      const customerMonths = customerMonthMap.get(customerId)!;
-      if (!customerMonths.has(monthKey)) {
-        customerMonths.set(monthKey, { amount: 0, qty: 0 });
-      }
-
-      const monthData = customerMonths.get(monthKey)!;
-      monthData.amount += item.amount;
-      monthData.qty += item.qty;
-    });
-
-    // Sort months chronologically
-    const sortedMonths = Array.from(allMonths).sort();
-    const monthLabels = sortedMonths.map(monthKey => {
-      const [year, month] = monthKey.split('-');
-      const date = new Date(parseInt(year), parseInt(month) - 1);
-      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    });
-
-    // Create workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Sheet 1: Amount
-    const amountHeaders = ['Customer', ...monthLabels, 'Total'];
-    const amountRows: any[][] = [];
-
-    customerMonthMap.forEach((months, customerId) => {
-      const customerName = customerNameMap.get(customerId) || customerId; // Use customerName for display
-      const row: any[] = [customerName];
-      let total = 0;
-
-      sortedMonths.forEach(monthKey => {
-        const monthData = months.get(monthKey);
-        const value = monthData ? monthData.amount : 0;
-        row.push(value.toFixed(2));
-        total += value;
-      });
-
-      row.push(total.toFixed(2));
-      amountRows.push(row);
-    });
-
-    // Sort by customer name
-    amountRows.sort((a, b) => a[0].localeCompare(b[0]));
-
-    // Add total row - calculate from original data
-    const amountTotals = new Array(sortedMonths.length + 1).fill(0);
-    customerMonthMap.forEach((months) => {
-      sortedMonths.forEach((monthKey, index) => {
-        const monthData = months.get(monthKey);
-        if (monthData) {
-          amountTotals[index] += monthData.amount;
-        }
-      });
-    });
-    amountTotals[amountTotals.length - 1] = amountTotals.slice(0, -1).reduce((a, b) => a + b, 0);
-    amountRows.push(['Total', ...amountTotals.map(t => t.toFixed(2))]);
-
-    const amountData = [amountHeaders, ...amountRows];
-    const amountSheet = XLSX.utils.aoa_to_sheet(amountData);
-    XLSX.utils.book_append_sheet(workbook, amountSheet, 'Amount');
-
-    // Sheet 2: Quantity
-    const qtyHeaders = ['Customer', ...monthLabels, 'Total'];
-    const qtyRows: any[][] = [];
-
-    customerMonthMap.forEach((months, customerId) => {
-      const customerName = customerNameMap.get(customerId) || customerId; // Use customerName for display
-      const row: any[] = [customerName];
-      let total = 0;
-
-      sortedMonths.forEach(monthKey => {
-        const monthData = months.get(monthKey);
-        const value = monthData ? monthData.qty : 0;
-        row.push(value.toFixed(0));
-        total += value;
-      });
-
-      row.push(total.toFixed(0));
-      qtyRows.push(row);
-    });
-
-    // Sort by customer name
-    qtyRows.sort((a, b) => a[0].localeCompare(b[0]));
-
-    // Add total row - calculate from original data
-    const qtyTotals = new Array(sortedMonths.length + 1).fill(0);
-    customerMonthMap.forEach((months) => {
-      sortedMonths.forEach((monthKey, index) => {
-        const monthData = months.get(monthKey);
-        if (monthData) {
-          qtyTotals[index] += monthData.qty;
-        }
-      });
-    });
-    qtyTotals[qtyTotals.length - 1] = qtyTotals.slice(0, -1).reduce((a, b) => a + b, 0);
-    qtyRows.push(['Total', ...qtyTotals.map(t => t.toFixed(0))]);
-
-    const qtyData = [qtyHeaders, ...qtyRows];
-    const qtySheet = XLSX.utils.aoa_to_sheet(qtyData);
-    XLSX.utils.book_append_sheet(workbook, qtySheet, 'Qty');
-
-    const filename = `sales_customers_by_months_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const filename = `sales_inactive_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
     setShowExportMenu(false);
   };
@@ -580,19 +465,19 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading customers data...</p>
+          <p className="text-gray-600">Loading inactive customers data...</p>
         </div>
       </div>
     );
   }
 
-  // If a customer is selected, show their details
   if (selectedCustomer) {
     return (
       <SalesCustomerDetails
         customerName={selectedCustomer}
         data={data}
         onBack={() => setSelectedCustomer(null)}
+        initialTab="dashboard"
       />
     );
   }
@@ -602,7 +487,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Inactive Customers</h1>
           <div className="relative" ref={exportMenuRef}>
             <button
               onClick={() => setShowExportMenu(!showExportMenu)}
@@ -615,15 +500,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
                 <button
                   onClick={exportToExcel}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors"
+                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  Export Current Table
-                </button>
-                <button
-                  onClick={exportToExcelByMonths}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors border-t border-gray-200"
-                >
-                  Export by Months (Amount & Qty)
+                  Export to Excel
                 </button>
               </div>
             )}
@@ -633,79 +512,140 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Year Filter */}
+          
+          {/* Input Filters Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+            {/* Days Filter */}
             <div>
-              <label htmlFor="filterYear" className="block text-sm font-medium text-gray-700 mb-1">
-                Year
+              <label htmlFor="filterDays" className="block text-sm font-medium text-gray-700 mb-1">
+                Days Since Last Purchase
               </label>
               <input
-                id="filterYear"
+                id="filterDays"
                 type="number"
-                placeholder="e.g., 2024"
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                min="2000"
-                max="2100"
-              />
-            </div>
-
-            {/* Month Filter */}
-            <div>
-              <label htmlFor="filterMonth" className="block text-sm font-medium text-gray-700 mb-1">
-                Month (1-12)
-              </label>
-              <input
-                id="filterMonth"
-                type="number"
-                placeholder="e.g., 1-12"
-                value={filterMonth}
+                placeholder="e.g., 30"
+                value={filterDays}
                 onChange={(e) => {
                   const value = e.target.value;
-                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
-                    setFilterMonth(value);
+                  if (value === '' || (!isNaN(Number(value)) && Number(value) >= 0)) {
+                    setFilterDays(value);
                   }
                 }}
                 className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                min="1"
-                max="12"
+                min="0"
               />
             </div>
 
-            {/* Date From */}
+            {/* Min Amount Filter */}
             <div>
-              <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                From Date
+              <label htmlFor="filterMinAmount" className="block text-sm font-medium text-gray-700 mb-1">
+                Total Amount Greater Than
               </label>
               <input
-                id="dateFrom"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
+                id="filterMinAmount"
+                type="number"
+                placeholder="e.g., 1000"
+                value={filterMinAmount}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || (!isNaN(Number(value)) && Number(value) >= 0)) {
+                    setFilterMinAmount(value);
+                  }
+                }}
                 className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            {/* Date To */}
-            <div>
-              <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                To Date
-              </label>
-              <input
-                id="dateTo"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                min="0"
+                step="0.01"
               />
             </div>
           </div>
 
-          {/* Dropdown Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+          {/* Dropdown Filters Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Status Filter */}
+            <div className="relative" ref={statusDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <UserCircle className="w-4 h-4 text-green-600" />
+                Status
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
+                    openDropdown === 'status'
+                      ? 'border-green-500 ring-2 ring-green-500/20'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <span className={filterStatus ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterStatus || 'All Statuses'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
+                      openDropdown === 'status' ? 'transform rotate-180' : ''
+                    }`}
+                  />
+                </button>
+                {openDropdown === 'status' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterStatus('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
+                        filterStatus === ''
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      All Statuses
+                    </div>
+                    <div
+                      onClick={() => {
+                        setFilterStatus('At Risk');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                        filterStatus === 'At Risk'
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      At Risk (10-30 days)
+                    </div>
+                    <div
+                      onClick={() => {
+                        setFilterStatus('Inactive');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                        filterStatus === 'Inactive'
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      Inactive (30-60 days)
+                    </div>
+                    <div
+                      onClick={() => {
+                        setFilterStatus('Lost');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
+                        filterStatus === 'Lost'
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                      }`}
+                    >
+                      Lost (60+ days)
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Area Filter */}
             {/* Area Filter */}
             <div className="relative" ref={areaDropdownRef}>
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
@@ -891,14 +831,13 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
           </div>
 
           {/* Clear Filters Button */}
-          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep) && (
+          {(filterDays || filterMinAmount || filterStatus || filterArea || filterMerchandiser || filterSalesRep) && (
             <div className="mt-3">
               <button
                 onClick={() => {
-                  setFilterYear('');
-                  setFilterMonth('');
-                  setDateFrom('');
-                  setDateTo('');
+                  setFilterDays('');
+                  setFilterMinAmount('');
+                  setFilterStatus('');
                   setFilterArea('');
                   setFilterMerchandiser('');
                   setFilterSalesRep('');
@@ -933,17 +872,17 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 <tr className="border-b border-gray-200">
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Customer Name</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Products Count</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Last Purchase Date</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Days Since Last Purchase</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Total Amount</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Order Value</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Purchase Frequency (Days)</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Order Count</th>
                 </tr>
               </thead>
               <tbody>
                 {paginatedCustomers.map((item, index) => (
-                  <CustomerRow 
+                  <InactiveCustomerRow
                     key={`${item.customer}-${startIndex + index}`}
                     item={item}
                     rowNumber={startIndex + index + 1}
@@ -959,7 +898,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 )}
                 {filteredCustomers.length > 0 && (
                   <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
+                    <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={4}>Total</td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
                       {totals.totalAmount.toLocaleString('en-US', { 
                         minimumFractionDigits: 2, 
@@ -967,27 +906,15 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAverageAmount.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
-                      })}
+                      {filteredCustomers.length > 0 
+                        ? (totals.totalAverageOrderValue / filteredCustomers.length).toLocaleString('en-US', { 
+                            minimumFractionDigits: 2, 
+                            maximumFractionDigits: 2 
+                          })
+                        : '0.00'}
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalQty.toLocaleString('en-US', { 
-                        minimumFractionDigits: 0, 
-                        maximumFractionDigits: 0 
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAverageQty.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">{totals.totalTransactions}</td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalProductsCount}
-                    </td>
+                    <td className="py-3 px-4 text-sm text-gray-800 text-center">-</td>
+                    <td className="py-3 px-4 text-sm text-gray-800 text-center">{totals.totalOrderCount}</td>
                   </tr>
                 )}
               </tbody>
@@ -1004,45 +931,19 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                          currentPage === pageNum
-                            ? 'bg-green-600 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
+                <span className="text-sm text-gray-700 px-3">
+                  Page {currentPage} of {totalPages}
+                </span>
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="p-2 rounded-lg border border-gray-300 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             </div>

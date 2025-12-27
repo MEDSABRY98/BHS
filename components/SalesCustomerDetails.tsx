@@ -19,11 +19,11 @@ interface SalesCustomerDetailsProps {
   customerName: string;
   data: SalesInvoice[];
   onBack: () => void;
-  initialTab?: 'dashboard' | 'monthly' | 'products';
+  initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
 }
 
 export default function SalesCustomerDetails({ customerName, data, onBack, initialTab = 'dashboard' }: SalesCustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products' | 'invoices'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -119,8 +119,8 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         existing.amount += item.amount;
         existing.qty += item.qty;
         
-        // Add invoice number for transaction count
-        if (item.invoiceNumber) {
+        // Add invoice number for transaction count (only invoices starting with "SAL")
+        if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
           existing.invoiceNumbers.add(item.invoiceNumber);
         }
 
@@ -131,7 +131,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     });
 
     // Sort by date descending (newest first)
-    return Array.from(monthMap.values()).map(item => ({
+    const sorted = Array.from(monthMap.values()).map(item => ({
       month: item.month,
       monthKey: item.monthKey,
       amount: item.amount,
@@ -140,6 +140,91 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     })).sort((a, b) => {
       return b.monthKey.localeCompare(a.monthKey);
     });
+
+    // Fill in missing months from first purchase month to current month
+    if (sorted.length > 0) {
+      // Find first month (oldest) and last month (newest)
+      const firstMonthKey = sorted[sorted.length - 1].monthKey; // Oldest (last in descending order)
+      const lastMonthKey = sorted[0].monthKey; // Newest (first in descending order)
+      
+      // Parse first month
+      const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+      
+      // Get current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 1-based
+      const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+      
+      // Use current month or last purchase month, whichever is newer
+      const endMonthKey = currentMonthKey > lastMonthKey ? currentMonthKey : lastMonthKey;
+      const [endYear, endMonth] = endMonthKey.split('-').map(Number);
+      
+      // Create a map for quick lookup
+      const monthDataMap = new Map(sorted.map(item => [item.monthKey, item]));
+      
+      // Generate all months from first to end
+      const allMonths: Array<{
+        month: string;
+        monthKey: string;
+        amount: number;
+        qty: number;
+        count: number;
+        isZeroMonth: boolean;
+      }> = [];
+      
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      
+      let year = firstYear;
+      let month = firstMonth;
+      
+      while (year < endYear || (year === endYear && month <= endMonth)) {
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const monthLabel = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
+        
+        const existingData = monthDataMap.get(monthKey);
+        
+        if (existingData) {
+          allMonths.push({
+            ...existingData,
+            isZeroMonth: false
+          });
+        } else {
+          // Zero month - no purchases
+          allMonths.push({
+            month: monthLabel,
+            monthKey,
+            amount: 0,
+            qty: 0,
+            count: 0,
+            isZeroMonth: true
+          });
+        }
+        
+        // Move to next month
+        month++;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+      }
+      
+      // Sort by date descending (newest first)
+      allMonths.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+      
+      // Calculate amount change from previous month
+      return allMonths.map((item, index) => {
+        const previousAmount = index < allMonths.length - 1 ? allMonths[index + 1].amount : null;
+        const amountChange = previousAmount !== null ? item.amount - previousAmount : null;
+        
+        return {
+          ...item,
+          amountChange
+        };
+      });
+    }
+
+    return [];
   }, [customerData]);
 
   // Products data
@@ -149,6 +234,10 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       product: string; 
       amount: number; 
       qty: number;
+      totalCost: number;
+      totalPrice: number;
+      costCount: number;
+      priceCount: number;
       invoiceNumbers: Set<string>;
       lastInvoiceDate: string | null;
     }>();
@@ -161,15 +250,27 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         product: item.product,
         amount: 0,
         qty: 0,
+        totalCost: 0,
+        totalPrice: 0,
+        costCount: 0,
+        priceCount: 0,
         invoiceNumbers: new Set<string>(),
         lastInvoiceDate: null
       };
 
       existing.amount += item.amount;
       existing.qty += item.qty;
+      if (item.productCost) {
+        existing.totalCost += item.productCost;
+        existing.costCount += 1;
+      }
+      if (item.productPrice) {
+        existing.totalPrice += item.productPrice;
+        existing.priceCount += 1;
+      }
 
-      // Add invoice number if available
-      if (item.invoiceNumber) {
+      // Add invoice number if available (only invoices starting with "SAL")
+      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
 
@@ -206,13 +307,89 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     return result.map(item => {
       const productId = item.barcode || item.product;
       const invoiceNumbersArray = Array.from(item.invoiceNumbers).sort();
+      const avgCost = item.costCount > 0 ? item.totalCost / item.costCount : 0;
+      const avgPrice = item.priceCount > 0 ? item.totalPrice / item.priceCount : 0;
       return {
         ...item,
         isDuplicate: productId ? (productIdCount.get(productId) || 0) > 1 : false,
         invoiceCount: item.invoiceNumbers.size,
         invoiceNumbers: invoiceNumbersArray.join(', '),
-        lastInvoiceDate: item.lastInvoiceDate
+        lastInvoiceDate: item.lastInvoiceDate,
+        avgCost,
+        avgPrice
       };
+    });
+  }, [customerData]);
+
+  // Invoices data - grouped by invoiceNumber
+  const invoicesData = useMemo(() => {
+    const invoiceMap = new Map<string, {
+      invoiceDate: string;
+      invoiceNumber: string;
+      amount: number;
+      qty: number;
+      products: Set<string>;
+      totalCost: number;
+      totalPrice: number;
+      costCount: number;
+      priceCount: number;
+    }>();
+
+    customerData.forEach(item => {
+      if (!item.invoiceNumber) return;
+      
+      const existing = invoiceMap.get(item.invoiceNumber) || {
+        invoiceDate: item.invoiceDate || '',
+        invoiceNumber: item.invoiceNumber,
+        amount: 0,
+        qty: 0,
+        products: new Set<string>(),
+        totalCost: 0,
+        totalPrice: 0,
+        costCount: 0,
+        priceCount: 0
+      };
+
+      existing.amount += item.amount;
+      existing.qty += item.qty;
+      
+      // Add product to set
+      const productKey = item.productId || item.barcode || item.product;
+      existing.products.add(productKey);
+      
+      // Add cost and price
+      if (item.productCost) {
+        existing.totalCost += item.productCost;
+        existing.costCount += 1;
+      }
+      if (item.productPrice) {
+        existing.totalPrice += item.productPrice;
+        existing.priceCount += 1;
+      }
+
+      invoiceMap.set(item.invoiceNumber, existing);
+    });
+
+    // Convert to array and calculate averages
+    return Array.from(invoiceMap.values()).map(invoice => {
+      const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
+      const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
+      
+      return {
+        ...invoice,
+        productCount: invoice.products.size,
+        avgCost,
+        avgPrice
+      };
+    }).sort((a, b) => {
+      // Sort by date descending (newest first)
+      const dateA = new Date(a.invoiceDate).getTime();
+      const dateB = new Date(b.invoiceDate).getTime();
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      }
+      // If dates are equal, sort by invoice number
+      return b.invoiceNumber.localeCompare(a.invoiceNumber);
     });
   }, [customerData]);
 
@@ -248,11 +425,14 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     const avgMonthlyAmount = totalMonths > 0 ? totalAmount / totalMonths : 0;
     const avgMonthlyQty = totalMonths > 0 ? totalQty / totalMonths : 0;
 
+    // Count only months where customer actually made purchases (not zero months)
+    const activeMonths = monthlySales.filter(month => !month.isZeroMonth && month.count > 0).length;
+
     return {
       totalAmount,
       totalQty,
       uniqueProducts,
-      uniqueMonths: monthlySales.length, // Keep for display (active months)
+      uniqueMonths: activeMonths, // Only months with actual purchases
       totalMonths, // Total months from start to now
       avgMonthlyAmount,
       avgMonthlyQty
@@ -289,13 +469,15 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   const exportProductsToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    const headers = ['#', 'Barcode', 'Product', 'Amount', 'Quantity', 'Purchase Count', 'Last Invoice Date'];
+    const headers = ['#', 'Barcode', 'Product', 'Amount', 'Avg Cost', 'Avg Price', 'Quantity', 'Purchase Count', 'LID'];
 
     const rows = productsData.map((item: any, index: number) => [
       index + 1,
       item.barcode || '-',
       item.product,
       item.amount.toFixed(2),
+      item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2),
+      item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
       item.qty.toFixed(0),
       item.invoiceCount || 0,
       item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
@@ -311,6 +493,34 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
     const filename = `sales_customer_products_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  const exportInvoicesToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = ['Invoice Date', 'Invoice Number', 'Amount', 'Quantity', 'Products Count', 'Avg Cost', 'Avg Price'];
+
+    const rows = invoicesData.map((item: any) => [
+      item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      }) : '-',
+      item.invoiceNumber,
+      item.amount.toFixed(2),
+      item.qty.toFixed(0),
+      item.productCount,
+      item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2),
+      item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
+    ]);
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Invoices');
+
+    const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
+    const filename = `sales_customer_invoices_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
   };
 
@@ -394,6 +604,16 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
             }`}
           >
             Products
+          </button>
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${
+              activeTab === 'invoices'
+                ? 'text-green-600 border-green-600'
+                : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+          >
+            Invoices / LPO
           </button>
         </div>
 
@@ -759,32 +979,63 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   <tr className="border-b border-gray-200">
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Change</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Transactions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {monthlySales.map((item, index) => (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.month}</td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                    <tr 
+                      key={index} 
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${
+                        item.isZeroMonth ? 'bg-gray-50 opacity-60' : ''
+                      }`}
+                    >
+                      <td className={`py-3 px-4 text-base font-medium text-center ${
+                        item.isZeroMonth ? 'text-gray-500 line-through' : 'text-gray-800'
+                      }`}>
+                        {item.month}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${
+                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                      }`}>
                         {item.amount.toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
                         })}
                       </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                      <td className="py-3 px-4 text-base font-semibold text-center">
+                        {item.amountChange !== null ? (
+                          <span className={item.amountChange >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {item.amountChange >= 0 ? '+' : ''}
+                            {item.amountChange.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${
+                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                      }`}>
                         {item.qty.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0
                         })}
                       </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.count}</td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${
+                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                      }`}>
+                        {item.count}
+                      </td>
                     </tr>
                   ))}
                   {monthlySales.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="py-8 text-center text-gray-500">
+                      <td colSpan={5} className="py-8 text-center text-gray-500">
                         No monthly data available
                       </td>
                     </tr>
@@ -816,9 +1067,11 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Barcode</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Product</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Cost</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Price</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Purchase Count</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Last Invoice Date</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">LID</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -843,6 +1096,18 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                         })}
                       </td>
                       <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.avgCost % 1 === 0 
+                          ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                          : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.avgPrice % 1 === 0 
+                          ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                          : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.qty.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0
@@ -862,8 +1127,93 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   ))}
                   {productsData.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                      <td colSpan={9} className="py-8 text-center text-gray-500">
                         No products data available
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Invoices / LPO Tab */}
+        {activeTab === 'invoices' && (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Invoices / LPO</h2>
+              <button
+                onClick={exportInvoicesToExcel}
+                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                title="Export Invoices to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoice Date</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoice Number</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Products Count</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Cost</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {invoicesData.map((item, index) => {
+                    const isRSAL = item.invoiceNumber.trim().toUpperCase().startsWith('RSAL');
+                    return (
+                    <tr 
+                      key={index} 
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${
+                        isRSAL ? 'bg-red-50 hover:bg-red-100' : ''
+                      }`}
+                    >
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
+                        {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        }) : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.invoiceNumber}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.amount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.qty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.productCount}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.avgCost % 1 === 0 
+                          ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                          : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.avgPrice % 1 === 0 
+                          ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                          : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }
+                      </td>
+                    </tr>
+                    );
+                  })}
+                  {invoicesData.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                        No invoices data available
                       </td>
                     </tr>
                   )}

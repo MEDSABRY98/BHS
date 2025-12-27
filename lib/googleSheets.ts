@@ -1056,11 +1056,55 @@ export interface SalesInvoice {
   product: string;
   productTag: string;
   productCost: number;
+  productPrice: number;
   amount: number;
   qty: number;
 }
 
 // Get Sales Data from "Sales - Invoices" sheet
+export interface InactiveCustomerException {
+  customerId: string;
+  customerName: string;
+}
+
+export async function getInactiveCustomerExceptions(): Promise<InactiveCustomerException[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Inactive Customers - Exception!A:B', // CUSTOMER ID, CUSTOMER NAME
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row and parse data
+    const data = rows.slice(1).map((row) => {
+      const [customerId, customerName] = row;
+      return {
+        customerId: customerId?.toString().trim() || '',
+        customerName: customerName?.toString().trim() || '',
+      };
+    }).filter(row => row.customerId); // Filter out empty rows
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching inactive customer exceptions:', error);
+    // Return empty array if sheet doesn't exist or has errors
+    return [];
+  }
+}
+
 export async function getSalesData(): Promise<SalesInvoice[]> {
   try {
     const credentials = getServiceAccountCredentials();
@@ -1074,7 +1118,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Sales - Invoices!A:N`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER NAME, AREA, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, PRODUCT TAG, PRODUCT COST, AMOUNT, QTY
+      range: `Sales - Invoices!A:O`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER NAME, AREA, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, PRODUCT TAG, PRODUCT COST, PRODUCT PRICE, AMOUNT, QTY
     });
 
     const rows = response.data.values;
@@ -1090,9 +1134,10 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
       const area = row[4]?.toString().trim() || '';
       
       // Use amount and qty values as they are from Google Sheets (can be positive or negative)
-      const amount = row[12] ? parseFloat(row[12].toString().replace(/,/g, '')) || 0 : 0;
-      const qty = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
+      const amount = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
+      const qty = row[14] ? parseFloat(row[14].toString().replace(/,/g, '')) || 0 : 0;
       const productCost = row[11] ? parseFloat(row[11].toString().replace(/,/g, '')) || 0 : 0;
+      const productPrice = row[12] ? parseFloat(row[12].toString().replace(/,/g, '')) || 0 : 0;
       
       return {
         invoiceDate: row[0]?.toString().trim() || '',
@@ -1107,6 +1152,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
         product: row[9]?.toString().trim() || '',
         productTag: row[10]?.toString().trim() || '',
         productCost: productCost,
+        productPrice: productPrice,
         amount: amount,
         qty: qty,
       };
