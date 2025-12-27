@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { date, employeeName, description, timeFrom, timeTo } = body;
+    const { date, employeeName, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
 
     if (!date || !employeeName || !description || !timeFrom || !timeTo) {
       return NextResponse.json(
@@ -46,7 +46,9 @@ export async function POST(request: Request) {
       date,
       employeeName,
       description,
+      fromAmPm,
       timeFrom,
+      toAmPm,
       timeTo,
     });
     
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { rowIndex, date, employeeName, description, timeFrom, timeTo } = body;
+    const { rowIndex, date, employeeName, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
 
     if (!rowIndex || !date || !employeeName || !description || !timeFrom || !timeTo) {
       return NextResponse.json(
@@ -81,7 +83,9 @@ export async function PUT(request: Request) {
       date,
       employeeName,
       description,
+      fromAmPm,
       timeFrom,
+      toAmPm,
       timeTo,
     });
     

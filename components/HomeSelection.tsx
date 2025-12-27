@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock, Receipt } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock, Receipt, Wallet } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -36,6 +36,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     window.location.href = '/cash-receipt';
   };
 
+  const handleSelectPettyCash = () => {
+    window.location.href = '/petty-cash';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       <div className="max-w-7xl w-full mx-auto">
@@ -68,23 +72,42 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           currentUser?.name === 'Mr. Ali Farouk' ? 'md:grid-cols-2' :
           currentUser?.name === 'Mahmoud Shaker' ? 'md:grid-cols-1' :
           currentUser?.name === 'Overtime Export' ? 'md:grid-cols-1' :
+          currentUser?.name === 'Ramadan Gomaa' ? 'md:grid-cols-2' :
           'md:grid-cols-2'
         }`}>
-          {/* Cash Receipt Card - Visible for all users - First */}
-          <div
-            onClick={handleSelectCashReceipt}
-            className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-teal-300 flex flex-col min-h-[180px]"
-          >
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-14 h-14 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                <Receipt className="w-7 h-7 text-teal-600" />
+          {/* Cash Receipt Card - Only visible for MED Sabry - First */}
+          {currentUser?.name === 'MED Sabry' && (
+            <div
+              onClick={handleSelectCashReceipt}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-teal-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Receipt className="w-7 h-7 text-teal-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
               </div>
-              <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Cash Receipt</h2>
             </div>
-            <h2 className="text-xl font-bold text-gray-800 leading-tight">Cash Receipt</h2>
-          </div>
+          )}
 
-          {/* Debit Analysis Card - Hidden for Overtime Export */}
+          {/* Petty Cash Card - Only visible for MED Sabry - Second */}
+          {currentUser?.name === 'MED Sabry' && (
+            <div
+              onClick={handleSelectPettyCash}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-cyan-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-cyan-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Wallet className="w-7 h-7 text-cyan-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Petty Cash</h2>
+            </div>
+          )}
+
+          {/* Debit Analysis Card - Hidden for Overtime Export, visible for Ramadan Gomaa */}
           {currentUser?.name !== 'Overtime Export' && (
             <div
               onClick={handleSelectDebit}
@@ -100,7 +123,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Sales Analysis Card - Hidden for Mahmoud Shaker and Overtime Export */}
+          {/* Sales Analysis Card - Hidden for Mahmoud Shaker and Overtime Export, visible for Ramadan Gomaa */}
           {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && (
             <div
               onClick={handleSelectSales}

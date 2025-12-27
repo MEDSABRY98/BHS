@@ -43,7 +43,9 @@ export default function EmployeeOvertimeTab() {
     id: Date.now(),
     employeeName: '',
     description: '',
+    fromAmPm: 'PM',
     timeFrom: '',
+    toAmPm: 'PM',
     timeTo: '',
     hours: '0.00'
   }]);
@@ -54,12 +56,16 @@ export default function EmployeeOvertimeTab() {
     date: '',
     employeeName: '',
     description: '',
+    fromAmPm: 'PM',
     timeFrom: '',
+    toAmPm: 'PM',
     timeTo: ''
   });
   const [isSaving, setIsSaving] = useState(false);
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
+  const [filterDateFrom, setFilterDateFrom] = useState('');
+  const [filterDateTo, setFilterDateTo] = useState('');
 
   // Fetch employee names on component mount
   useEffect(() => {
@@ -166,7 +172,9 @@ export default function EmployeeOvertimeTab() {
       id: Date.now(),
       employeeName: '',
       description: '',
+      fromAmPm: 'PM',
       timeFrom: '',
+      toAmPm: 'PM',
       timeTo: '',
       hours: '0.00'
     }]);
@@ -205,7 +213,9 @@ export default function EmployeeOvertimeTab() {
             date: currentDate,
             employeeName: row.employeeName,
             description: row.description,
+            fromAmPm: row.fromAmPm || 'PM',
             timeFrom: row.timeFrom,
+            toAmPm: row.toAmPm || 'PM',
             timeTo: row.timeTo,
           }),
         });
@@ -221,11 +231,13 @@ export default function EmployeeOvertimeTab() {
         id: Date.now(),
         employeeName: '',
         description: '',
-        timeFrom: '',
-        timeTo: '',
-        hours: '0.00'
-      }]);
-      setCurrentDate(new Date().toISOString().split('T')[0]);
+      fromAmPm: 'PM',
+      timeFrom: '',
+      toAmPm: 'PM',
+      timeTo: '',
+      hours: '0.00'
+    }]);
+    setCurrentDate(new Date().toISOString().split('T')[0]);
       
       // Reset the records fetched flag so new records will be fetched when switching to view tab
       recordsFetchedRef.current = false;
@@ -253,7 +265,9 @@ export default function EmployeeOvertimeTab() {
       date: record.date,
       employeeName: record.employeeName,
       description: record.description,
+      fromAmPm: record.fromAmPm || 'PM',
       timeFrom: record.timeFrom,
+      toAmPm: record.toAmPm || 'PM',
       timeTo: record.timeTo
     });
     setIsModalOpen(true);
@@ -266,7 +280,9 @@ export default function EmployeeOvertimeTab() {
       date: '',
       employeeName: '',
       description: '',
+      fromAmPm: 'PM',
       timeFrom: '',
+      toAmPm: 'PM',
       timeTo: ''
     });
   };
@@ -279,6 +295,9 @@ export default function EmployeeOvertimeTab() {
       return;
     }
 
+    const fromAmPm = editingRecord.fromAmPm || 'PM';
+    const toAmPm = editingRecord.toAmPm || 'PM';
+
     setIsSaving(true);
     try {
       const response = await fetch('/api/employee-overtime', {
@@ -288,7 +307,13 @@ export default function EmployeeOvertimeTab() {
         },
         body: JSON.stringify({
           rowIndex: selectedRecord.rowIndex,
-          ...editingRecord
+          date: editingRecord.date,
+          employeeName: editingRecord.employeeName,
+          description: editingRecord.description,
+          fromAmPm: fromAmPm,
+          timeFrom: editingRecord.timeFrom,
+          toAmPm: toAmPm,
+          timeTo: editingRecord.timeTo,
         }),
       });
 
@@ -341,9 +366,36 @@ export default function EmployeeOvertimeTab() {
     }
   };
 
-  // Filter records by year and month
+  // Filter records by year, month, and date range
   const filteredRecords = useMemo(() => {
     let filtered = [...overtimeRecords];
+
+    // Date range filter (from - to)
+    if (filterDateFrom.trim() || filterDateTo.trim()) {
+      filtered = filtered.filter(record => {
+        if (!record.date) return false;
+        try {
+          const recordDate = new Date(record.date);
+          recordDate.setHours(0, 0, 0, 0);
+          
+          if (filterDateFrom.trim()) {
+            const fromDate = new Date(filterDateFrom);
+            fromDate.setHours(0, 0, 0, 0);
+            if (recordDate < fromDate) return false;
+          }
+          
+          if (filterDateTo.trim()) {
+            const toDate = new Date(filterDateTo);
+            toDate.setHours(23, 59, 59, 999);
+            if (recordDate > toDate) return false;
+          }
+          
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+    }
 
     // Year filter
     if (filterYear.trim()) {
@@ -378,7 +430,7 @@ export default function EmployeeOvertimeTab() {
     }
 
     return filtered;
-  }, [overtimeRecords, filterYear, filterMonth]);
+  }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo]);
 
   // Export to Excel
   const exportToExcel = () => {
@@ -538,47 +590,64 @@ export default function EmployeeOvertimeTab() {
                     </div>
 
                     {/* Time From */}
-                    <div className="col-span-6 md:col-span-2">
+                    <div className="col-span-6 md:col-span-3">
                       <label className="block text-xs font-medium text-gray-600 mb-1.5">
                         Time From
                       </label>
-                      <input
-                        type="text"
-                        value={row.timeFrom}
-                        onChange={(e) => updateRow(row.id, 'timeFrom', e.target.value)}
-                        placeholder="4, 5, 4.30"
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
-                      />
+                      <div className="flex gap-2">
+                        <select
+                          value={row.fromAmPm || 'PM'}
+                          onChange={(e) => updateRow(row.id, 'fromAmPm', e.target.value)}
+                          className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                        >
+                          <option value="AM">AM</option>
+                          <option value="PM">PM</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={row.timeFrom}
+                          onChange={(e) => updateRow(row.id, 'timeFrom', e.target.value)}
+                          placeholder="4, 5, 4.30"
+                          className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                        />
+                      </div>
                     </div>
 
                     {/* Time To */}
-                    <div className="col-span-6 md:col-span-2">
+                    <div className="col-span-6 md:col-span-3">
                       <label className="block text-xs font-medium text-gray-600 mb-1.5">
                         Time To
                       </label>
-                      <input
-                        type="text"
-                        value={row.timeTo}
-                        onChange={(e) => updateRow(row.id, 'timeTo', e.target.value)}
-                        placeholder="4, 5, 4.30"
-                        className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
-                      />
-                    </div>
-
-                    {/* Delete Button */}
-                    <div className="col-span-12 md:col-span-3 flex justify-end">
-                      <button
-                        onClick={() => deleteRow(row.id)}
-                        disabled={currentRows.length === 1}
-                        className={`w-full md:w-auto px-4 py-2 rounded-lg transition-all flex items-center justify-center gap-2 text-sm font-medium ${
-                          currentRows.length === 1
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300'
-                        }`}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Remove
-                      </button>
+                      <div className="flex gap-2 items-center">
+                        <select
+                          value={row.toAmPm || 'PM'}
+                          onChange={(e) => updateRow(row.id, 'toAmPm', e.target.value)}
+                          className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                        >
+                          <option value="AM">AM</option>
+                          <option value="PM">PM</option>
+                        </select>
+                        <input
+                          type="text"
+                          value={row.timeTo}
+                          onChange={(e) => updateRow(row.id, 'timeTo', e.target.value)}
+                          placeholder="4, 5, 4.30"
+                          className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                        />
+                        {/* Delete Button - Icon Only */}
+                        <button
+                          onClick={() => deleteRow(row.id)}
+                          disabled={currentRows.length === 1}
+                          className={`p-2 rounded-lg transition-all flex items-center justify-center ${
+                            currentRows.length === 1
+                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                              : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300'
+                          }`}
+                          title="Remove row"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -694,11 +763,38 @@ export default function EmployeeOvertimeTab() {
                       max="12"
                     />
                   </div>
-                  {(filterYear || filterMonth) && (
+                  {/* Date Range Filters */}
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="filterDateFrom" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      From Date:
+                    </label>
+                    <input
+                      id="filterDateFrom"
+                      type="date"
+                      value={filterDateFrom}
+                      onChange={(e) => setFilterDateFrom(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="filterDateTo" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      To Date:
+                    </label>
+                    <input
+                      id="filterDateTo"
+                      type="date"
+                      value={filterDateTo}
+                      onChange={(e) => setFilterDateTo(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    />
+                  </div>
+                  {(filterYear || filterMonth || filterDateFrom || filterDateTo) && (
                     <button
                       onClick={() => {
                         setFilterYear('');
                         setFilterMonth('');
+                        setFilterDateFrom('');
+                        setFilterDateTo('');
                       }}
                       className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
                     >
@@ -844,25 +940,45 @@ export default function EmployeeOvertimeTab() {
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Time From
                     </label>
-                    <input
-                      type="text"
-                      value={editingRecord.timeFrom}
-                      onChange={(e) => setEditingRecord({ ...editingRecord, timeFrom: e.target.value })}
-                      placeholder="4, 5, 4.30 (PM)"
-                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
-                    />
+                    <div className="flex gap-2">
+                      <select
+                        value={editingRecord.fromAmPm || 'PM'}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, fromAmPm: e.target.value })}
+                        className="px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
+                      >
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={editingRecord.timeFrom}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, timeFrom: e.target.value })}
+                        placeholder="4, 5, 4.30"
+                        className="flex-1 px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
                       Time To
                     </label>
-                    <input
-                      type="text"
-                      value={editingRecord.timeTo}
-                      onChange={(e) => setEditingRecord({ ...editingRecord, timeTo: e.target.value })}
-                      placeholder="4, 5, 4.30 (PM)"
-                      className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
-                    />
+                    <div className="flex gap-2">
+                      <select
+                        value={editingRecord.toAmPm || 'PM'}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, toAmPm: e.target.value })}
+                        className="px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
+                      >
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                      <input
+                        type="text"
+                        value={editingRecord.timeTo}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, timeTo: e.target.value })}
+                        placeholder="4, 5, 4.30"
+                        className="flex-1 px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

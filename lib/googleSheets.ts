@@ -1478,7 +1478,9 @@ export async function saveEmployeeOvertime(data: {
   date: string;
   employeeName: string;
   description: string;
+  fromAmPm?: string;
   timeFrom: string;
+  toAmPm?: string;
   timeTo: string;
 }): Promise<{ success: boolean }> {
   try {
@@ -1512,9 +1514,9 @@ export async function saveEmployeeOvertime(data: {
       '',                         // C: Employee Name (Ar) (empty)
       data.employeeName.trim(),   // D: Employee Name (En)
       data.description.trim(),    // E: Particulars
-      'PM',                       // F: FROM AM/PM (always PM)
+      data.fromAmPm || 'PM',      // F: FROM AM/PM
       data.timeFrom.trim(),       // G: FTime
-      'PM',                       // H: TO AM/PM (always PM)
+      data.toAmPm || 'PM',        // H: TO AM/PM
       data.timeTo.trim()          // I: TTime
     ];
 
@@ -1638,7 +1640,9 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
   date: string;
   employeeName: string;
   description: string;
+  fromAmPm?: string;
   timeFrom: string;
+  toAmPm?: string;
   timeTo: string;
 }): Promise<{ success: boolean }> {
   try {
@@ -1658,9 +1662,9 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
       '',                         // C: Employee Name (Ar) (empty)
       data.employeeName.trim(),   // D: Employee Name (En)
       data.description.trim(),    // E: Particulars
-      'PM',                       // F: FROM AM/PM (auto-filled)
+      data.fromAmPm || 'PM',      // F: FROM AM/PM
       data.timeFrom.trim(),       // G: FTime
-      'PM',                       // H: TO AM/PM (auto-filled)
+      data.toAmPm || 'PM',        // H: TO AM/PM
       data.timeTo.trim()          // I: TTime
     ];
 
@@ -1730,6 +1734,197 @@ export async function deleteEmployeeOvertime(rowIndex: number): Promise<{ succes
     return { success: true };
   } catch (error) {
     console.error('Error deleting employee overtime:', error);
+    throw error;
+  }
+}
+
+// Save Petty Cash entry to "Petty Cash" sheet
+// Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION)
+export async function savePettyCash(data: {
+  date: string;
+  type: 'Receipt' | 'Expense';
+  amount: number;
+  name: string;
+  description: string;
+}): Promise<{ success: boolean; rowIndex?: number }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const rowValues = [
+      data.date.trim(),           // A: DATE
+      data.type,                   // B: TYPE (Receipt or Expense)
+      data.amount.toString(),      // C: AMOUNT
+      data.name.trim(),            // D: NAME (Source for Receipt, Recipient for Expense)
+      data.description.trim()      // E: DESCRIPTION
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Petty Cash'!A:E`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    // Get the row index of the newly added row
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Petty Cash'!A:E`,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.length; // Row index (1-based, including header)
+
+    return { success: true, rowIndex };
+  } catch (error) {
+    console.error('Error saving petty cash:', error);
+    throw error;
+  }
+}
+
+// Get Petty Cash records from "Petty Cash" sheet
+export async function getPettyCashRecords(): Promise<Array<{
+  id: string;
+  rowIndex: number;
+  date: string;
+  type: 'Receipt' | 'Expense';
+  amount: number;
+  name: string;
+  description: string;
+}>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Petty Cash'!A:E`,
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length <= 1) {
+      return [];
+    }
+
+    // Skip header row (row 1) and parse data
+    return rows.slice(1).map((row, index) => {
+      const [date, type, amount, name, description] = row;
+      return {
+        id: `petty-cash-${index + 2}`, // Use row index as ID
+        rowIndex: index + 2, // Row index (1-based, including header)
+        date: date?.toString().trim() || '',
+        type: (type?.toString().trim() === 'Expense' ? 'Expense' : 'Receipt') as 'Receipt' | 'Expense',
+        amount: parseFloat(amount?.toString().replace(/,/g, '') || '0'),
+        name: name?.toString().trim() || '',
+        description: description?.toString().trim() || '',
+      };
+    }).filter(record => record.date && record.name); // Filter out empty rows
+  } catch (error) {
+    console.error('Error fetching petty cash records:', error);
+    throw error;
+  }
+}
+
+// Update Petty Cash record in "Petty Cash" sheet
+// Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION)
+export async function updatePettyCash(rowIndex: number, data: {
+  date: string;
+  type: string;
+  amount: number;
+  name: string;
+  description: string;
+}): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Update the row (columns A to E)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Petty Cash'!A${rowIndex}:E${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      values: [[
+        data.date,
+        data.type,
+        data.amount,
+        data.name,
+        data.description
+      ]],
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating petty cash:', error);
+    throw error;
+  }
+}
+
+// Delete Petty Cash record from "Petty Cash" sheet
+export async function deletePettyCash(rowIndex: number): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+    
+    // Get sheet ID
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+    
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === 'Petty Cash');
+    if (!sheet?.properties?.sheetId) {
+      throw new Error('Petty Cash sheet not found');
+    }
+
+    const sheetId = sheet.properties.sheetId;
+
+    // Delete the row
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1, // Convert to 0-based index
+                endIndex: rowIndex
+              }
+            }
+          }
+        ]
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting petty cash:', error);
     throw error;
   }
 }
