@@ -1863,13 +1863,15 @@ export async function updatePettyCash(rowIndex: number, data: {
       spreadsheetId: SPREADSHEET_ID,
       range: `'Petty Cash'!A${rowIndex}:E${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
-      values: [[
-        data.date,
-        data.type,
-        data.amount,
-        data.name,
-        data.description
-      ]],
+      requestBody: {
+        values: [[
+          data.date,
+          data.type,
+          data.amount,
+          data.name,
+          data.description
+        ]],
+      },
     });
 
     return { success: true };
