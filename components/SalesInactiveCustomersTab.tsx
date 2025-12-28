@@ -21,7 +21,6 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick }: {
     daysSinceLastPurchase: number;
     totalAmount: number; 
     averageOrderValue: number;
-    purchaseFrequency: number;
     orderCount: number;
     status: string;
   }; 
@@ -32,7 +31,7 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick }: {
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{rowNumber}</td>
       <td 
-        className="py-3 px-4 text-sm text-gray-800 font-medium text-center cursor-pointer hover:text-green-600 hover:underline"
+        className="py-3 px-4 text-sm text-gray-800 font-medium text-center cursor-pointer hover:text-green-600 hover:underline min-w-[200px]"
         onClick={() => onCustomerClick(item.customer)}
       >
         {item.customer}
@@ -52,9 +51,6 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick }: {
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
         {item.averageOrderValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.purchaseFrequency > 0 ? item.purchaseFrequency.toFixed(1) : '-'}
       </td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.orderCount}</td>
     </tr>
@@ -220,7 +216,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       daysSinceLastPurchase: number;
       totalAmount: number;
       averageOrderValue: number;
-      purchaseFrequency: number;
       orderCount: number;
       status: string;
     }> = [];
@@ -241,19 +236,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       const orderCount = item.invoiceNumbers.size;
       const averageOrderValue = orderCount > 0 ? item.totalAmount / orderCount : 0;
       
-      // Calculate purchase frequency (average days between purchases)
-      let purchaseFrequency = 0;
-      if (item.invoiceDates.length > 1) {
-        // Sort dates
-        const sortedDates = [...item.invoiceDates].sort((a, b) => a.getTime() - b.getTime());
-        // Calculate total days span
-        const firstDate = sortedDates[0];
-        const lastDate = sortedDates[sortedDates.length - 1];
-        const totalDays = Math.floor((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
-        // Average days between orders
-        purchaseFrequency = totalDays > 0 && sortedDates.length > 1 ? totalDays / (sortedDates.length - 1) : 0;
-      }
-      
       // Determine status
       let status = '';
       if (daysSince >= 10 && daysSince < 30) {
@@ -270,7 +252,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         daysSinceLastPurchase: daysSince,
         totalAmount: item.totalAmount,
         averageOrderValue,
-        purchaseFrequency,
         orderCount,
         status
       });
@@ -416,7 +397,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       'Days Since Last Purchase',
       'Total Amount',
       'Average Order Value',
-      'Purchase Frequency (Days)',
       'Order Count',
     ];
 
@@ -432,7 +412,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       item.daysSinceLastPurchase,
       item.totalAmount.toFixed(2),
       item.averageOrderValue.toFixed(2),
-      item.purchaseFrequency > 0 ? item.purchaseFrequency.toFixed(1) : '-',
       item.orderCount,
     ]);
 
@@ -446,7 +425,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         '',
         totals.totalAmount.toFixed(2),
         (totals.totalAverageOrderValue / filteredCustomers.length).toFixed(2),
-        '',
         totals.totalOrderCount,
       ]);
     }
@@ -870,13 +848,12 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Customer Name</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-12">#</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 min-w-[200px]">Customer Name</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Last Purchase Date</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Days Since Last Purchase</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Total Amount</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Order Value</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Purchase Frequency (Days)</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Order Count</th>
                 </tr>
               </thead>
@@ -891,7 +868,7 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                 ))}
                 {filteredCustomers.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-500">
+                    <td colSpan={7} className="py-8 text-center text-gray-500">
                       {searchQuery ? 'No customers found matching your search' : 'No data available'}
                     </td>
                   </tr>
@@ -913,7 +890,6 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                           })
                         : '0.00'}
                     </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">-</td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">{totals.totalOrderCount}</td>
                   </tr>
                 )}

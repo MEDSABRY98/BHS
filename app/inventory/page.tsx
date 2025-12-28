@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import ProductAnalyzer from '@/components/ProductAnalyzerTab';
 import Login from '@/components/Login';
 
-export default function InventoryAnalyzePage() {
+export default function InventoryPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {

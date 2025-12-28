@@ -21,7 +21,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   };
 
   const handleSelectInventory = () => {
-    window.location.href = '/inventory-analyze';
+    window.location.href = '/inventory';
   };
 
   const handleSelectWarehouse = () => {
@@ -151,7 +151,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
                 </div>
                 <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
               </div>
-              <h2 className="text-xl font-bold text-gray-800 leading-tight">Inventory Analyze</h2>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Inventory</h2>
             </div>
           )}
 

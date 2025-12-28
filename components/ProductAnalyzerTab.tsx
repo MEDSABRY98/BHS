@@ -362,7 +362,7 @@ const ProductAnalyzer = () => {
                 <ArrowLeft className="w-6 h-6 text-gray-600" />
               </button>
               <div>
-                <h1 className="text-3xl font-bold text-gray-800">Inventory Analyzer</h1>
+                <h1 className="text-3xl font-bold text-gray-800">Inventory</h1>
               </div>
             </div>
             {filteredProducts.length > 0 && (

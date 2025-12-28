@@ -428,6 +428,33 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // Count only months where customer actually made purchases (not zero months)
     const activeMonths = monthlySales.filter(month => !month.isZeroMonth && month.count > 0).length;
 
+    // Calculate last invoice date and days since
+    let lastInvoiceDate: Date | null = null;
+    let daysSinceLastInvoice: number | null = null;
+    
+    if (customerData.length > 0) {
+      const dates = customerData
+        .map(item => {
+          if (!item.invoiceDate) return null;
+          try {
+            const date = new Date(item.invoiceDate);
+            return isNaN(date.getTime()) ? null : date;
+          } catch {
+            return null;
+          }
+        })
+        .filter((date): date is Date => date !== null);
+      
+      if (dates.length > 0) {
+        lastInvoiceDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        lastInvoiceDate.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - lastInvoiceDate.getTime();
+        daysSinceLastInvoice = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      }
+    }
+
     return {
       totalAmount,
       totalQty,
@@ -435,7 +462,9 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       uniqueMonths: activeMonths, // Only months with actual purchases
       totalMonths, // Total months from start to now
       avgMonthlyAmount,
-      avgMonthlyQty
+      avgMonthlyQty,
+      lastInvoiceDate,
+      daysSinceLastInvoice
     };
   }, [customerData, monthlySales]);
 
@@ -621,7 +650,45 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Key Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Last Invoice Date Card */}
+              <div className={`bg-white rounded-xl shadow-md p-6 ${
+                dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                  ? 'border-2 border-red-500 bg-red-50'
+                  : ''
+              }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Last Invoice Date</h3>
+                  <Calendar className={`w-6 h-6 ${
+                    dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                  }`} />
+                </div>
+                {dashboardMetrics.lastInvoiceDate ? (
+                  <div>
+                    <p className="text-xl font-bold text-gray-800 mb-1">
+                      {dashboardMetrics.lastInvoiceDate.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </p>
+                    <p className={`text-sm font-medium ${
+                      dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                        ? 'text-red-600 font-bold'
+                        : 'text-gray-600'
+                    }`}>
+                      {dashboardMetrics.daysSinceLastInvoice !== null 
+                        ? `${dashboardMetrics.daysSinceLastInvoice} days ago`
+                        : '-'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-2xl font-bold text-gray-400">-</p>
+                )}
+              </div>
+
               <div className="bg-white rounded-xl shadow-md p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-600">Total Sales Amount</h3>

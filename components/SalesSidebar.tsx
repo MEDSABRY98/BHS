@@ -17,6 +17,7 @@ export default function SalesSidebar({ activeTab, onTabChange, onLogout, current
     { id: 'sales-customers', label: 'Customers', icon: '👥' },
     { id: 'sales-inactive-customers', label: 'Inactive Customers', icon: '⚠️' },
     { id: 'sales-statistics', label: 'Statistics', icon: '📈' },
+    { id: 'sales-daily-sales', label: 'Daily Sales', icon: '📅' },
     { id: 'sales-products', label: 'Products', icon: '📦' },
     { id: 'sales-download-form', label: 'Download Form', icon: '📥' },
   ];
