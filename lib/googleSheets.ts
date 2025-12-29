@@ -1047,6 +1047,7 @@ export interface SalesInvoice {
   invoiceDate: string;
   invoiceNumber: string;
   customerId: string;
+  customerMainName: string;
   customerName: string;
   area: string;
   merchandiser: string;
@@ -1118,7 +1119,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Sales - Invoices!A:O`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER NAME, AREA, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, PRODUCT TAG, PRODUCT COST, PRODUCT PRICE, AMOUNT, QTY
+      range: `Sales - Invoices!A:P`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER MAIN NAME, CUSTOMER SUB NAME, AREA, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, PRODUCT TAG, PRODUCT COST, PRODUCT PRICE, AMOUNT, QTY
     });
 
     const rows = response.data.values;
@@ -1130,27 +1131,29 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
     const data = rows.slice(1).map((row) => {
       const invoiceNumber = row[1]?.toString().trim() || '';
       const customerId = row[2]?.toString().trim() || '';
-      const customerName = row[3]?.toString().trim() || '';
-      const area = row[4]?.toString().trim() || '';
+      const customerMainName = row[3]?.toString().trim() || '';
+      const customerName = row[4]?.toString().trim() || '';
+      const area = row[5]?.toString().trim() || '';
       
       // Use amount and qty values as they are from Google Sheets (can be positive or negative)
-      const amount = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
-      const qty = row[14] ? parseFloat(row[14].toString().replace(/,/g, '')) || 0 : 0;
-      const productCost = row[11] ? parseFloat(row[11].toString().replace(/,/g, '')) || 0 : 0;
-      const productPrice = row[12] ? parseFloat(row[12].toString().replace(/,/g, '')) || 0 : 0;
+      const amount = row[14] ? parseFloat(row[14].toString().replace(/,/g, '')) || 0 : 0;
+      const qty = row[15] ? parseFloat(row[15].toString().replace(/,/g, '')) || 0 : 0;
+      const productCost = row[12] ? parseFloat(row[12].toString().replace(/,/g, '')) || 0 : 0;
+      const productPrice = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
       
       return {
         invoiceDate: row[0]?.toString().trim() || '',
         invoiceNumber: invoiceNumber,
         customerId: customerId,
+        customerMainName: customerMainName,
         customerName: customerName,
         area: area,
-        merchandiser: row[5]?.toString().trim() || '',
-        salesRep: row[6]?.toString().trim() || '',
-        productId: row[7]?.toString().trim() || '',
-        barcode: row[8]?.toString().trim() || '',
-        product: row[9]?.toString().trim() || '',
-        productTag: row[10]?.toString().trim() || '',
+        merchandiser: row[6]?.toString().trim() || '',
+        salesRep: row[7]?.toString().trim() || '',
+        productId: row[8]?.toString().trim() || '',
+        barcode: row[9]?.toString().trim() || '',
+        product: row[10]?.toString().trim() || '',
+        productTag: row[11]?.toString().trim() || '',
         productCost: productCost,
         productPrice: productPrice,
         amount: amount,

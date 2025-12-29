@@ -2181,37 +2181,15 @@ ${debtSectionHtml}
         </div>
       )}
 
-      <div className="mb-6 flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
-          <p className="text-gray-600">
-            {(() => {
-              const salesReps = new Set<string>();
-              invoices.forEach(inv => {
-                if (inv.salesRep && inv.salesRep.trim()) {
-                  salesReps.add(inv.salesRep.trim());
-                }
-              });
-              const salesRepsArray = Array.from(salesReps).sort();
-              return salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep';
-            })()}
-          </p>
-        </div>
+      <div className="mb-6 flex items-center gap-4">
         <div className="flex items-center gap-3">
-          {currentUserName === 'Mahmoud Shaker' && (
-             <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse">
-               ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
-             </span>
-          )}
-          {customerEmails.length > 0 && !isRestrictedUser && (
-            <button
-              onClick={handleEmail}
-              className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
-              title="Email"
-            >
-              <Mail className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            onClick={onBack}
+            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+            title="Back to Customers"
+          >
+            <ArrowLeft className="w-5 h-5" />
+          </button>
           <button
             onClick={() => {
               if (isRestrictedUser) {
@@ -2238,14 +2216,36 @@ ${debtSectionHtml}
               <Calendar className="w-5 h-5" />
             </button>
           )}
-          <button
-            onClick={onBack}
-            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-            title="Back to Customers"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
+          {customerEmails.length > 0 && !isRestrictedUser && (
+            <button
+              onClick={handleEmail}
+              className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+              title="Email"
+            >
+              <Mail className="w-5 h-5" />
+            </button>
+          )}
         </div>
+        <div>
+          <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
+          <p className="text-gray-600">
+            {(() => {
+              const salesReps = new Set<string>();
+              invoices.forEach(inv => {
+                if (inv.salesRep && inv.salesRep.trim()) {
+                  salesReps.add(inv.salesRep.trim());
+                }
+              });
+              const salesRepsArray = Array.from(salesReps).sort();
+              return salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep';
+            })()}
+          </p>
+        </div>
+        {currentUserName === 'Mahmoud Shaker' && (
+          <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse ml-auto">
+            ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
+          </span>
+        )}
       </div>
 
       {/* Export Modal */}

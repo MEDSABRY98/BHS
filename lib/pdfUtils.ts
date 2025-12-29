@@ -143,16 +143,6 @@ export async function generateAccountStatementPDF(
   const totalCredit = invoices.reduce((sum, inv) => sum + inv.credit, 0);
   const totalNetDebt = invoices.reduce((sum, inv) => sum + inv.netDebt, 0);
 
-  // Add total row
-  tableData.push([
-    '',
-    '',
-    'TOTAL',
-    totalDebit.toLocaleString('en-US'),
-    totalCredit.toLocaleString('en-US'),
-    totalNetDebt.toLocaleString('en-US')
-  ]);
-
   // Define Table Options
   const tableOptions = {
     startY: yPosition,
@@ -165,8 +155,8 @@ export async function generateAccountStatementPDF(
       fontStyle: 'normal'
     },
     headStyles: {
-      fillColor: [66, 139, 202],
-      textColor: 255,
+      fillColor: [0, 0, 0], // Black background
+      textColor: 255, // White text
       fontStyle: 'bold', // Bold looks better in Helvetica
       fontSize: 10,
       halign: 'center', // Center header text
@@ -197,15 +187,8 @@ export async function generateAccountStatementPDF(
         return;
       }
 
-      // Style total row
-      if (data.row.index === tableData.length - 1) {
-        data.cell.styles.fillColor = [255, 245, 200]; // Light yellow to stand out
-        data.cell.styles.fontStyle = 'bold'; // Make total bold
-        data.cell.styles.textColor = 0; // Black text
-      }
-
       // Style Type column (fill entire cell) to mirror UI (Overdue tab)
-      if (data.column.index === 1 && data.row.index < tableData.length - 1) {
+      if (data.column.index === 1 && data.row.index < tableData.length) {
         const type = getInvoiceType(invoices[data.row.index]);
         const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
         data.cell.styles.fillColor = colors.fillColor;
@@ -214,7 +197,7 @@ export async function generateAccountStatementPDF(
       }
 
       // Color Net Debt column
-      if (data.column.index === 5 && data.row.index < tableData.length - 1) {
+      if (data.column.index === 5 && data.row.index < tableData.length) {
         const netDebt = invoices[data.row.index].netDebt;
         if (netDebt > 0) {
           data.cell.styles.textColor = [204, 0, 0]; // Red
@@ -240,6 +223,29 @@ export async function generateAccountStatementPDF(
         throw new Error('Failed to load autoTable plugin');
     }
   }
+
+  // Get final Y position after table
+  const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 50;
+
+  // Add TOTAL DUE box on the right, aligned with table right edge
+  const totalBoxWidth = 50;
+  const totalBoxHeight = 15;
+  const totalBoxX = tableLeftMargin + tableWidth - totalBoxWidth; // Aligned with table right edge
+  const totalBoxY = finalY + 5;
+
+  // Draw light gray box (without border)
+  doc.setFillColor(240, 240, 240); // Light gray background
+  doc.rect(totalBoxX, totalBoxY, totalBoxWidth, totalBoxHeight, 'F');
+
+  // Add "TOTAL DUE" text
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(0, 0, 0); // Black text
+  doc.text('TOTAL DUE', totalBoxX + totalBoxWidth / 2, totalBoxY + 6, { align: 'center' });
+
+  // Add total amount
+  doc.setFontSize(14);
+  doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
 
   // Save PDF
   const fileName = `${customerName}.pdf`;
