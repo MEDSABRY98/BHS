@@ -3,7 +3,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { DiscountTrackerEntry } from '@/types';
 
-const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || '1s1G42Qd0FNDyvz42qi_6SPoKMAy8Kvx8eMm7iyR8pds';
+export const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || '1s1G42Qd0FNDyvz42qi_6SPoKMAy8Kvx8eMm7iyR8pds';
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Invoices';
 
 interface ServiceAccountCredentials {
@@ -20,10 +20,10 @@ interface ServiceAccountCredentials {
   universe_domain: string;
 }
 
-function getServiceAccountCredentials(): ServiceAccountCredentials {
+export function getServiceAccountCredentials(): ServiceAccountCredentials {
   // First try environment variable (for Vercel)
   const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
-  
+
   if (credentialsJson) {
     try {
       return JSON.parse(credentialsJson);
@@ -54,14 +54,14 @@ function getServiceAccountCredentials(): ServiceAccountCredentials {
 export async function getSheetData() {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${SHEET_NAME}!A:H`, // DATE, DUE DATE, NUMBER, CUSTOMER NAME, SALESREP, DEBIT, CREDIT, MATCHING
@@ -260,14 +260,14 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
 export async function getUsers() {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Users!A:C`, // NAME, ROLE, PASSWORD
@@ -299,14 +299,14 @@ export async function getUsers() {
 export async function getCustomerEmail(customerName: string): Promise<string | null> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `EMAILS!A:C`, // CUSTOMER ID, CUSTOMER NAME, EMAIL
@@ -320,7 +320,7 @@ export async function getCustomerEmail(customerName: string): Promise<string | n
     // Skip header row (assuming row 1 is header)
     // Find customer row (case-insensitive)
     // CUSTOMER NAME is now in column B (index 1)
-    const customerRow = rows.slice(1).find(row => 
+    const customerRow = rows.slice(1).find(row =>
       row[1]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase()
     );
 
@@ -432,14 +432,14 @@ export async function resolveCustomerEmailTargets(customerName: string): Promise
 export async function getAllCustomerEmails(): Promise<string[]> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `EMAILS!A:C`, // CUSTOMER ID, CUSTOMER NAME, EMAIL
@@ -466,14 +466,14 @@ export async function getAllCustomerEmails(): Promise<string[]> {
 export async function getNotes(customerName?: string) {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Notes!A:E`, // USER, CUSTOMER NAME, NOTES, TIMING, SOLVED
@@ -508,7 +508,7 @@ export async function getNotes(customerName?: string) {
 export async function addNote(user: string, customerName: string, content: string, isSolved: boolean = false) {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -516,13 +516,13 @@ export async function addNote(user: string, customerName: string, content: strin
 
     const sheets = google.sheets({ version: 'v4', auth });
     const timestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'UTC', // Or use specific timezone if required, usually UTC is good or server time
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+      timeZone: 'UTC', // Or use specific timezone if required, usually UTC is good or server time
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
     });
 
     await sheets.spreadsheets.values.append({
@@ -544,7 +544,7 @@ export async function addNote(user: string, customerName: string, content: strin
 export async function updateNote(rowIndex: number, content: string, isSolved?: boolean) {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
@@ -552,19 +552,19 @@ export async function updateNote(rowIndex: number, content: string, isSolved?: b
 
     const sheets = google.sheets({ version: 'v4', auth });
     const timestamp = new Date().toLocaleString('en-US', {
-        timeZone: 'UTC',
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
     });
-    
+
     // Update content column (C), timing column (D), and solved column (E) for the specific row
     // range: `Notes!C${rowIndex}:E${rowIndex}`
     const values = [[content, timestamp, isSolved === undefined ? 'FALSE' : (isSolved ? 'TRUE' : 'FALSE')]];
-    
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
       range: `Notes!C${rowIndex}:E${rowIndex}`,
@@ -584,20 +584,20 @@ export async function updateNote(rowIndex: number, content: string, isSolved?: b
 export async function deleteNote(rowIndex: number) {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // To "delete" a row in Sheets properly without shifting subsequent data issues (though we rely on index), 
     // we can clear the values. However, a true delete (shifting up) is usually better for lists.
     // But since we are using rowIndex directly, we should use batchUpdate with deleteDimension.
     // Note: rowIndex here is 1-based (Sheet row number), but API expects 0-based index.
     // So row 2 in Sheet is index 1.
-    
+
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId: SPREADSHEET_ID,
       requestBody: {
@@ -606,7 +606,7 @@ export async function deleteNote(rowIndex: number) {
             deleteDimension: {
               range: {
                 sheetId: 0, // Assuming the first sheet or find ID by name if not. 
-                            // Ideally we should fetch sheetId by name 'Notes'.
+                // Ideally we should fetch sheetId by name 'Notes'.
                 dimension: 'ROWS',
                 startIndex: rowIndex - 1,
                 endIndex: rowIndex,
@@ -629,57 +629,57 @@ export async function deleteNote(rowIndex: number) {
     // For now, let's just clear the row content to avoid ID complexity if we are lazy, 
     // BUT clearing row keeps empty space. Users usually want it gone.
     // Let's try to implement the proper sheet ID lookup.
-    
+
     console.error('Error deleting note:', error);
     throw error;
   }
 }
 
 async function getSheetId(sheetName: string): Promise<number | null> {
-    try {
-        const credentials = getServiceAccountCredentials();
-        const auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        });
-        const sheets = google.sheets({ version: 'v4', auth });
-        
-        const response = await sheets.spreadsheets.get({
-            spreadsheetId: SPREADSHEET_ID,
-        });
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
 
-        let sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
-        
-        // Try case-insensitive/trimmed match if exact match fails
-        if (!sheet) {
-            sheet = response.data.sheets?.find(s => 
-                s.properties?.title?.trim().toLowerCase() === sheetName.trim().toLowerCase()
-            );
-        }
+    const response = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
 
-        if (!sheet) {
-            const available = response.data.sheets?.map(s => s.properties?.title).join(', ');
-            console.error(`Sheet '${sheetName}' not found. Available: ${available}`);
-        }
+    let sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
 
-        return sheet?.properties?.sheetId ?? null;
-    } catch (error) {
-        console.error('Error getting sheet ID:', error);
-        return null;
+    // Try case-insensitive/trimmed match if exact match fails
+    if (!sheet) {
+      sheet = response.data.sheets?.find(s =>
+        s.properties?.title?.trim().toLowerCase() === sheetName.trim().toLowerCase()
+      );
     }
+
+    if (!sheet) {
+      const available = response.data.sheets?.map(s => s.properties?.title).join(', ');
+      console.error(`Sheet '${sheetName}' not found. Available: ${available}`);
+    }
+
+    return sheet?.properties?.sheetId ?? null;
+  } catch (error) {
+    console.error('Error getting sheet ID:', error);
+    return null;
+  }
 }
 
 export async function getClosedCustomers(): Promise<Set<string>> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `CLOSED!A:B`, // CUSTOMER ID, CUSTOMER NAME
@@ -711,78 +711,78 @@ export async function getClosedCustomers(): Promise<Set<string>> {
 }
 
 export async function deleteNoteRow(rowIndex: number) {
-    try {
-        const sheetId = await getSheetId('Notes');
-        
-        const credentials = getServiceAccountCredentials();
-        const auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        });
-        const sheets = google.sheets({ version: 'v4', auth });
+  try {
+    const sheetId = await getSheetId('Notes');
 
-        if (sheetId !== null) {
-            await sheets.spreadsheets.batchUpdate({
-                spreadsheetId: SPREADSHEET_ID,
-                requestBody: {
-                    requests: [
-                        {
-                            deleteDimension: {
-                                range: {
-                                    sheetId: sheetId,
-                                    dimension: 'ROWS',
-                                    startIndex: rowIndex - 1, // 0-based start index
-                                    endIndex: rowIndex,       // 0-based end index (exclusive)
-                                },
-                            },
-                        },
-                    ],
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    if (sheetId !== null) {
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: {
+                  sheetId: sheetId,
+                  dimension: 'ROWS',
+                  startIndex: rowIndex - 1, // 0-based start index
+                  endIndex: rowIndex,       // 0-based end index (exclusive)
                 },
-            });
-            return { success: true };
-        } else {
-            console.warn('Notes sheet ID not found, attempting to clear row content instead.');
-            await sheets.spreadsheets.values.clear({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `Notes!A${rowIndex}:D${rowIndex}`,
-            });
-            return { success: true };
-        }
-    } catch (error) {
-        console.error('Error deleting note row:', error);
-        // Try fallback to clear if batchUpdate failed
-        try {
-            const credentials = getServiceAccountCredentials();
-            const auth = new google.auth.GoogleAuth({
-                credentials,
-                scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-            });
-            const sheets = google.sheets({ version: 'v4', auth });
-            
-            console.log(`Fallback: Clearing row ${rowIndex}...`);
-            await sheets.spreadsheets.values.clear({
-                spreadsheetId: SPREADSHEET_ID,
-                range: `Notes!A${rowIndex}:D${rowIndex}`,
-            });
-            return { success: true };
-        } catch (clearError) {
-            console.error('Error clearing note row:', clearError);
-            throw error;
-        }
+              },
+            },
+          ],
+        },
+      });
+      return { success: true };
+    } else {
+      console.warn('Notes sheet ID not found, attempting to clear row content instead.');
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Notes!A${rowIndex}:D${rowIndex}`,
+      });
+      return { success: true };
     }
+  } catch (error) {
+    console.error('Error deleting note row:', error);
+    // Try fallback to clear if batchUpdate failed
+    try {
+      const credentials = getServiceAccountCredentials();
+      const auth = new google.auth.GoogleAuth({
+        credentials,
+        scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+      });
+      const sheets = google.sheets({ version: 'v4', auth });
+
+      console.log(`Fallback: Clearing row ${rowIndex}...`);
+      await sheets.spreadsheets.values.clear({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Notes!A${rowIndex}:D${rowIndex}`,
+      });
+      return { success: true };
+    } catch (clearError) {
+      console.error('Error clearing note row:', clearError);
+      throw error;
+    }
+  }
 }
 
 export async function getInventoryData() {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Inventory!A:H`, // BARCODE, ITEM CODE, PRODUCT NAME, TAGS, TYPE, QTY IN BOX, WEIGHT, SIZE
@@ -816,94 +816,94 @@ export async function getInventoryData() {
 }
 
 export async function updateInventoryItem(rowIndex: number, data: {
-    barcode: string;
-    itemCode: string;
-    productName: string;
-    tags: string;
-    type: string;
-    qtyInBox: number;
-    weight: string;
-    size: string;
+  barcode: string;
+  itemCode: string;
+  productName: string;
+  tags: string;
+  type: string;
+  qtyInBox: number;
+  weight: string;
+  size: string;
 }) {
-    try {
-        const credentials = getServiceAccountCredentials();
-        const auth = new google.auth.GoogleAuth({
-            credentials,
-            scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-        });
-        const sheets = google.sheets({ version: 'v4', auth });
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
 
-        const values = [[
-            data.barcode,
-            data.itemCode,
-            data.productName,
-            data.tags,
-            data.type,
-            data.qtyInBox,
-            data.weight,
-            data.size
-        ]];
+    const values = [[
+      data.barcode,
+      data.itemCode,
+      data.productName,
+      data.tags,
+      data.type,
+      data.qtyInBox,
+      data.weight,
+      data.size
+    ]];
 
-        await sheets.spreadsheets.values.update({
-            spreadsheetId: SPREADSHEET_ID,
-            range: `Inventory!A${rowIndex}:H${rowIndex}`,
-            valueInputOption: 'USER_ENTERED',
-            requestBody: {
-                values,
-            },
-        });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Inventory!A${rowIndex}:H${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values,
+      },
+    });
 
-        return { success: true };
-    } catch (error) {
-        console.error('Error updating inventory item:', error);
-        throw error;
-    }
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating inventory item:', error);
+    throw error;
+  }
 }
 
 export interface WarehouseCleaningEntry {
-    cleaningName: string;
-    organizingName: string;
-    year: string;
-    month: string;
-    date: string;
-    week: string;
-    day: string;
-    rating: string;
+  cleaningName: string;
+  organizingName: string;
+  year: string;
+  month: string;
+  date: string;
+  week: string;
+  day: string;
+  rating: string;
 }
 
 export async function getWarehouseCleaningData(): Promise<WarehouseCleaningEntry[]> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // First, get all sheet names to find the correct one
     let actualSheetName = '';
     try {
       const spreadsheetInfo = await sheets.spreadsheets.get({
         spreadsheetId: SPREADSHEET_ID,
       });
-      
+
       const allSheets = spreadsheetInfo.data.sheets || [];
       const sheetNames = allSheets.map(s => s.properties?.title || '').filter(Boolean);
       console.log('[Warehouse Cleaning] Available sheets:', sheetNames);
-      
+
       // Try to find sheet with "warehouse" and "cleaning" in the name (case-insensitive)
-      const matchingSheet = sheetNames.find(name => 
+      const matchingSheet = sheetNames.find(name =>
         name.toLowerCase().includes('warehouse') && name.toLowerCase().includes('cleaning')
       );
-      
+
       if (matchingSheet) {
         actualSheetName = matchingSheet;
         console.log(`[Warehouse Cleaning] Found matching sheet: "${actualSheetName}"`);
       } else {
         // Try exact match
-        const exactMatch = sheetNames.find(name => 
+        const exactMatch = sheetNames.find(name =>
           name.trim().toLowerCase() === 'warehouse cleaning'
         );
         if (exactMatch) {
@@ -918,7 +918,7 @@ export async function getWarehouseCleaningData(): Promise<WarehouseCleaningEntry
       console.error('[Warehouse Cleaning] Error finding sheet:', err);
       throw err;
     }
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `${actualSheetName}!A:H`, // Cleaning Name, Organizing Name, Year, Month, Date, Week, Day, Rating
@@ -926,7 +926,7 @@ export async function getWarehouseCleaningData(): Promise<WarehouseCleaningEntry
 
     const rows = response.data.values;
     console.log(`[Warehouse Cleaning] Found ${rows ? rows.length : 0} rows from sheet "${actualSheetName}"`);
-    
+
     if (!rows || rows.length === 0) {
       console.log('[Warehouse Cleaning] No rows found in sheet');
       return [];
@@ -969,32 +969,32 @@ export async function updateWarehouseCleaningRating(
 ): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Find the sheet
     const spreadsheetInfo = await sheets.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
     });
-    
+
     const allSheets = spreadsheetInfo.data.sheets || [];
     const sheetNames = allSheets.map(s => s.properties?.title || '').filter(Boolean);
-    
-    const matchingSheet = sheetNames.find(name => 
+
+    const matchingSheet = sheetNames.find(name =>
       name.toLowerCase().includes('warehouse') && name.toLowerCase().includes('cleaning')
-    ) || sheetNames.find(name => 
+    ) || sheetNames.find(name =>
       name.trim().toLowerCase() === 'warehouse cleaning'
     );
-    
+
     if (!matchingSheet) {
       throw new Error(`Sheet "Warehouse Cleaning" not found`);
     }
-    
+
     // Get all data to find the row
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -1013,7 +1013,7 @@ export async function updateWarehouseCleaningRating(
       const rowYear = row[2]?.toString().trim() || '';
       const rowMonth = row[3]?.toString().trim() || '';
       const rowDate = row[4]?.toString().trim() || '';
-      
+
       if (rowYear === year && rowMonth === month && rowDate === date) {
         rowIndex = i + 1; // 1-based row number
         break;
@@ -1071,14 +1071,14 @@ export interface InactiveCustomerException {
 export async function getInactiveCustomerExceptions(): Promise<InactiveCustomerException[]> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: 'Inactive Customers - Exception!A:B', // CUSTOMER ID, CUSTOMER NAME
@@ -1109,14 +1109,14 @@ export async function getInactiveCustomerExceptions(): Promise<InactiveCustomerE
 export async function getSalesData(): Promise<SalesInvoice[]> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Sales - Invoices!A:P`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER MAIN NAME, CUSTOMER SUB NAME, AREA, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, PRODUCT TAG, PRODUCT COST, PRODUCT PRICE, AMOUNT, QTY
@@ -1134,13 +1134,13 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
       const customerMainName = row[3]?.toString().trim() || '';
       const customerName = row[4]?.toString().trim() || '';
       const area = row[5]?.toString().trim() || '';
-      
+
       // Use amount and qty values as they are from Google Sheets (can be positive or negative)
       const amount = row[14] ? parseFloat(row[14].toString().replace(/,/g, '')) || 0 : 0;
       const qty = row[15] ? parseFloat(row[15].toString().replace(/,/g, '')) || 0 : 0;
       const productCost = row[12] ? parseFloat(row[12].toString().replace(/,/g, '')) || 0 : 0;
       const productPrice = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
-      
+
       return {
         invoiceDate: row[0]?.toString().trim() || '',
         invoiceNumber: invoiceNumber,
@@ -1176,14 +1176,14 @@ export interface WaterDeliveryNoteItem {
 export async function getWaterDeliveryNoteData(): Promise<WaterDeliveryNoteItem[]> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Water - Delivery Note!A:A`, // ITEM NAME
@@ -1216,14 +1216,14 @@ export async function saveWaterDeliveryNote(data: {
 }): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Prepare rows: each item gets its own row
     // Columns: C (Date), D (Delivery Note Number), E (Item Name), F (Quantity)
     const values = data.items
@@ -1259,14 +1259,14 @@ export async function saveWaterDeliveryNote(data: {
 export async function getNextDeliveryNoteNumber(): Promise<string> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Get all delivery note numbers from column D
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -1296,7 +1296,7 @@ export async function getNextDeliveryNoteNumber(): Promise<string> {
 
     const maxNumber = Math.max(...numbers);
     const nextNumber = maxNumber + 1;
-    
+
     // Format as DN-XXX with leading zeros
     return `DN-${String(nextNumber).padStart(3, '0')}`;
   } catch (error) {
@@ -1317,14 +1317,14 @@ export interface WaterDeliveryNoteData {
 export async function getWaterDeliveryNoteByNumber(deliveryNoteNumber: string): Promise<WaterDeliveryNoteData | null> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Get all data from columns C:F (Date, Delivery Note Number, Item Name, Quantity)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
@@ -1339,7 +1339,7 @@ export async function getWaterDeliveryNoteByNumber(deliveryNoteNumber: string): 
     // Skip header row (index 1 in sheet, but 0 in array)
     // Find all rows matching the delivery note number
     const matchingRows: Array<{ rowIndex: number; date: string; itemName: string; quantity: number }> = [];
-    
+
     for (let i = 1; i < rows.length; i++) {
       const row = rows[i];
       if (row && row.length >= 2 && row[1]?.toString().trim() === deliveryNoteNumber.trim()) {
@@ -1386,14 +1386,14 @@ export async function updateWaterDeliveryNote(
 ): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // First, get the existing rows for this delivery note
     const existingData = await getWaterDeliveryNoteByNumber(deliveryNoteNumber);
     if (!existingData) {
@@ -1408,9 +1408,9 @@ export async function updateWaterDeliveryNote(
     if (!sheetId) {
       throw new Error('Sheet "Water - Delivery Note" not found');
     }
-    
+
     const requests: any[] = [];
-    
+
     // Prepare values for all rows (update existing + new)
     const values = newItems.map(item => [
       data.date,
@@ -1485,14 +1485,14 @@ export async function updateWaterDeliveryNote(
 export async function getEmployeeNames(): Promise<string[]> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Employee Overtime!D:D`, // Employee Name (En) column
@@ -1505,7 +1505,7 @@ export async function getEmployeeNames(): Promise<string[]> {
 
     // Skip header row and get unique employee names (no duplicates)
     const uniqueNames = new Set<string>();
-    
+
     rows.slice(1).forEach((row) => {
       const name = row[0]?.toString().trim();
       if (name && name.length > 0) {
@@ -1515,7 +1515,7 @@ export async function getEmployeeNames(): Promise<string[]> {
 
     // Convert Set to Array - Set ensures each name appears only once
     const uniqueNamesArray = Array.from(uniqueNames);
-    
+
     // Sort alphabetically
     return uniqueNamesArray.sort();
   } catch (error) {
@@ -1544,14 +1544,14 @@ export async function saveEmployeeOvertime(data: {
     }
 
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Prepare row data according to sheet structure:
     // A: Date
     // B: Employee ID (empty)
@@ -1606,14 +1606,14 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
 }>> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
       range: `Employee Overtime!A:I`, // All columns
@@ -1642,7 +1642,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
         // Handle different time formats: "4", "4.30", "4:30"
         const parseTime = (timeStr: string): { hours: number; minutes: number } => {
           if (!timeStr) return { hours: 0, minutes: 0 };
-          
+
           if (timeStr.includes(':')) {
             const [h, m] = timeStr.split(':').map(Number);
             return { hours: h || 0, minutes: m || 0 };
@@ -1653,10 +1653,10 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
             return { hours: parseInt(timeStr) || 0, minutes: 0 };
           }
         };
-        
+
         const fromTime = parseTime(timeFrom);
         const toTime = parseTime(timeTo);
-        
+
         const fromMins = fromTime.hours * 60 + fromTime.minutes;
         let toMins = toTime.hours * 60 + toTime.minutes;
         if (toMins < fromMins) toMins += 24 * 60;
@@ -1701,14 +1701,14 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
 }): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Prepare row data based on the column order
     const rowValues = [
       data.date.trim(),           // A: Date
@@ -1743,23 +1743,23 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
 export async function deleteEmployeeOvertime(rowIndex: number): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // First, get the sheet ID for "Employee Overtime"
     const spreadsheetInfo = await sheets.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
     });
-    
-    const sheet = spreadsheetInfo.data.sheets?.find(s => 
+
+    const sheet = spreadsheetInfo.data.sheets?.find(s =>
       s.properties?.title === 'Employee Overtime'
     );
-    
+
     if (!sheet || !sheet.properties?.sheetId) {
       throw new Error('Employee Overtime sheet not found');
     }
@@ -1793,35 +1793,37 @@ export async function deleteEmployeeOvertime(rowIndex: number): Promise<{ succes
 }
 
 // Save Petty Cash entry to "Petty Cash" sheet
-// Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION)
+// Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION), F (PAID?)
 export async function savePettyCash(data: {
   date: string;
   type: 'Receipt' | 'Expense';
   amount: number;
   name: string;
   description: string;
+  paid?: string;
 }): Promise<{ success: boolean; rowIndex?: number }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const rowValues = [
       data.date.trim(),           // A: DATE
       data.type,                   // B: TYPE (Receipt or Expense)
       data.amount.toString(),      // C: AMOUNT
       data.name.trim(),            // D: NAME (Source for Receipt, Recipient for Expense)
-      data.description.trim()      // E: DESCRIPTION
+      data.description.trim(),     // E: DESCRIPTION
+      data.paid || ''              // F: PAID?
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Petty Cash'!A:E`,
+      range: `'Petty Cash'!A:F`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [rowValues],
@@ -1831,7 +1833,7 @@ export async function savePettyCash(data: {
     // Get the row index of the newly added row
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Petty Cash'!A:E`,
+      range: `'Petty Cash'!A:F`,
     });
 
     const rows = response.data.values || [];
@@ -1853,20 +1855,21 @@ export async function getPettyCashRecords(): Promise<Array<{
   amount: number;
   name: string;
   description: string;
+  paid: string;
 }>> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Petty Cash'!A:E`,
+      range: `'Petty Cash'!A:F`,
     });
 
     const rows = response.data.values || [];
@@ -1876,7 +1879,7 @@ export async function getPettyCashRecords(): Promise<Array<{
 
     // Skip header row (row 1) and parse data
     return rows.slice(1).map((row, index) => {
-      const [date, type, amount, name, description] = row;
+      const [date, type, amount, name, description, paid] = row;
       return {
         id: `petty-cash-${index + 2}`, // Use row index as ID
         rowIndex: index + 2, // Row index (1-based, including header)
@@ -1885,6 +1888,7 @@ export async function getPettyCashRecords(): Promise<Array<{
         amount: parseFloat(amount?.toString().replace(/,/g, '') || '0'),
         name: name?.toString().trim() || '',
         description: description?.toString().trim() || '',
+        paid: paid?.toString().trim() || '',
       };
     }).filter(record => record.date && record.name); // Filter out empty rows
   } catch (error) {
@@ -1894,28 +1898,29 @@ export async function getPettyCashRecords(): Promise<Array<{
 }
 
 // Update Petty Cash record in "Petty Cash" sheet
-// Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION)
+// Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION), F (PAID?)
 export async function updatePettyCash(rowIndex: number, data: {
   date: string;
   type: string;
   amount: number;
   name: string;
   description: string;
+  paid?: string;
 }): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
-    // Update the row (columns A to E)
+
+    // Update the row (columns A to F)
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Petty Cash'!A${rowIndex}:E${rowIndex}`,
+      range: `'Petty Cash'!A${rowIndex}:F${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
@@ -1923,7 +1928,8 @@ export async function updatePettyCash(rowIndex: number, data: {
           data.type,
           data.amount,
           data.name,
-          data.description
+          data.description,
+          data.paid || ''
         ]],
       },
     });
@@ -1939,19 +1945,19 @@ export async function updatePettyCash(rowIndex: number, data: {
 export async function deletePettyCash(rowIndex: number): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-    
+
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
 
     const sheets = google.sheets({ version: 'v4', auth });
-    
+
     // Get sheet ID
     const spreadsheet = await sheets.spreadsheets.get({
       spreadsheetId: SPREADSHEET_ID,
     });
-    
+
     const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === 'Petty Cash');
     if (!sheet?.properties?.sheetId) {
       throw new Error('Petty Cash sheet not found');

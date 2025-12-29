@@ -10,9 +10,9 @@ export async function GET() {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch data';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch data',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -23,7 +23,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { date, type, amount, name, description } = body;
+    const { date, type, amount, name, description, paid } = body;
 
     if (!date || !type || !amount || !name || !description) {
       return NextResponse.json(
@@ -45,16 +45,17 @@ export async function POST(request: Request) {
       amount: parseFloat(amount),
       name,
       description,
+      paid,
     });
-    
+
     return NextResponse.json({ success: true, rowIndex: result.rowIndex });
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to save petty cash entry';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to save petty cash entry',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -65,7 +66,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { rowIndex, date, type, amount, name, description } = body;
+    const { rowIndex, date, type, amount, name, description, paid } = body;
 
     if (!rowIndex || !date || !type || !amount || !name || !description) {
       return NextResponse.json(
@@ -87,16 +88,17 @@ export async function PUT(request: Request) {
       amount: parseFloat(amount),
       name,
       description,
+      paid,
     });
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to update petty cash entry';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to update petty cash entry',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -117,15 +119,15 @@ export async function DELETE(request: Request) {
     }
 
     await deletePettyCash(rowIndex);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to delete petty cash record';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to delete petty cash record',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );

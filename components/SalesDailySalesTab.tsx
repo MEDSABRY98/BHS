@@ -23,7 +23,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
   const itemsPerPage = 50;
-  
+
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
@@ -164,7 +164,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
     filteredData.forEach(item => {
       if (!item.invoiceNumber) return;
-      
+
       const existing = invoiceMap.get(item.invoiceNumber) || {
         invoiceDate: item.invoiceDate || '',
         invoiceNumber: item.invoiceNumber,
@@ -180,13 +180,13 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
       existing.amount += item.amount || 0;
       existing.qty += item.qty || 0;
-      
+
       // Add product to set
       const productKey = item.productId || item.barcode || item.product;
       if (productKey) {
         existing.products.add(productKey);
       }
-      
+
       // Add cost and price
       if (item.productCost) {
         existing.totalCost += item.productCost;
@@ -204,7 +204,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     return Array.from(invoiceMap.values()).map(invoice => {
       const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
       const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
-      
+
       return {
         invoiceDate: invoice.invoiceDate,
         invoiceNumber: invoice.invoiceNumber,
@@ -243,7 +243,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
     filteredData.forEach(item => {
       if (!item.invoiceDate) return;
-      
+
       const dateKey = formatDate(item.invoiceDate);
       if (!dateKey) return;
 
@@ -261,26 +261,26 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
       existing.amount += item.amount || 0;
       existing.qty += item.qty || 0;
-      
+
       if (item.invoiceNumber) {
         existing.invoiceNumbers.add(item.invoiceNumber);
-        
+
         // Only count SAL invoices for specific metrics
         if (item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
           existing.salInvoiceNumbers.add(item.invoiceNumber);
-          
+
           const productKey = item.productId || item.barcode || item.product;
           if (productKey) {
             existing.salProducts.add(productKey);
           }
-          
+
           const customerKey = item.customerId || item.customerName;
           if (customerKey) {
             existing.salCustomers.add(customerKey);
           }
         }
       }
-      
+
       const productKey = item.productId || item.barcode || item.product;
       if (productKey) {
         existing.products.add(productKey);
@@ -329,11 +329,11 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     // Use salesByDayData to calculate monthly averages
     salesByDayData.forEach(item => {
       if (!item.date) return;
-      
+
       // Parse date from DD/MM/YYYY format
       const [day, month, year] = item.date.split('/');
       if (!day || !month || !year) return;
-      
+
       const monthKey = `${year}-${month.padStart(2, '0')}`;
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const monthName = monthNames[parseInt(month) - 1] || month;
@@ -373,6 +373,67 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       return b.monthKey.localeCompare(a.monthKey);
     });
   }, [salesByDayData]);
+
+  // Get bounds for heat map in AVG Sales BY Day
+  const avgSalesByDayBounds = useMemo(() => {
+    if (avgSalesByDayData.length === 0) return null;
+
+    const bounds = {
+      avgAmount: { min: Infinity, max: -Infinity },
+      avgQty: { min: Infinity, max: -Infinity },
+      avgInvoices: { min: Infinity, max: -Infinity },
+      avgCustomers: { min: Infinity, max: -Infinity },
+      avgProducts: { min: Infinity, max: -Infinity },
+    };
+
+    avgSalesByDayData.forEach(item => {
+      bounds.avgAmount.min = Math.min(bounds.avgAmount.min, item.avgAmount);
+      bounds.avgAmount.max = Math.max(bounds.avgAmount.max, item.avgAmount);
+
+      bounds.avgQty.min = Math.min(bounds.avgQty.min, item.avgQty);
+      bounds.avgQty.max = Math.max(bounds.avgQty.max, item.avgQty);
+
+      bounds.avgInvoices.min = Math.min(bounds.avgInvoices.min, item.avgInvoices);
+      bounds.avgInvoices.max = Math.max(bounds.avgInvoices.max, item.avgInvoices);
+
+      bounds.avgCustomers.min = Math.min(bounds.avgCustomers.min, item.avgCustomers);
+      bounds.avgCustomers.max = Math.max(bounds.avgCustomers.max, item.avgCustomers);
+
+      bounds.avgProducts.min = Math.min(bounds.avgProducts.min, item.avgProducts);
+      bounds.avgProducts.max = Math.max(bounds.avgProducts.max, item.avgProducts);
+    });
+
+    return bounds;
+  }, [avgSalesByDayData]);
+
+  const getHeatMapStyle = (value: number, colName: keyof NonNullable<typeof avgSalesByDayBounds>) => {
+    if (!avgSalesByDayBounds) return {};
+    const { min, max } = avgSalesByDayBounds[colName];
+    if (max === min) return {
+      padding: '4px 12px',
+      borderRadius: '9999px',
+      display: 'inline-block'
+    };
+
+    // Calculate percentage and apply a power function to bias more towards green
+    // Using 0.7 power makes higher values "greener" faster
+    const percentage = (value - min) / (max - min);
+    const biasedPercentage = Math.pow(percentage, 0.7);
+
+    // Hue: 0 (red) to 140 (greenish-blue, biased to stay green longer)
+    const hue = Math.min(125, biasedPercentage * 160);
+
+    return {
+      backgroundColor: `hsla(${hue}, 85%, 45%, 0.18)`,
+      color: `hsl(${hue}, 90%, 20%)`,
+      fontWeight: '800',
+      padding: '4px 12px',
+      borderRadius: '9999px',
+      display: 'inline-block',
+      minWidth: '80px',
+      boxShadow: `0 1px 2px hsla(${hue}, 80%, 20%, 0.1)`
+    };
+  };
 
   // Apply search filter to dailySalesData
   const searchedData = useMemo(() => {
@@ -528,7 +589,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-8">
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-3 mb-3">
             {/* Search Box */}
             <div className="md:col-span-2 lg:col-span-2">
@@ -628,19 +689,17 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'area'
-                      ? 'border-green-500 ring-2 ring-green-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
                     {filterArea || 'All Areas'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'area' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'area' && (
@@ -650,11 +709,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         setFilterArea('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterArea === ''
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
                     >
                       All Areas
                     </div>
@@ -665,11 +723,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                           setFilterArea(area);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterArea === area
-                            ? 'bg-green-50 text-green-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
                       >
                         {area}
                       </div>
@@ -689,19 +746,17 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'merchandiser'
-                      ? 'border-green-500 ring-2 ring-green-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
                     {filterMerchandiser || 'All Merchandisers'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'merchandiser' && (
@@ -711,11 +766,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         setFilterMerchandiser('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterMerchandiser === ''
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
                     >
                       All Merchandisers
                     </div>
@@ -726,11 +780,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                           setFilterMerchandiser(merchandiser);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterMerchandiser === merchandiser
-                            ? 'bg-green-50 text-green-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
                       >
                         {merchandiser}
                       </div>
@@ -750,19 +803,17 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'salesrep'
-                      ? 'border-green-500 ring-2 ring-green-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
                 >
                   <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
                     {filterSalesRep || 'All Sales Reps'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'salesrep' && (
@@ -772,11 +823,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         setFilterSalesRep('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterSalesRep === ''
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
                     >
                       All Sales Reps
                     </div>
@@ -787,11 +837,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                           setFilterSalesRep(salesRep);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterSalesRep === salesRep
-                            ? 'bg-green-50 text-green-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
                       >
                         {salesRep}
                       </div>
@@ -829,31 +878,28 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           <div className="flex gap-3">
             <button
               onClick={() => setActiveSubTab('all-invoices')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                activeSubTab === 'all-invoices'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'all-invoices'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               All Invoices /LPO
             </button>
             <button
               onClick={() => setActiveSubTab('sales-by-day')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                activeSubTab === 'sales-by-day'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'sales-by-day'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               Sales BY Day
             </button>
             <button
               onClick={() => setActiveSubTab('avg-sales-by-day')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${
-                activeSubTab === 'avg-sales-by-day'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'avg-sales-by-day'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
             >
               AVG Sales BY Day
             </button>
@@ -911,13 +957,13 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                             {item.productsCount}
                           </td>
                           <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                            {item.avgCost % 1 === 0 
+                            {item.avgCost % 1 === 0
                               ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                               : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                             }
                           </td>
                           <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                            {item.avgPrice % 1 === 0 
+                            {item.avgPrice % 1 === 0
                               ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                               : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                             }
@@ -927,7 +973,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                     </tbody>
                   </table>
                 </div>
-                
+
                 {/* Pagination */}
                 {totalPages > 1 && (
                   <div className="mt-6 flex items-center justify-between">
@@ -938,15 +984,14 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
-                        className={`px-3 py-2 rounded-lg border transition-colors ${
-                          currentPage === 1
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
-                            : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
-                        }`}
+                        className={`px-3 py-2 rounded-lg border transition-colors ${currentPage === 1
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+                          }`}
                       >
                         <ChevronLeft className="w-5 h-5" />
                       </button>
-                      
+
                       <div className="flex items-center gap-1">
                         {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                           let pageNum;
@@ -959,31 +1004,29 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                           } else {
                             pageNum = currentPage - 2 + i;
                           }
-                          
+
                           return (
                             <button
                               key={pageNum}
                               onClick={() => setCurrentPage(pageNum)}
-                              className={`px-4 py-2 rounded-lg border transition-colors ${
-                                currentPage === pageNum
-                                  ? 'bg-green-600 text-white border-green-600'
-                                  : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
-                              }`}
+                              className={`px-4 py-2 rounded-lg border transition-colors ${currentPage === pageNum
+                                ? 'bg-green-600 text-white border-green-600'
+                                : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+                                }`}
                             >
                               {pageNum}
                             </button>
                           );
                         })}
                       </div>
-                      
+
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
-                        className={`px-3 py-2 rounded-lg border transition-colors ${
-                          currentPage === totalPages
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
-                            : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
-                        }`}
+                        className={`px-3 py-2 rounded-lg border transition-colors ${currentPage === totalPages
+                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
+                          : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
+                          }`}
                       >
                         <ChevronRight className="w-5 h-5" />
                       </button>
@@ -1091,20 +1134,30 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
                           {item.monthYear}
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.avgAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td className="text-center py-3 px-4">
+                          <span style={getHeatMapStyle(item.avgAmount, 'avgAmount')}>
+                            {item.avgAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.avgQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td className="text-center py-3 px-4">
+                          <span style={getHeatMapStyle(item.avgQty, 'avgQty')}>
+                            {item.avgQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.avgInvoices.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td className="text-center py-3 px-4">
+                          <span style={getHeatMapStyle(item.avgInvoices, 'avgInvoices')}>
+                            {item.avgInvoices.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.avgCustomers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td className="text-center py-3 px-4">
+                          <span style={getHeatMapStyle(item.avgCustomers, 'avgCustomers')}>
+                            {item.avgCustomers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.avgProducts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <td className="text-center py-3 px-4">
+                          <span style={getHeatMapStyle(item.avgProducts, 'avgProducts')}>
+                            {item.avgProducts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </td>
                       </tr>
                     ))}

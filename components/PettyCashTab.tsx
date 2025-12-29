@@ -10,6 +10,7 @@ interface Receipt {
   source: string;
   description: string;
   date: string;
+  paid: string;
   rowIndex?: number;
 }
 
@@ -19,6 +20,7 @@ interface Expense {
   source: string;
   description: string;
   date: string;
+  paid: string;
   rowIndex?: number;
 }
 
@@ -32,6 +34,7 @@ export default function PettyCashTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'All' | 'Yes' | 'No'>('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<Receipt | Expense | null>(null);
   const [entryType, setEntryType] = useState<'receipt' | 'expense'>('receipt');
@@ -39,18 +42,21 @@ export default function PettyCashTab() {
     date: '',
     amount: '',
     source: '',
-    description: ''
+    description: '',
+    paid: ''
   });
   const [receiptFormData, setReceiptFormData] = useState({
     amount: '',
     source: '',
     description: '',
+    paid: 'No',
     date: new Date().toISOString().split('T')[0]
   });
   const [expenseFormData, setExpenseFormData] = useState({
     amount: '',
     source: '',
     description: '',
+    paid: 'No',
     date: new Date().toISOString().split('T')[0]
   });
 
@@ -64,11 +70,11 @@ export default function PettyCashTab() {
       setLoading(true);
       const response = await fetch('/api/petty-cash');
       const data = await response.json();
-      
+
       if (response.ok && data.records) {
         const receiptsData: Receipt[] = [];
         const expensesData: Expense[] = [];
-        
+
         data.records.forEach((record: any) => {
           const entry = {
             id: record.rowIndex,
@@ -76,16 +82,17 @@ export default function PettyCashTab() {
             source: record.name,
             description: record.description,
             date: record.date,
+            paid: record.paid || 'No',
             rowIndex: record.rowIndex
           };
-          
+
           if (record.type === 'Receipt') {
             receiptsData.push(entry);
           } else {
             expensesData.push(entry);
           }
         });
-        
+
         setReceipts(receiptsData);
         setExpenses(expensesData);
       }
@@ -102,12 +109,12 @@ export default function PettyCashTab() {
 
   const handleSubmit = async (type: 'receipt' | 'expense') => {
     const currentFormData = type === 'receipt' ? receiptFormData : expenseFormData;
-    
+
     if (!currentFormData.amount || !currentFormData.source || !currentFormData.description) {
       alert('Please fill all fields');
       return;
     }
-    
+
     try {
       setLoading(true);
       const response = await fetch('/api/petty-cash', {
@@ -121,21 +128,23 @@ export default function PettyCashTab() {
           amount: parseFloat(currentFormData.amount),
           name: currentFormData.source,
           description: currentFormData.description,
+          paid: currentFormData.paid,
         }),
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         // Refresh records from server
         await fetchRecords();
-        
+
         // Reset the appropriate form
         if (type === 'receipt') {
           setReceiptFormData({
             amount: '',
             source: '',
             description: '',
+            paid: 'No',
             date: new Date().toISOString().split('T')[0]
           });
         } else {
@@ -143,6 +152,7 @@ export default function PettyCashTab() {
             amount: '',
             source: '',
             description: '',
+            paid: 'No',
             date: new Date().toISOString().split('T')[0]
           });
         }
@@ -164,7 +174,8 @@ export default function PettyCashTab() {
       date: entry.date,
       amount: entry.amount.toString(),
       source: entry.source,
-      description: entry.description
+      description: entry.description,
+      paid: entry.paid || 'No'
     });
     setIsModalOpen(true);
   };
@@ -176,13 +187,14 @@ export default function PettyCashTab() {
       date: '',
       amount: '',
       source: '',
-      description: ''
+      description: '',
+      paid: ''
     });
   };
 
   const handleUpdateEntry = async () => {
     if (!selectedEntry) return;
-    
+
     if (!editFormData.date || !editFormData.amount || !editFormData.source || !editFormData.description) {
       alert('Please fill all fields');
       return;
@@ -202,11 +214,12 @@ export default function PettyCashTab() {
           amount: parseFloat(editFormData.amount),
           name: editFormData.source,
           description: editFormData.description,
+          paid: editFormData.paid,
         }),
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         await fetchRecords();
         closeModal();
@@ -223,7 +236,7 @@ export default function PettyCashTab() {
 
   const handleDeleteEntry = async () => {
     if (!selectedEntry) return;
-    
+
     if (!confirm('Are you sure you want to delete this entry?')) {
       return;
     }
@@ -241,7 +254,7 @@ export default function PettyCashTab() {
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         await fetchRecords();
         closeModal();
@@ -274,7 +287,7 @@ export default function PettyCashTab() {
       });
 
       const data = await response.json();
-      
+
       if (response.ok && data.success) {
         // Refresh records from server
         await fetchRecords();
@@ -295,7 +308,10 @@ export default function PettyCashTab() {
       // Date filter
       if (fromDate && receipt.date < fromDate) return false;
       if (toDate && receipt.date > toDate) return false;
-      
+
+      // Status filter
+      if (statusFilter !== 'All' && receipt.paid !== statusFilter) return false;
+
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -308,14 +324,17 @@ export default function PettyCashTab() {
       }
       return true;
     });
-  }, [receipts, searchQuery, fromDate, toDate]);
+  }, [receipts, searchQuery, fromDate, toDate, statusFilter]);
 
   const filteredExpenses = useMemo(() => {
     return expenses.filter(expense => {
       // Date filter
       if (fromDate && expense.date < fromDate) return false;
       if (toDate && expense.date > toDate) return false;
-      
+
+      // Status filter
+      if (statusFilter !== 'All' && expense.paid !== statusFilter) return false;
+
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -328,7 +347,7 @@ export default function PettyCashTab() {
       }
       return true;
     });
-  }, [expenses, searchQuery, fromDate, toDate]);
+  }, [expenses, searchQuery, fromDate, toDate, statusFilter]);
 
   const exportToExcel = () => {
     // Prepare Receipts data (use filtered data)
@@ -336,7 +355,8 @@ export default function PettyCashTab() {
       'Date': receipt.date,
       'Amount': receipt.amount,
       'Source': receipt.source,
-      'Description': receipt.description
+      'Description': receipt.description,
+      'Paid': receipt.paid
     }));
 
     // Prepare Expenses data (use filtered data)
@@ -344,7 +364,8 @@ export default function PettyCashTab() {
       'Date': expense.date,
       'Amount': expense.amount,
       'Recipient': expense.source,
-      'Description': expense.description
+      'Description': expense.description,
+      'Paid': expense.paid
     }));
 
     // Create workbook
@@ -389,7 +410,7 @@ export default function PettyCashTab() {
               <h1 className="text-xl font-bold text-gray-900">Petty Cash</h1>
             </div>
           </div>
-          
+
           <nav className="space-y-2 mb-8">
             {tabs.map(tab => {
               const Icon = tab.icon;
@@ -397,11 +418,10 @@ export default function PettyCashTab() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all duration-200 ${
-                    activeTab === tab.id 
-                      ? 'bg-cyan-100 text-cyan-700 shadow-lg transform scale-105' 
-                      : 'hover:bg-gray-100 hover:transform hover:translate-x-1 text-gray-700'
-                  }`}
+                  className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl transition-all duration-200 ${activeTab === tab.id
+                    ? 'bg-cyan-100 text-cyan-700 shadow-lg transform scale-105'
+                    : 'hover:bg-gray-100 hover:transform hover:translate-x-1 text-gray-700'
+                    }`}
                 >
                   <Icon className="w-5 h-5" />
                   <span className="font-semibold">{tab.name}</span>
@@ -466,54 +486,66 @@ export default function PettyCashTab() {
                       </div>
                       <h3 className="text-xl font-bold">New Receipt</h3>
                     </div>
-                    
+
                     <div className="space-y-4">
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Date</label>
                           <input
                             type="date"
                             value={receiptFormData.date}
-                            onChange={(e) => setReceiptFormData({...receiptFormData, date: e.target.value})}
+                            onChange={(e) => setReceiptFormData({ ...receiptFormData, date: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Amount</label>
                           <input
                             type="number"
                             step="0.01"
                             value={receiptFormData.amount}
-                            onChange={(e) => setReceiptFormData({...receiptFormData, amount: e.target.value})}
+                            onChange={(e) => setReceiptFormData({ ...receiptFormData, amount: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                             placeholder="0.00"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Source</label>
                           <input
                             type="text"
                             value={receiptFormData.source}
-                            onChange={(e) => setReceiptFormData({...receiptFormData, source: e.target.value})}
+                            onChange={(e) => setReceiptFormData({ ...receiptFormData, source: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                             placeholder="Source name"
                           />
                         </div>
+
+                        <div>
+                          <label className="block font-semibold mb-2 text-sm text-gray-700">Paid?</label>
+                          <select
+                            value={receiptFormData.paid}
+                            onChange={(e) => setReceiptFormData({ ...receiptFormData, paid: e.target.value })}
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
+                          >
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                          </select>
+                        </div>
                       </div>
-                      
+
                       <div>
                         <label className="block font-semibold mb-2 text-sm text-gray-700">Description</label>
                         <textarea
                           value={receiptFormData.description}
-                          onChange={(e) => setReceiptFormData({...receiptFormData, description: e.target.value})}
+                          onChange={(e) => setReceiptFormData({ ...receiptFormData, description: e.target.value })}
                           className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors resize-none"
                           rows={3}
                           placeholder="Receipt description"
                         />
                       </div>
-                      
+
                       <button
                         onClick={() => handleSubmit('receipt')}
                         disabled={loading}
@@ -533,7 +565,7 @@ export default function PettyCashTab() {
                       <FileText className="w-5 h-5" />
                       Receipt Records ({receipts.length})
                     </h3>
-                    
+
                     {receipts.length === 0 ? (
                       <div className="text-center py-16">
                         <TrendingUp className="w-16 h-16 mx-auto text-gray-300 mb-4" />
@@ -548,6 +580,9 @@ export default function PettyCashTab() {
                                 <div className="flex items-center gap-3 mb-2">
                                   <span className="text-2xl font-bold text-gray-900">{receipt.amount.toFixed(2)} AED</span>
                                   <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600">{receipt.date}</span>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${receipt.paid === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {receipt.paid === 'Yes' ? 'PAID' : 'UNPAID'}
+                                  </span>
                                 </div>
                                 <p className="text-sm mb-1 text-gray-700"><span className="font-bold">Source:</span> {receipt.source}</p>
                                 <p className="text-sm text-gray-600">{receipt.description}</p>
@@ -582,54 +617,66 @@ export default function PettyCashTab() {
                       </div>
                       <h3 className="text-xl font-bold">New Expense</h3>
                     </div>
-                    
+
                     <div className="space-y-4">
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-4 gap-3">
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Date</label>
                           <input
                             type="date"
                             value={expenseFormData.date}
-                            onChange={(e) => setExpenseFormData({...expenseFormData, date: e.target.value})}
+                            onChange={(e) => setExpenseFormData({ ...expenseFormData, date: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Amount</label>
                           <input
                             type="number"
                             step="0.01"
                             value={expenseFormData.amount}
-                            onChange={(e) => setExpenseFormData({...expenseFormData, amount: e.target.value})}
+                            onChange={(e) => setExpenseFormData({ ...expenseFormData, amount: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                             placeholder="0.00"
                           />
                         </div>
-                        
+
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Recipient</label>
                           <input
                             type="text"
                             value={expenseFormData.source}
-                            onChange={(e) => setExpenseFormData({...expenseFormData, source: e.target.value})}
+                            onChange={(e) => setExpenseFormData({ ...expenseFormData, source: e.target.value })}
                             className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                             placeholder="Recipient name"
                           />
                         </div>
+
+                        <div>
+                          <label className="block font-semibold mb-2 text-sm text-gray-700">Paid?</label>
+                          <select
+                            value={expenseFormData.paid}
+                            onChange={(e) => setExpenseFormData({ ...expenseFormData, paid: e.target.value })}
+                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
+                          >
+                            <option value="No">No</option>
+                            <option value="Yes">Yes</option>
+                          </select>
+                        </div>
                       </div>
-                      
+
                       <div>
                         <label className="block font-semibold mb-2 text-sm text-gray-700">Description</label>
                         <textarea
                           value={expenseFormData.description}
-                          onChange={(e) => setExpenseFormData({...expenseFormData, description: e.target.value})}
+                          onChange={(e) => setExpenseFormData({ ...expenseFormData, description: e.target.value })}
                           className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors resize-none"
                           rows={3}
                           placeholder="Expense description"
                         />
                       </div>
-                      
+
                       <button
                         onClick={() => handleSubmit('expense')}
                         disabled={loading}
@@ -649,7 +696,7 @@ export default function PettyCashTab() {
                       <FileText className="w-5 h-5" />
                       Expense Records ({expenses.length})
                     </h3>
-                    
+
                     {expenses.length === 0 ? (
                       <div className="text-center py-16">
                         <TrendingDown className="w-16 h-16 mx-auto text-gray-300 mb-4" />
@@ -664,6 +711,9 @@ export default function PettyCashTab() {
                                 <div className="flex items-center gap-3 mb-2">
                                   <span className="text-2xl font-bold text-gray-900">{expense.amount.toFixed(2)} AED</span>
                                   <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600">{expense.date}</span>
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${expense.paid === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                    {expense.paid === 'Yes' ? 'PAID' : 'UNPAID'}
+                                  </span>
                                 </div>
                                 <p className="text-sm mb-1 text-gray-700"><span className="font-bold">Recipient:</span> {expense.source}</p>
                                 <p className="text-sm text-gray-600">{expense.description}</p>
@@ -750,7 +800,20 @@ export default function PettyCashTab() {
                       />
                     </div>
                   </div>
-                  
+
+                  {/* Status Filter */}
+                  <div className="md:w-48">
+                    <select
+                      value={statusFilter}
+                      onChange={(e) => setStatusFilter(e.target.value as any)}
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors bg-white font-semibold text-gray-700"
+                    >
+                      <option value="All">All Status</option>
+                      <option value="Yes">PAID</option>
+                      <option value="No">UNPAID</option>
+                    </select>
+                  </div>
+
                   {/* Date Filters */}
                   <div className="flex gap-3">
                     <div className="flex items-center gap-2">
@@ -782,95 +845,105 @@ export default function PettyCashTab() {
                 <div className="flex gap-2 mb-4">
                   <button
                     onClick={() => setStatsSubTab('receipts')}
-                    className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-                      statsSubTab === 'receipts'
-                        ? 'bg-green-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${statsSubTab === 'receipts'
+                      ? 'bg-green-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     Receipts Tracking
                   </button>
                   <button
                     onClick={() => setStatsSubTab('expenses')}
-                    className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${
-                      statsSubTab === 'expenses'
-                        ? 'bg-red-500 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${statsSubTab === 'expenses'
+                      ? 'bg-red-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
                   >
                     Expenses Tracking
                   </button>
                 </div>
 
-              <div className="p-4">
-                {statsSubTab === 'receipts' ? (
-                  <>
-                    {filteredReceipts.length === 0 ? (
-                      <p className="text-center text-gray-400 py-12">No receipts available</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b-2 border-gray-200">
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Date</th>
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Amount</th>
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Source</th>
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Description</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredReceipts.slice().reverse().map((receipt, index) => (
-                              <tr 
-                                key={receipt.id} 
-                                onClick={() => openEditModal(receipt, 'receipt')}
-                                className={`border-b border-gray-100 hover:bg-green-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
-                              >
-                                <td className="py-3 px-3 text-center text-base text-gray-600">{receipt.date}</td>
-                                <td className="py-3 px-3 text-center text-base font-bold text-gray-900">{receipt.amount.toFixed(2)} AED</td>
-                                <td className="py-3 px-3 text-center text-base text-gray-700">{receipt.source}</td>
-                                <td className="py-3 px-3 text-center text-base text-gray-600">{receipt.description}</td>
+                <div className="p-4">
+                  {statsSubTab === 'receipts' ? (
+                    <>
+                      {filteredReceipts.length === 0 ? (
+                        <p className="text-center text-gray-400 py-12">No receipts available</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b-2 border-gray-200">
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Date</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Amount</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Source</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Description</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Paid?</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    {filteredExpenses.length === 0 ? (
-                      <p className="text-center text-gray-400 py-12">No expenses available</p>
-                    ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full">
-                          <thead>
-                            <tr className="border-b-2 border-gray-200">
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Date</th>
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Amount</th>
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Recipient</th>
-                              <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Description</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {filteredExpenses.slice().reverse().map((expense, index) => (
-                              <tr 
-                                key={expense.id} 
-                                onClick={() => openEditModal(expense, 'expense')}
-                                className={`border-b border-gray-100 hover:bg-red-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
-                              >
-                                <td className="py-3 px-3 text-center text-base text-gray-600">{expense.date}</td>
-                                <td className="py-3 px-3 text-center text-base font-bold text-gray-900">{expense.amount.toFixed(2)} AED</td>
-                                <td className="py-3 px-3 text-center text-base text-gray-700">{expense.source}</td>
-                                <td className="py-3 px-3 text-center text-base text-gray-600">{expense.description}</td>
+                            </thead>
+                            <tbody>
+                              {filteredReceipts.slice().reverse().map((receipt, index) => (
+                                <tr
+                                  key={receipt.id}
+                                  onClick={() => openEditModal(receipt, 'receipt')}
+                                  className={`border-b border-gray-100 hover:bg-green-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                                >
+                                  <td className="py-3 px-3 text-center text-base text-gray-600">{receipt.date}</td>
+                                  <td className="py-3 px-3 text-center text-base font-bold text-gray-900">{receipt.amount.toFixed(2)} AED</td>
+                                  <td className="py-3 px-3 text-center text-base text-gray-700">{receipt.source}</td>
+                                  <td className="py-3 px-3 text-center text-base text-gray-600">{receipt.description}</td>
+                                  <td className="py-3 px-3 text-center text-base">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${receipt.paid === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                      {receipt.paid}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {filteredExpenses.length === 0 ? (
+                        <p className="text-center text-gray-400 py-12">No expenses available</p>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <table className="w-full">
+                            <thead>
+                              <tr className="border-b-2 border-gray-200">
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Date</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Amount</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Recipient</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Description</th>
+                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Paid?</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
+                            </thead>
+                            <tbody>
+                              {filteredExpenses.slice().reverse().map((expense, index) => (
+                                <tr
+                                  key={expense.id}
+                                  onClick={() => openEditModal(expense, 'expense')}
+                                  className={`border-b border-gray-100 hover:bg-red-50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-gray-50' : 'bg-white'}`}
+                                >
+                                  <td className="py-3 px-3 text-center text-base text-gray-600">{expense.date}</td>
+                                  <td className="py-3 px-3 text-center text-base font-bold text-gray-900">{expense.amount.toFixed(2)} AED</td>
+                                  <td className="py-3 px-3 text-center text-base text-gray-700">{expense.source}</td>
+                                  <td className="py-3 px-3 text-center text-base text-gray-600">{expense.description}</td>
+                                  <td className="py-3 px-3 text-center text-base">
+                                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${expense.paid === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                      {expense.paid}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -899,7 +972,7 @@ export default function PettyCashTab() {
                 <input
                   type="date"
                   value={editFormData.date}
-                  onChange={(e) => setEditFormData({...editFormData, date: e.target.value})}
+                  onChange={(e) => setEditFormData({ ...editFormData, date: e.target.value })}
                   className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                 />
               </div>
@@ -910,7 +983,7 @@ export default function PettyCashTab() {
                   type="number"
                   step="0.01"
                   value={editFormData.amount}
-                  onChange={(e) => setEditFormData({...editFormData, amount: e.target.value})}
+                  onChange={(e) => setEditFormData({ ...editFormData, amount: e.target.value })}
                   className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                   placeholder="0.00"
                 />
@@ -923,7 +996,7 @@ export default function PettyCashTab() {
                 <input
                   type="text"
                   value={editFormData.source}
-                  onChange={(e) => setEditFormData({...editFormData, source: e.target.value})}
+                  onChange={(e) => setEditFormData({ ...editFormData, source: e.target.value })}
                   className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
                   placeholder={entryType === 'receipt' ? 'Source name' : 'Recipient name'}
                 />
@@ -933,11 +1006,23 @@ export default function PettyCashTab() {
                 <label className="block font-semibold mb-2 text-sm text-gray-700">Description</label>
                 <textarea
                   value={editFormData.description}
-                  onChange={(e) => setEditFormData({...editFormData, description: e.target.value})}
+                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
                   className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors resize-none"
                   rows={3}
                   placeholder="Description"
                 />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-2 text-sm text-gray-700">Paid?</label>
+                <select
+                  value={editFormData.paid}
+                  onChange={(e) => setEditFormData({ ...editFormData, paid: e.target.value })}
+                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
+                >
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
+                </select>
               </div>
 
               <div className="flex gap-3 pt-4">
