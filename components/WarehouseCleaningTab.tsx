@@ -32,16 +32,16 @@ const WarehouseCleaningTab = () => {
       setError(null);
       const response = await fetch('/api/warehouse-cleaning');
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.details || result.error || 'Failed to fetch warehouse data');
       }
-      
+
       console.log('Warehouse data received:', result.data);
       console.log('Data length:', result.data?.length || 0);
-      
+
       setWarehouseData(result.data || []);
-      
+
       // Initialize ratings from data
       const ratingsMap: Record<string, string> = {};
       result.data?.forEach((entry: WarehouseCleaningEntry) => {
@@ -51,7 +51,7 @@ const WarehouseCleaningTab = () => {
         }
       });
       setRatings(ratingsMap);
-      
+
       setError(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred';
@@ -64,7 +64,7 @@ const WarehouseCleaningTab = () => {
 
   const handleRatingChange = async (year: string, month: string, date: string, rating: string) => {
     const key = `${year}-${month}-${date}`;
-    
+
     // Update local state immediately
     setRatings(prev => ({ ...prev, [key]: rating }));
     setUpdatingRatings(prev => ({ ...prev, [key]: true }));
@@ -83,7 +83,7 @@ const WarehouseCleaningTab = () => {
       }
 
       // Update warehouseData locally without refetching
-      setWarehouseData(prevData => 
+      setWarehouseData(prevData =>
         prevData.map(entry => {
           if (entry.year === year && entry.month === month && entry.date === date) {
             return { ...entry, rating };
@@ -127,7 +127,7 @@ const WarehouseCleaningTab = () => {
       const entryMonth = entry.month?.toString().trim() || '';
       const normalizedSelectedYear = selectedYear.toString().trim();
       const normalizedSelectedMonth = selectedMonth.toString().trim();
-      
+
       return entryYear === normalizedSelectedYear && entryMonth === normalizedSelectedMonth;
     });
     console.log(`Filtered data for Year ${selectedYear}, Month ${selectedMonth}: ${filtered.length} entries`);
@@ -137,7 +137,7 @@ const WarehouseCleaningTab = () => {
   // Group data by week
   const weeks = useMemo(() => {
     const weekMap = new Map<string, WarehouseCleaningEntry[]>();
-    
+
     filteredData.forEach(entry => {
       const weekKey = entry.week || 'Unknown';
       if (!weekMap.has(weekKey)) {
@@ -196,21 +196,21 @@ const WarehouseCleaningTab = () => {
     return options;
   }, [weeks]);
 
-  const filteredWeeks = selectedWeek === 'all' 
-    ? weeks 
+  const filteredWeeks = selectedWeek === 'all'
+    ? weeks
     : weeks.filter(w => w.id === selectedWeek);
 
   // Calculate statistics for workers based on filtered data
   const workerStats = useMemo(() => {
     // Get data based on selected week filter
-    const dataToAnalyze = selectedWeek === 'all' 
-      ? filteredData 
+    const dataToAnalyze = selectedWeek === 'all'
+      ? filteredData
       : filteredData.filter(entry => entry.week === selectedWeek);
 
-    const statsMap = new Map<string, { 
-      cleaning: number; 
-      organizing: number; 
-      total: number; 
+    const statsMap = new Map<string, {
+      cleaning: number;
+      organizing: number;
+      total: number;
       color: string;
       ratings: number[];
     }>();
@@ -232,7 +232,7 @@ const WarehouseCleaningTab = () => {
         const stats = statsMap.get(worker)!;
         stats.cleaning++;
         stats.total++;
-        
+
         // Add rating if exists
         if (entry.rating && entry.rating.trim()) {
           const ratingNum = parseFloat(entry.rating.trim());
@@ -251,7 +251,7 @@ const WarehouseCleaningTab = () => {
         const stats = statsMap.get(worker)!;
         stats.organizing++;
         stats.total++;
-        
+
         // Add rating if exists
         if (entry.rating && entry.rating.trim()) {
           const ratingNum = parseFloat(entry.rating.trim());
@@ -268,8 +268,8 @@ const WarehouseCleaningTab = () => {
         const avgRating = stats.ratings.length > 0
           ? (stats.ratings.reduce((sum, r) => sum + r, 0) / stats.ratings.length).toFixed(2)
           : null;
-        return { 
-          name, 
+        return {
+          name,
           cleaning: stats.cleaning,
           organizing: stats.organizing,
           total: stats.total,
@@ -278,7 +278,7 @@ const WarehouseCleaningTab = () => {
         };
       })
       .sort((a, b) => b.total - a.total);
-    
+
     console.log('Worker stats calculated:', result);
     return result;
   }, [filteredData, selectedWeek]);
@@ -319,7 +319,7 @@ const WarehouseCleaningTab = () => {
   const availableMonths = useMemo(() => {
     const monthSet = new Set<string>();
     const normalizedSelectedYear = selectedYear.toString().trim();
-    
+
     warehouseData
       .filter(entry => {
         // Normalize year for comparison
@@ -333,7 +333,7 @@ const WarehouseCleaningTab = () => {
           if (normalizedMonth) monthSet.add(normalizedMonth);
         }
       });
-    
+
     const months = Array.from(monthSet).sort((a, b) => {
       // Sort numerically if possible
       const numA = parseInt(a);
@@ -423,7 +423,7 @@ const WarehouseCleaningTab = () => {
               </button>
               <div className="flex items-center gap-3">
                 <Calendar className="w-10 h-10 text-indigo-600" />
-                <h1 className="text-4xl font-bold text-gray-800">Warehouse Tasks Schedule</h1>
+                <h1 className="text-4xl font-bold text-gray-800">Warehouse Cleaning</h1>
               </div>
             </div>
           </div>
@@ -439,7 +439,7 @@ const WarehouseCleaningTab = () => {
             {/* Year Filter */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Year</label>
-              <select 
+              <select
                 value={selectedYear}
                 onChange={(e) => {
                   setSelectedYear(e.target.value);
@@ -456,7 +456,7 @@ const WarehouseCleaningTab = () => {
             {/* Month Filter */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Month</label>
-              <select 
+              <select
                 value={selectedMonth}
                 onChange={(e) => {
                   setSelectedMonth(e.target.value);
@@ -483,7 +483,7 @@ const WarehouseCleaningTab = () => {
             {/* Week Filter */}
             <div className="flex-1 min-w-[200px]">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Week</label>
-              <select 
+              <select
                 value={selectedWeek}
                 onChange={(e) => setSelectedWeek(e.target.value)}
                 className="w-full p-3 border-2 border-indigo-300 rounded-lg bg-white text-gray-800 font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
@@ -549,17 +549,17 @@ const WarehouseCleaningTab = () => {
                     margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                    <XAxis 
-                      dataKey="name" 
+                    <XAxis
+                      dataKey="name"
                       tick={{ fill: '#4b5563', fontSize: 14, fontWeight: 'bold' }}
                       stroke="#9ca3af"
                     />
-                    <YAxis 
+                    <YAxis
                       tick={{ fill: '#4b5563', fontSize: 12 }}
                       stroke="#9ca3af"
                       domain={[0, 'dataMax + 2']}
                     />
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{
                         backgroundColor: '#fff',
                         border: '1px solid #e5e7eb',
@@ -568,19 +568,19 @@ const WarehouseCleaningTab = () => {
                       }}
                       formatter={(value: number) => [value, '']}
                     />
-                    <Legend 
+                    <Legend
                       wrapperStyle={{ paddingTop: '20px' }}
                       iconType="square"
                     />
-                    <Bar 
-                      dataKey="Cleaning" 
-                      fill="#ef4444" 
+                    <Bar
+                      dataKey="Cleaning"
+                      fill="#ef4444"
                       name="Cleaning"
                       radius={[8, 8, 0, 0]}
                     />
-                    <Bar 
-                      dataKey="Organizing" 
-                      fill="#22c55e" 
+                    <Bar
+                      dataKey="Organizing"
+                      fill="#22c55e"
                       name="Organizing"
                       radius={[8, 8, 0, 0]}
                     />
@@ -632,7 +632,7 @@ const WarehouseCleaningTab = () => {
                   </div>
                   <Calendar className="w-8 h-8 opacity-80" />
                 </div>
-                
+
                 {/* Table */}
                 <div className="overflow-x-auto">
                   <table className="w-full">
@@ -659,11 +659,10 @@ const WarehouseCleaningTab = () => {
                     </thead>
                     <tbody>
                       {week.days.map((day, idx) => (
-                        <tr 
-                          key={idx} 
-                          className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${
-                            day.off ? 'bg-gray-50' : ''
-                          }`}
+                        <tr
+                          key={idx}
+                          className={`border-b border-gray-200 hover:bg-gray-50 transition-colors ${day.off ? 'bg-gray-50' : ''
+                            }`}
                         >
                           <td className="p-4 font-semibold text-gray-700">{day.day}</td>
                           <td className="p-4 text-gray-600">{day.date}</td>

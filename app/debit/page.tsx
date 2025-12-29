@@ -54,7 +54,7 @@ export default function DebitPage() {
         'discount-tracker',
         'all-notes'
       ];
-      
+
       if (restrictedTabs.includes(activeTab)) {
         setActiveTab('customers');
       }
@@ -87,11 +87,11 @@ export default function DebitPage() {
       setLoading(true);
       const response = await fetch('/api/sheets');
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.details || result.error || 'Failed to fetch data');
       }
-      
+
       setData(result.data);
 
       // Find the latest date
@@ -99,13 +99,13 @@ export default function DebitPage() {
         const dates = result.data
           .map((row: InvoiceRow) => row.date ? new Date(row.date).getTime() : 0)
           .filter((time: number) => !isNaN(time) && time > 0);
-        
+
         if (dates.length > 0) {
           const maxDate = new Date(Math.max(...dates));
-          setLastUpdated(maxDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+          setLastUpdated(maxDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
           }));
         }
       }
@@ -122,7 +122,7 @@ export default function DebitPage() {
   const allTabs = [
     { id: 'customers', label: 'Customers' },
     { id: 'all-transactions', label: 'All Transactions' },
-    { id: 'customers-open-matches', label: 'C Open Matches' },
+    { id: 'customers-open-matches', label: 'Open Transactions' },
     { id: 'payment-tracker', label: 'Payment Tracker' },
     { id: 'discount-tracker', label: 'Discount Tracker' },
     { id: 'salesreps', label: 'Sales Reps' },
@@ -206,9 +206,9 @@ export default function DebitPage() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
+      <Sidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         onLogout={handleLogout}
         currentUser={currentUser}
         lastUpdated={lastUpdated}

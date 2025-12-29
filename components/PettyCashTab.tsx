@@ -27,7 +27,7 @@ interface Expense {
 export default function PettyCashTab() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats'>('receipts');
+  const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats' | 'voucher'>('receipts');
   const [statsSubTab, setStatsSubTab] = useState<'receipts' | 'expenses'>('receipts');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -57,6 +57,13 @@ export default function PettyCashTab() {
     source: '',
     description: '',
     paid: 'No',
+    date: new Date().toISOString().split('T')[0]
+  });
+
+  const [voucherFormData, setVoucherFormData] = useState({
+    amount: '',
+    source: '',
+    description: '',
     date: new Date().toISOString().split('T')[0]
   });
 
@@ -394,13 +401,25 @@ export default function PettyCashTab() {
   const tabs = [
     { id: 'receipts' as const, name: 'Receipts', icon: TrendingUp },
     { id: 'expenses' as const, name: 'Expenses', icon: TrendingDown },
+    { id: 'voucher' as const, name: 'Voucher (Print)', icon: FileText },
     { id: 'stats' as const, name: 'Statistics', icon: BarChart3 }
   ];
+
+  const handlePrintOnlyVoucher = () => {
+    if (!voucherFormData.amount || !voucherFormData.source || !voucherFormData.description) {
+      alert('Please fill all fields');
+      return;
+    }
+
+    // Direct print in the same window using an iframe approach or temporary div + print()
+    // A clean way is window.print() with CSS hiding everything else.
+    window.print();
+  };
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Sidebar */}
-      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} bg-white text-gray-900 transition-all duration-300 overflow-hidden shadow-2xl border-r border-gray-200`}>
+      <div className={`${sidebarOpen ? 'w-72' : 'w-0'} bg-white text-gray-900 transition-all duration-300 overflow-hidden shadow-2xl border-r border-gray-200 no-print`}>
         <div className="p-6">
           <div className="flex items-center gap-3 mb-10 pb-6 border-b border-gray-200">
             <div className="bg-cyan-100 text-cyan-600 p-2 rounded-lg">
@@ -442,12 +461,12 @@ export default function PettyCashTab() {
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto no-print">
         {/* Top Bar */}
-        <div className="bg-white shadow-md p-5 flex items-center gap-4 sticky top-0 z-10">
+        <div className="bg-white shadow-md p-5 flex items-center gap-4 sticky top-0 z-10 no-print">
           <button
             onClick={handleBack}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors no-print"
             title="Back to Home"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -558,48 +577,6 @@ export default function PettyCashTab() {
                   </div>
                 </div>
 
-                {/* List Card */}
-                <div>
-                  <div className="bg-white rounded-2xl shadow-lg p-6">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
-                      Receipt Records ({receipts.length})
-                    </h3>
-
-                    {receipts.length === 0 ? (
-                      <div className="text-center py-16">
-                        <TrendingUp className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                        <p className="text-gray-500 text-lg">No receipts recorded</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
-                        {receipts.slice().reverse().map(receipt => (
-                          <div key={receipt.id} className="border-2 border-gray-200 rounded-xl p-4 hover:border-black hover:shadow-md transition-all duration-200">
-                            <div className="flex justify-between items-start gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <span className="text-2xl font-bold text-gray-900">{receipt.amount.toFixed(2)} AED</span>
-                                  <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600">{receipt.date}</span>
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${receipt.paid === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    {receipt.paid === 'Yes' ? 'PAID' : 'UNPAID'}
-                                  </span>
-                                </div>
-                                <p className="text-sm mb-1 text-gray-700"><span className="font-bold">Source:</span> {receipt.source}</p>
-                                <p className="text-sm text-gray-600">{receipt.description}</p>
-                              </div>
-                              <button
-                                onClick={() => deleteEntry(receipt.id, 'receipt')}
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -689,48 +666,6 @@ export default function PettyCashTab() {
                   </div>
                 </div>
 
-                {/* List Card */}
-                <div>
-                  <div className="bg-white rounded-2xl shadow-lg p-6">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
-                      <FileText className="w-5 h-5" />
-                      Expense Records ({expenses.length})
-                    </h3>
-
-                    {expenses.length === 0 ? (
-                      <div className="text-center py-16">
-                        <TrendingDown className="w-16 h-16 mx-auto text-gray-300 mb-4" />
-                        <p className="text-gray-500 text-lg">No expenses recorded</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-3 max-h-[calc(100vh-250px)] overflow-y-auto">
-                        {expenses.slice().reverse().map(expense => (
-                          <div key={expense.id} className="border-2 border-gray-200 rounded-xl p-4 hover:border-black hover:shadow-md transition-all duration-200">
-                            <div className="flex justify-between items-start gap-4">
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2">
-                                  <span className="text-2xl font-bold text-gray-900">{expense.amount.toFixed(2)} AED</span>
-                                  <span className="text-xs bg-gray-100 px-3 py-1 rounded-full text-gray-600">{expense.date}</span>
-                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${expense.paid === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                    {expense.paid === 'Yes' ? 'PAID' : 'UNPAID'}
-                                  </span>
-                                </div>
-                                <p className="text-sm mb-1 text-gray-700"><span className="font-bold">Recipient:</span> {expense.source}</p>
-                                <p className="text-sm text-gray-600">{expense.description}</p>
-                              </div>
-                              <button
-                                onClick={() => deleteEntry(expense.id, 'expense')}
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50 p-2 rounded-lg transition-colors"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
               </div>
             </div>
           )}
@@ -947,8 +882,108 @@ export default function PettyCashTab() {
               </div>
             </div>
           )}
+
+
+          {/* Voucher Tab (Print Only) */}
+          {activeTab === 'voucher' && (
+            <div className="max-w-4xl mx-auto no-print">
+              <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-cyan-100">
+                <div className="flex items-center gap-4 mb-8 border-b pb-6">
+                  <div className="bg-cyan-600 text-white p-3 rounded-xl">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">Quick Print Voucher</h2>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                  <div>
+                    <label className="block font-bold mb-2 text-sm text-gray-700">Payment Date</label>
+                    <input
+                      type="date"
+                      value={voucherFormData.date}
+                      onChange={(e) => setVoucherFormData({ ...voucherFormData, date: e.target.value })}
+                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold mb-2 text-sm text-gray-700">Amount (AED)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={voucherFormData.amount}
+                      onChange={(e) => setVoucherFormData({ ...voucherFormData, amount: e.target.value })}
+                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white text-cyan-600 font-bold"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-6 mb-10">
+                  <div>
+                    <label className="block font-bold mb-2 text-sm text-gray-700">Paid To (Recipient)</label>
+                    <input
+                      type="text"
+                      value={voucherFormData.source}
+                      onChange={(e) => setVoucherFormData({ ...voucherFormData, source: e.target.value })}
+                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white font-bold"
+                      placeholder="Enter name of person or company"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-bold mb-2 text-sm text-gray-700">Description</label>
+                    <textarea
+                      value={voucherFormData.description}
+                      onChange={(e) => setVoucherFormData({ ...voucherFormData, description: e.target.value })}
+                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white resize-none"
+                      rows={3}
+                      placeholder="What is this payment for?"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-center">
+                  <button
+                    onClick={handlePrintOnlyVoucher}
+                    className="w-full md:w-1/2 bg-cyan-600 text-white font-black py-5 px-8 rounded-2xl hover:bg-cyan-700 transition-all duration-300 flex items-center justify-center gap-3 shadow-xl hover:shadow-cyan-100 hover:scale-[1.02] transform"
+                  >
+                    <FileText className="w-6 h-6" />
+                    PRINT VOUCHER
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Hidden container for global printing - MATCHING CASH RECEIPT LOGIC */}
+      <div id="voucher-print" className="hidden-print m-0 p-0" style={{ width: '210mm' }}>
+        <VoucherDocument data={voucherFormData} />
+      </div>
+
+      <style jsx global>{`
+        @media screen {
+          .hidden-print { position: absolute; left: -9999px; }
+          /* Hide number input arrows */
+          input[type=number]::-webkit-inner-spin-button, 
+          input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+          }
+          input[type=number] {
+            -moz-appearance: textfield;
+          }
+        }
+        @media print {
+          .no-print { display: none !important; }
+          .hidden-print { display: block !important; position: static !important; }
+          body { background: white !important; padding: 0 !important; margin: 0 !important; }
+          #voucher-print { border: none !important; box-shadow: none !important; width: 210mm !important; }
+          @page { size: A4 portrait; margin: 0mm; }
+        }
+      `}</style>
 
       {/* Edit/Delete Modal */}
       {isModalOpen && selectedEntry && (
@@ -1052,6 +1087,72 @@ export default function PettyCashTab() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function VoucherDocument({ data }: { data: any }) {
+  return (
+
+    <div className="bg-white" style={{ fontFamily: 'system-ui, sans-serif' }}>
+      <div className="max-w-none w-full p-10 relative overflow-hidden">
+        {/* Watermark */}
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none select-none">
+          <span className="text-9xl font-black rotate-[-45deg] whitespace-nowrap uppercase">PAID</span>
+        </div>
+
+        {/* Header */}
+        <div className="text-center mb-10 border-b-2 border-black pb-8">
+          <h1 className="text-2xl font-black uppercase tracking-widest text-gray-900 mb-2">Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
+          <p className="text-lg font-bold text-gray-700 decoration-double underline underline-offset-4">PAYMENT VOUCHER</p>
+        </div>
+
+        {/* Info Grid */}
+        <div className="grid grid-cols-2 gap-10 mb-10">
+          <div className="space-y-4">
+            <div className="flex items-end gap-2 border-b border-gray-300 pb-1">
+              <span className="font-bold text-sm uppercase text-gray-500 min-w-[100px]">Date:</span>
+              <span className="text-lg font-bold">{data.date}</span>
+            </div>
+            <div className="flex items-end gap-2 border-b border-gray-300 pb-1">
+              <span className="font-bold text-sm uppercase text-gray-500 min-w-[100px]">Amount:</span>
+              <span className="text-lg font-bold italic underline">{(parseFloat(data.amount) || 0).toFixed(2)} AED</span>
+            </div>
+          </div>
+          <div className="flex flex-col justify-center items-center bg-gray-50 p-6 rounded-lg border-2 border-black">
+            <span className="text-xs font-black uppercase text-gray-500 mb-1">Total Amount</span>
+            <span className="text-4xl font-black text-gray-900">{(parseFloat(data.amount) || 0).toFixed(2)} <span className="text-xl">AED</span></span>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="space-y-6 mb-10 mt-6">
+          <div className="flex items-end gap-4 border-b-2 border-gray-200 pb-2">
+            <span className="font-black text-sm uppercase text-gray-400 min-w-[120px]">Paid to:</span>
+            <span className="text-2xl font-bold uppercase underline decoration-2 underline-offset-8 decoration-gray-400">{data.source}</span>
+          </div>
+          <div className="flex flex-col gap-4 border-b-2 border-gray-200 pb-2">
+            <span className="font-black text-sm uppercase text-gray-400">Description:</span>
+            <p className="text-2xl font-medium leading-relaxed italic pr-10">"{data.description}"</p>
+          </div>
+        </div>
+
+        {/* Signature Section */}
+        <div className="grid grid-cols-2 gap-24 pt-10">
+          <div className="text-center border-t-2 border-black pt-4">
+            <p className="text-xs font-black uppercase text-gray-500 mb-1">Authorized Signature</p>
+            <div className="h-10"></div>
+            <p className="font-bold text-gray-900 mt-2">_________________________</p>
+          </div>
+          <div className="text-center border-t-2 border-black pt-4">
+            <p className="text-xs font-black uppercase text-gray-500 mb-1">Receiver's Signature</p>
+            <div className="h-10"></div>
+            <p className="font-bold text-gray-900 mt-2">_________________________</p>
+          </div>
+        </div>
+
+
+      </div>
     </div>
   );
 }

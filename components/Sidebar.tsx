@@ -15,7 +15,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   const allTabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
     { id: 'all-transactions', label: 'All Transactions', icon: '📋' },
-    { id: 'customers-open-matches', label: 'C Open Matches', icon: '🔗' },
+    { id: 'customers-open-matches', label: 'Open Transactions', icon: '🔗' },
     { id: 'payment-tracker', label: 'Payment Tracker', icon: '💰' },
     { id: 'discount-tracker', label: 'Discount Tracker', icon: '🏷️' },
     { id: 'salesreps', label: 'Sales Reps', icon: '👔' },
@@ -27,7 +27,7 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
 
   // Users with restricted access
   const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-  
+
   // Tabs to hide for restricted users
   const restrictedTabs = [
     'customers-open-matches',
@@ -45,12 +45,12 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
 
   // Filter tabs based on user
   let tabs = allTabs;
-  
+
   // Hide restricted tabs for restricted users
   if (restrictedUsers.includes(currentUser?.name)) {
     tabs = allTabs.filter(tab => !restrictedTabs.includes(tab.id));
   }
-  
+
   // Show MED Sabry only tabs only for MED Sabry
   if (currentUser?.name !== 'MED Sabry') {
     tabs = tabs.filter(tab => !medSabryOnlyTabs.includes(tab.id));
@@ -77,17 +77,16 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
           </div>
         )}
       </div>
-      
+
       <nav className="p-4 flex-1 overflow-y-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${
-              activeTab === tab.id
+            className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${activeTab === tab.id
                 ? 'bg-blue-600 text-white shadow-md'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             <span className="mr-3 text-xl">{tab.icon}</span>
             <span className="font-medium">{tab.label}</span>

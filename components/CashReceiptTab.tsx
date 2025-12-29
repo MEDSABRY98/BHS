@@ -229,7 +229,7 @@ export default function CashReceiptTab() {
               <div className="p-2 bg-black rounded-lg">
                 <DollarSign className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-bold tracking-tight">Voucher System</h1>
+              <h1 className="text-xl font-bold tracking-tight whitespace-nowrap">Cash Receipt</h1>
             </div>
           </div>
         </div>
