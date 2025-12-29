@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   LineChart,
@@ -27,7 +27,12 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [showDiscountsModal, setShowDiscountsModal] = useState(false);
 
   // Debounce search query
   useEffect(() => {
@@ -37,17 +42,73 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Filter data for this customer with search and date filters
-  // Note: customerName is used for display, but we need to find by customerId if available
-  const customerData = useMemo(() => {
+  // Fetch invoices data for discounts calculation
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoadingInvoices(true);
+      try {
+        const response = await fetch('/api/sheets');
+        if (response.ok) {
+          const result = await response.json();
+          setInvoicesData(result.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      } finally {
+        setLoadingInvoices(false);
+      }
+    };
+    fetchInvoices();
+  }, []);
+
+  // Get unfiltered customer data (for lastInvoiceDate calculation)
+  const unfilteredCustomerData = useMemo(() => {
     // First, find the customerId for this customerName (use first match)
     const firstMatch = data.find(item => item.customerName === customerName);
     const customerId = firstMatch?.customerId;
     
     // Filter by customerId if available, otherwise by customerName
-    let filtered = customerId 
+    return customerId 
       ? data.filter(item => item.customerId === customerId)
       : data.filter(item => item.customerName === customerName);
+  }, [data, customerName]);
+
+  // Filter data for this customer with search and date filters
+  // Note: customerName is used for display, but we need to find by customerId if available
+  const customerData = useMemo(() => {
+    let filtered = [...unfilteredCustomerData];
+    
+    // Year filter
+    if (filterYear.trim()) {
+      const yearNum = parseInt(filterYear.trim(), 10);
+      if (!isNaN(yearNum)) {
+        filtered = filtered.filter(item => {
+          if (!item.invoiceDate) return false;
+          try {
+            const date = new Date(item.invoiceDate);
+            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    // Month filter
+    if (filterMonth.trim()) {
+      const monthNum = parseInt(filterMonth.trim(), 10);
+      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        filtered = filtered.filter(item => {
+          if (!item.invoiceDate) return false;
+          try {
+            const date = new Date(item.invoiceDate);
+            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
     
     // Date filter
     if (dateFrom || dateTo) {
@@ -88,7 +149,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     }
     
     return filtered;
-  }, [data, customerName, dateFrom, dateTo, debouncedSearchQuery]);
+  }, [unfilteredCustomerData, dateFrom, dateTo, filterYear, filterMonth, debouncedSearchQuery]);
 
   // Monthly sales data
   const monthlySales = useMemo(() => {
@@ -322,7 +383,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   }, [customerData]);
 
   // Invoices data - grouped by invoiceNumber
-  const invoicesData = useMemo(() => {
+  const groupedInvoicesData = useMemo(() => {
     const invoiceMap = new Map<string, {
       invoiceDate: string;
       invoiceNumber: string;
@@ -428,12 +489,12 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // Count only months where customer actually made purchases (not zero months)
     const activeMonths = monthlySales.filter(month => !month.isZeroMonth && month.count > 0).length;
 
-    // Calculate last invoice date and days since
+    // Calculate last invoice date and days since (from unfiltered data)
     let lastInvoiceDate: Date | null = null;
     let daysSinceLastInvoice: number | null = null;
     
-    if (customerData.length > 0) {
-      const dates = customerData
+    if (unfilteredCustomerData.length > 0) {
+      const dates = unfilteredCustomerData
         .map(item => {
           if (!item.invoiceDate) return null;
           try {
@@ -455,6 +516,99 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       }
     }
 
+    // Calculate discounts based on sales ratio
+    // 1. Get CUSTOMER MAIN NAME from customerData
+    const customerMainName = customerData.length > 0 && customerData[0].customerMainName 
+      ? customerData[0].customerMainName 
+      : customerName; // Fallback to customerName if customerMainName not available
+
+    // 2. Calculate total sales amount for sub-customer
+    const subCustomerTotalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
+
+    // 3. Calculate total sales amount for main customer (all sub-customers with same customerMainName)
+    const normalizeCustomerName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizedMainName = normalizeCustomerName(customerMainName);
+    
+    const mainCustomerTotalAmount = data.reduce((sum, item) => {
+      const itemMainName = item.customerMainName || item.customerName;
+      const normalizedItemMainName = normalizeCustomerName(itemMainName);
+      if (normalizedItemMainName === normalizedMainName) {
+        return sum + item.amount;
+      }
+      return sum;
+    }, 0);
+
+    // 4. Calculate sales ratio
+    const salesRatio = mainCustomerTotalAmount > 0 
+      ? subCustomerTotalAmount / mainCustomerTotalAmount 
+      : 0;
+
+    // 5. Find the latest date in sales data
+    let latestSalesDate: Date | null = null;
+    if (data.length > 0) {
+      const salesDates = data
+        .map(item => {
+          if (!item.invoiceDate) return null;
+          try {
+            const date = new Date(item.invoiceDate);
+            return isNaN(date.getTime()) ? null : date;
+          } catch {
+            return null;
+          }
+        })
+        .filter((date): date is Date => date !== null);
+      
+      if (salesDates.length > 0) {
+        latestSalesDate = new Date(Math.max(...salesDates.map(d => d.getTime())));
+        // Set to end of day to include all invoices on that date
+        latestSalesDate.setHours(23, 59, 59, 999);
+      }
+    }
+
+    // 6. Calculate total discounts for main customer from Invoices sheet
+    // Filter by customer name and date (only invoices up to latest sales date)
+    const mainCustomerInvoices = invoicesData.filter(inv => {
+      if (!inv.customerName) return false;
+      const normalizedInvName = normalizeCustomerName(inv.customerName);
+      if (normalizedInvName !== normalizedMainName) return false;
+      
+      // Filter by date: only include invoices up to latest sales date
+      if (latestSalesDate && inv.date) {
+        try {
+          const invDate = new Date(inv.date);
+          if (!isNaN(invDate.getTime())) {
+            invDate.setHours(0, 0, 0, 0);
+            const compareDate = new Date(latestSalesDate);
+            compareDate.setHours(0, 0, 0, 0);
+            if (invDate > compareDate) return false;
+          }
+        } catch {
+          // If date parsing fails, exclude the invoice
+          return false;
+        }
+      }
+      
+      return true;
+    });
+
+    const mainCustomerTotalDiscountsWithTax = mainCustomerInvoices.reduce((sum, inv) => {
+      const num = (inv.number?.toString() || '').toUpperCase();
+      if (num.startsWith('JV') || num.startsWith('BIL')) {
+        // Calculate netDebt (debit - credit) for discounts, same as in invoiceTypeTotals
+        const netDebt = (inv.debit || 0) - (inv.credit || 0);
+        return sum + netDebt;
+      }
+      return sum;
+    }, 0);
+
+    // Remove 5% tax from discounts (discounts in invoices sheet include tax, but sales amounts are without tax)
+    // If discount includes 5% tax: discount_with_tax = discount_without_tax * 1.05
+    // Therefore: discount_without_tax = discount_with_tax / 1.05
+    const mainCustomerTotalDiscounts = mainCustomerTotalDiscountsWithTax / 1.05;
+
+    // 7. Distribute discount based on sales ratio
+    const distributedDiscount = mainCustomerTotalDiscounts * salesRatio;
+
     return {
       totalAmount,
       totalQty,
@@ -464,9 +618,18 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       avgMonthlyAmount,
       avgMonthlyQty,
       lastInvoiceDate,
-      daysSinceLastInvoice
+      daysSinceLastInvoice,
+      discountsAmount: distributedDiscount,
+      // Additional data for discounts explanation modal
+      customerMainName,
+      subCustomerTotalAmount,
+      mainCustomerTotalAmount,
+      salesRatio,
+      mainCustomerTotalDiscountsWithTax,
+      mainCustomerTotalDiscounts,
+      latestSalesDate
     };
-  }, [customerData, monthlySales]);
+  }, [customerData, monthlySales, invoicesData, customerName, data]);
 
   // Chart data for monthly sales - show last 12 months only, reverse order for chart (oldest to newest for better visualization)
   const chartData = useMemo(() => {
@@ -530,7 +693,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
     const headers = ['Invoice Date', 'Invoice Number', 'Amount', 'Quantity', 'Products Count', 'Avg Cost', 'Avg Price'];
 
-    const rows = invoicesData.map((item: any) => [
+    const rows = groupedInvoicesData.map((item: any) => [
       item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'short',
@@ -568,9 +731,9 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
           <h1 className="text-3xl font-bold text-gray-800">{customerName}</h1>
         </div>
 
-        {/* Search and Date Filter */}
-        <div className="mb-6 flex gap-4">
-          <div className="relative flex-[3]">
+        {/* Search and Filters */}
+        <div className="mb-6 flex gap-4 flex-wrap">
+          <div className="relative flex-[3] min-w-[200px]">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
@@ -580,7 +743,34 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
               className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
             />
           </div>
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-[120px]">
+            <input
+              type="number"
+              placeholder="Year (e.g., 2024)"
+              value={filterYear}
+              onChange={(e) => setFilterYear(e.target.value)}
+              className="w-full px-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
+              min="2000"
+              max="2100"
+            />
+          </div>
+          <div className="relative flex-1 min-w-[120px]">
+            <input
+              type="number"
+              placeholder="Month (1-12)"
+              value={filterMonth}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
+                  setFilterMonth(value);
+                }
+              }}
+              className="w-full px-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
+              min="1"
+              max="12"
+            />
+          </div>
+          <div className="relative flex-1 min-w-[150px]">
             <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="date"
@@ -590,7 +780,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
               className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
             />
           </div>
-          <div className="relative flex-1">
+          <div className="relative flex-1 min-w-[150px]">
             <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="date"
@@ -699,6 +889,27 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2
                   })}
+                </p>
+              </div>
+
+              <div 
+                className="bg-white rounded-xl shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => setShowDiscountsModal(true)}
+                title="Click to see calculation details"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Discounts</h3>
+                  <Percent className="w-6 h-6 text-yellow-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {loadingInvoices ? (
+                    <span className="text-gray-400">Loading...</span>
+                  ) : (
+                    dashboardMetrics.discountsAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })
+                  )}
                 </p>
               </div>
 
@@ -1232,7 +1443,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   </tr>
                 </thead>
                 <tbody>
-                  {invoicesData.map((item, index) => {
+                  {groupedInvoicesData.map((item, index) => {
                     const isRSAL = item.invoiceNumber.trim().toUpperCase().startsWith('RSAL');
                     return (
                     <tr 
@@ -1277,7 +1488,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                     </tr>
                     );
                   })}
-                  {invoicesData.length === 0 && (
+                  {groupedInvoicesData.length === 0 && (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-gray-500">
                         No invoices data available
@@ -1286,6 +1497,150 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   )}
                 </tbody>
               </table>
+            </div>
+          </div>
+        )}
+
+        {/* Discounts Calculation Modal */}
+        {showDiscountsModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full">
+              <div className="border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Discounts Calculation Explanation</h2>
+                <button
+                  onClick={() => setShowDiscountsModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+              
+              <div className="p-5">
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-1">Customer Information</h3>
+                    <p className="text-xs text-gray-700"><span className="font-medium">Sub:</span> {customerName}</p>
+                    <p className="text-xs text-gray-700"><span className="font-medium">Main:</span> {dashboardMetrics.customerMainName || customerName}</p>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Date Filter</h3>
+                    <p className="text-xs text-gray-600">
+                      {dashboardMetrics.latestSalesDate ? (
+                        <>Up to: <span className="font-medium">{dashboardMetrics.latestSalesDate.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}</span></>
+                      ) : (
+                        'No date filter'
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 1: Sub-Customer Sales</h3>
+                    <p className="text-xs text-gray-500 mb-1">Sum of AMOUNT from Sales sheet</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {dashboardMetrics.subCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 2: Main Customer Total Sales</h3>
+                    <p className="text-xs text-gray-500 mb-1">Sum of AMOUNT for all sub-customers</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {dashboardMetrics.mainCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 3: Sales Ratio</h3>
+                    <p className="text-xs text-gray-500 mb-1">
+                      {dashboardMetrics.subCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })} ÷ {dashboardMetrics.mainCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })}
+                    </p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {dashboardMetrics.mainCustomerTotalAmount > 0 ? (
+                        <>{(dashboardMetrics.salesRatio * 100).toFixed(2)}%</>
+                      ) : (
+                        '0%'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 4: Main Customer Discounts (with tax)</h3>
+                    <p className="text-xs text-gray-500 mb-1">Sum of (DEBIT - CREDIT) for JV/BIL from Invoices sheet</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {((dashboardMetrics as any).mainCustomerTotalDiscountsWithTax || dashboardMetrics.mainCustomerTotalDiscounts * 1.05).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">(includes 5% tax)</p>
+                  </div>
+                </div>
+
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+                  <h3 className="text-xs font-semibold text-yellow-900 mb-1">Step 5: Remove Tax</h3>
+                  <p className="text-xs text-gray-600 mb-1">
+                    Discounts in Invoices sheet include 5% tax, but Sales amounts are without tax
+                  </p>
+                  <p className="text-xs text-gray-600 mb-1">
+                    {((dashboardMetrics as any).mainCustomerTotalDiscountsWithTax || dashboardMetrics.mainCustomerTotalDiscounts * 1.05).toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })} ÷ 1.05
+                  </p>
+                  <p className="text-lg font-bold text-yellow-800">
+                    = {dashboardMetrics.mainCustomerTotalDiscounts.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </p>
+                </div>
+
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-green-900 mb-2">Final: Distributed Discount</h3>
+                  <p className="text-xs text-gray-600 mb-2">
+                    {dashboardMetrics.mainCustomerTotalDiscounts.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })} × {(dashboardMetrics.salesRatio * 100).toFixed(2)}%
+                  </p>
+                  <p className="text-2xl font-bold text-green-700">
+                    = {dashboardMetrics.discountsAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 px-6 py-3 flex justify-end">
+                <button
+                  onClick={() => setShowDiscountsModal(false)}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         )}
