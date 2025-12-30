@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock, Receipt, Wallet } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock, Receipt, Wallet, FileSpreadsheet } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -40,8 +40,12 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     window.location.href = '/petty-cash';
   };
 
+  const handleSelectPurchaseQuotation = () => {
+    window.location.href = '/purchase-quotation';
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
+    <div className="min-h-screen bg-white p-6">
       <div className="max-w-7xl w-full mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
@@ -66,20 +70,19 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         </div>
 
         {/* Selection Cards */}
-        <div className={`grid gap-6 ${
-          currentUser?.name === 'MED Sabry' ? 'md:grid-cols-5' : 
-          currentUser?.name === 'Monai' ? 'md:grid-cols-5' : 
-          currentUser?.name === 'Mr. Ali Farouk' ? 'md:grid-cols-2' :
-          currentUser?.name === 'Mahmoud Shaker' ? 'md:grid-cols-1' :
-          currentUser?.name === 'Overtime Export' ? 'md:grid-cols-1' :
-          currentUser?.name === 'Ramadan Gomaa' ? 'md:grid-cols-2' :
-          'md:grid-cols-2'
-        }`}>
+        <div className={`grid gap-6 ${currentUser?.name === 'MED Sabry' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5' :
+          currentUser?.name === 'Monai' ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5' :
+            currentUser?.name === 'Mr. Ali Farouk' ? 'grid-cols-1 md:grid-cols-2' :
+              currentUser?.name === 'Mahmoud Shaker' ? 'grid-cols-1' :
+                currentUser?.name === 'Overtime Export' ? 'grid-cols-1' :
+                  currentUser?.name === 'Ramadan Gomaa' ? 'grid-cols-1 md:grid-cols-2' :
+                    'grid-cols-1 md:grid-cols-2'
+          }`}>
           {/* Cash Receipt Card - Only visible for MED Sabry - First */}
           {currentUser?.name === 'MED Sabry' && (
             <div
               onClick={handleSelectCashReceipt}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-teal-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-teal-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-teal-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -95,7 +98,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {currentUser?.name === 'MED Sabry' && (
             <div
               onClick={handleSelectPettyCash}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-cyan-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-cyan-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-cyan-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -111,7 +114,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {currentUser?.name !== 'Overtime Export' && (
             <div
               onClick={handleSelectDebit}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-red-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-red-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -127,7 +130,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && (
             <div
               onClick={handleSelectSales}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-green-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-green-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -143,7 +146,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
             <div
               onClick={handleSelectInventory}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-indigo-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-indigo-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -155,11 +158,27 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
+          {/* Purchase Quotation Card - Only visible for MED Sabry and Monai */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+            <div
+              onClick={handleSelectPurchaseQuotation}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-amber-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <FileSpreadsheet className="w-7 h-7 text-amber-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Purchase Quotation</h2>
+            </div>
+          )}
+
           {/* Employee Overtime Card - Visible for MED Sabry, Monai, and Overtime Export, not for Mr. Ali Farouk */}
           {((currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Overtime Export') && currentUser?.name !== 'Mr. Ali Farouk') && (
             <div
               onClick={handleSelectOvertime}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-blue-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-blue-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -175,7 +194,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && currentUser?.name !== 'Mr. Ali Farouk' && (
             <div
               onClick={handleSelectDeliveryNote}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-purple-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-purple-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -191,7 +210,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && currentUser?.name !== 'Mr. Ali Farouk' && (
             <div
               onClick={handleSelectWarehouse}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-transparent hover:border-orange-300 flex flex-col min-h-[180px]"
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-orange-300 flex flex-col min-h-[180px]"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
