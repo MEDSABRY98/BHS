@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download } from 'lucide-react';
+import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download, Search, BarChart3 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function EmployeeOvertimeTab() {
@@ -18,7 +18,7 @@ export default function EmployeeOvertimeTab() {
     }
   }, []);
 
-  const [activeTab, setActiveTab] = useState(() => {
+  const [activeTab, setActiveTab] = useState<'register' | 'view' | 'statistics'>(() => {
     // If user is Overtime Export, default to 'view' tab
     const savedUser = localStorage.getItem('currentUser');
     if (savedUser) {
@@ -66,6 +66,8 @@ export default function EmployeeOvertimeTab() {
   const [filterMonth, setFilterMonth] = useState('');
   const [filterDateFrom, setFilterDateFrom] = useState('');
   const [filterDateTo, setFilterDateTo] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statsSearchQuery, setStatsSearchQuery] = useState('');
 
   // Fetch employee names on component mount
   useEffect(() => {
@@ -100,7 +102,8 @@ export default function EmployeeOvertimeTab() {
   const fetchRecords = async () => {
     try {
       setLoadingRecords(true);
-      const response = await fetch('/api/employee-overtime');
+      // Add timestamp to prevent caching
+      const response = await fetch(`/api/employee-overtime?t=${Date.now()}`);
       const data = await response.json();
       if (response.ok) {
         setOvertimeRecords(data.records || []);
@@ -156,10 +159,16 @@ export default function EmployeeOvertimeTab() {
             return `${timeStr.padStart(2, '0')}:00`;
           };
 
-          updatedRow.hours = calculateHours(
-            convertToTimeFormat(fromTime),
-            convertToTimeFormat(toTime)
-          ).toFixed(2);
+          updatedRow.hours = (() => {
+            const totalHours = calculateHours(
+              convertToTimeFormat(fromTime),
+              convertToTimeFormat(toTime)
+            );
+            // Convert decimal hours to hours.minutes format (base 60)
+            const hours = Math.floor(totalHours);
+            const minutes = Math.round((totalHours - hours) * 60);
+            return `${hours}.${minutes}`;
+          })();
         }
         return updatedRow;
       }
@@ -432,13 +441,196 @@ export default function EmployeeOvertimeTab() {
     return filtered;
   }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo]);
 
+  // Apply search filter
+  const searchedRecords = useMemo(() => {
+    if (!searchQuery.trim()) return filteredRecords;
+
+    const query = searchQuery.toLowerCase().trim();
+    return filteredRecords.filter(record => {
+      return (
+        record.date?.toLowerCase().includes(query) ||
+        record.employeeName?.toLowerCase().includes(query) ||
+        record.description?.toLowerCase().includes(query) ||
+        record.timeFrom?.toLowerCase().includes(query) ||
+        record.timeTo?.toLowerCase().includes(query) ||
+        record.hours?.toLowerCase().includes(query)
+      );
+    });
+  }, [filteredRecords, searchQuery]);
+
+  // Calculate employee statistics
+  const employeeStats = useMemo(() => {
+    const stats: {
+      [employeeName: string]: {
+        days: number;
+        totalHours: number;
+        totalAmount: number;
+        dates: Set<string>;
+      };
+    } = {};
+
+    overtimeRecords.forEach(record => {
+      const name = record.employeeName;
+      if (!name) return;
+
+      if (!stats[name]) {
+        stats[name] = {
+          days: 0,
+          totalHours: 0,
+          totalAmount: 0,
+          dates: new Set()
+        };
+      }
+
+      // Add unique date
+      if (record.date) {
+        stats[name].dates.add(record.date);
+      }
+
+      // Parse hours (format: "4.30" means 4 hours and 30 minutes)
+      if (record.hours) {
+        const hoursStr = record.hours.toString();
+        const parts = hoursStr.split('.');
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const totalHours = hours + (minutes / 60);
+        stats[name].totalHours += totalHours;
+      }
+    });
+
+    // Convert to array and calculate final values
+    return Object.entries(stats).map(([name, data]) => ({
+      employeeName: name,
+      days: data.dates.size,
+      totalHours: data.totalHours,
+      totalAmount: data.totalHours * 10 // 10 AED per hour
+    })).sort((a, b) => b.totalAmount - a.totalAmount); // Sort by amount descending
+  }, [overtimeRecords]);
+
+  // Apply filters to employee stats
+  const filteredEmployeeStats = useMemo(() => {
+    // First filter the records based on date filters
+    let filtered = [...overtimeRecords];
+
+    // Date range filter
+    if (filterDateFrom.trim() || filterDateTo.trim()) {
+      filtered = filtered.filter(record => {
+        if (!record.date) return false;
+        try {
+          const recordDate = new Date(record.date);
+          recordDate.setHours(0, 0, 0, 0);
+
+          if (filterDateFrom.trim()) {
+            const fromDate = new Date(filterDateFrom);
+            fromDate.setHours(0, 0, 0, 0);
+            if (recordDate < fromDate) return false;
+          }
+
+          if (filterDateTo.trim()) {
+            const toDate = new Date(filterDateTo);
+            toDate.setHours(23, 59, 59, 999);
+            if (recordDate > toDate) return false;
+          }
+
+          return true;
+        } catch (e) {
+          return false;
+        }
+      });
+    }
+
+    // Year filter
+    if (filterYear.trim()) {
+      const yearNum = parseInt(filterYear.trim(), 10);
+      if (!isNaN(yearNum)) {
+        filtered = filtered.filter(record => {
+          if (!record.date) return false;
+          try {
+            const date = new Date(record.date);
+            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    // Month filter
+    if (filterMonth.trim()) {
+      const monthNum = parseInt(filterMonth.trim(), 10);
+      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        filtered = filtered.filter(record => {
+          if (!record.date) return false;
+          try {
+            const date = new Date(record.date);
+            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
+          } catch (e) {
+            return false;
+          }
+        });
+      }
+    }
+
+    // Recalculate stats from filtered records
+    const stats: {
+      [employeeName: string]: {
+        days: number;
+        totalHours: number;
+        totalAmount: number;
+        dates: Set<string>;
+      };
+    } = {};
+
+    filtered.forEach(record => {
+      const name = record.employeeName;
+      if (!name) return;
+
+      if (!stats[name]) {
+        stats[name] = {
+          days: 0,
+          totalHours: 0,
+          totalAmount: 0,
+          dates: new Set()
+        };
+      }
+
+      if (record.date) {
+        stats[name].dates.add(record.date);
+      }
+
+      if (record.hours) {
+        const hoursStr = record.hours.toString();
+        const parts = hoursStr.split('.');
+        const hours = parseInt(parts[0]) || 0;
+        const minutes = parseInt(parts[1]) || 0;
+        const totalHours = hours + (minutes / 60);
+        stats[name].totalHours += totalHours;
+      }
+    });
+
+    const result = Object.entries(stats).map(([name, data]) => ({
+      employeeName: name,
+      days: data.dates.size,
+      totalHours: data.totalHours,
+      totalAmount: data.totalHours * 10
+    })).sort((a, b) => b.totalAmount - a.totalAmount);
+
+    // Apply search filter
+    if (statsSearchQuery.trim()) {
+      const query = statsSearchQuery.toLowerCase().trim();
+      return result.filter(emp => emp.employeeName.toLowerCase().includes(query));
+    }
+
+    return result;
+  }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo, statsSearchQuery]);
+
   // Export to Excel
   const exportToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Date', 'Employee ID', 'Employee Name (Ar)', 'Employee Name (En)', 'Particulars', 'FROM AM/PM', 'FTime', 'TO AM/PM', 'TTime'];
 
-    const rows = filteredRecords.map(record => [
+    const rows = searchedRecords.map(record => [
       record.date || '',
       record.employeeId || '',
       record.employeeNameAr || '',
@@ -458,7 +650,7 @@ export default function EmployeeOvertimeTab() {
     XLSX.writeFile(workbook, filename);
   };
 
-  const formatTime = (time: string) => {
+  const formatTime = (time: string, amPm: string = 'PM') => {
     if (!time) return '';
 
     // Handle different formats: "4", "4.30", "4:30"
@@ -478,7 +670,17 @@ export default function EmployeeOvertimeTab() {
     }
 
     const displayHour = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-    return `${displayHour}:${minutes} PM`;
+    return `${displayHour}:${minutes} ${amPm || 'PM'}`;
+  };
+
+  // Convert decimal hours (4.5) to base-60 format (4.30)
+  const convertHoursToBase60 = (decimalHours: string | number): string => {
+    const hours = typeof decimalHours === 'string' ? parseFloat(decimalHours) : decimalHours;
+    if (isNaN(hours)) return '0.00';
+
+    const wholeHours = Math.floor(hours);
+    const minutes = Math.round((hours - wholeHours) * 60);
+    return `${wholeHours}.${minutes}`;
   };
 
   return (
@@ -523,6 +725,16 @@ export default function EmployeeOvertimeTab() {
           >
             <List className={`w-5 h-5 ${activeTab === 'view' ? 'text-white' : 'text-gray-600'}`} />
             <span className="font-semibold">View Records</span>
+          </button>
+          <button
+            onClick={() => setActiveTab('statistics')}
+            className={`w-full text-left p-4 mb-3 rounded-xl transition-all flex items-center gap-3 ${activeTab === 'statistics'
+              ? 'bg-gray-900 text-white shadow-md'
+              : 'bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-200'
+              }`}
+          >
+            <BarChart3 className={`w-5 h-5 ${activeTab === 'statistics' ? 'text-white' : 'text-gray-600'}`} />
+            <span className="font-semibold">Statistics</span>
           </button>
         </nav>
       </div>
@@ -696,7 +908,7 @@ export default function EmployeeOvertimeTab() {
                         <List className="w-5 h-5 text-gray-700" />
                       </div>
                       Overtime Records
-                      <span className="text-lg text-gray-500 font-normal">({filteredRecords.length})</span>
+                      <span className="text-lg text-gray-500 font-normal">({searchedRecords.length})</span>
                     </h2>
                     <button
                       onClick={exportToExcel}
@@ -720,7 +932,7 @@ export default function EmployeeOvertimeTab() {
 
                 {/* Filters */}
                 <div className="p-4 bg-gray-50 border-b border-gray-200">
-                  <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex flex-wrap items-center justify-center gap-4">
                     <div className="flex items-center gap-2">
                       <label htmlFor="filterYear" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
                         Year:
@@ -795,6 +1007,28 @@ export default function EmployeeOvertimeTab() {
                       </button>
                     )}
                   </div>
+
+                  {/* Search Box */}
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-300">
+                      <Search className="w-5 h-5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Quick search in table (Employee, Description, Date, etc.)..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
+                      />
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery('')}
+                          className="text-gray-400 hover:text-gray-600 transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {loadingRecords ? (
@@ -804,7 +1038,7 @@ export default function EmployeeOvertimeTab() {
                     </div>
                     <p className="text-gray-600 text-lg font-medium">Loading records...</p>
                   </div>
-                ) : filteredRecords.length === 0 ? (
+                ) : searchedRecords.length === 0 ? (
                   <div className="p-16 text-center">
                     <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-2xl mb-6">
                       <Clock className="w-10 h-10 text-gray-400" />
@@ -826,33 +1060,229 @@ export default function EmployeeOvertimeTab() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {filteredRecords.map((record, index) => (
-                          <tr
-                            key={record.id}
-                            onClick={() => {
-                              if (currentUser?.name !== 'Overtime Export') {
-                                openEditModal(record);
-                              }
-                            }}
-                            className={`${currentUser?.name !== 'Overtime Export' ? 'hover:bg-gray-100 cursor-pointer' : ''} transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
-                          >
-                            <td className="px-6 py-4 text-center text-gray-900 font-medium truncate" title={record.date}>{record.date}</td>
-                            <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>
-                            <td className="px-6 py-4 text-center text-gray-600 truncate" title={record.description}>{record.description}</td>
-                            <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeFrom)}</td>
-                            <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo)}</td>
-                            <td className="px-6 py-4 text-center">
-                              <span className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
-                                {record.hours && !isNaN(parseFloat(record.hours)) ? `${record.hours}h` : '0.00h'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
+                        {searchedRecords.map((record, index) => {
+                          const isSunday = record.description?.toLowerCase().includes('sunday');
+                          return (
+                            <tr
+                              key={record.id}
+                              onClick={() => {
+                                if (currentUser?.name !== 'Overtime Export') {
+                                  openEditModal(record);
+                                }
+                              }}
+                              className={`${currentUser?.name !== 'Overtime Export' ? 'hover:bg-gray-100 cursor-pointer' : ''} transition-colors ${isSunday
+                                ? 'bg-yellow-100 hover:bg-yellow-200'
+                                : index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                                }`}
+                            >
+                              <td className="px-6 py-4 text-center text-gray-900 font-medium truncate" title={record.date}>{record.date}</td>
+                              <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>
+                              <td className={`px-6 py-4 text-center truncate ${isSunday ? 'text-gray-900 font-bold' : 'text-gray-600'}`} title={record.description}>{record.description}</td>
+                              <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeFrom, record.fromAmPm)}</td>
+                              <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo, record.toAmPm)}</td>
+                              <td className="px-6 py-4 text-center">
+                                <span className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
+                                  {record.hours && !isNaN(parseFloat(record.hours)) ? `${convertHoursToBase60(record.hours)}h` : '0.00h'}
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Statistics Tab */}
+          {activeTab === 'statistics' && (
+            <div className="bg-white rounded-xl shadow-md">
+              <div className="p-6 border-b border-gray-200">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                    <BarChart3 className="w-5 h-5 text-gray-700" />
+                  </div>
+                  Employee Statistics
+                  <span className="text-lg text-gray-500 font-normal">({filteredEmployeeStats.length})</span>
+                </h2>
+              </div>
+
+              {/* Filters */}
+              <div className="p-4 bg-gray-50 border-b border-gray-200">
+                <div className="flex flex-wrap items-center justify-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="statsFilterYear" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      Year:
+                    </label>
+                    <input
+                      id="statsFilterYear"
+                      type="number"
+                      placeholder="e.g., 2024"
+                      value={filterYear}
+                      onChange={(e) => setFilterYear(e.target.value)}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                      min="2000"
+                      max="2100"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="statsFilterMonth" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      Month (1-12):
+                    </label>
+                    <input
+                      id="statsFilterMonth"
+                      type="number"
+                      placeholder="e.g., 1-12"
+                      value={filterMonth}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
+                          setFilterMonth(value);
+                        }
+                      }}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                      min="1"
+                      max="12"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="statsFilterDateFrom" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      From Date:
+                    </label>
+                    <input
+                      id="statsFilterDateFrom"
+                      type="date"
+                      value={filterDateFrom}
+                      onChange={(e) => setFilterDateFrom(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="statsFilterDateTo" className="text-sm font-semibold text-gray-700 whitespace-nowrap">
+                      To Date:
+                    </label>
+                    <input
+                      id="statsFilterDateTo"
+                      type="date"
+                      value={filterDateTo}
+                      onChange={(e) => setFilterDateTo(e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gray-900 text-sm"
+                    />
+                  </div>
+                  {(filterYear || filterMonth || filterDateFrom || filterDateTo) && (
+                    <button
+                      onClick={() => {
+                        setFilterYear('');
+                        setFilterMonth('');
+                        setFilterDateFrom('');
+                        setFilterDateTo('');
+                      }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                    >
+                      Clear Filters
+                    </button>
+                  )}
+                </div>
+
+                {/* Search Box */}
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center gap-3 bg-white p-3 rounded-lg border border-gray-300">
+                    <Search className="w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Quick search by employee name..."
+                      value={statsSearchQuery}
+                      onChange={(e) => setStatsSearchQuery(e.target.value)}
+                      className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
+                    />
+                    {statsSearchQuery && (
+                      <button
+                        onClick={() => setStatsSearchQuery('')}
+                        className="text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {filteredEmployeeStats.length === 0 ? (
+                <div className="p-16 text-center">
+                  <div className="inline-flex items-center justify-center w-20 h-20 bg-gray-100 rounded-2xl mb-6">
+                    <BarChart3 className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <p className="text-gray-700 text-xl font-semibold mb-2">No statistics available</p>
+                  <p className="text-gray-500">Start by registering overtime entries</p>
+                </div>
+              ) : (
+                <div className="p-6">
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg text-white">
+                      <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Employees</p>
+                      <h3 className="text-4xl font-black">{filteredEmployeeStats.length}</h3>
+                    </div>
+                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-5 shadow-lg text-white">
+                      <p className="text-green-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Hours</p>
+                      <h3 className="text-4xl font-black">
+                        {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalHours, 0).toFixed(1)}h
+                      </h3>
+                    </div>
+                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg text-white">
+                      <p className="text-purple-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Amount</p>
+                      <h3 className="text-4xl font-black">
+                        {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                      </h3>
+                    </div>
+                  </div>
+
+                  {/* Statistics Table */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">#</th>
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Employee Name</th>
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Days</th>
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Total Hours</th>
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Total Amount (10 AED/hr)</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {filteredEmployeeStats.map((emp, index) => (
+                          <tr key={emp.employeeName} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                            <td className="px-6 py-4 text-center text-gray-600 font-medium">{index + 1}</td>
+                            <td className="px-6 py-4 text-center text-gray-900 font-semibold">{emp.employeeName}</td>
+                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{emp.days}</td>
+                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{emp.totalHours.toFixed(1)}h</td>
+                            <td className="px-6 py-4 text-center">
+                              <span className="inline-block bg-green-600 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
+                                {emp.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                        {/* Total Row */}
+                        <tr className="bg-gray-900 text-white font-bold border-t-2 border-gray-300">
+                          <td colSpan={2} className="px-6 py-4 text-center text-lg">TOTAL</td>
+                          <td className="px-6 py-4 text-center text-lg">
+                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.days, 0)}
+                          </td>
+                          <td className="px-6 py-4 text-center text-lg">
+                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalHours, 0).toFixed(1)}h
+                          </td>
+                          <td className="px-6 py-4 text-center text-lg">
+                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
+import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 
@@ -14,23 +14,23 @@ interface SalesInactiveCustomersTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick }: { 
-  item: { 
-    customer: string; 
+const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick }: {
+  item: {
+    customer: string;
     lastPurchaseDate: Date | null;
     daysSinceLastPurchase: number;
-    totalAmount: number; 
+    totalAmount: number;
     averageOrderValue: number;
     orderCount: number;
     status: string;
-  }; 
-  rowNumber: number; 
-  onCustomerClick: (customer: string) => void 
+  };
+  rowNumber: number;
+  onCustomerClick: (customer: string) => void
 }) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{rowNumber}</td>
-      <td 
+      <td
         className="py-3 px-4 text-sm text-gray-800 font-medium text-center cursor-pointer hover:text-green-600 hover:underline min-w-[200px]"
         onClick={() => onCustomerClick(item.customer)}
       >
@@ -74,7 +74,9 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | 'status' | null>(null);
   const [excludedCustomerIds, setExcludedCustomerIds] = useState<Set<string>>(new Set());
-  
+  const [sortField, setSortField] = useState<'customer' | 'lastPurchaseDate' | 'daysSinceLastPurchase' | 'totalAmount' | 'averageOrderValue' | 'orderCount'>('daysSinceLastPurchase');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
@@ -160,8 +162,8 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
   // Group data by customer and calculate inactive customer metrics
   const inactiveCustomersData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
-    
-    const customerMap = new Map<string, { 
+
+    const customerMap = new Map<string, {
       customerId: string;
       customer: string;
       lastPurchaseDate: Date | null;
@@ -169,18 +171,18 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       invoiceNumbers: Set<string>;
       invoiceDates: Date[];
     }>();
-    
+
     const currentDate = new Date();
     currentDate.setHours(0, 0, 0, 0);
-    
+
     // Process all invoices to get customer data
     for (let i = 0; i < filteredData.length; i++) {
       const item = filteredData[i];
       const key = item.customerId || item.customerName;
       let existing = customerMap.get(key);
-      
+
       if (!existing) {
-        existing = { 
+        existing = {
           customerId: key,
           customer: item.customerName,
           lastPurchaseDate: null,
@@ -190,12 +192,12 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         };
         customerMap.set(key, existing);
       }
-      
+
       // Only count invoices starting with "SAL"
       if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         existing.totalAmount += item.amount;
         existing.invoiceNumbers.add(item.invoiceNumber);
-        
+
         if (item.invoiceDate) {
           const date = new Date(item.invoiceDate);
           if (!isNaN(date.getTime())) {
@@ -219,23 +221,23 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       orderCount: number;
       status: string;
     }> = [];
-    
+
     customerMap.forEach(item => {
       if (!item.lastPurchaseDate) return; // Skip customers with no valid purchase date
-      
+
       // Skip customers in exceptions list
       if (excludedCustomerIds.has(item.customerId)) return;
-      
+
       // Calculate days since last purchase
       const daysSince = Math.floor((currentDate.getTime() - item.lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
-      
+
       // Only include customers with 10+ days since last purchase
       if (daysSince < 10) return;
-      
+
       // Calculate average order value
       const orderCount = item.invoiceNumbers.size;
       const averageOrderValue = orderCount > 0 ? item.totalAmount / orderCount : 0;
-      
+
       // Determine status
       let status = '';
       if (daysSince >= 10 && daysSince < 30) {
@@ -245,7 +247,7 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
       } else if (daysSince >= 60) {
         status = 'Lost';
       }
-      
+
       result.push({
         customer: item.customer,
         lastPurchaseDate: item.lastPurchaseDate,
@@ -256,10 +258,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         status
       });
     });
-    
+
     // Sort by days since last purchase (descending - most inactive first)
     result.sort((a, b) => b.daysSinceLastPurchase - a.daysSinceLastPurchase);
-    
+
     return result;
   }, [filteredData, excludedCustomerIds]);
 
@@ -297,19 +299,19 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
   // Filter and sort customers
   const filteredCustomers = useMemo(() => {
     if (inactiveCustomersData.length === 0) return [];
-    
+
     let filtered: typeof inactiveCustomersData;
-    
+
     // Apply search filter using debounced query
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
-      filtered = inactiveCustomersData.filter(item => 
+      filtered = inactiveCustomersData.filter(item =>
         item.customer.toLowerCase().includes(query)
       );
     } else {
       filtered = inactiveCustomersData;
     }
-    
+
     // Filter by days
     if (filterDays) {
       const days = parseInt(filterDays);
@@ -317,7 +319,7 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         filtered = filtered.filter(item => item.daysSinceLastPurchase >= days);
       }
     }
-    
+
     // Filter by minimum amount
     if (filterMinAmount) {
       const minAmount = parseFloat(filterMinAmount);
@@ -325,14 +327,50 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         filtered = filtered.filter(item => item.totalAmount >= minAmount);
       }
     }
-    
+
     // Filter by status
     if (filterStatus) {
       filtered = filtered.filter(item => item.status === filterStatus);
     }
-    
+
+    // Apply sorting
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
+
+      // Handle date sorting
+      if (sortField === 'lastPurchaseDate') {
+        aValue = aValue ? new Date(aValue).getTime() : 0;
+        bValue = bValue ? new Date(bValue).getTime() : 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+
     return filtered;
-  }, [inactiveCustomersData, debouncedSearchQuery, filterDays, filterMinAmount, filterStatus]);
+  }, [inactiveCustomersData, debouncedSearchQuery, filterDays, filterMinAmount, filterStatus, sortField, sortDirection]);
+
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) {
+      // Toggle direction if same field
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      // New field, default to descending
+      setSortField(field);
+      setSortDirection('desc');
+    }
+  };
+
+  const getSortIcon = (field: typeof sortField) => {
+    if (sortField !== field) {
+      return <ArrowUpDown className="w-4 h-4 inline ml-1 opacity-40" />;
+    }
+    return sortDirection === 'asc'
+      ? <ArrowUp className="w-4 h-4 inline ml-1 text-green-600" />
+      : <ArrowDown className="w-4 h-4 inline ml-1 text-green-600" />;
+  };
 
   // Pagination calculations
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
@@ -490,7 +528,7 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
           <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
-          
+
           {/* Input Filters Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
             {/* Days Filter */}
@@ -549,19 +587,17 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'status' ? null : 'status')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'status'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'status'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterStatus ? 'text-gray-800' : 'text-gray-400'}>
                     {filterStatus || 'All Statuses'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'status' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'status' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'status' && (
@@ -571,11 +607,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterStatus('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterStatus === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterStatus === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Statuses
                     </div>
@@ -584,11 +619,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterStatus('At Risk');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                        filterStatus === 'At Risk'
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterStatus === 'At Risk'
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       At Risk (10-30 days)
                     </div>
@@ -597,11 +631,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterStatus('Inactive');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                        filterStatus === 'Inactive'
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterStatus === 'Inactive'
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       Inactive (30-60 days)
                     </div>
@@ -610,11 +643,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterStatus('Lost');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                        filterStatus === 'Lost'
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterStatus === 'Lost'
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       Lost (60+ days)
                     </div>
@@ -634,19 +666,17 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'area'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
                     {filterArea || 'All Areas'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'area' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'area' && (
@@ -656,11 +686,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterArea('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterArea === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Areas
                     </div>
@@ -671,11 +700,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                           setFilterArea(area);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterArea === area
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {area}
                       </div>
@@ -695,19 +723,17 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'merchandiser'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
                     {filterMerchandiser || 'All Merchandisers'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'merchandiser' && (
@@ -717,11 +743,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterMerchandiser('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterMerchandiser === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Merchandisers
                     </div>
@@ -732,11 +757,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                           setFilterMerchandiser(merchandiser);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterMerchandiser === merchandiser
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {merchandiser}
                       </div>
@@ -756,19 +780,17 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'salesrep'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
                     {filterSalesRep || 'All Sales Reps'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'salesrep' && (
@@ -778,11 +800,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                         setFilterSalesRep('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterSalesRep === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Sales Reps
                     </div>
@@ -793,11 +814,10 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                           setFilterSalesRep(salesRep);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterSalesRep === salesRep
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {salesRep}
                       </div>
@@ -849,12 +869,42 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-12">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 min-w-[200px]">Customer Name</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Last Purchase Date</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Days Since Last Purchase</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Total Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Order Value</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Order Count</th>
+                  <th
+                    className="text-center py-3 px-4 text-sm font-semibold text-gray-700 min-w-[200px] cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('customer')}
+                  >
+                    Customer Name {getSortIcon('customer')}
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('lastPurchaseDate')}
+                  >
+                    Last Purchase Date {getSortIcon('lastPurchaseDate')}
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('daysSinceLastPurchase')}
+                  >
+                    Days Since Last Purchase {getSortIcon('daysSinceLastPurchase')}
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('totalAmount')}
+                  >
+                    Total Amount {getSortIcon('totalAmount')}
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('averageOrderValue')}
+                  >
+                    Average Order Value {getSortIcon('averageOrderValue')}
+                  </th>
+                  <th
+                    className="text-center py-3 px-4 text-sm font-semibold text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => handleSort('orderCount')}
+                  >
+                    Order Count {getSortIcon('orderCount')}
+                  </th>
                 </tr>
               </thead>
               <tbody>
@@ -877,17 +927,17 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                   <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
                     <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={4}>Total</td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAmount.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      {totals.totalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {filteredCustomers.length > 0 
-                        ? (totals.totalAverageOrderValue / filteredCustomers.length).toLocaleString('en-US', { 
-                            minimumFractionDigits: 2, 
-                            maximumFractionDigits: 2 
-                          })
+                      {filteredCustomers.length > 0
+                        ? (totals.totalAverageOrderValue / filteredCustomers.length).toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })
                         : '0.00'}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">{totals.totalOrderCount}</td>

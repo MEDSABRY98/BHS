@@ -28,7 +28,7 @@ export default function PettyCashTab() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats' | 'voucher'>('receipts');
-  const [statsSubTab, setStatsSubTab] = useState<'receipts' | 'expenses'>('receipts');
+  const [statsSubTab, setStatsSubTab] = useState<'receipts' | 'expenses' | 'pending'>('receipts');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -355,6 +355,26 @@ export default function PettyCashTab() {
       return true;
     });
   }, [expenses, searchQuery, fromDate, toDate, statusFilter]);
+
+  // Pending Payments - Calculate unpaid amounts per recipient
+  const pendingPayments = useMemo(() => {
+    const unpaidExpenses = expenses.filter(e => e.paid === 'No');
+
+    // Group by recipient and sum amounts
+    const grouped: { [key: string]: number } = {};
+    unpaidExpenses.forEach(expense => {
+      const recipient = expense.source.trim();
+      if (!grouped[recipient]) {
+        grouped[recipient] = 0;
+      }
+      grouped[recipient] += expense.amount;
+    });
+
+    // Convert to array and sort by amount descending
+    return Object.entries(grouped)
+      .map(([recipient, amount]) => ({ recipient, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [expenses]);
 
   const exportToExcel = () => {
     // Prepare Receipts data (use filtered data)
@@ -796,6 +816,15 @@ export default function PettyCashTab() {
                   >
                     Expenses Tracking
                   </button>
+                  <button
+                    onClick={() => setStatsSubTab('pending')}
+                    className={`flex-1 py-3 px-4 rounded-lg font-semibold transition-all ${statsSubTab === 'pending'
+                      ? 'bg-amber-500 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                  >
+                    Pending Payments
+                  </button>
                 </div>
 
                 <div className="p-4">
@@ -816,7 +845,7 @@ export default function PettyCashTab() {
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredReceipts.slice().reverse().map((receipt, index) => (
+                              {filteredReceipts.slice().sort((a, b) => b.date.localeCompare(a.date)).map((receipt, index) => (
                                 <tr
                                   key={receipt.id}
                                   onClick={() => openEditModal(receipt, 'receipt')}
@@ -838,7 +867,7 @@ export default function PettyCashTab() {
                         </div>
                       )}
                     </>
-                  ) : (
+                  ) : statsSubTab === 'expenses' ? (
                     <>
                       {filteredExpenses.length === 0 ? (
                         <p className="text-center text-gray-400 py-12">No expenses available</p>
@@ -855,7 +884,7 @@ export default function PettyCashTab() {
                               </tr>
                             </thead>
                             <tbody>
-                              {filteredExpenses.slice().reverse().map((expense, index) => (
+                              {filteredExpenses.slice().sort((a, b) => b.date.localeCompare(a.date)).map((expense, index) => (
                                 <tr
                                   key={expense.id}
                                   onClick={() => openEditModal(expense, 'expense')}
@@ -874,6 +903,71 @@ export default function PettyCashTab() {
                               ))}
                             </tbody>
                           </table>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      {pendingPayments.length === 0 ? (
+                        <div className="text-center py-16">
+                          <div className="bg-gradient-to-br from-green-100 to-emerald-100 p-6 rounded-full inline-block mb-6 shadow-lg">
+                            <TrendingUp className="w-12 h-12 text-green-600" />
+                          </div>
+                          <h3 className="text-2xl font-black text-gray-800 mb-2">All Payments Settled!</h3>
+                          <p className="text-gray-500 text-lg">There are no pending payments at the moment.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          {/* Summary Card */}
+                          <div className="bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl p-6 shadow-xl text-white">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="text-amber-100 text-sm font-semibold uppercase tracking-wide mb-1">Total Outstanding</p>
+                                <h2 className="text-4xl font-black">
+                                  {pendingPayments.reduce((sum, p) => sum + p.amount, 0).toFixed(2)} <span className="text-2xl">AED</span>
+                                </h2>
+                              </div>
+                              <div className="bg-white/20 p-4 rounded-xl backdrop-blur-sm">
+                                <Wallet className="w-10 h-10" />
+                              </div>
+                            </div>
+                            <div className="mt-4 pt-4 border-t border-white/20">
+                              <p className="text-amber-100 text-sm">
+                                <span className="font-bold text-white">{pendingPayments.length}</span> recipient{pendingPayments.length > 1 ? 's' : ''} with pending payments
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Recipients Cards */}
+                          <div className="grid grid-cols-1 gap-3">
+                            {pendingPayments.map((payment, index) => (
+                              <div
+                                key={index}
+                                className="bg-white border-2 border-gray-100 rounded-xl p-5 hover:border-amber-400 hover:shadow-lg transition-all duration-300 group"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-4 flex-1">
+                                    <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
+                                      <div className="w-8 h-8 flex items-center justify-center">
+                                        <span className="text-2xl font-black text-amber-600">#{index + 1}</span>
+                                      </div>
+                                    </div>
+                                    <div className="flex-1">
+                                      <h4 className="text-lg font-bold text-gray-800 group-hover:text-amber-600 transition-colors">
+                                        {payment.recipient}
+                                      </h4>
+                                      <p className="text-sm text-gray-500 mt-1">Pending Payment</p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right">
+                                    <p className="text-3xl font-black text-red-600">
+                                      {payment.amount.toFixed(2)} <span className="text-lg text-red-400">AED</span>
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
                     </>

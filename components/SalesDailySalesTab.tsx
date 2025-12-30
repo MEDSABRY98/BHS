@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface SalesDailySalesTabProps {
@@ -19,6 +19,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [tableSearchQuery, setTableSearchQuery] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
@@ -226,6 +227,26 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       return b.invoiceNumber.localeCompare(a.invoiceNumber);
     });
   }, [filteredData]);
+
+  // Calculate statistics for All Invoices tab
+  const allInvoicesStats = useMemo(() => {
+    const salesInvoices = dailySalesData.filter(inv => inv.invoiceNumber.toUpperCase().startsWith('SAL'));
+    const returnInvoices = dailySalesData.filter(inv => inv.invoiceNumber.toUpperCase().startsWith('RSAL'));
+
+    const totalSales = salesInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalReturns = returnInvoices.reduce((sum, inv) => sum + Math.abs(inv.amount), 0);
+
+    // Net Sales = SUM of all amounts (positive and negative)
+    const netSales = dailySalesData.reduce((sum, inv) => sum + inv.amount, 0);
+
+    return {
+      netSales,
+      totalSales,
+      totalReturns,
+      salesCount: salesInvoices.length,
+      returnsCount: returnInvoices.length
+    };
+  }, [dailySalesData]);
 
   // Sales by Day - group by date
   const salesByDayData = useMemo(() => {
@@ -437,45 +458,49 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
   // Apply search filter to dailySalesData
   const searchedData = useMemo(() => {
-    if (!searchQuery.trim()) {
-      return dailySalesData;
+    let result = dailySalesData;
+
+    // Apply main search query from filters
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      result = result.filter(item => {
+        const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
+        if (invoiceDateStr.includes(query)) return true;
+        if (item.invoiceNumber.toLowerCase().includes(query)) return true;
+        if (item.customerName.toLowerCase().includes(query)) return true;
+        if (item.amount.toString().includes(query)) return true;
+        if (item.qty.toString().includes(query)) return true;
+        if (item.productsCount.toString().includes(query)) return true;
+        if (item.avgCost.toString().includes(query)) return true;
+        if (item.avgPrice.toString().includes(query)) return true;
+        return false;
+      });
     }
 
-    const query = searchQuery.toLowerCase().trim();
-    return dailySalesData.filter(item => {
-      // Search in invoice date
-      const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
-      if (invoiceDateStr.includes(query)) return true;
+    // Apply table quick search
+    if (tableSearchQuery.trim()) {
+      const query = tableSearchQuery.toLowerCase().trim();
+      result = result.filter(item => {
+        const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
+        if (invoiceDateStr.includes(query)) return true;
+        if (item.invoiceNumber.toLowerCase().includes(query)) return true;
+        if (item.customerName.toLowerCase().includes(query)) return true;
+        if (item.amount.toString().includes(query)) return true;
+        if (item.qty.toString().includes(query)) return true;
+        if (item.productsCount.toString().includes(query)) return true;
+        if (item.avgCost.toString().includes(query)) return true;
+        if (item.avgPrice.toString().includes(query)) return true;
+        return false;
+      });
+    }
 
-      // Search in invoice number
-      if (item.invoiceNumber.toLowerCase().includes(query)) return true;
-
-      // Search in customer name
-      if (item.customerName.toLowerCase().includes(query)) return true;
-
-      // Search in amount
-      if (item.amount.toString().includes(query)) return true;
-
-      // Search in quantity
-      if (item.qty.toString().includes(query)) return true;
-
-      // Search in products count
-      if (item.productsCount.toString().includes(query)) return true;
-
-      // Search in avg cost
-      if (item.avgCost.toString().includes(query)) return true;
-
-      // Search in avg price
-      if (item.avgPrice.toString().includes(query)) return true;
-
-      return false;
-    });
-  }, [dailySalesData, searchQuery]);
+    return result;
+  }, [dailySalesData, searchQuery, tableSearchQuery]);
 
   // Reset to page 1 when filters change or sub-tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep, searchQuery, activeSubTab]);
+  }, [filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep, searchQuery, tableSearchQuery, activeSubTab]);
 
   // Calculate pagination
   const totalPages = Math.ceil(searchedData.length / itemsPerPage);
@@ -919,12 +944,85 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                 <Download className="w-5 h-5" />
               </button>
             </div>
+
+
+            {/* Statistics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* Net Sales Card */}
+              <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 shadow-lg text-white">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-green-100 text-sm font-semibold uppercase tracking-wide">Net Sales</p>
+                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-black mb-1">
+                  {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </h3>
+                <p className="text-green-100 text-sm font-medium">
+                  AED (Sales - Returns)
+                </p>
+              </div>
+
+              {/* Sales Invoices Count Card */}
+              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-lg text-white">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide">Count Sales Invoices</p>
+                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-black mb-1">
+                  {allInvoicesStats.salesCount.toLocaleString('en-US')} <span className="text-xl">Invoice{allInvoicesStats.salesCount !== 1 ? 's' : ''}</span>
+                </h3>
+                <p className="text-blue-100 text-sm font-medium">
+                  Total: {allInvoicesStats.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                </p>
+              </div>
+
+              {/* Returns Invoices Count Card */}
+              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 shadow-lg text-white">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-red-100 text-sm font-semibold uppercase tracking-wide">Count Return Invoices</p>
+                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                    <ShoppingBag className="w-5 h-5" />
+                  </div>
+                </div>
+                <h3 className="text-3xl font-black mb-1">
+                  {allInvoicesStats.returnsCount.toLocaleString('en-US')} <span className="text-xl">Return{allInvoicesStats.returnsCount !== 1 ? 's' : ''}</span>
+                </h3>
+                <p className="text-red-100 text-sm font-medium">
+                  Total: {allInvoicesStats.totalReturns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                </p>
+              </div>
+            </div>
+
             {searchedData.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">No data available for the selected filters</p>
               </div>
             ) : (
               <>
+                {/* Quick Search Box */}
+                <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <Search className="w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Quick search in table (Invoice #, Customer, Amount, etc.)..."
+                    value={tableSearchQuery}
+                    onChange={(e) => setTableSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
+                  />
+                  {tableSearchQuery && (
+                    <button
+                      onClick={() => setTableSearchQuery('')}
+                      className="text-gray-400 hover:text-gray-600 transition-colors"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>

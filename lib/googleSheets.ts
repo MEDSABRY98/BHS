@@ -1640,28 +1640,45 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
       let hours = '0.00';
       if (timeFrom && timeTo) {
         // Handle different time formats: "4", "4.30", "4:30"
-        const parseTime = (timeStr: string): { hours: number; minutes: number } => {
+        const parseTime = (timeStr: string, amPm: string): { hours: number; minutes: number } => {
           if (!timeStr) return { hours: 0, minutes: 0 };
 
+          let h: number, m: number;
           if (timeStr.includes(':')) {
-            const [h, m] = timeStr.split(':').map(Number);
-            return { hours: h || 0, minutes: m || 0 };
+            const [hour, min] = timeStr.split(':').map(Number);
+            h = hour || 0;
+            m = min || 0;
           } else if (timeStr.includes('.')) {
-            const [h, m] = timeStr.split('.').map(Number);
-            return { hours: h || 0, minutes: m || 0 };
+            const [hour, min] = timeStr.split('.').map(Number);
+            h = hour || 0;
+            m = min || 0;
           } else {
-            return { hours: parseInt(timeStr) || 0, minutes: 0 };
+            h = parseInt(timeStr) || 0;
+            m = 0;
           }
+
+          // Convert to 24-hour format based on AM/PM
+          if (amPm === 'AM') {
+            if (h === 12) h = 0; // 12 AM = 0 hours
+          } else { // PM
+            if (h !== 12) h += 12; // Add 12 for PM (except 12 PM)
+          }
+
+          return { hours: h, minutes: m };
         };
 
-        const fromTime = parseTime(timeFrom);
-        const toTime = parseTime(timeTo);
+        const fromTime = parseTime(timeFrom, fromAmPm);
+        const toTime = parseTime(timeTo, toAmPm);
 
         const fromMins = fromTime.hours * 60 + fromTime.minutes;
         let toMins = toTime.hours * 60 + toTime.minutes;
         if (toMins < fromMins) toMins += 24 * 60;
         const calculatedHours = (toMins - fromMins) / 60;
-        hours = isNaN(calculatedHours) ? '0.00' : calculatedHours.toFixed(2);
+
+        // Convert to base-60 format (4.30 instead of 4.5)
+        const wholeHours = Math.floor(calculatedHours);
+        const minutes = Math.round((calculatedHours - wholeHours) * 60);
+        hours = isNaN(calculatedHours) ? '0' : `${wholeHours}.${minutes}`;
       }
 
       return {
