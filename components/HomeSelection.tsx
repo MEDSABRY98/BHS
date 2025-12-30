@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Warehouse, Clock, Receipt, Wallet, FileSpreadsheet } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -24,9 +24,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     window.location.href = '/inventory';
   };
 
-  const handleSelectWarehouse = () => {
-    window.location.href = '/warehouse-cleaning';
-  };
+
 
   const handleSelectOvertime = () => {
     window.location.href = '/employee-overtime';
@@ -206,21 +204,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Warehouse Cleaning Card - Only visible for MED Sabry and Monai, not for Mr. Ali Farouk */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && currentUser?.name !== 'Mr. Ali Farouk' && (
-            <div
-              onClick={handleSelectWarehouse}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-orange-300 flex flex-col min-h-[180px]"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Warehouse className="w-7 h-7 text-orange-600" />
-                </div>
-                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 leading-tight">Warehouse Cleaning</h2>
-            </div>
-          )}
+
         </div>
       </div>
     </div>
