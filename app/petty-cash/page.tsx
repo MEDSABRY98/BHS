@@ -14,7 +14,7 @@ export default function PettyCashPage() {
       try {
         const savedUser = localStorage.getItem('currentUser');
         const savedPassword = localStorage.getItem('userPassword');
-        
+
         if (savedUser && savedPassword) {
           try {
             const userData = JSON.parse(savedUser);
@@ -32,7 +32,7 @@ export default function PettyCashPage() {
               });
 
               const result = await response.json();
-              
+
               if (response.ok && result.success) {
                 // User still exists and credentials are valid
                 setCurrentUser(result.user);
@@ -56,7 +56,7 @@ export default function PettyCashPage() {
         setIsChecking(false);
       }
     };
-    
+
     validateAndSetUser();
   }, []);
 
@@ -72,7 +72,7 @@ export default function PettyCashPage() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+          <p className="text-gray-600">Load Petty Cash Data...</p>
         </div>
       </div>
     );

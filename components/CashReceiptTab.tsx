@@ -272,7 +272,7 @@ export default function CashReceiptTab() {
                 {isFetchingSaved ? (
                   <div className="flex flex-col items-center justify-center py-8">
                     <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <span className="text-xs text-gray-400">Loading...</span>
+                    <span className="text-xs text-gray-400">Load Cash Receipt Data...</span>
                   </div>
                 ) : filteredReceipts.length > 0 ? (
                   filteredReceipts.map((receipt) => (

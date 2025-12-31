@@ -2007,3 +2007,227 @@ export async function deletePettyCash(rowIndex: number): Promise<{ success: bool
     throw error;
   }
 }
+
+// Get Product Orders Data from "Inventory - Orders" sheet
+export interface ProductOrder {
+  productId: string;
+  barcode: string;
+  productName: string;
+  tags: string;
+  qtyOnHand: number;
+  qtyFreeToUse: number;
+  salesQty: number;
+}
+
+export async function getProductOrdersData(): Promise<ProductOrder[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Fetch both Inventory and Sales data in parallel
+    const [inventoryResponse, salesResponse] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'Inventory - Orders'!A:F`,
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'Sales - Invoices'!I:P`, // I=Product ID ... P=Qty
+      })
+    ]);
+
+    // Process Sales Data
+    const salesMap = new Map<string, number>();
+    const salesRows = salesResponse.data.values || [];
+
+    // Skip header row for sales
+    salesRows.slice(1).forEach(row => {
+      const productId = row[0]?.toString().trim(); // I column (relative index 0)
+      const qtyStr = row[7]?.toString().replace(/,/g, '') || '0'; // P column (relative index 7)
+      const qty = parseFloat(qtyStr);
+
+      if (productId && !isNaN(qty)) {
+        salesMap.set(productId, (salesMap.get(productId) || 0) + qty);
+      }
+    });
+
+    const rows = inventoryResponse.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    const data = rows.slice(1).map((row, index) => {
+      let productId = row[0]?.toString().trim() || '';
+      const barcode = row[1]?.toString().trim() || '';
+      const productName = row[2]?.toString().trim() || '';
+
+      // Fallback for missing ID to ensure uniqueness in UI
+      if (!productId) {
+        if (barcode) productId = `BAR-${barcode}`;
+        else if (productName) productId = `NAME-${productName.replace(/\s+/g, '_')}`;
+        else productId = `ROW-${index}`;
+      }
+
+      return {
+        productId,
+        barcode,
+        productName,
+        tags: row[3]?.toString().trim() || '',
+        qtyOnHand: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+        qtyFreeToUse: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
+        salesQty: salesMap.get(productId) || 0
+      };
+    }).filter(row => row.productName); // Filter out empty rows
+
+    // ... existing code ...
+
+    return data;
+  } catch (error) {
+    console.error('Error fetching product orders data:', error);
+    throw error;
+  }
+}
+
+// Save Order to "Inventory - Orders - Make" sheet
+export interface CreateOrderItem {
+  poNumber: string;
+  productId: string;
+  barcode: string;
+  productName: string;
+  qtyOrder: number;
+  status: string;
+}
+
+export async function saveCreateOrder(items: CreateOrderItem[]): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Prepare row data
+    // PONO, PRODUCT ID, PRODUCT BARCODE, PRODUCT NAME, QTY ORDER, STATUS
+    const values = items.map(item => [
+      item.poNumber,
+      item.productId,
+      item.barcode,
+      item.productName,
+      item.qtyOrder,
+      item.status
+    ]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - Orders - Make'!A:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: values,
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving create order:', error);
+    throw error;
+  }
+}
+
+export async function getOrderDetailsByPO(poNumber: string): Promise<CreateOrderItem[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - Orders - Make'!A:F`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Filter by PO Number (Column A -> index 0)
+    // Note: This logic assumes all rows for a PO are in this sheet.
+    const orderItems: CreateOrderItem[] = rows
+      .slice(1) // skip header
+      .filter(row => row[0]?.toString().trim() === poNumber)
+      .map(row => ({
+        poNumber: row[0]?.toString().trim() || '',
+        productId: row[1]?.toString().trim() || '',
+        barcode: row[2]?.toString().trim() || '',
+        productName: row[3]?.toString().trim() || '',
+        qtyOrder: parseInt(row[4]?.toString().replace(/,/g, '') || '0'),
+        status: row[5]?.toString().trim() || 'Pending'
+      }));
+
+    return orderItems;
+  } catch (error) {
+    console.error('Error fetching order details:', error);
+    throw error;
+  }
+}
+
+export async function getNextPONumber(): Promise<string> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Fetch only the PO Number column (A)
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: "'Inventory - Orders - Make'!A:A", // Only get PONO column
+    });
+
+    const rows = response.data.values;
+    const currentYear = new Date().getFullYear();
+    let maxSequence = 0;
+
+    if (rows && rows.length > 1) { // Skip header if present
+      const poPattern = new RegExp(`PO-${currentYear}-(\\d{3})`);
+
+      rows.slice(1).forEach(row => {
+        const po = row[0]?.toString().trim();
+        if (po) {
+          const match = po.match(poPattern);
+          if (match) {
+            const sequence = parseInt(match[1], 10);
+            if (!isNaN(sequence) && sequence > maxSequence) {
+              maxSequence = sequence;
+            }
+          }
+        }
+      });
+    }
+
+    const nextSequence = maxSequence + 1;
+    const nextSequenceStr = nextSequence.toString().padStart(3, '0');
+
+    return `PO-${currentYear}-${nextSequenceStr}`;
+
+  } catch (error) {
+    console.error('Error fetching next PO Number:', error);
+    // Fallback if sheet doesn't exist or error, start fresh for widely used safe defaults
+    const year = new Date().getFullYear();
+    return `PO-${year}-001`;
+  }
+}

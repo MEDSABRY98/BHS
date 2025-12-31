@@ -67,11 +67,11 @@ export default function SalesPage() {
       setLoading(true);
       const response = await fetch('/api/sales');
       const result = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(result.details || result.error || 'Failed to fetch sales data');
       }
-      
+
       setData(result.data);
 
       // Find the latest date from INVOICE DATE column
@@ -79,13 +79,13 @@ export default function SalesPage() {
         const dates = result.data
           .map((row: SalesInvoice) => row.invoiceDate ? new Date(row.invoiceDate).getTime() : 0)
           .filter((time: number) => !isNaN(time) && time > 0);
-        
+
         if (dates.length > 0) {
           const maxDate = new Date(Math.max(...dates));
-          setLastUpdated(maxDate.toLocaleDateString('en-US', { 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
+          setLastUpdated(maxDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
           }));
         }
       }
@@ -105,7 +105,7 @@ export default function SalesPage() {
         <div className="flex items-center justify-center h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading sales data...</p>
+            <p className="text-gray-600">Load Sales Analysis Data...</p>
           </div>
         </div>
       );
@@ -156,9 +156,9 @@ export default function SalesPage() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <SalesSidebar 
-        activeTab={activeTab} 
-        onTabChange={setActiveTab} 
+      <SalesSidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         onLogout={handleLogout}
         currentUser={currentUser}
         lastUpdated={lastUpdated}

@@ -1036,7 +1036,7 @@ export default function EmployeeOvertimeTab() {
                     <div className="inline-flex items-center justify-center w-16 h-16 bg-gray-100 rounded-full mb-4 animate-pulse">
                       <Clock className="w-8 h-8 text-gray-400" />
                     </div>
-                    <p className="text-gray-600 text-lg font-medium">Loading records...</p>
+                    <p className="text-gray-600 text-lg font-medium">Load Employee Overtime Data...</p>
                   </div>
                 ) : searchedRecords.length === 0 ? (
                   <div className="p-16 text-center">

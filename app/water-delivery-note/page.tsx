@@ -25,13 +25,13 @@ export default function WaterDeliveryNotePage() {
   ]);
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  
+
   // Search and edit states
   const [searchNumber, setSearchNumber] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [foundDeliveryNote, setFoundDeliveryNote] = useState<any>(null);
-  
+
   // Notifications state
   const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: NotificationType }>>([]);
 
@@ -316,7 +316,7 @@ export default function WaterDeliveryNotePage() {
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading data...</p>
+          <p className="text-gray-600">Load Water - Delivery Note Data...</p>
         </div>
       </div>
     );
@@ -360,11 +360,10 @@ export default function WaterDeliveryNotePage() {
                 <button
                   onClick={handleSearch}
                   disabled={isSearching || isEditing}
-                  className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                    isSearching || isEditing
+                  className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSearching || isEditing
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                       : 'bg-blue-600 text-white hover:bg-blue-700'
-                  }`}
+                    }`}
                 >
                   {isSearching ? (
                     <>
@@ -505,11 +504,10 @@ export default function WaterDeliveryNotePage() {
               <button
                 onClick={handleUpdate}
                 disabled={saving}
-                className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                  saving
+                className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${saving
                     ? 'bg-green-400 text-white cursor-not-allowed'
                     : 'bg-green-600 text-white hover:bg-green-700'
-                }`}
+                  }`}
               >
                 {saving ? (
                   <>
@@ -527,11 +525,10 @@ export default function WaterDeliveryNotePage() {
               <button
                 onClick={handlePrint}
                 disabled={saving}
-                className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${
-                  saving
+                className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${saving
                     ? 'bg-blue-400 text-white cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
+                  }`}
               >
                 {saving ? (
                   <>
