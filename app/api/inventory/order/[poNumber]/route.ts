@@ -3,8 +3,9 @@ import { getOrderDetailsByPO } from '@/lib/googleSheets';
 
 export async function GET(
     request: Request,
-    { params }: { params: { poNumber: string } }
+    props: { params: Promise<{ poNumber: string }> }
 ) {
+    const params = await props.params;
     const poNumber = params.poNumber;
 
     try {
