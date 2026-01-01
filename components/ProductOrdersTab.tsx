@@ -71,7 +71,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
             // Initialize pack sizes from QINC column
             const initialPackSizes: Record<string, string> = {};
             data.forEach((p: ProductOrder) => {
-                if (p.qinc && p.qinc > 1) { // Only set if greater than 1, so 1 shows as empty (default)
+                if (p.qinc) {
                     initialPackSizes[p.productId] = p.qinc.toString();
                 }
             });
@@ -180,7 +180,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
     const handleQincSave = async (product: ProductOrder) => {
         const val = packSizes[product.productId];
         // If empty, treat as 1
-        const qincValue = val ? parseFloat(val) : 1;
+        const qincValue = val ? parseFloat(val) : 0;
 
         // Optimistic update/No need to wait, but let's save to backend
         try {
@@ -267,10 +267,11 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                 <div className="flex items-center gap-3 md:absolute md:right-4">
                     <button
                         onClick={fetchOrders}
-                        className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        disabled={loading}
+                        className={`p-2 rounded-lg transition-colors ${loading ? 'bg-blue-50 text-blue-600 cursor-wait' : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'}`}
                         title="Refresh Data"
                     >
-                        <RefreshCw className="w-5 h-5" />
+                        <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                     </button>
                 </div>
             </div>
@@ -379,8 +380,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                             <input
                                                 type="number"
                                                 min="1"
-                                                className="w-full px-1 py-1 text-sm text-center focus:outline-none focus:bg-blue-50 bg-transparent"
-                                                placeholder="1"
+                                                className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
+                                                placeholder=""
                                                 value={packSizes[product.productId] || ''}
                                                 onChange={(e) => setPackSizes(prev => ({ ...prev, [product.productId]: e.target.value }))}
                                                 onBlur={() => handleQincSave(product)}
@@ -415,8 +416,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                             <input
                                                 type="number"
                                                 min="0"
-                                                className="w-full px-1 py-1 text-sm text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
-                                                placeholder="0"
+                                                className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
+                                                placeholder=""
                                                 value={orderQty}
                                                 onChange={(e) => handleOrderQtyChange(product, e.target.value)}
                                             />

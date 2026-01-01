@@ -2102,7 +2102,7 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
         productId,
         barcode,
         productName,
-        qinc: parseFloat(row[3]?.toString().replace(/,/g, '') || '1'), // QINC column
+        qinc: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'), // QINC column
         tags: row[4]?.toString().trim() || '',
         qtyOnHand: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
         qtyFreeToUse: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),

@@ -275,9 +275,9 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
             </div>
 
             {/* Order Items Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden min-h-[300px]">
+            <div className={`bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden ${orderItems.length === 0 ? 'min-h-[300px]' : ''}`}>
                 {orderItems.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-gray-400">
+                    <div className="flex flex-col items-center justify-center h-full min-h-[300px] text-gray-400">
                         <ShoppingCart className="w-16 h-16 mb-4 opacity-20" />
                         <p className="text-lg">Your order list is empty</p>
                         <p className="text-sm">Search for products above to start adding items</p>
