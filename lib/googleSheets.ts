@@ -2013,10 +2013,12 @@ export interface ProductOrder {
   productId: string;
   barcode: string;
   productName: string;
+  qinc: number;
   tags: string;
   qtyOnHand: number;
   qtyFreeToUse: number;
   salesQty: number;
+  rowIndex: number;
 }
 
 export async function getProductOrdersData(): Promise<ProductOrder[]> {
@@ -2034,11 +2036,11 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     const [inventoryResponse, salesResponse] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - Orders'!A:F`,
+        range: `'Inventory - Orders'!A:G`, // Expanded range to include QINC
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'Sales - Invoices'!I:P`, // I=Product ID ... P=Qty
+        range: `'Sales - Invoices'!A:P`, // Fetch A:P to include Date (A), ProductID (I), Qty (P)
       })
     ]);
 
@@ -2046,10 +2048,31 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     const salesMap = new Map<string, number>();
     const salesRows = salesResponse.data.values || [];
 
+    // Calculate 90 days ago cutoff
+    const today = new Date();
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(today.getDate() - 90);
+    // Reset time to start of day for accurate comparison
+    ninetyDaysAgo.setHours(0, 0, 0, 0);
+
     // Skip header row for sales
     salesRows.slice(1).forEach(row => {
-      const productId = row[0]?.toString().trim(); // I column (relative index 0)
-      const qtyStr = row[7]?.toString().replace(/,/g, '') || '0'; // P column (relative index 7)
+      // Column A (index 0) = Invoice Date
+      const dateStr = row[0]?.toString().trim();
+
+      // Parse date: assuming MM/DD/YYYY or YYYY-MM-DD or similar from Sheets
+      // If empty or invalid, decide strategy. Usually better to skip or include if unsure?
+      // Let's try to parse. Javascript Date parsing is robust for standard formats.
+      if (!dateStr) return;
+
+      const invoiceDate = new Date(dateStr);
+      if (isNaN(invoiceDate.getTime())) return; // Skip invalid dates
+
+      // Check if within last 90 days
+      if (invoiceDate < ninetyDaysAgo) return;
+
+      const productId = row[8]?.toString().trim(); // I column (index 8 now, since we fetched A:P)
+      const qtyStr = row[15]?.toString().replace(/,/g, '') || '0'; // P column (index 15)
       const qty = parseFloat(qtyStr);
 
       if (productId && !isNaN(qty)) {
@@ -2079,10 +2102,12 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
         productId,
         barcode,
         productName,
-        tags: row[3]?.toString().trim() || '',
-        qtyOnHand: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-        qtyFreeToUse: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
-        salesQty: salesMap.get(productId) || 0
+        qinc: parseFloat(row[3]?.toString().replace(/,/g, '') || '1'), // QINC column
+        tags: row[4]?.toString().trim() || '',
+        qtyOnHand: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
+        qtyFreeToUse: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
+        salesQty: salesMap.get(productId) || 0,
+        rowIndex: index + 2 // 1-based index, header is 1
       };
     }).filter(row => row.productName); // Filter out empty rows
 
@@ -2094,6 +2119,33 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     throw error;
   }
 }
+
+export async function updateProductOrderQinc(rowIndex: number, qinc: number): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - Orders'!D${rowIndex}`, // Updated QINC column D
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[qinc]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating QINC:', error);
+    throw error;
+  }
+}
+
+
 
 // Save Order to "Inventory - Orders - Make" sheet
 export interface CreateOrderItem {
@@ -2108,16 +2160,74 @@ export interface CreateOrderItem {
 export async function saveCreateOrder(items: CreateOrderItem[]): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Prepare row data
-    // PONO, PRODUCT ID, PRODUCT BARCODE, PRODUCT NAME, QTY ORDER, STATUS
+    const spreadsheetInfo = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID,
+    });
+    const sheetTitle = 'Inventory - Orders - Make';
+    const sheet = spreadsheetInfo.data.sheets?.find(s => s.properties?.title === sheetTitle);
+    const sheetId = sheet?.properties?.sheetId;
+
+    if (sheetId === undefined) throw new Error(`Sheet ${sheetTitle} not found`);
+
+    if (items.length > 0) {
+      const poNumber = items[0].poNumber;
+
+      // 1. Find existing rows for this PO
+      const response = await sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'${sheetTitle}'!A:A`, // Only need PO column
+      });
+
+      const rows = response.data.values;
+      const deleteRequests: any[] = [];
+
+      if (rows && rows.length > 0) {
+        // Find rows to delete (reverse order to keep indices valid during deletion if doing one by one, 
+        // but batchUpdate handles shift if we are careful, or better: just delete them)
+        // Actually, if we delete row 10, row 11 becomes 10.
+        // If we construct requests to delete row 10 and row 11 (original indices), 
+        // we must be careful.
+        // Standard safe way: Sort descending and create separate delete ranges.
+
+        const indices = rows.map((r, i) => ({ po: r[0], index: i }))
+          .filter(r => r.po === poNumber)
+          .map(r => r.index);
+
+        // Sort descending
+        indices.sort((a, b) => b - a);
+
+        indices.forEach(idx => {
+          deleteRequests.push({
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: 'ROWS',
+                startIndex: idx,
+                endIndex: idx + 1
+              }
+            }
+          });
+        });
+      }
+
+      // 2. Delete existing
+      if (deleteRequests.length > 0) {
+        await sheets.spreadsheets.batchUpdate({
+          spreadsheetId: SPREADSHEET_ID,
+          requestBody: {
+            requests: deleteRequests
+          }
+        });
+      }
+    }
+
+    // 3. Append new
     const values = items.map(item => [
       item.poNumber,
       item.productId,

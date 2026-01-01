@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProductAnalyzer from '@/components/ProductAnalyzerTab';
+
 import ProductOrdersTab from '@/components/ProductOrdersTab';
 import ProductOrdersMakeTab, { OrderItem } from '@/components/ProductOrdersMakeTab';
 import Login from '@/components/Login';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'analyzer' | 'orders' | 'make'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'make'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Shared state for Orders
@@ -60,7 +60,7 @@ export default function InventoryPage() {
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-100 selection:text-blue-900 pb-12">
       {/* --- Top Navigation Bar --- */}
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between relative">
+        <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between relative">
           <div className="flex items-center gap-6">
             <button
               onClick={() => window.location.href = '/'}
@@ -81,7 +81,7 @@ export default function InventoryPage() {
             <div className="flex bg-slate-100 p-1 rounded-xl">
               <button
                 onClick={() => setActiveTab('orders')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'orders'
+                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'orders'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
                   }`}
@@ -90,31 +90,20 @@ export default function InventoryPage() {
               </button>
               <button
                 onClick={() => setActiveTab('make')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'make'
+                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'make'
                   ? 'bg-white text-blue-600 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
                   }`}
               >
-                Make Order
-              </button>
-              <button
-                onClick={() => setActiveTab('analyzer')}
-                className={`px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'analyzer'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Stock Analyzer
+                Make Orders
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <div className={activeTab === 'analyzer' ? 'block' : 'hidden'}>
-          <ProductAnalyzer />
-        </div>
+      <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+
         <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
           <ProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
         </div>

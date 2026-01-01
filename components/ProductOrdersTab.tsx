@@ -51,6 +51,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
     const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'out_of_stock' | 'low_stock'>('all');
+    const [packSizes, setPackSizes] = useState<Record<string, string>>({});
 
     useEffect(() => {
         fetchOrders();
@@ -64,7 +65,17 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
 
             if (!res.ok) throw new Error(json.details || json.error || 'Failed to fetch orders data');
 
-            setProducts(json.data || []);
+            const data = json.data || [];
+            setProducts(data);
+
+            // Initialize pack sizes from QINC column
+            const initialPackSizes: Record<string, string> = {};
+            data.forEach((p: ProductOrder) => {
+                if (p.qinc && p.qinc > 1) { // Only set if greater than 1, so 1 shows as empty (default)
+                    initialPackSizes[p.productId] = p.qinc.toString();
+                }
+            });
+            setPackSizes(initialPackSizes);
             setError(null);
         } catch (err) {
             console.error('Error loading orders:', err);
@@ -76,7 +87,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
 
     const stats = useMemo(() => {
         const totalProducts = products.length;
-        const lowStock = products.filter(p => p.qtyFreeToUse <= 10).length;
+        const lowStock = products.filter(p => p.qtyFreeToUse > 0 && p.qtyFreeToUse < (p.salesQty || 0) * 0.25).length;
         const outOfStock = products.filter(p => p.qtyFreeToUse <= 0).length;
 
         return { totalProducts, lowStock, outOfStock };
@@ -100,7 +111,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
         if (statusFilter !== 'all') {
             result = result.filter(p => {
                 if (statusFilter === 'out_of_stock') return p.qtyFreeToUse <= 0;
-                if (statusFilter === 'low_stock') return p.qtyFreeToUse > 0 && p.qtyFreeToUse <= 10;
+                if (statusFilter === 'low_stock') return p.qtyFreeToUse > 0 && p.qtyFreeToUse < (p.salesQty || 0) * 0.25;
                 if (statusFilter === 'in_stock') return p.qtyFreeToUse > 0;
                 return true;
             });
@@ -163,6 +174,25 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
         } else {
             // Add
             setOrderItems([...orderItems, { ...product, orderQty: qty }]);
+        }
+    };
+
+    const handleQincSave = async (product: ProductOrder) => {
+        const val = packSizes[product.productId];
+        // If empty, treat as 1
+        const qincValue = val ? parseFloat(val) : 1;
+
+        // Optimistic update/No need to wait, but let's save to backend
+        try {
+            await fetch('/api/inventory/update-qinc', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rowIndex: product.rowIndex, qinc: qincValue })
+            });
+            // Optional: show toast/notification
+        } catch (error) {
+            console.error('Failed to save QINC', error);
+            // Revert or show error? For now, silent fail/log is okay as input persists state
         }
     };
 
@@ -246,31 +276,22 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
             </div>
 
             {/* Table */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full table-fixed">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div>
+                    <table className="w-full border-collapse">
                         <thead>
-                            <tr className="bg-gray-50 border-b border-gray-200">
+                            <tr className="bg-gray-900 text-white">
                                 <th
-                                    className="w-[25%] pl-8 pr-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer group hover:bg-gray-100 transition-colors"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[30%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('productName')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
-                                        Product Name
+                                        Product Info
                                         {getSortIcon('productName')}
                                     </div>
                                 </th>
                                 <th
-                                    className="w-[15%] px-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer group hover:bg-gray-100 transition-colors"
-                                    onClick={() => handleSort('barcode')}
-                                >
-                                    <div className="flex items-center justify-center gap-2">
-                                        Barcode
-                                        {getSortIcon('barcode')}
-                                    </div>
-                                </th>
-                                <th
-                                    className="w-[15%] px-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer group hover:bg-gray-100 transition-colors"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('qtyOnHand')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
@@ -279,7 +300,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                     </div>
                                 </th>
                                 <th
-                                    className="w-[15%] px-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer group hover:bg-gray-100 transition-colors"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('qtyFreeToUse')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
@@ -288,25 +309,23 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                     </div>
                                 </th>
                                 <th
-                                    className="w-[10%] px-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer group hover:bg-gray-100 transition-colors"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('salesQty')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
-                                        Sales QTY
+                                        SALES (PCS)
                                         {getSortIcon('salesQty')}
                                     </div>
                                 </th>
-                                <th className="w-[15%] pl-2 pr-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                                    Status
-                                </th>
-                                <th className="w-[10%] px-2 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">
-                                    Make Order
-                                </th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Units/Carton</th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Sales (Cartons)</th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Status</th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Make Order</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
+                        <tbody>
                             {filteredAndSortedProducts.map((product, idx) => {
-                                const isLowStock = product.qtyFreeToUse <= 10;
+                                const isLowStock = product.qtyFreeToUse > 0 && product.qtyFreeToUse < (product.salesQty || 0) * 0.25;
                                 const isOutOfStock = product.qtyFreeToUse <= 0;
                                 const orderItem = orderItems.find(item => item.productId === product.productId);
                                 const orderQty = orderItem ? orderItem.orderQty : '';
@@ -314,70 +333,89 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                 return (
                                     <tr
                                         key={`${product.productId}-${idx}`}
-                                        className="hover:bg-blue-50/30 transition-colors group"
+                                        className="hover:bg-blue-50"
                                     >
-                                        <td className="pl-8 pr-2 py-4 text-center">
-                                            <div className="flex flex-col items-center max-w-full">
-                                                <span className="font-semibold text-gray-800 group-hover:text-blue-700 transition-colors truncate w-full" title={product.productName}>
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <span className="font-semibold text-gray-800 text-sm leading-snug" title={product.productName}>
                                                     {product.productName}
                                                 </span>
-                                                {product.tags && (
-                                                    <span className="text-xs text-gray-500 mt-0.5 truncate w-full max-w-[200px]" title={product.tags}>
-                                                        {product.tags}
+                                                <div className="flex items-center gap-2 mt-1">
+                                                    <span className="font-mono text-xs text-gray-500 bg-gray-100 px-1 rounded border border-gray-200">
+                                                        {product.barcode || '---'}
                                                     </span>
-                                                )}
+                                                    {product.tags && (
+                                                        <span className="text-[10px] text-gray-400 truncate max-w-[150px]">
+                                                            {product.tags}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </td>
-                                        <td className="px-2 py-4 whitespace-nowrap text-center">
-                                            <span className="font-mono text-sm text-gray-600 bg-gray-100 px-2 py-1 rounded">
-                                                {product.barcode || '---'}
-                                            </span>
-                                        </td>
-                                        <td className="px-2 py-4 whitespace-nowrap text-center">
-                                            <span className="font-bold text-gray-700">
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <span className="font-bold text-gray-700 text-sm">
                                                 {product.qtyOnHand}
                                             </span>
                                         </td>
-                                        <td className="px-2 py-4 whitespace-nowrap text-center">
-                                            <div className="flex flex-col items-center relative">
-                                                <span className={`text-lg font-black ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-emerald-600'
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <div className="flex flex-col items-center relative gap-1">
+                                                <span className={`text-base font-bold ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-emerald-600'
                                                     }`}>
                                                     {product.qtyFreeToUse}
                                                 </span>
                                                 {product.qtyFreeToUse !== product.qtyOnHand && (
-                                                    <span className="text-[10px] text-gray-400 absolute -bottom-3 w-max">
-                                                        (Reserved: {product.qtyOnHand - product.qtyFreeToUse})
+                                                    <span className="text-[10px] text-gray-400 leading-none">
+                                                        (R: {product.qtyOnHand - product.qtyFreeToUse})
                                                     </span>
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="px-2 py-4 whitespace-nowrap text-center">
-                                            <div className="flex justify-center items-center">
-                                                <span className="font-bold text-blue-600">
-                                                    {product.salesQty || 0}
-                                                </span>
-                                            </div>
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <span className="font-bold text-blue-600 text-sm">
+                                                {product.salesQty || 0}
+                                            </span>
                                         </td>
-                                        <td className="pl-2 pr-2 py-4 whitespace-nowrap text-center">
+                                        <td className="border border-gray-300 p-2">
+                                            <input
+                                                type="number"
+                                                min="1"
+                                                className="w-full px-1 py-1 text-sm text-center focus:outline-none focus:bg-blue-50 bg-transparent"
+                                                placeholder="1"
+                                                value={packSizes[product.productId] || ''}
+                                                onChange={(e) => setPackSizes(prev => ({ ...prev, [product.productId]: e.target.value }))}
+                                                onBlur={() => handleQincSave(product)}
+                                            />
+                                        </td>
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <span className="font-bold text-gray-800 text-sm">
+                                                {(() => {
+                                                    const size = parseFloat(packSizes[product.productId]) || 1;
+                                                    const sales = product.salesQty || 0;
+                                                    const cartons = sales / size;
+                                                    return Number.isInteger(cartons) ? cartons : cartons.toFixed(1);
+                                                })()}
+                                            </span>
+                                        </td>
+                                        <td className="border border-gray-300 p-2 text-center">
                                             {isOutOfStock ? (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                                                    <AlertCircle className="w-3 h-3" /> Out of Stock
+                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
+                                                    OUT OF STOCK
                                                 </span>
                                             ) : isLowStock ? (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                                                    <AlertCircle className="w-3 h-3" /> Low Stock
+                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                                                    LOW STOCK
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 border border-green-200">
-                                                    <Package className="w-3 h-3" /> In Stock
+                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
+                                                    IN STOCK
                                                 </span>
                                             )}
                                         </td>
-                                        <td className="px-2 py-4 whitespace-nowrap text-center">
+                                        <td className="border border-gray-300 p-2">
                                             <input
                                                 type="number"
                                                 min="0"
-                                                className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 outline-none"
+                                                className="w-full px-1 py-1 text-sm text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
                                                 placeholder="0"
                                                 value={orderQty}
                                                 onChange={(e) => handleOrderQtyChange(product, e.target.value)}

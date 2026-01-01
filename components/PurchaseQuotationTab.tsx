@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, ArrowLeft, Search } from 'lucide-react';
+import { Plus, Trash2, Download, ArrowLeft, Search, Upload } from 'lucide-react';
 import jsPDF from 'jspdf';
+import * as XLSX from 'xlsx';
 
 export default function PurchaseQuotation() {
     const [companyName, setCompanyName] = useState('Al Marai Al Arabia Trading Sole Proprietorship L.L.C');
@@ -18,7 +19,7 @@ export default function PurchaseQuotation() {
     const [quotationDate, setQuotationDate] = useState(new Date().toISOString().split('T')[0]);
 
     const [items, setItems] = useState([
-        { id: 1, barcode: '', name: '', quantity: 1, unit: 'PIECE', price: 0 }
+        { id: 1, barcode: '', name: '', quantity: 1, unit: '-', price: 0 }
     ]);
     const [loading, setLoading] = useState(false);
     const [searchNumber, setSearchNumber] = useState('');
@@ -71,13 +72,54 @@ export default function PurchaseQuotation() {
         }
     };
 
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const bstr = event.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws);
+
+                const newItems = data.map((row: any, index: number) => ({
+                    id: Date.now() + index, // temporary unique id
+                    barcode: row['Barcode'] || row['barcode'] || '',
+                    name: row['Product Name'] || row['product name'] || '',
+                    quantity: Number(row['Qty Order']) || Number(row['qty order']) || 1,
+                    unit: '-',
+                    price: 0
+                })).filter(item => item.barcode || item.name);
+
+                if (newItems.length > 0) {
+                    setItems(prevItems => {
+                        if (prevItems.length === 1 && !prevItems[0].barcode && !prevItems[0].name) {
+                            return newItems.map((item, idx) => ({ ...item, id: idx + 1 }));
+                        }
+                        return [...prevItems, ...newItems].map((item, idx) => ({ ...item, id: idx + 1 }));
+                    });
+                } else {
+                    alert('No valid items found in the Excel file');
+                }
+            } catch (error) {
+                console.error('Error reading Excel file:', error);
+                alert('Error processing Excel file');
+            }
+        };
+        reader.readAsBinaryString(file);
+        e.target.value = '';
+    };
+
     const addItem = () => {
         setItems([...items, {
             id: items.length + 1,
             barcode: '',
             name: '',
             quantity: 1,
-            unit: 'PIECE',
+            unit: '-',
             price: 0
         }]);
     };
@@ -150,7 +192,7 @@ export default function PurchaseQuotation() {
                 setSupplierName('');
                 setSupplierAddress('');
                 setSupplierPhone('');
-                setItems([{ id: 1, barcode: '', name: '', quantity: 1, unit: 'PIECE', price: 0 }]);
+                setItems([{ id: 1, barcode: '', name: '', quantity: 1, unit: '-', price: 0 }]);
             } else {
                 alert('Failed to save quotation');
             }
@@ -419,6 +461,7 @@ export default function PurchaseQuotation() {
                                             onChange={(e) => updateItem(item.id, 'unit', e.target.value)}
                                             className="w-full px-2 py-1 text-sm focus:outline-none focus:bg-green-50"
                                         >
+                                            <option value="-">-</option>
                                             <option value="PIECE">PIECE</option>
                                             <option value="CTN">CTN</option>
                                             <option value="LTR">LTR</option>
@@ -452,13 +495,26 @@ export default function PurchaseQuotation() {
                         </tbody>
                     </table>
 
-                    <button
-                        onClick={addItem}
-                        className="mt-4 flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors print:hidden"
-                    >
-                        <Plus size={18} />
-                        Add Item
-                    </button>
+                    <div className="mt-4 flex gap-4">
+                        <button
+                            onClick={addItem}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors print:hidden"
+                        >
+                            <Plus size={18} />
+                            Add Item
+                        </button>
+
+                        <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors print:hidden">
+                            <Upload size={18} />
+                            Upload Excel
+                            <input
+                                type="file"
+                                accept=".xlsx, .xls"
+                                className="hidden"
+                                onChange={handleFileUpload}
+                            />
+                        </label>
+                    </div>
 
                     {/* Totals */}
                     <div className="mt-8 flex justify-end">

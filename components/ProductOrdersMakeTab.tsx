@@ -18,6 +18,8 @@ export interface ProductOrder {
     qtyOnHand: number;
     qtyFreeToUse: number;
     salesQty: number;
+    qinc?: number;
+    rowIndex?: number;
 }
 
 export interface OrderItem extends ProductOrder {
@@ -84,8 +86,8 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
         setSearchQuery(''); // Clear search to reset suggestions
     };
 
-    const removeFromOrder = (productId: string) => {
-        setOrderItems(orderItems.filter(item => item.productId !== productId));
+    const removeFromOrder = (productId: string, index: number) => {
+        setOrderItems(orderItems.filter((_, i) => i !== index));
     };
 
     const updateOrderQty = (productId: string, qty: number) => {
@@ -172,34 +174,34 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">
             {/* Header & Controls */}
-            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
-                    <div>
-                        <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                            <ShoppingCart className="w-6 h-6 text-blue-600" />
-                            Create New Order
-                        </h2>
-                        <p className="text-sm text-gray-500">Add products and generate a purchase order</p>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                        <label className="text-sm font-medium text-gray-600">PO Number:</label>
-                        <input
-                            type="text"
-                            value={poNumber}
-                            readOnly
-                            className="px-3 py-2 border border-gray-300 bg-gray-100 text-gray-500 rounded-lg focus:ring-0 outline-none font-mono text-sm cursor-not-allowed"
-                        />
-                    </div>
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                {/* Left: Title & Save */}
+                <div className="flex items-center gap-3 shrink-0">
+                    <ShoppingCart className="w-6 h-6 text-blue-600" />
+                    <h2 className="text-xl font-bold text-gray-800 whitespace-nowrap">
+                        Create New Order
+                    </h2>
+                    <button
+                        onClick={handleSaveOrder}
+                        disabled={loading || orderItems.length === 0}
+                        className={`p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm ${loading || orderItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        title="Save & Download"
+                    >
+                        {loading ? (
+                            <RotateCw className="w-5 h-5 animate-spin" />
+                        ) : (
+                            <Save className="w-5 h-5" />
+                        )}
+                    </button>
                 </div>
 
-                {/* Search Product */}
-                <div className="relative max-w-2xl mx-auto">
+                {/* Center: Search Product */}
+                <div className="relative flex-1 w-full max-w-2xl px-4">
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <input
                             type="text"
-                            placeholder="Search product to add OR Enter PO Number to view..."
+                            placeholder="Search product..."
                             value={searchQuery}
                             onChange={(e) => {
                                 const val = e.target.value;
@@ -207,8 +209,6 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
 
                                 // Check for PO Number search
                                 if (val.toUpperCase().startsWith('PO-') && val.length > 10) {
-                                    // Debounce or direct fetch? simpler to direct fetch if length is sufficient
-                                    // Let's do a quick fetch
                                     fetch(`/api/inventory/order/${val}`)
                                         .then(res => res.json())
                                         .then(json => {
@@ -216,7 +216,6 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                                                 setPoNumber(val);
                                                 // Map to OrderItem
                                                 const items: OrderItem[] = json.data.map((row: any) => {
-                                                    // Find product details from allProducts if possible to fill stock info
                                                     const product = allProducts.find(p => p.productId === row.productId);
                                                     return {
                                                         productId: row.productId,
@@ -234,13 +233,13 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                                         .catch(console.error);
                                 }
                             }}
-                            className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm"
                         />
                     </div>
 
                     {/* Suggestions Dropdown */}
                     {searchQuery && !searchQuery.toUpperCase().startsWith('PO-') && filteredProducts.length > 0 && (
-                        <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-60 overflow-y-auto">
+                        <div className="absolute top-full left-4 right-4 mt-2 bg-white rounded-xl shadow-xl border border-gray-200 z-50 max-h-60 overflow-y-auto">
                             {filteredProducts.map(product => (
                                 <div
                                     key={product.productId}
@@ -262,6 +261,17 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                         </div>
                     )}
                 </div>
+
+                {/* Right: PO Number */}
+                <div className="flex items-center gap-2 shrink-0">
+                    <label className="text-sm font-medium text-gray-600 whitespace-nowrap">PO Number:</label>
+                    <input
+                        type="text"
+                        value={poNumber}
+                        readOnly
+                        className="w-32 px-3 py-2 border border-gray-300 bg-gray-100 text-gray-500 rounded-lg focus:ring-0 outline-none font-mono text-sm cursor-not-allowed text-center"
+                    />
+                </div>
             </div>
 
             {/* Order Items Table */}
@@ -273,48 +283,46 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                         <p className="text-sm">Search for products above to start adding items</p>
                     </div>
                 ) : (
-                    <table className="w-full">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Barcode</th>
-                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Product Name</th>
-                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Current Stock</th>
-                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Order Qty</th>
-                                <th className="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase">Actions</th>
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="bg-gray-900 text-white">
+                                <th className="bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[15%]">BARCODE</th>
+                                <th className="bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[45%]">PRODUCT NAME</th>
+                                <th className="bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[15%]">CURRENT STOCK</th>
+                                <th className="bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[15%]">ORDER QTY</th>
+                                <th className="bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%]">ACTIONS</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-gray-200">
-                            {orderItems.map((item) => (
-                                <tr key={item.productId} className="hover:bg-gray-50 transition-colors">
-                                    <td className="px-6 py-4 text-center font-mono text-sm text-gray-600">
+                        <tbody>
+                            {orderItems.map((item, idx) => (
+                                <tr key={`${item.productId}-${idx}`} className="hover:bg-blue-50 transition-colors">
+                                    <td className="border border-gray-300 p-2 text-center font-mono text-sm text-gray-600">
                                         {item.barcode || '---'}
                                     </td>
-                                    <td className="px-6 py-4 text-center font-semibold text-gray-800">
+                                    <td className="border border-gray-300 p-2 text-center font-semibold text-gray-800 text-sm">
                                         {item.productName}
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <span className={`inline-flex px-2 py-1 rounded text-xs font-bold ${item.qtyFreeToUse <= 0 ? 'bg-red-100 text-red-700' :
-                                            item.qtyFreeToUse <= 10 ? 'bg-amber-100 text-amber-700' :
-                                                'bg-green-100 text-green-700'
+                                    <td className="border border-gray-300 p-2 text-center">
+                                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${item.qtyFreeToUse <= 0 ? 'bg-red-100 text-red-700 border border-red-200' :
+                                            item.qtyFreeToUse <= 10 ? 'bg-amber-100 text-amber-700 border border-amber-200' :
+                                                'bg-green-100 text-green-700 border border-green-200'
                                             }`}>
                                             {item.qtyFreeToUse}
                                         </span>
                                     </td>
-                                    <td className="px-6 py-4 text-center">
-                                        <div className="flex justify-center">
-                                            <input
-                                                type="number"
-                                                min="1"
-                                                value={item.orderQty}
-                                                onChange={(e) => updateOrderQty(item.productId, parseInt(e.target.value) || 0)}
-                                                className="w-20 px-2 py-1 border border-gray-300 rounded text-center focus:ring-2 focus:ring-blue-500 outline-none"
-                                            />
-                                        </div>
+                                    <td className="border border-gray-300 p-2">
+                                        <input
+                                            type="number"
+                                            min="1"
+                                            value={item.orderQty}
+                                            onChange={(e) => updateOrderQty(item.productId, parseInt(e.target.value) || 0)}
+                                            className="w-full px-1 py-1 text-sm text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
+                                        />
                                     </td>
-                                    <td className="px-6 py-4 text-center">
+                                    <td className="border border-gray-300 p-2 text-center">
                                         <button
-                                            onClick={() => removeFromOrder(item.productId)}
-                                            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            onClick={() => removeFromOrder(item.productId, idx)}
+                                            className="text-red-500 hover:text-red-700 transition-colors"
                                             title="Remove Item"
                                         >
                                             <Trash2 className="w-5 h-5" />
@@ -327,36 +335,7 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                 )}
             </div>
 
-            {/* Footer Actions */}
-            {orderItems.length > 0 && (
-                <div className="fixed bottom-6 left-0 right-0 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                    <div className="bg-white p-4 rounded-xl shadow-2xl border border-gray-200 flex justify-between items-center animate-in slide-in-from-bottom-5">
-                        <div className="text-gray-600 font-medium">
-                            Total Items: <span className="text-blue-600 font-bold">{orderItems.length}</span>
-                        </div>
-                        <div className="flex gap-4">
 
-                            <button
-                                onClick={handleSaveOrder}
-                                disabled={loading}
-                                className={`px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-bold shadow-lg shadow-blue-200 ${loading ? 'opacity-75 cursor-not-allowed' : ''}`}
-                            >
-                                {loading ? (
-                                    <>
-                                        <RotateCw className="w-5 h-5 animate-spin" />
-                                        Saving...
-                                    </>
-                                ) : (
-                                    <>
-                                        <Save className="w-5 h-5" />
-                                        Save & Download
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
