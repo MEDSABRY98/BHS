@@ -153,11 +153,11 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     // Apply date filters if set, otherwise use last 12 months
     let startDate: Date;
     let endDate: Date;
-    
+
     // Check if year and month are specified for chart filtering
     const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
     const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
-    
+
     if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
       // Use specified year and month
       startDate = new Date(yearNum, monthNum - 1, 1);
@@ -178,7 +178,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
         }
       }
-      
+
       if (dateTo) {
         const toDate = parseDate(dateTo);
         if (toDate) {
@@ -196,16 +196,16 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       // Default: Last 12 months from latest date in data
       const today = new Date();
       let maxDate = new Date(0);
-      
+
       // Find latest date in data
       data.forEach(row => {
-         const d = parseDate(row.date);
-         if (d && d > maxDate) maxDate = d;
+        const d = parseDate(row.date);
+        if (d && d > maxDate) maxDate = d;
       });
-      
+
       if (maxDate.getTime() === 0) maxDate = today;
-      
-      endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0); 
+
+      endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
       startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
     }
 
@@ -288,7 +288,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         } else {
           label = formatPeriodLabel(key, 'daily');
         }
-        
+
         periodStats.set(key, {
           periodLabel: label,
           periodKey: key,
@@ -297,7 +297,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           discounts: 0,
           collections: 0
         });
-        
+
         iterDate = new Date(iterDate);
         iterDate.setDate(iterDate.getDate() + 1);
       }
@@ -311,7 +311,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         iterDate = new Date(iterDate);
         iterDate.setDate(iterDate.getDate() + 1);
       }
-      
+
       // Initialize all unique weeks
       Array.from(weekKeys).sort().forEach(key => {
         const label = formatPeriodLabel(key, 'weekly');
@@ -332,7 +332,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         safeguard++;
         const key = getMonthlyKey(iterDate);
         const label = formatPeriodLabel(key, 'monthly');
-        
+
         periodStats.set(key, {
           periodLabel: label,
           periodKey: key,
@@ -341,7 +341,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           discounts: 0,
           collections: 0
         });
-        
+
         iterDate = new Date(iterDate);
         iterDate.setMonth(iterDate.getMonth() + 1);
       }
@@ -351,14 +351,14 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     const searchLower = search.toLowerCase().trim();
     let filteredData = searchLower
       ? data.filter((row) =>
-          row.customerName?.toLowerCase().includes(searchLower) ||
-          row.number?.toLowerCase().includes(searchLower)
-        )
+        row.customerName?.toLowerCase().includes(searchLower) ||
+        row.number?.toLowerCase().includes(searchLower)
+      )
       : data;
 
     // Apply sales rep filter if set
     if (selectedSalesRep) {
-      filteredData = filteredData.filter((row) => 
+      filteredData = filteredData.filter((row) =>
         row.salesRep?.trim() === selectedSalesRep
       );
     }
@@ -370,7 +370,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     filteredData.forEach(row => {
       const d = parseDate(row.date);
       if (!d) return;
-      if (d < startDate || d > endDate) return; 
+      if (d < startDate || d > endDate) return;
 
       let key: string;
       if (chartPeriodType === 'daily') {
@@ -380,9 +380,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       } else {
         key = getMonthlyKey(d);
       }
-      
+
       if (!periodStats.has(key)) return;
-      
+
       const stats = periodStats.get(key)!;
       const type = getInvoiceType(row);
       const debit = row.debit || 0;
@@ -391,7 +391,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       if (type === 'Sale') {
         stats.grossSales += debit;
       } else if (type === 'Return') {
-        stats.returns += credit; 
+        stats.returns += credit;
         if (debit < 0) stats.returns += Math.abs(debit);
       } else if (type === 'Discount') {
         stats.discounts += credit;
@@ -406,22 +406,22 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     });
 
     const result = Array.from(periodStats.values())
-        .sort((a, b) => a.periodKey.localeCompare(b.periodKey))
-        .map(item => {
-            const netSales = item.grossSales - item.returns;
-            const netSalesMinusDiscounts = netSales - item.discounts;
-            return {
-              ...item,
-              netSales,
-              netSalesMinusDiscounts,
-              displaySales: Math.round(netSalesMinusDiscounts * 100) / 100,
-              displayCollections: Math.round(item.collections * 100) / 100,
-            };
-        });
+      .sort((a, b) => a.periodKey.localeCompare(b.periodKey))
+      .map(item => {
+        const netSales = item.grossSales - item.returns;
+        const netSalesMinusDiscounts = netSales - item.discounts;
+        return {
+          ...item,
+          netSales,
+          netSalesMinusDiscounts,
+          displaySales: Math.round(netSalesMinusDiscounts * 100) / 100,
+          displayCollections: Math.round(item.collections * 100) / 100,
+        };
+      });
 
     const totalNetSalesMinusDiscounts = result.reduce((sum, item) => sum + item.netSalesMinusDiscounts, 0);
     const totalCollections = result.reduce((sum, item) => sum + item.collections, 0);
-    const difference = totalNetSalesMinusDiscounts - totalCollections; 
+    const difference = totalNetSalesMinusDiscounts - totalCollections;
 
     return {
       chartData: result,
@@ -468,7 +468,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     const searchLower = search.toLowerCase().trim();
     let filteredPayments = data.filter((row) => {
       if (getInvoiceType(row) !== 'Payment') return false;
-      
+
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
 
@@ -511,18 +511,18 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
 
       if (d < startDate || d > endDate) return false;
-      
+
       // Apply search filter
       if (searchLower) {
-        if (!row.customerName?.toLowerCase().includes(searchLower) && 
-            !row.number?.toLowerCase().includes(searchLower)) {
+        if (!row.customerName?.toLowerCase().includes(searchLower) &&
+          !row.number?.toLowerCase().includes(searchLower)) {
           return false;
         }
       }
-      
+
       return true;
     });
-    
+
     let obOnlyAmount = 0;
     let currentYearOnlyAmount = 0;
     let mixedAmount = 0;
@@ -535,7 +535,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     filteredPayments.forEach((row) => {
       const netAmount = (row.credit || 0) - (row.debit || 0);
       const matchId = (row.matching || '').toString().toLowerCase();
-      
+
       // Unmatched = only payments with NO matching ID at all (empty MATCHING column)
       if (!matchId || matchId.trim() === '') {
         unmatchedAmount += netAmount;
@@ -563,7 +563,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
     const totalAmount = obOnlyAmount + currentYearOnlyAmount + mixedAmount + unmatchedAmount;
     const totalCount = filteredPayments.length;
-    
+
     return {
       totalAmount,
       totalCount,
@@ -628,26 +628,26 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
       startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
     }
-    
+
     // Apply filters within date range
     let filteredPayments = data.filter((row) => {
       if (getInvoiceType(row) !== 'Payment') return false;
-      
+
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-      
+
       const d = parseDate(row.date);
       if (!d) return false;
       if (d < startDate || d > endDate) return false;
-      
+
       // Apply search filter
       if (searchLower) {
-        if (!row.customerName?.toLowerCase().includes(searchLower) && 
-            !row.number?.toLowerCase().includes(searchLower)) {
+        if (!row.customerName?.toLowerCase().includes(searchLower) &&
+          !row.number?.toLowerCase().includes(searchLower)) {
           return false;
         }
       }
-      
+
       return true;
     });
 
@@ -676,7 +676,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         weeklyTotals.set(weekKey, (weeklyTotals.get(weekKey) || 0) + amount);
       }
     });
-    
+
     const totalMonthly = Array.from(monthlyTotals.values()).reduce((sum, val) => sum + val, 0);
     const totalWeekly = Array.from(weeklyTotals.values()).reduce((sum, val) => sum + val, 0);
 
@@ -700,17 +700,17 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     const searchLower = search.toLowerCase().trim();
     let filteredPayments = data.filter((row) => {
       if (getInvoiceType(row) !== 'Payment') return false;
-      
+
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-      
+
       // Apply date filters - same logic as dashboardData (year/month > date range > default)
       const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
       const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
       const today = new Date();
       let startDate: Date;
       let endDate: Date;
-      
+
       if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
         startDate = new Date(yearNum, monthNum - 1, 1);
         endDate = new Date(yearNum, monthNum, 0);
@@ -719,7 +719,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         // Parse dates
         const fromDate = dateFrom ? parseDate(dateFrom) : null;
         const toDate = dateTo ? parseDate(dateTo) : null;
-        
+
         if (fromDate && toDate) {
           // Both dates are set
           startDate = fromDate;
@@ -742,50 +742,50 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
       }
-      
+
       const d = parseDate(row.date);
       if (!d) return false;
       if (d < startDate || d > endDate) return false;
-      
+
       // Apply search filter
       if (searchLower) {
-        if (!row.customerName?.toLowerCase().includes(searchLower) && 
-            !row.number?.toLowerCase().includes(searchLower)) {
+        if (!row.customerName?.toLowerCase().includes(searchLower) &&
+          !row.number?.toLowerCase().includes(searchLower)) {
           return false;
         }
       }
-      
+
       return true;
     });
 
     // Group payments by customer
     const paymentsByCustomer = new Map<string, Array<{ date: Date; amount: number }>>();
-    
+
     filteredPayments.forEach((row) => {
       const d = parseDate(row.date);
       if (!d) return;
-      
+
       const customerName = row.customerName?.trim() || '';
       if (!customerName) return;
-      
+
       const netAmount = (row.credit || 0) - (row.debit || 0);
-      
+
       if (!paymentsByCustomer.has(customerName)) {
         paymentsByCustomer.set(customerName, []);
       }
-      
+
       paymentsByCustomer.get(customerName)!.push({ date: d, amount: netAmount });
     });
 
     // Calculate average days between payments for each customer
     const customerAverages: number[] = [];
-    
+
     paymentsByCustomer.forEach((payments, customerName) => {
       if (payments.length < 2) return; // Need at least 2 payments to calculate interval
-      
+
       // Sort payments by date
       payments.sort((a, b) => a.date.getTime() - b.date.getTime());
-      
+
       // Calculate days between consecutive payments
       const intervals: number[] = [];
       for (let i = 1; i < payments.length; i++) {
@@ -794,7 +794,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           intervals.push(daysDiff);
         }
       }
-      
+
       if (intervals.length > 0) {
         const avgDays = intervals.reduce((sum, days) => sum + days, 0) / intervals.length;
         customerAverages.push(avgDays);
@@ -815,6 +815,30 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   // Filter payments using the same TYPE logic as the Invoices tab (via shared getInvoiceType).
   const payments = useMemo<PaymentEntry[]>(() => {
+    // Determine date range filters (Year/Month taking precedence over DateFrom/DateTo)
+    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
+
+    const isYearValid = yearNum !== null && !isNaN(yearNum);
+    const isMonthValid = monthNum !== null && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12;
+    const useYearMonthFilter = isYearValid || isMonthValid;
+
+    let filterStartDate: Date | null = null;
+    let filterEndDate: Date | null = null;
+
+    if (!useYearMonthFilter) {
+      if (dateFrom) {
+        filterStartDate = parseDate(dateFrom);
+      }
+      if (dateTo) {
+        const d = parseDate(dateTo);
+        if (d) {
+          filterEndDate = new Date(d);
+          filterEndDate.setHours(23, 59, 59, 999);
+        }
+      }
+    }
+
     return data
       .filter((row) => {
         // Filter by type
@@ -831,48 +855,41 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         const amount = credit - debit;
 
         return {
-        date: row.date,
-        number: row.number,
-        customerName: row.customerName,
+          date: row.date,
+          number: row.number,
+          customerName: row.customerName,
           type: getInvoiceType(row),
-        credit: amount,
+          credit: amount,
           rawCredit: credit,
-        debit: row.debit,
+          debit: row.debit,
           rawDebit: debit,
           amountSource,
-        salesRep: row.salesRep,
-        matching: row.matching,
-        parsedDate: parseDate(row.date),
-        matchedOpeningBalance: row.matching
-          ? obMatchingIds.has(row.matching.toString().toLowerCase())
-          : false,
-      };
+          salesRep: row.salesRep,
+          matching: row.matching,
+          parsedDate: parseDate(row.date),
+          matchedOpeningBalance: row.matching
+            ? obMatchingIds.has(row.matching.toString().toLowerCase())
+            : false,
+        };
       })
       .filter((payment) => {
-        // Apply date filter
-        if (dateFrom || dateTo) {
-          const paymentDate = payment.parsedDate;
-          if (!paymentDate) return false;
+        const paymentDate = payment.parsedDate;
+        if (!paymentDate) return false;
 
-          if (dateFrom) {
-            const fromDate = parseDate(dateFrom);
-            if (fromDate && paymentDate < fromDate) return false;
-          }
-
-          if (dateTo) {
-            const toDate = parseDate(dateTo);
-            if (toDate) {
-              // Include the entire day
-              const toDateEnd = new Date(toDate);
-              toDateEnd.setHours(23, 59, 59, 999);
-              if (paymentDate > toDateEnd) return false;
-            }
-          }
+        // Apply Year/Month filter if active
+        if (useYearMonthFilter) {
+          if (isYearValid && paymentDate.getFullYear() !== yearNum) return false;
+          if (isMonthValid && paymentDate.getMonth() !== (monthNum! - 1)) return false;
+          return true;
         }
+
+        // Apply legacy DateFrom/DateTo filter
+        if (filterStartDate && paymentDate < filterStartDate) return false;
+        if (filterEndDate && paymentDate > filterEndDate) return false;
 
         return true;
       });
-  }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep]);
+  }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep, chartYear, chartMonth]);
 
   // Apply OB-closed / other payments toggles
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
@@ -905,15 +922,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         // Only count actual payments (where Credit > 0.01) based on raw credit data
         // This excludes reversals or purely debit adjustments that might have been included in the list
         const paymentCount = paymentList.filter(p => p.rawCredit > 0.01).length;
-        
+
         const sortedPayments = paymentList.sort((a, b) => {
           if (!a.parsedDate || !b.parsedDate) return 0;
           return b.parsedDate.getTime() - a.parsedDate.getTime();
         });
-        
+
         // Get last payment (most recent)
         const lastPayment = sortedPayments.find(p => p.rawCredit > 0.01) || null;
-        
+
         // Calculate days since last payment
         let daysSinceLastPayment: number | null = null;
         if (lastPayment && lastPayment.parsedDate) {
@@ -924,7 +941,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           const diffTime = today.getTime() - lastPaymentDate.getTime();
           daysSinceLastPayment = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         }
-        
+
         return {
           customerName,
           totalPayments,
@@ -945,10 +962,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     // If searching, restrict to payments that match customer name or number
     const basePayments = searchLower
       ? visiblePayments.filter(
-          (p) =>
-            p.customerName.toLowerCase().includes(searchLower) ||
-            p.number.toLowerCase().includes(searchLower),
-        )
+        (p) =>
+          p.customerName.toLowerCase().includes(searchLower) ||
+          p.number.toLowerCase().includes(searchLower),
+      )
       : visiblePayments;
 
     basePayments.forEach((payment) => {
@@ -978,7 +995,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           if (!a.parsedDate || !b.parsedDate) return 0;
           return b.parsedDate.getTime() - a.parsedDate.getTime();
         });
-        
+
         // Only count actual payments (where Credit > 0.01) based on raw credit data
         const paymentCount = paymentList.filter(p => p.rawCredit > 0.01).length;
 
@@ -1029,20 +1046,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   // Filter by search and sort
   const filteredByCustomer = useMemo(() => {
     let filtered = paymentsByCustomer;
-    
+
     // Apply search filter
     if (search) {
-    const searchLower = search.toLowerCase();
+      const searchLower = search.toLowerCase();
       filtered = filtered.filter(
-      (item) => item.customerName.toLowerCase().includes(searchLower)
-    );
+        (item) => item.customerName.toLowerCase().includes(searchLower)
+      );
     }
-    
+
     // Apply sorting
     const sorted = [...filtered].sort((a, b) => {
       let aValue: any;
       let bValue: any;
-      
+
       switch (sortColumn) {
         case 'customerName':
           aValue = a.customerName.toLowerCase();
@@ -1067,12 +1084,12 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         default:
           return 0;
       }
-      
+
       if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
-    
+
     return sorted;
   }, [paymentsByCustomer, search, sortColumn, sortDirection]);
 
@@ -1124,6 +1141,57 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     );
   }, [visiblePayments, selectedCustomer]);
 
+  // Calculate Chart Data for Selected Customer (Last 12 Months)
+  const customerChartData = useMemo(() => {
+    if (!selectedCustomer) return [];
+    const today = new Date();
+    const data = [];
+    // Last 12 months including current
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth(); // 0-11
+      const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+
+      // Sum payments for this month
+      // using customerDetailPayments which contains ALL payments for this customer (filtered by global settings)
+      const paymentsInMonth = customerDetailPayments.filter(p => {
+        const pd = p.parsedDate;
+        if (!pd) return false;
+        return pd.getFullYear() === year && pd.getMonth() === month;
+      });
+
+      const total = paymentsInMonth.reduce((sum, p) => sum + p.credit, 0);
+      const count = paymentsInMonth.filter(p => p.rawCredit > 0.01).length;
+
+      data.push({ name: label, amount: total, count });
+    }
+    return data;
+  }, [selectedCustomer, customerDetailPayments]);
+
+  // Calculate Average Days for Selected Customer
+  const customerAvgDays = useMemo(() => {
+    if (!selectedCustomer || !customerDetailPayments.length) return 0;
+
+    // Sort ascending
+    const sorted = [...customerDetailPayments]
+      .filter(p => p.parsedDate)
+      .sort((a, b) => a.parsedDate!.getTime() - b.parsedDate!.getTime());
+
+    if (sorted.length < 2) return 0;
+
+    const intervals: number[] = [];
+    for (let i = 1; i < sorted.length; i++) {
+      const t1 = sorted[i - 1].parsedDate!.getTime();
+      const t2 = sorted[i].parsedDate!.getTime();
+      const diff = (t2 - t1) / (1000 * 60 * 60 * 24);
+      if (diff > 0) intervals.push(diff);
+    }
+
+    if (intervals.length === 0) return 0;
+    return intervals.reduce((a, b) => a + b, 0) / intervals.length;
+  }, [selectedCustomer, customerDetailPayments]);
+
   const periodDetailPayments = useMemo(() => {
     if (!selectedPeriod) return [];
 
@@ -1170,6 +1238,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             onChange={(e) => setSearch(e.target.value)}
             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+
         </div>
         <div className="flex gap-2 w-full lg:w-auto justify-end">
           <select
@@ -1184,6 +1253,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               </option>
             ))}
           </select>
+          <input
+            type="text"
+            placeholder="Year"
+            value={chartYear}
+            onChange={(e) => setChartYear(e.target.value)}
+            className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+          />
+          <input
+            type="text"
+            placeholder="Month"
+            value={chartMonth}
+            onChange={(e) => setChartMonth(e.target.value)}
+            className="w-24 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
+          />
           <input
             type="date"
             placeholder="From Date"
@@ -1232,18 +1315,17 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             setSelectedCustomer(null);
             setSelectedPeriod(null);
           }}
-          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${
-            activeSubTab === 'dashboard'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
+          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'dashboard'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
         >
           Dashboard
         </button>
         <button
           onClick={() => {
             setActiveSubTab('customer');
-            
+
             if (lastCustomerSelection) {
               const match = paymentsByCustomer.find(
                 (c) => c.customerName.trim().toLowerCase() === lastCustomerSelection,
@@ -1258,11 +1340,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             setDetailMode('none');
             setSelectedCustomer(null);
           }}
-          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${
-            activeSubTab === 'customer'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
+          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'customer'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
         >
           Payment by Customer
         </button>
@@ -1272,11 +1353,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             setDetailMode('none');
             setSelectedPeriod(null);
           }}
-          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${
-            activeSubTab === 'period'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
+          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'period'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
         >
           Payment by Period
         </button>
@@ -1292,7 +1372,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               <div className="text-2xl font-bold text-green-600">
                 {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
-               <p className="text-xs text-gray-400 mt-1">Total payments collected</p>
+              <p className="text-xs text-gray-400 mt-1">Total payments collected</p>
             </div>
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
@@ -1382,8 +1462,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               <h3 className="text-lg font-bold text-gray-800 text-center">
                 Collections - {
                   chartPeriodType === 'daily' ? 'Last 90 Days' :
-                  chartPeriodType === 'weekly' ? 'Last 52 Weeks' :
-                  'Last 12 Months'
+                    chartPeriodType === 'weekly' ? 'Last 52 Weeks' :
+                      'Last 12 Months'
                 }
               </h3>
               <div className="flex flex-wrap items-center justify-center gap-2">
@@ -1413,31 +1493,28 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 />
                 <button
                   onClick={() => setChartPeriodType('monthly')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    chartPeriodType === 'monthly'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'monthly'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   Monthly
                 </button>
                 <button
                   onClick={() => setChartPeriodType('weekly')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    chartPeriodType === 'weekly'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'weekly'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   Weekly
                 </button>
                 <button
                   onClick={() => setChartPeriodType('daily')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${
-                    chartPeriodType === 'daily'
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'daily'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
                 >
                   Daily
                 </button>
@@ -1454,38 +1531,38 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis 
-                  dataKey="periodLabel" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fill: '#6B7280', fontSize: chartPeriodType === 'daily' ? 10 : 13, fontWeight: 'bold' }} 
+                <XAxis
+                  dataKey="periodLabel"
+                  axisLine={false}
+                  tickLine={false}
+                  tick={{ fill: '#6B7280', fontSize: chartPeriodType === 'daily' ? 10 : 13, fontWeight: 'bold' }}
                   height={chartPeriodType === 'daily' ? 70 : chartPeriodType === 'weekly' ? 70 : 60}
                   interval={0}
                   angle={0}
                   textAnchor="middle"
                   dy={8}
                 />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
+                <YAxis
+                  axisLine={false}
+                  tickLine={false}
                   tick={{ fill: '#6B7280', fontSize: 12 }}
-                  tickFormatter={(value) => 
+                  tickFormatter={(value) =>
                     new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
                   }
                 />
-                <Tooltip 
+                <Tooltip
                   cursor={{ fill: '#F3F4F6' }}
                   contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) => 
+                  formatter={(value: number) =>
                     new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
                   }
                 />
                 <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
-                <Bar 
-                  dataKey="displayCollections" 
-                  name="Net Collections" 
-                  fill="#10B981" 
-                  radius={[4, 4, 0, 0]} 
+                <Bar
+                  dataKey="displayCollections"
+                  name="Net Collections"
+                  fill="#10B981"
+                  radius={[4, 4, 0, 0]}
                   barSize={chartPeriodType === 'daily' ? 20 : chartPeriodType === 'weekly' ? 25 : 30}
                 />
               </BarChart>
@@ -1503,11 +1580,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               setDetailMode('none');
               setSelectedPeriod(null);
             }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${
-              periodType === 'daily'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'daily'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             Daily
           </button>
@@ -1517,11 +1593,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               setDetailMode('none');
               setSelectedPeriod(null);
             }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${
-              periodType === 'weekly'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'weekly'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             Weekly
           </button>
@@ -1531,11 +1606,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               setDetailMode('none');
               setSelectedPeriod(null);
             }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${
-              periodType === 'monthly'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'monthly'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             Monthly
           </button>
@@ -1545,11 +1619,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               setDetailMode('none');
               setSelectedPeriod(null);
             }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${
-              periodType === 'yearly'
-                ? 'bg-blue-600 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
+            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'yearly'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
           >
             Yearly
           </button>
@@ -1563,7 +1636,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             <table className="w-full table-fixed">
               <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
                 <tr>
-                  <th 
+                  <th
                     className="px-5 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none"
                     onClick={() => {
                       if (sortColumn === 'customerName') {
@@ -1583,7 +1656,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
                     onClick={() => {
                       if (sortColumn === 'totalPayments') {
@@ -1603,7 +1676,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
                     onClick={() => {
                       if (sortColumn === 'paymentCount') {
@@ -1623,7 +1696,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
                     onClick={() => {
                       if (sortColumn === 'lastPayment') {
@@ -1643,7 +1716,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                       )}
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
                     onClick={() => {
                       if (sortColumn === 'daysSince') {
@@ -1750,6 +1823,183 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         </div>
       )}
 
+      {/* Customer Details - Sub Page */}
+      {activeSubTab === 'customer' && detailMode === 'customer' && selectedCustomer && (
+        <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-right-4">
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">{selectedCustomer.customerName}</h3>
+              <p className="text-sm text-gray-500 mt-1">Detailed payment history analysis</p>
+            </div>
+            <button
+              onClick={() => {
+                setDetailMode('none');
+                setSelectedCustomer(null);
+                setLastCustomerSelection(null);
+              }}
+              className="px-4 py-2 bg-white border border-gray-300 shadow-sm text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors flex items-center gap-2"
+            >
+              <span>←</span> Back to list
+            </button>
+          </div>
+
+          {/* Scrollable Content */}
+          <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
+
+            {/* Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-100 flex flex-col items-center text-center">
+                <span className="text-emerald-600 font-medium text-sm uppercase tracking-wider mb-1">Total Collected</span>
+                <span className="text-3xl font-bold text-emerald-700">
+                  {customerDetailPayments
+                    .reduce((sum, p) => sum + (p.credit || 0), 0)
+                    .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-xl bg-cyan-50 border border-cyan-100 flex flex-col items-center text-center">
+                <span className="text-cyan-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Amount</span>
+                <span className="text-3xl font-bold text-cyan-700">
+                  {(() => {
+                    const total = customerDetailPayments.reduce((sum, p) => sum + (p.credit || 0), 0);
+                    const count = customerDetailPayments.filter(p => p.rawCredit > 0.01).length;
+                    return (count > 0 ? total / count : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                  })()}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-xl bg-blue-50 border border-blue-100 flex flex-col items-center text-center">
+                <span className="text-blue-600 font-medium text-sm uppercase tracking-wider mb-1">Payment Count</span>
+                <span className="text-3xl font-bold text-blue-700">
+                  {customerDetailPayments.filter(p => p.rawCredit > 0.01).length}
+                </span>
+              </div>
+
+              <div className="p-5 rounded-xl bg-purple-50 border border-purple-100 flex flex-col items-center text-center">
+                <span className="text-purple-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Days</span>
+                <span className="text-3xl font-bold text-purple-700">
+                  {Math.round(customerAvgDays)} <span className="text-lg font-normal text-purple-600">days</span>
+                </span>
+              </div>
+            </div>
+
+            {/* Chart */}
+            <div className="bg-white rounded-xl p-4 h-80">
+              <h4 className="text-xl font-bold text-gray-800 mb-4 px-2">Payments Last 12 Months</h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={customerChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorPayment" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0.8} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#374151', fontSize: 13, fontWeight: '600' }}
+                    dy={10}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    cursor={{ fill: '#EFF6FF', radius: 4 }}
+                    content={({ active, payload, label }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload;
+                        return (
+                          <div className="bg-white p-3 rounded-xl shadow-xl border border-blue-100 text-sm">
+                            <p className="font-bold text-gray-800 mb-1">{label}</p>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-2xl font-bold text-blue-600">
+                                {new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(data.amount)}
+                              </span>
+                              <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">AED</span>
+                            </div>
+                            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-4">
+                              <span className="text-gray-500 text-xs">Transactions</span>
+                              <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full text-xs">
+                                {data.count}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+                  <Bar
+                    dataKey="amount"
+                    name="Amount"
+                    fill="url(#colorPayment)"
+                    radius={[6, 6, 0, 0]}
+                    barSize={40}
+                    activeBar={{ fill: '#1D4ED8' }}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Data Table */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-12">
+              <div className="px-5 py-3 border-b bg-gray-50">
+                <h4 className="font-semibold text-gray-800">Payment History</h4>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr className="text-gray-600 text-center">
+                      <th className="px-4 py-3 text-center">Date</th>
+                      <th className="px-4 py-3 text-center">Number</th>
+                      <th className="px-4 py-3 text-center">Paid</th>
+                      <th className="px-4 py-3 text-center">Matching</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {customerDetailPayments.map((payment, idx) => (
+                      <tr
+                        key={`${payment.number}-${idx}`}
+                        className={`hover:bg-gray-50 text-center ${payment.credit < 0
+                          ? 'bg-red-50/60'
+                          : payment.matchedOpeningBalance
+                            ? 'bg-emerald-50/60'
+                            : ''
+                          }`}
+                      >
+                        <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
+                        <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
+                        <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                          {payment.credit.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="px-4 py-2 text-gray-500 text-center">
+                          {payment.matching || '—'}
+                          {payment.matchedOpeningBalance && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
+                              OB Closed
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    {customerDetailPayments.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="p-8 text-center text-gray-400">No payments found</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* Payment by Period - Main List */}
       {activeSubTab === 'period' && detailMode === 'none' && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
@@ -1841,7 +2091,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       )}
 
       {/* Customer Details - Full Page inside tab */}
-      {activeSubTab === 'customer' && detailMode === 'customer' && selectedCustomer && (
+      {activeSubTab === 'customer' && false && selectedCustomer && (
         <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
             <div>
@@ -1882,13 +2132,12 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 {customerDetailPayments.map((payment, idx) => (
                   <tr
                     key={`${payment.number}-${idx}`}
-                    className={`hover:bg-gray-50 text-center ${
-                      payment.credit < 0 
-                        ? 'bg-red-50/60' 
-                        : payment.matchedOpeningBalance 
-                          ? 'bg-emerald-50/60' 
-                          : ''
-                    }`}
+                    className={`hover:bg-gray-50 text-center ${payment.credit < 0
+                      ? 'bg-red-50/60'
+                      : payment.matchedOpeningBalance
+                        ? 'bg-emerald-50/60'
+                        : ''
+                      }`}
                   >
                     <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
                     <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
@@ -1956,13 +2205,12 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 {periodDetailPayments.map((payment, idx) => (
                   <tr
                     key={`${payment.number}-${idx}`}
-                    className={`hover:bg-gray-50 text-center ${
-                      payment.credit < 0 
-                        ? 'bg-red-50/60' 
-                        : payment.matchedOpeningBalance 
-                          ? 'bg-emerald-50/60' 
-                          : ''
-                    }`}
+                    className={`hover:bg-gray-50 text-center ${payment.credit < 0
+                      ? 'bg-red-50/60'
+                      : payment.matchedOpeningBalance
+                        ? 'bg-emerald-50/60'
+                        : ''
+                      }`}
                   >
                     <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
                     <td className="px-4 py-2 text-gray-700 text-center">{payment.customerName}</td>
