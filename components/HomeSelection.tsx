@@ -74,7 +74,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               currentUser?.name === 'Mahmoud Shaker' ? 'grid-cols-1' :
                 currentUser?.name === 'Overtime Export' ? 'grid-cols-1' :
                   currentUser?.name === 'Ramadan Gomaa' ? 'grid-cols-1 md:grid-cols-2' :
-                    'grid-cols-1 md:grid-cols-2'
+                    currentUser?.name === 'Mr. Sadiq Akandi' ? 'grid-cols-1 md:grid-cols-2' :
+                      'grid-cols-1 md:grid-cols-2'
           }`}>
           {/* Cash Receipt Card - Only visible for MED Sabry - First */}
           {currentUser?.name === 'MED Sabry' && (
@@ -108,8 +109,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Debit Analysis Card - Hidden for Overtime Export, visible for Ramadan Gomaa */}
-          {currentUser?.name !== 'Overtime Export' && (
+          {/* Debit Analysis Card - Hidden for Overtime Export and Mr. Sadiq Akandi, visible for others */}
+          {currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && (
             <div
               onClick={handleSelectDebit}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-red-300 flex flex-col min-h-[180px]"
@@ -124,8 +125,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Sales Analysis Card - Hidden for Mahmoud Shaker and Overtime Export, visible for Ramadan Gomaa */}
-          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && (
+          {/* Sales Analysis Card - Hidden for Mahmoud Shaker, Overtime Export and Mr. Sadiq Akandi */}
+          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && (
             <div
               onClick={handleSelectSales}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-green-300 flex flex-col min-h-[180px]"
@@ -140,8 +141,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Inventory Analyze Card - Only visible for MED Sabry and Monai */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+          {/* Inventory Analyze Card - Only visible for MED Sabry, Monai, and Mr. Sadiq Akandi */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Mr. Sadiq Akandi') && (
             <div
               onClick={handleSelectInventory}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-indigo-300 flex flex-col min-h-[180px]"
@@ -156,8 +157,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Purchase Quotation Card - Only visible for MED Sabry and Monai */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
+          {/* Purchase Quotation Card - Only visible for MED Sabry, Monai, and Mr. Sadiq Akandi */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Mr. Sadiq Akandi') && (
             <div
               onClick={handleSelectPurchaseQuotation}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-amber-300 flex flex-col min-h-[180px]"
