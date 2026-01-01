@@ -2090,78 +2090,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         </div>
       )}
 
-      {/* Customer Details - Full Page inside tab */}
-      {activeSubTab === 'customer' && false && selectedCustomer && (
-        <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">{selectedCustomer.customerName}</h3>
-              <p className="text-sm text-gray-500">
-                Total Payments:{' '}
-                {customerDetailPayments
-                  .reduce((sum, p) => sum + (p.credit || 0), 0)
-                  .toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                · Payment Count: {customerDetailPayments.filter(p => p.rawCredit > 0.01).length}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setDetailMode('none');
-                setSelectedCustomer(null);
-                setLastCustomerSelection(null);
-              }}
-              className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              ← Back to list
-            </button>
-          </div>
-          <div className="px-6 pb-6 pt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr className="text-gray-600 text-center">
-                  <th className="px-4 py-3 text-center">Date</th>
-                  <th className="px-4 py-3 text-center">Number</th>
-                  <th className="px-4 py-3 text-center">Paid</th>
-                  <th className="px-4 py-3 text-center">Matching</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {customerDetailPayments.map((payment, idx) => (
-                  <tr
-                    key={`${payment.number}-${idx}`}
-                    className={`hover:bg-gray-50 text-center ${payment.credit < 0
-                      ? 'bg-red-50/60'
-                      : payment.matchedOpeningBalance
-                        ? 'bg-emerald-50/60'
-                        : ''
-                      }`}
-                  >
-                    <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
-                    <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
-                    <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                      {payment.credit.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
-                    </td>
-                    <td className="px-4 py-2 text-gray-500 text-center">
-                      {payment.matching || '—'}
-                      {payment.matchedOpeningBalance && (
-                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                          OB Closed
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+
 
       {/* Period Details - Full Page inside tab */}
       {activeSubTab === 'period' && detailMode === 'period' && selectedPeriod && (
