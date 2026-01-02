@@ -5,7 +5,11 @@ import { Plus, Trash2, Download, ArrowLeft, Search, Upload } from 'lucide-react'
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
-export default function PurchaseQuotation() {
+interface PurchaseQuotationProps {
+    initialItems?: any[];
+}
+
+export default function PurchaseQuotation({ initialItems }: PurchaseQuotationProps) {
     const [companyName, setCompanyName] = useState('Al Marai Al Arabia Trading Sole Proprietorship L.L.C');
     const [companyAddress, setCompanyAddress] = useState('Address - City - Country');
     const [companyPhone, setCompanyPhone] = useState('+971 XXX XXX XXXX');
@@ -15,7 +19,7 @@ export default function PurchaseQuotation() {
     const [supplierAddress, setSupplierAddress] = useState('');
     const [supplierPhone, setSupplierPhone] = useState('');
 
-    const [quotationNumber, setQuotationNumber] = useState('PQ-2025-001');
+    const [quotationNumber, setQuotationNumber] = useState('PO-2025-001');
     const [quotationDate, setQuotationDate] = useState(new Date().toISOString().split('T')[0]);
 
     const [items, setItems] = useState([
@@ -28,6 +32,20 @@ export default function PurchaseQuotation() {
     useEffect(() => {
         fetchNextQuotationNumber();
     }, []);
+
+    // Load initial items if provided
+    useEffect(() => {
+        if (initialItems && initialItems.length > 0) {
+            setItems(initialItems.map((item, index) => ({
+                id: Date.now() + index,
+                barcode: item.barcode || '',
+                name: item.name || item.productName || '', // Handle different naming conventions
+                quantity: item.quantity || item.qtyOrder || 1,
+                unit: item.unit || '-',
+                price: item.price || 0
+            })));
+        }
+    }, [initialItems]);
 
     const fetchNextQuotationNumber = async () => {
         try {
@@ -228,20 +246,20 @@ export default function PurchaseQuotation() {
         // Reset text color
         doc.setTextColor(0, 0, 0);
 
-        // Supplier Info (10mm after header)
+        // Supplier Info (Centered in left half)
         doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
-        doc.text('SUPPLIER INFORMATION', 20, 30);
+        doc.text('SUPPLIER INFORMATION', 74, 30, { align: 'center' });
         doc.setFont('helvetica', 'normal');
-        doc.text(`Supplier Name: ${supplierName}`, 20, 37);
-        doc.text(`Address: ${supplierAddress}`, 20, 44);
+        doc.text(`Supplier Name: ${supplierName}`, 74, 37, { align: 'center' });
+        doc.text(`Address: ${supplierAddress}`, 74, 44, { align: 'center' });
 
-        // Quotation Details
+        // Quotation Details (Centered in right half)
         doc.setFont('helvetica', 'bold');
-        doc.text('QUOTATION DETAILS', 200, 30);
+        doc.text('QUOTATION DETAILS', 223, 30, { align: 'center' });
         doc.setFont('helvetica', 'normal');
-        doc.text(`Quotation No: ${quotationNumber}`, 200, 37);
-        doc.text(`Date: ${quotationDate}`, 200, 44);
+        doc.text(`Quotation No: ${quotationNumber}`, 223, 37, { align: 'center' });
+        doc.text(`Date: ${quotationDate}`, 223, 44, { align: 'center' });
 
         // Table Header (10mm after supplier info)
         let y = 54;
@@ -320,7 +338,7 @@ export default function PurchaseQuotation() {
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 p-8">
+        <div className="bg-gray-50 p-0.5">
             <div className="max-w-7xl mx-auto bg-white shadow-lg">
                 {/* Top Section */}
                 <div className="bg-green-600 text-white p-6">
@@ -331,7 +349,7 @@ export default function PurchaseQuotation() {
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
-                        <h1 className="text-2xl font-bold flex-1 text-center">PQ # - Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
+                        <h1 className="text-2xl font-bold flex-1 text-center">PO # - Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
                         <div className="w-10"></div> {/* Spacer for centering */}
                     </div>
                 </div>
@@ -342,7 +360,7 @@ export default function PurchaseQuotation() {
                             type="text"
                             value={searchNumber}
                             onChange={(e) => setSearchNumber(e.target.value)}
-                            placeholder="Search by Quotation Number (e.g. PQ-2025-001)"
+                            placeholder="Search by Quotation Number (e.g. PO-2025-001)"
                             className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 shadow-sm"
                             onKeyDown={(e) => e.key === 'Enter' && searchQuotation()}
                         />
@@ -358,7 +376,7 @@ export default function PurchaseQuotation() {
                 </div>
 
                 {/* Info Section */}
-                <div className="p-8 border-b-2 border-gray-200">
+                <div className="p-6 border-b-2 border-gray-200">
                     <div className="grid grid-cols-2 gap-8">
                         <div>
                             <h3 className="text-sm font-bold text-gray-600 mb-3 border-b-2 border-green-600 pb-1 inline-block">SUPPLIER INFORMATION</h3>
@@ -410,7 +428,7 @@ export default function PurchaseQuotation() {
                 </div>
 
                 {/* Items Table */}
-                <div className="p-8">
+                <div className="p-6">
                     <table className="w-full border-collapse">
                         <thead>
                             <tr className="bg-gray-900 text-white">
@@ -536,7 +554,7 @@ export default function PurchaseQuotation() {
                 </div>
 
                 {/* Action Button */}
-                <div className="p-4 bg-gray-100 print:hidden flex justify-center">
+                <div className="p-1 bg-gray-100 print:hidden flex justify-center">
                     <button
                         onClick={saveQuotation}
                         disabled={loading}

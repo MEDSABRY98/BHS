@@ -4,16 +4,18 @@ import { useState, useEffect } from 'react';
 
 import ProductOrdersTab from '@/components/ProductOrdersTab';
 import ProductOrdersMakeTab, { OrderItem } from '@/components/ProductOrdersMakeTab';
+import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
 import Login from '@/components/Login';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'make'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'make' | 'quotation'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Shared state for Orders
   const [poNumber, setPoNumber] = useState('');
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
+  const [quotationItems, setQuotationItems] = useState<any[]>([]);
 
   useEffect(() => {
     // Fetch next PO Number from API
@@ -50,6 +52,11 @@ export default function InventoryPage() {
   const handleLogin = (user: any) => {
     setIsAuthenticated(true);
     localStorage.setItem('currentUser', JSON.stringify(user));
+  };
+
+  const handleSendToQuotation = (items: OrderItem[]) => {
+    setQuotationItems(items);
+    setActiveTab('quotation');
   };
 
   if (!isAuthenticated) {
@@ -97,6 +104,15 @@ export default function InventoryPage() {
               >
                 Make Orders
               </button>
+              <button
+                onClick={() => setActiveTab('quotation')}
+                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'quotation'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+                  }`}
+              >
+                Purchase Quotation
+              </button>
             </div>
           </div>
         </div>
@@ -113,7 +129,11 @@ export default function InventoryPage() {
             orderItems={orderItems}
             setOrderItems={setOrderItems}
             setPoNumber={setPoNumber}
+            onSendToQuotation={handleSendToQuotation}
           />
+        </div>
+        <div className={activeTab === 'quotation' ? 'block' : 'hidden'}>
+          <PurchaseQuotationTab initialItems={quotationItems} />
         </div>
       </div>
     </div>

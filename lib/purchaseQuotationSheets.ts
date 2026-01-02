@@ -82,7 +82,7 @@ export async function getNextQuotationNumber(): Promise<string> {
 
         // Find the highest number for current year
         let maxNumber = 0;
-        const yearPrefix = `PQ-${currentYear}-`;
+        const yearPrefix = `PO-${currentYear}-`;
 
         rows.forEach((row) => {
             const quotationNo = row[0];
@@ -101,7 +101,7 @@ export async function getNextQuotationNumber(): Promise<string> {
         console.error('Error getting next quotation number:', error);
         // Fallback to default
         const currentYear = new Date().getFullYear();
-        return `PQ-${currentYear}-001`;
+        return `PO-${currentYear}-001`;
     }
 }
 

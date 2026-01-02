@@ -157,21 +157,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Purchase Quotation Card - Only visible for MED Sabry, Monai, and Mr. Sadiq Akandi */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Mr. Sadiq Akandi') && (
-            <div
-              onClick={handleSelectPurchaseQuotation}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-amber-300 flex flex-col min-h-[180px]"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <FileSpreadsheet className="w-7 h-7 text-amber-600" />
-                </div>
-                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-800 leading-tight">Purchase Quotation</h2>
-            </div>
-          )}
+
 
           {/* Employee Overtime Card - Visible for MED Sabry, Monai, and Overtime Export, not for Mr. Ali Farouk */}
           {((currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Overtime Export') && currentUser?.name !== 'Mr. Ali Farouk') && (

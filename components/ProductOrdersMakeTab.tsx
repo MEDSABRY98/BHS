@@ -31,9 +31,10 @@ interface Props {
     orderItems: OrderItem[];
     setOrderItems: (items: OrderItem[]) => void;
     setPoNumber: (po: string) => void;
+    onSendToQuotation?: (items: OrderItem[]) => void;
 }
 
-export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderItems, setPoNumber }: Props) {
+export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderItems, setPoNumber, onSendToQuotation }: Props) {
     const [allProducts, setAllProducts] = useState<ProductOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -181,7 +182,7 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                     <h2 className="text-xl font-bold text-gray-800 whitespace-nowrap">
                         Create New Order
                     </h2>
-                    <button
+                    {/* <button
                         onClick={handleSaveOrder}
                         disabled={loading || orderItems.length === 0}
                         className={`p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm ${loading || orderItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -192,7 +193,19 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
                         ) : (
                             <Save className="w-5 h-5" />
                         )}
-                    </button>
+                    </button> */}
+
+                    {onSendToQuotation && (
+                        <button
+                            onClick={() => onSendToQuotation(orderItems)}
+                            disabled={orderItems.length === 0}
+                            className={`p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm flex items-center gap-2 ${orderItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            title="Send to Purchase Quotation"
+                        >
+                            <FileSpreadsheet className="w-5 h-5" />
+                            <span className="hidden sm:inline font-medium">Send TO Q</span>
+                        </button>
+                    )}
                 </div>
 
                 {/* Center: Search Product */}
