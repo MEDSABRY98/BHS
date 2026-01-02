@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import Sidebar from '@/components/Sidebar';
 import CustomersTab from '@/components/CustomersTab';
+import CustomersMinsTab from '@/components/CustomersMinsTab';
 import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
 import AllTransactionsTab from '@/components/AllTransactionsTab';
 import DiscountTrackerTab from '@/components/DiscountTrackerTab';
@@ -121,6 +122,7 @@ export default function DebitPage() {
 
   const allTabs = [
     { id: 'customers', label: 'Customers' },
+    { id: 'customers-mins', label: 'Credit Balances' },
     { id: 'all-transactions', label: 'All Transactions' },
     { id: 'customers-open-matches', label: 'Open Transactions' },
     { id: 'payment-tracker', label: 'Payment Tracker' },
@@ -177,6 +179,8 @@ export default function DebitPage() {
     switch (activeTab) {
       case 'customers':
         return <CustomersTab data={data} />;
+      case 'customers-mins':
+        return <CustomersMinsTab data={data} />;
       case 'all-transactions':
         return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':

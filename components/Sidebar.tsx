@@ -14,6 +14,7 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated, sidebarOpen = true }: SidebarProps) {
   const allTabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
+    { id: 'customers-mins', label: 'Credit Balances', icon: '💳' },
     { id: 'all-transactions', label: 'All Transactions', icon: '📋' },
     { id: 'customers-open-matches', label: 'Open Transactions', icon: '🔗' },
     { id: 'payment-tracker', label: 'Payment Tracker', icon: '💰' },
@@ -84,8 +85,8 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${activeTab === tab.id
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
               }`}
           >
             <span className="mr-3 text-xl">{tab.icon}</span>

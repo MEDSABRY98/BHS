@@ -671,7 +671,7 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null })
   return 'Invoice/Txn';
 };
 
-export default function CustomersTab({ data }: CustomersTabProps) {
+export default function CustomersMinsTab({ data }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
@@ -1141,14 +1141,16 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         sales3m,
         salesCount3m
       };
-    }).sort((a, b) => b.netDebt - a.netDebt);
+    }).sort((a, b) => a.netDebt - b.netDebt);
   }, [data]);
 
   const filteredData = useMemo(() => {
     let result = customerAnalysis;
     // Filter out customers with zero net debt
-    // Filter out customers with zero net debt AND negative net debt (show only positive debt)
-    result = result.filter(c => c.netDebt > 0.01);
+    // result = result.filter(c => Math.abs(c.netDebt) > 0.01);
+
+    // STRICTLY NEGATIVE DEBT (Credit Balances)
+    result = result.filter(c => c.netDebt < -0.01);
     const now = new Date();
 
     // Date Range Filter
