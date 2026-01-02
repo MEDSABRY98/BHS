@@ -28,7 +28,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { Mail, FileText, Calendar, ArrowLeft } from 'lucide-react';
+import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare } from 'lucide-react';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -155,7 +155,7 @@ const shortenInvoiceNumber = (invoiceNumber: string | undefined | null, maxLengt
   }
 
   if (cleaned.length <= maxLength) return cleaned;
-  
+
   // Try to keep prefix and suffix if it looks like a structured number
   // e.g., "ABC-2024-00123" -> "ABC...123"
   const parts = cleaned.split(/[-_]/);
@@ -166,7 +166,7 @@ const shortenInvoiceNumber = (invoiceNumber: string | undefined | null, maxLengt
       return `${prefix}...${suffix}`;
     }
   }
-  
+
   // Otherwise, keep a longer head/tail chunk
   const head = cleaned.substring(0, Math.max(6, maxLength - 10));
   const tail = cleaned.substring(cleaned.length - 6);
@@ -177,7 +177,7 @@ const shortenInvoiceNumber = (invoiceNumber: string | undefined | null, maxLengt
 const renderNoteWithLinks = (text: string) => {
   // Regular expression to match URLs (http, https, www, or plain domain)
   const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s]*)/g;
-  
+
   const parts: (string | React.JSX.Element)[] = [];
   let lastIndex = 0;
   let match;
@@ -188,7 +188,7 @@ const renderNoteWithLinks = (text: string) => {
     if (match.index > lastIndex) {
       parts.push(text.substring(lastIndex, match.index));
     }
-    
+
     // Add the URL as a clickable link
     let url = match[0];
     // Add https:// if it starts with www.
@@ -199,7 +199,7 @@ const renderNoteWithLinks = (text: string) => {
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url;
     }
-    
+
     parts.push(
       <a
         key={key++}
@@ -212,15 +212,15 @@ const renderNoteWithLinks = (text: string) => {
         {match[0]}
       </a>
     );
-    
+
     lastIndex = match.index + match[0].length;
   }
-  
+
   // Add remaining text
   if (lastIndex < text.length) {
     parts.push(text.substring(lastIndex));
   }
-  
+
   return parts.length > 0 ? parts : text;
 };
 
@@ -321,16 +321,16 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     pageSize: 50,
   });
   const [showCollectionModal, setShowCollectionModal] = useState(false);
-  
+
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string[]>([]);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string[]>([]);
   const [isMatchingDropdownOpen, setIsMatchingDropdownOpen] = useState(false);
-  
+
   // Selected invoices for checkboxes (using originalIndex as unique identifier)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<number>>(new Set());
   const [selectedOverdueIds, setSelectedOverdueIds] = useState<Set<number>>(new Set());
-  
+
   // Invoice Type Filters
   const [showOB, setShowOB] = useState(false);
   const [showSales, setShowSales] = useState(false);
@@ -353,7 +353,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
-  
+
   // Users with restricted access
   const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
   const isRestrictedUser = restrictedUsers.includes(currentUserName);
@@ -382,7 +382,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       autoResizeTextarea(editNoteRef.current);
     }
   }, [editingNoteId, editingNoteContent]);
-  
+
   // Invoice Details Modal State
   const [selectedInvoice, setSelectedInvoice] = useState<InvoiceWithNetDebt | OverdueInvoice | null>(null);
 
@@ -484,19 +484,19 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
           ? `<p style="margin: 0 0 10px 0; line-height: 1.5;">Your current balance details:</p>
 <ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
 ${debtByCustomer
-  .map(
-    (d) =>
-      `<li style="line-height: 1.5; margin-bottom: 5px;"><b>${d.customer}</b>: <span style="color: blue; font-weight: bold; font-size: 16px;">${d.netDebt.toLocaleString(
-        'en-US',
-      )} AED</span></li>`,
-  )
-  .join('')}
+            .map(
+              (d) =>
+                `<li style="line-height: 1.5; margin-bottom: 5px;"><b>${d.customer}</b>: <span style="color: blue; font-weight: bold; font-size: 16px;">${d.netDebt.toLocaleString(
+                  'en-US',
+                )} AED</span></li>`,
+            )
+            .join('')}
 </ul>`
           : `<p style="margin: 0 0 10px 0; line-height: 1.5;">Please find attached your account statement.</p>
 <ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
 <li style="line-height: 1.5; margin-bottom: 5px;"><b>Your current balance is:</b> <span style="color: blue; font-weight: bold; font-size: 16px;">${debtByCustomer[0]?.netDebt.toLocaleString(
-  'en-US',
-)} AED</span></li>
+            'en-US',
+          )} AED</span></li>
 </ul>`;
 
       const htmlBody = `<!DOCTYPE html>
@@ -660,11 +660,11 @@ ${debtSectionHtml}
   const invoicesWithNetDebt = useMemo(() => {
     // 1. Calculate totals for each matching group
     const matchingTotals = new Map<string, number>();
-    
+
     invoices.forEach(inv => {
       if (inv.matching) {
-         const currentTotal = matchingTotals.get(inv.matching) || 0;
-         matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
+        const currentTotal = matchingTotals.get(inv.matching) || 0;
+        matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
       }
     });
 
@@ -681,9 +681,9 @@ ${debtSectionHtml}
           maxDebits.set(inv.matching, inv.debit);
           targetResidualIndices.set(inv.matching, index);
         } else if (!targetResidualIndices.has(inv.matching)) {
-           // Ensure at least one index is set (e.g. if all debits are 0)
-           maxDebits.set(inv.matching, inv.debit);
-           targetResidualIndices.set(inv.matching, index);
+          // Ensure at least one index is set (e.g. if all debits are 0)
+          maxDebits.set(inv.matching, inv.debit);
+          targetResidualIndices.set(inv.matching, index);
         }
       }
     });
@@ -697,10 +697,10 @@ ${debtSectionHtml}
         const targetIndex = targetResidualIndices.get(invoice.matching);
         // Show residual only on the invoice with the largest debit
         if (targetIndex === index) {
-           const total = matchingTotals.get(invoice.matching) || 0;
-           if (Math.abs(total) > 0.01) {
-             residual = total;
-           }
+          const total = matchingTotals.get(invoice.matching) || 0;
+          if (Math.abs(total) > 0.01) {
+            residual = total;
+          }
         }
       }
 
@@ -728,7 +728,7 @@ ${debtSectionHtml}
   // Get available months for filtering
   const availableMonths = useMemo(() => {
     const monthsSet = new Set<string>();
-    
+
     // Filter invoices if a matching is selected
     let relevantInvoices = invoices;
 
@@ -778,54 +778,82 @@ ${debtSectionHtml}
     }
   }, [availableMonths, selectedMonthFilter]);
 
+  // Extract available years from available months
+  const availableYears = useMemo(() => {
+    const years = new Set<string>();
+    availableMonths.forEach(m => {
+      const parts = m.split(' '); // "January 2025"
+      if (parts.length > 1) years.add(parts[1]);
+    });
+    return Array.from(years).sort().reverse();
+  }, [availableMonths]);
+
+  const toggleYearSelection = (year: string) => {
+    const monthsInYear = availableMonths.filter(m => m.endsWith(year));
+    // Check if ALL months in this year are currently selected
+    const allSelected = monthsInYear.every(m => selectedMonths.includes(m));
+
+    if (allSelected) {
+      // Deselect all months of this year
+      setSelectedMonths(prev => prev.filter(m => !monthsInYear.includes(m)));
+    } else {
+      // Select all months of this year
+      setSelectedMonths(prev => {
+        const newSelection = new Set(prev);
+        monthsInYear.forEach(m => newSelection.add(m));
+        return Array.from(newSelection);
+      });
+    }
+  };
+
   // Prepare Overdue Invoices
   const overdueInvoices = useMemo(() => {
     // 1. Filter Logic same as "Net Only" PDF Export
     // This keeps only unmatched invoices OR the single "residual holder" invoice for open matching groups
     return invoicesWithNetDebt.filter(inv => {
-        // Keep if no matching ID (Unmatched)
-        if (!inv.matching) return true;
-        
-        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
-        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-      }).map(inv => {
-          let difference = inv.netDebt;
-          
-          if (inv.matching && inv.residual !== undefined) {
-             // It's a condensed open invoice
-             // Difference is the residual
-             difference = inv.residual;
-          }
+      // Keep if no matching ID (Unmatched)
+      if (!inv.matching) return true;
 
-        // Calculate Days Overdue
-        let daysOverdue = 0;
-        // Try Due Date first, then Invoice Date
-        let targetDate = parseInvoiceDate(inv.dueDate) || inv.parsedDate;
+      // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+    }).map(inv => {
+      let difference = inv.netDebt;
 
-        if (targetDate && !isNaN(targetDate.getTime())) {
-           const today = new Date();
-           today.setHours(0, 0, 0, 0);
-           targetDate.setHours(0, 0, 0, 0);
-           const diffTime = today.getTime() - targetDate.getTime();
-           daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        }
+      if (inv.matching && inv.residual !== undefined) {
+        // It's a condensed open invoice
+        // Difference is the residual
+        difference = inv.residual;
+      }
 
-        // Adjust Credit for display (Debit - Credit = Difference)
-        const adjustedCredit = inv.debit - difference;
+      // Calculate Days Overdue
+      let daysOverdue = 0;
+      // Try Due Date first, then Invoice Date
+      let targetDate = parseInvoiceDate(inv.dueDate) || inv.parsedDate;
 
-        return {
-          ...inv,
-          credit: adjustedCredit,
-          difference,
-          daysOverdue
-        } as OverdueInvoice;
-      });
+      if (targetDate && !isNaN(targetDate.getTime())) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        targetDate.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - targetDate.getTime();
+        daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      }
+
+      // Adjust Credit for display (Debit - Credit = Difference)
+      const adjustedCredit = inv.debit - difference;
+
+      return {
+        ...inv,
+        credit: adjustedCredit,
+        difference,
+        daysOverdue
+      } as OverdueInvoice;
+    });
   }, [invoicesWithNetDebt]);
 
   // Filter invoices based on selected month filter, matching filter, and search query
   const filteredInvoices = useMemo(() => {
     let filtered = invoicesWithNetDebt;
-    
+
     // Month Filter
     if (selectedMonthFilter.length > 0) {
       filtered = filtered.filter((inv) => {
@@ -857,7 +885,7 @@ ${debtSectionHtml}
     // Search Query
     if (invoiceSearchQuery.trim()) {
       const query = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter((inv) => 
+      filtered = filtered.filter((inv) =>
         inv.number.toLowerCase().includes(query) ||
         inv.matching?.toLowerCase().includes(query) ||
         inv.date.toLowerCase().includes(query) ||
@@ -871,7 +899,7 @@ ${debtSectionHtml}
     if (hasAnyFilter) {
       filtered = filtered.filter((inv) => {
         const num = inv.number.toUpperCase();
-        
+
         if (showOB && num.startsWith('OB')) return true;
         if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
@@ -880,19 +908,19 @@ ${debtSectionHtml}
           // Treat BNK* as payments even if credit isn't populated as expected
           if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
           // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
-          if (inv.credit > 0.01 && 
-              !num.startsWith('SAL') && 
-              !num.startsWith('RSAL') && 
-              !num.startsWith('BIL') && 
-              !num.startsWith('JV') &&
-              !num.startsWith('OB')) {
+          if (inv.credit > 0.01 &&
+            !num.startsWith('SAL') &&
+            !num.startsWith('RSAL') &&
+            !num.startsWith('BIL') &&
+            !num.startsWith('JV') &&
+            !num.startsWith('OB')) {
             return true;
           }
         }
         return false;
       });
     }
-    
+
     // Keep the same row order as the exported PDF (which follows the original sheet order),
     // while still allowing interactive sorting via the table headers.
     return [...filtered].sort(
@@ -903,7 +931,7 @@ ${debtSectionHtml}
   // Calculate totals for each invoice type based on current filters (excluding type filters)
   const invoiceTypeTotals = useMemo(() => {
     let filtered = invoicesWithNetDebt;
-    
+
     // Apply same filters as filteredInvoices but without type filters
     // Month Filter
     if (selectedMonthFilter.length > 0) {
@@ -936,7 +964,7 @@ ${debtSectionHtml}
     // Search Query
     if (invoiceSearchQuery.trim()) {
       const query = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter((inv) => 
+      filtered = filtered.filter((inv) =>
         inv.number.toLowerCase().includes(query) ||
         inv.matching?.toLowerCase().includes(query) ||
         inv.date.toLowerCase().includes(query) ||
@@ -983,7 +1011,7 @@ ${debtSectionHtml}
   // Filter overdue invoices based on selected month filter, matching filter, and search query
   const filteredOverdueInvoices = useMemo(() => {
     let filtered = overdueInvoices;
-    
+
     // Month Filter
     if (selectedMonthFilter.length > 0) {
       filtered = filtered.filter((inv) => {
@@ -1016,7 +1044,7 @@ ${debtSectionHtml}
     // Search Query
     if (invoiceSearchQuery.trim()) {
       const query = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter((inv) => 
+      filtered = filtered.filter((inv) =>
         inv.number.toLowerCase().includes(query) ||
         inv.matching?.toLowerCase().includes(query) ||
         inv.date.toLowerCase().includes(query) ||
@@ -1031,7 +1059,7 @@ ${debtSectionHtml}
     if (hasAnyFilter) {
       filtered = filtered.filter((inv) => {
         const num = inv.number.toUpperCase();
-        
+
         if (showOB && num.startsWith('OB')) return true;
         if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
@@ -1040,19 +1068,19 @@ ${debtSectionHtml}
           // Treat BNK* as payments even if credit isn't populated as expected
           if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
           // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
-          if (inv.credit > 0.01 && 
-              !num.startsWith('SAL') && 
-              !num.startsWith('RSAL') && 
-              !num.startsWith('BIL') && 
-              !num.startsWith('JV') &&
-              !num.startsWith('OB')) {
+          if (inv.credit > 0.01 &&
+            !num.startsWith('SAL') &&
+            !num.startsWith('RSAL') &&
+            !num.startsWith('BIL') &&
+            !num.startsWith('JV') &&
+            !num.startsWith('OB')) {
             return true;
           }
         }
         return false;
       });
     }
-    
+
     // Keep the same row order as the exported PDF (original sheet order).
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
@@ -1087,26 +1115,26 @@ ${debtSectionHtml}
       // 1. Calculate Net Sales (Debit)
       // Include SAL (Debit)
       if (num.startsWith('SAL')) {
-         existing.debit += invoice.debit;
+        existing.debit += invoice.debit;
       }
       // Deduct RSAL (Credit) from Sales
       if (num.startsWith('RSAL')) {
-         existing.debit -= invoice.credit;
+        existing.debit -= invoice.credit;
       }
-      
+
       // 2. Calculate Smart Payments (Credit)
       // Only count credits that are NOT SAL, RSAL, BIL, JV
       if (invoice.credit > 0.01) {
-          const isNotPayment = num.startsWith('SAL') || 
-                               num.startsWith('RSAL') || 
-                               num.startsWith('BIL') || 
-                               num.startsWith('JV');
-          
-          if (!isNotPayment) {
-              existing.credit += invoice.credit;
-          }
+        const isNotPayment = num.startsWith('SAL') ||
+          num.startsWith('RSAL') ||
+          num.startsWith('BIL') ||
+          num.startsWith('JV');
+
+        if (!isNotPayment) {
+          existing.credit += invoice.credit;
+        }
       }
-      
+
       existing.netDebt = existing.debit - existing.credit;
 
       monthlyMap.set(key, existing);
@@ -1268,9 +1296,9 @@ ${debtSectionHtml}
     const openInvoices = filteredInvoices.filter(inv => {
       // Keep if no matching ID (Unmatched) AND has balance
       if (!inv.matching) {
-          return Math.abs(inv.netDebt) > 0.01;
+        return Math.abs(inv.netDebt) > 0.01;
       }
-      
+
       // Keep only if it carries the residual (which means it's the main open invoice of an open group)
       return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
     });
@@ -1287,30 +1315,30 @@ ${debtSectionHtml}
 
     openInvoices.forEach(inv => {
       let amount = inv.netDebt;
-      
+
       if (inv.matching && inv.residual !== undefined) {
-         // It's a condensed open invoice, use residual as amount
-         amount = inv.residual;
+        // It's a condensed open invoice, use residual as amount
+        amount = inv.residual;
       }
 
       // Calculate days overdue
       let daysOverdue = 0;
       // Try Due Date first
       let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
-      
+
       // If Due Date is invalid, fallback to Invoice Date
       if (!targetDate || isNaN(targetDate.getTime())) {
-         if (inv.date) {
-           targetDate = new Date(inv.date);
-         }
+        if (inv.date) {
+          targetDate = new Date(inv.date);
+        }
       }
 
       if (targetDate && !isNaN(targetDate.getTime())) {
-         const today = new Date();
-         today.setHours(0, 0, 0, 0);
-         targetDate.setHours(0, 0, 0, 0);
-         const diffTime = today.getTime() - targetDate.getTime();
-         daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        targetDate.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - targetDate.getTime();
+        daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
 
       // Add to appropriate bucket
@@ -1341,7 +1369,7 @@ ${debtSectionHtml}
       invoiceColumnHelper.display({
         id: 'select',
         header: () => {
-          const allSelected = filteredInvoices.length > 0 && 
+          const allSelected = filteredInvoices.length > 0 &&
             filteredInvoices.every(inv => selectedInvoiceIds.has(inv.originalIndex));
           const someSelected = filteredInvoices.some(inv => selectedInvoiceIds.has(inv.originalIndex));
           return (
@@ -1405,11 +1433,11 @@ ${debtSectionHtml}
           const type = getInvoiceTypeFromRow(inv);
           const color =
             type === 'Sales' ? 'bg-blue-100 text-blue-700' :
-            type === 'Return' ? 'bg-orange-100 text-orange-700' :
-            type === 'Payment' ? 'bg-green-100 text-green-700' :
-            type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
-            type === 'OB' ? 'bg-purple-100 text-purple-700' :
-            'bg-gray-100 text-gray-700';
+              type === 'Return' ? 'bg-orange-100 text-orange-700' :
+                type === 'Payment' ? 'bg-green-100 text-green-700' :
+                  type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
+                    type === 'OB' ? 'bg-purple-100 text-purple-700' :
+                      'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -1481,7 +1509,7 @@ ${debtSectionHtml}
       overdueColumnHelper.display({
         id: 'select',
         header: () => {
-          const allSelected = filteredOverdueInvoices.length > 0 && 
+          const allSelected = filteredOverdueInvoices.length > 0 &&
             filteredOverdueInvoices.every(inv => selectedOverdueIds.has(inv.originalIndex));
           const someSelected = filteredOverdueInvoices.some(inv => selectedOverdueIds.has(inv.originalIndex));
           return (
@@ -1545,11 +1573,11 @@ ${debtSectionHtml}
           const type = getInvoiceTypeFromRow(inv);
           const color =
             type === 'Sales' ? 'bg-blue-100 text-blue-700' :
-            type === 'Return' ? 'bg-orange-100 text-orange-700' :
-            type === 'Payment' ? 'bg-green-100 text-green-700' :
-            type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
-            type === 'OB' ? 'bg-purple-100 text-purple-700' :
-            'bg-gray-100 text-gray-700';
+              type === 'Return' ? 'bg-orange-100 text-orange-700' :
+                type === 'Payment' ? 'bg-green-100 text-green-700' :
+                  type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
+                    type === 'OB' ? 'bg-purple-100 text-purple-700' :
+                      'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -1648,7 +1676,7 @@ ${debtSectionHtml}
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
-    state: { 
+    state: {
       sorting: invoiceSorting,
       pagination,
     },
@@ -1682,7 +1710,7 @@ ${debtSectionHtml}
   const totalNetDebt = invoicesToSum.reduce((sum, inv) => sum + inv.netDebt, 0);
   const totalDebit = invoicesToSum.reduce((sum, inv) => sum + inv.debit, 0);
   const totalCredit = invoicesToSum.reduce((sum, inv) => sum + inv.credit, 0);
-  
+
   // Calculate totals for overdue invoices based on selected, or all if none selected
   const selectedOverdueInvoices = filteredOverdueInvoices.filter(inv => selectedOverdueIds.has(inv.originalIndex));
   const overdueToSum = selectedOverdueInvoices.length > 0 ? selectedOverdueInvoices : filteredOverdueInvoices;
@@ -1695,10 +1723,10 @@ ${debtSectionHtml}
   const monthlyTotalCredit = monthlyDebt.reduce((sum, m) => sum + m.credit, 0);
 
   // Aging totals (initialized later after dashboardMetrics to avoid TDZ)
-  
+
   const toggleMonthSelection = (month: string) => {
-    setSelectedMonths(prev => 
-      prev.includes(month) 
+    setSelectedMonths(prev =>
+      prev.includes(month)
         ? prev.filter(m => m !== month)
         : [...prev, month]
     );
@@ -1727,33 +1755,33 @@ ${debtSectionHtml}
       finalInvoices = finalInvoices.filter(inv => {
         // Keep if no matching ID (Unmatched)
         if (!inv.matching) return true;
-        
+
         // Keep only if it carries the residual (which means it's the main open invoice of an open group)
         return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
       }).map(inv => {
-          if (inv.matching && inv.residual !== undefined) {
-             // It's a condensed open invoice
-             // Calculate "Paid" amount to show in Credit
-             // Credit = Debit - Residual
-             return {
-                 ...inv,
-                 credit: inv.debit - inv.residual,
-                 netDebt: inv.residual
-             };
-          }
-          return inv;
+        if (inv.matching && inv.residual !== undefined) {
+          // It's a condensed open invoice
+          // Calculate "Paid" amount to show in Credit
+          // Credit = Debit - Residual
+          return {
+            ...inv,
+            credit: inv.debit - inv.residual,
+            netDebt: inv.residual
+          };
+        }
+        return inv;
       });
 
       if (finalInvoices.length === 0) {
-         alert('No open/unmatched invoices to export.');
-         return;
+        alert('No open/unmatched invoices to export.');
+        return;
       }
 
       const monthsLabel = 'All Months (Net Only)';
-      
+
       const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
       await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
-      
+
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Error generating PDF. Please try again.');
@@ -1762,7 +1790,7 @@ ${debtSectionHtml}
 
   const exportToExcel = (invoices: any[], monthsLabel: string) => {
     const headers = ['Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
-    
+
     const rows = invoices.map(inv => {
       const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
       const type = getInvoiceTypeFromRow(inv);
@@ -1775,12 +1803,12 @@ ${debtSectionHtml}
         (inv.netDebt || 0).toFixed(2)
       ];
     });
-    
+
     const csvContent = [
       headers.join(','),
       ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
-    
+
     // Add BOM for UTF-8 to ensure Excel opens it correctly
     const BOM = '\uFEFF';
     const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -1804,18 +1832,18 @@ ${debtSectionHtml}
       if (exportScope === 'view') {
         finalInvoices = filteredInvoices;
         monthsLabel = 'Filtered View';
-        
+
         // If filtering by month, use that name
         if (selectedMonthFilter.length > 0) {
-           if (selectedMonthFilter.length === 1) {
-             monthsLabel = selectedMonthFilter[0];
-           } else {
-             monthsLabel = selectedMonthFilter.join(', ');
-           }
+          if (selectedMonthFilter.length === 1) {
+            monthsLabel = selectedMonthFilter[0];
+          } else {
+            monthsLabel = selectedMonthFilter.join(', ');
+          }
         } else if (selectedMonths.length < availableMonths.length && selectedMonths.length > 0) {
-           // If view was constructed differently but matches months logic
+          // If view was constructed differently but matches months logic
         }
-        
+
         if (selectedMatchingFilter.length > 0) {
           if (selectedMatchingFilter.length === 1) {
             monthsLabel += ` - ${selectedMatchingFilter[0]}`;
@@ -1823,11 +1851,11 @@ ${debtSectionHtml}
             monthsLabel += ` - ${selectedMatchingFilter.join(', ')}`;
           }
         }
-        
+
         if (invoiceSearchQuery) {
           monthsLabel += ` (Search: ${invoiceSearchQuery})`;
         }
-        
+
       } else {
         // Custom Selection Logic
         // Filter invoices based on selected months
@@ -1849,37 +1877,37 @@ ${debtSectionHtml}
           finalInvoices = finalInvoices.filter(inv => {
             // Keep if no matching ID (Unmatched)
             if (!inv.matching) return true;
-            
+
             // Keep only if it carries the residual (which means it's the main open invoice of an open group)
             return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
           }).map(inv => {
-              if (inv.matching && inv.residual !== undefined) {
-                 // It's a condensed open invoice
-                 // Calculate "Paid" amount to show in Credit
-                 // Credit = Debit - Residual
-                 return {
-                     ...inv,
-                     credit: inv.debit - inv.residual,
-                     netDebt: inv.residual
-                 };
-              }
-              return inv;
+            if (inv.matching && inv.residual !== undefined) {
+              // It's a condensed open invoice
+              // Calculate "Paid" amount to show in Credit
+              // Credit = Debit - Residual
+              return {
+                ...inv,
+                credit: inv.debit - inv.residual,
+                netDebt: inv.residual
+              };
+            }
+            return inv;
           });
         }
-        
+
         // Determine months label for Custom
         if (selectedMonths.length < availableMonths.length) {
-            // Sort selected months by date descending
-            const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
-              const dateA = new Date(`1 ${a}`);
-              const dateB = new Date(`1 ${b}`);
-              return dateB.getTime() - dateA.getTime();
-            });
-            monthsLabel = sortedSelectedMonths.join(', ');
+          // Sort selected months by date descending
+          const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
+            const dateA = new Date(`1 ${a}`);
+            const dateB = new Date(`1 ${b}`);
+            return dateB.getTime() - dateA.getTime();
+          });
+          monthsLabel = sortedSelectedMonths.join(', ');
         }
-         // Append filter info to label if needed
+        // Append filter info to label if needed
         if (pdfExportType === 'net') {
-           monthsLabel += ' (Net Only)';
+          monthsLabel += ' (Net Only)';
         }
       }
 
@@ -1889,14 +1917,14 @@ ${debtSectionHtml}
       } else {
         // Export to PDF
         const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/pdfUtils');
-        
+
         if (exportMode === 'separated') {
           await generateMonthlySeparatedPDF(customerName, finalInvoices);
         } else {
           await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
         }
       }
-      
+
       setShowExportModal(false);
     } catch (error) {
       console.error('Error exporting:', error);
@@ -1937,7 +1965,7 @@ ${debtSectionHtml}
 
     const netBase = salesDebit - returnsAmount - discountsAmount;
     const paymentsNetCoverage = netBase > 0 ? (paymentsAmount / netBase) * 100 : 0;
-    
+
     const dates = filteredInvoices
       .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
       .filter(t => t > 0);
@@ -1974,36 +2002,36 @@ ${debtSectionHtml}
     // Logic: (Sum(SAL) - Sum(RSAL)) / Span in Months
     const salesInvoices = filteredInvoices.filter(inv => inv.number.toUpperCase().startsWith('SAL'));
     const returnInvoices = filteredInvoices.filter(inv => inv.number.toUpperCase().startsWith('RSAL'));
-    
+
     const totalSalesAmount = salesInvoices.reduce((sum, inv) => sum + inv.debit, 0);
     const totalReturnsAmount = returnInvoices.reduce((sum, inv) => sum + inv.credit, 0);
-    
+
     const netSales = totalSalesAmount - totalReturnsAmount;
-    
+
     // Lifetime Smart Sales (SAL - RSAL)
     const lifetimeSmartSales = netSales;
 
     // Lifetime Smart Payments (Credit not SAL/RSAL/BIL/JV)
     const smartPaymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv));
     const lifetimeSmartPayments = smartPaymentInvoices.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
-    
+
     // Duration
     // Find earliest date and latest date among these specific transactions
     const allRelevantInvoices = [...salesInvoices, ...returnInvoices];
     let monthsDuration = 1;
-    
+
     if (allRelevantInvoices.length > 0) {
-        const dates = allRelevantInvoices.map(inv => inv.date ? new Date(inv.date).getTime() : 0).filter(t => t > 0);
-        if (dates.length > 0) {
-            const minDate = new Date(Math.min(...dates));
-            const maxDate = new Date(Math.max(...dates));
-            
-            // Difference in months (inclusive)
-            monthsDuration = (maxDate.getFullYear() - minDate.getFullYear()) * 12 + (maxDate.getMonth() - minDate.getMonth()) + 1;
-            if (monthsDuration < 1) monthsDuration = 1;
-        }
+      const dates = allRelevantInvoices.map(inv => inv.date ? new Date(inv.date).getTime() : 0).filter(t => t > 0);
+      if (dates.length > 0) {
+        const minDate = new Date(Math.min(...dates));
+        const maxDate = new Date(Math.max(...dates));
+
+        // Difference in months (inclusive)
+        monthsDuration = (maxDate.getFullYear() - minDate.getFullYear()) * 12 + (maxDate.getMonth() - minDate.getMonth()) + 1;
+        if (monthsDuration < 1) monthsDuration = 1;
+      }
     }
-    
+
     const averageMonthlySales = netSales / monthsDuration;
 
     // Aging Data for Pie Chart
@@ -2084,14 +2112,14 @@ ${debtSectionHtml}
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <span className="text-2xl">💸</span> Payment Details
               </h3>
-              <button 
+              <button
                 onClick={() => setShowPaymentModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
                 ✕
               </button>
             </div>
-            
+
             <div className="space-y-4">
               <div className="bg-gray-50 p-4 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Payment Amount</p>
@@ -2150,7 +2178,7 @@ ${debtSectionHtml}
               <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                 <span className="text-2xl">📈</span> Collection Breakdown
               </h3>
-              <button 
+              <button
                 onClick={() => setShowCollectionModal(false)}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
               >
@@ -2250,137 +2278,255 @@ ${debtSectionHtml}
 
       {/* Export Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-gray-100">
-            <h3 className="text-xl font-bold mb-4">Export Options</h3>
-
-            {/* Format Selection */}
-            <div className="mb-4 border-b border-gray-200 pb-4">
-              <h4 className="font-semibold mb-2 text-gray-700">Export Format</h4>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
-                  <input 
-                    type="radio" 
-                    name="exportFormat"
-                    checked={exportFormat === 'pdf'} 
-                    onChange={() => setExportFormat('pdf')}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">PDF</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
-                  <input 
-                    type="radio" 
-                    name="exportFormat"
-                    checked={exportFormat === 'excel'} 
-                    onChange={() => setExportFormat('excel')}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Excel (CSV)</span>
-                </label>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
+            {/* Header */}
+            <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 bg-gray-50/50">
+              <div>
+                <h3 className="text-2xl font-bold text-gray-800">Export Options</h3>
+                <p className="text-sm text-gray-500 mt-1">Configure and download your report</p>
               </div>
-            </div>
-
-            {/* Scope Selection */}
-            <div className="mb-4 border-b border-gray-200 pb-4">
-              <h4 className="font-semibold mb-2 text-gray-700">Export Scope</h4>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
-                  <input 
-                    type="radio" 
-                    name="exportScope"
-                    checked={exportScope === 'custom'} 
-                    onChange={() => setExportScope('custom')}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Custom Selection</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
-                  <input 
-                    type="radio" 
-                    name="exportScope"
-                    checked={exportScope === 'view'} 
-                    onChange={() => setExportScope('view')}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Current Filtered View</span>
-                </label>
-              </div>
-            </div>
-            
-            {exportScope === 'custom' && (
-              <>
-            <div className="mb-4 border-b border-gray-200 pb-4">
-              <h4 className="font-semibold mb-2 text-gray-700">Export Type</h4>
-              <div className="flex gap-4">
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
-                  <input 
-                    type="radio" 
-                    name="exportType"
-                    checked={pdfExportType === 'all'} 
-                    onChange={() => setPdfExportType('all')}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">All Transactions</span>
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded transition-colors">
-                  <input 
-                    type="radio" 
-                    name="exportType"
-                    checked={pdfExportType === 'net'} 
-                    onChange={() => setPdfExportType('net')}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                  />
-                  <span className="text-gray-700">Net Only (Unmatched & Open)</span>
-                </label>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <label className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer font-bold border-b border-gray-200 pb-2 mb-2">
-                <input
-                  type="checkbox"
-                  checked={selectedMonths.length === availableMonths.length}
-                  onChange={toggleAllMonths}
-                  className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                />
-                Select All
-              </label>
-              
-              <div className="grid grid-cols-2 gap-2">
-                {availableMonths.map((month) => (
-                  <label key={month} className="flex items-center gap-2 p-2 hover:bg-gray-100 rounded cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedMonths.includes(month)}
-                      onChange={() => toggleMonthSelection(month)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                    />
-                    {month}
-                  </label>
-                ))}
-              </div>
-            </div>
-              </>
-            )}
-
-            <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200">
               <button
                 onClick={() => setShowExportModal(false)}
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg"
+                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+              >
+                <span className="text-2xl leading-none">&times;</span>
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+              {/* Left Panel: Configuration */}
+              <div className="w-full md:w-1/3 p-6 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/30 overflow-y-auto">
+                <div className="space-y-8">
+
+                  {/* Export Format */}
+                  <section>
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-indigo-500" /> Format
+                    </h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        onClick={() => setExportFormat('pdf')}
+                        className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${exportFormat === 'pdf'
+                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm'
+                          : 'border-transparent bg-white text-gray-600 hover:bg-gray-100'
+                          }`}
+                      >
+                        <FileText className="w-6 h-6 mb-2" />
+                        <span className="font-semibold text-sm">PDF</span>
+                      </button>
+                      <button
+                        onClick={() => setExportFormat('excel')}
+                        className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${exportFormat === 'excel'
+                          ? 'border-green-500 bg-green-50 text-green-700 shadow-sm'
+                          : 'border-transparent bg-white text-gray-600 hover:bg-gray-100'
+                          }`}
+                      >
+                        <FileSpreadsheet className="w-6 h-6 mb-2" />
+                        <span className="font-semibold text-sm">Excel</span>
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* Export Scope */}
+                  <section>
+                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                      <ListFilter className="w-4 h-4 text-indigo-500" /> Scope
+                    </h4>
+                    <div className="space-y-2">
+                      <button
+                        onClick={() => setExportScope('custom')}
+                        className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'custom'
+                          ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
+                          : 'border-transparent bg-white hover:bg-gray-50'
+                          }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'custom' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                          {exportScope === 'custom' && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold text-gray-700">Custom Selection</span>
+                          <span className="text-xs text-gray-500">Choose specific months</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setExportScope('view')}
+                        className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'view'
+                          ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
+                          : 'border-transparent bg-white hover:bg-gray-50'
+                          }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'view' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                          {exportScope === 'view' && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold text-gray-700">Current View</span>
+                          <span className="text-xs text-gray-500">Export active filters</span>
+                        </div>
+                      </button>
+                    </div>
+                  </section>
+
+                  {/* Export Type (Conditional) */}
+                  {exportScope === 'custom' && (
+                    <section className="animate-in slide-in-from-left-5 duration-300">
+                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <CheckSquare className="w-4 h-4 text-indigo-500" /> Content Type
+                      </h4>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => setPdfExportType('all')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${pdfExportType === 'all'
+                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                          <span>Full Transactions</span>
+                          {pdfExportType === 'all' && <span className="text-blue-500">●</span>}
+                        </button>
+                        <button
+                          onClick={() => setPdfExportType('net')}
+                          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${pdfExportType === 'net'
+                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                            }`}
+                        >
+                          <span>Net Only (Unmatched)</span>
+                          {pdfExportType === 'net' && <span className="text-blue-500">●</span>}
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                </div>
+              </div>
+
+              {/* Right Panel: Selection */}
+              <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-white relative">
+                {exportScope === 'custom' ? (
+                  <div className="space-y-8 animate-in fade-in duration-300">
+
+                    {/* Section: Select by Year */}
+                    {availableYears.length > 0 && (
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center justify-between">
+                          <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-500" /> Select by Year</span>
+                          <button
+                            onClick={toggleAllMonths}
+                            className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-3 py-1 bg-indigo-50 rounded-full hover:bg-indigo-100 transition-colors"
+                          >
+                            {selectedMonths.length === availableMonths.length ? 'Deselect All' : 'Select All Months'}
+                          </button>
+                        </h4>
+                        <div className="flex flex-wrap gap-3">
+                          {availableYears.map(year => {
+                            const monthsInYear = availableMonths.filter(m => m.endsWith(year));
+                            const isYearSelected = monthsInYear.length > 0 && monthsInYear.every(m => selectedMonths.includes(m));
+                            const isYearPartiallySelected = !isYearSelected && monthsInYear.some(m => selectedMonths.includes(m));
+
+                            return (
+                              <button
+                                key={year}
+                                onClick={() => toggleYearSelection(year)}
+                                className={`group relative px-5 py-2.5 rounded-xl border transition-all duration-200 flex items-center gap-2 ${isYearSelected
+                                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-md hover:bg-indigo-700'
+                                  : isYearPartiallySelected
+                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                  }`}
+                              >
+                                <span className="text-base font-bold">{year}</span>
+                                {isYearSelected && <span className="text-white/80 text-xs ml-1">✓</span>}
+                                {isYearPartiallySelected && <span className="text-indigo-500 text-xs ml-1">•</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Section: Months Grid */}
+                    <div>
+                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Detailed Selection</h4>
+
+                      {availableMonths.length === 0 ? (
+                        <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                          No months available for selection
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                          {availableMonths.map((month) => {
+                            const isSelected = selectedMonths.includes(month);
+                            return (
+                              <button
+                                key={month}
+                                onClick={() => toggleMonthSelection(month)}
+                                className={`relative px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-200 flex items-center justify-between group ${isSelected
+                                  ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200 z-10'
+                                  : 'bg-white border-gray-100 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                  }`}
+                              >
+                                <span>{month}</span>
+                                {isSelected && (
+                                  <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                  </div>
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
+                      <ListFilter className="w-10 h-10 text-indigo-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Export Current View</h3>
+                    <p className="text-gray-500 max-w-sm mb-8">
+                      This will export exactly what you see on the screen, including current search results and active filters.
+                    </p>
+                    <div className="bg-gray-50 rounded-xl p-4 w-full max-w-sm border border-gray-100 text-left">
+                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Summary</p>
+                      <div className="space-y-2 text-sm text-gray-600">
+                        <div className="flex justify-between">
+                          <span>Format:</span>
+                          <span className="font-semibold text-gray-900">{exportFormat.toUpperCase()}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Filter matches:</span>
+                          <span className="font-semibold text-gray-900">{filteredInvoices.length} invoices</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-8 py-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 z-10">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 hover:text-gray-800 rounded-xl transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleExport}
-                className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold"
+                className={`px-8 py-2.5 rounded-xl text-white font-bold shadow-lg shadow-green-200 transition-all transform active:scale-95 flex items-center gap-2 ${selectedMonths.length === 0 && exportScope === 'custom'
+                  ? 'bg-gray-300 cursor-not-allowed shadow-none'
+                  : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
+                  }`}
+                disabled={selectedMonths.length === 0 && exportScope === 'custom'}
               >
-                {exportScope === 'view'
-                  ? `Export Current View (${exportFormat.toUpperCase()})`
-                  : (exportMode === 'separated' && exportFormat === 'pdf'
-                      ? `Export Separate Sheets (${selectedMonths.length})`
-                      : `Export ${exportFormat.toUpperCase()} (${selectedMonths.length})`)
-                }
+                Export {exportFormat === 'pdf' ? 'PDF' : 'Excel'}
+                {(exportScope === 'custom' && selectedMonths.length > 0) && (
+                  <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
+                    {selectedMonths.length}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -2389,17 +2535,17 @@ ${debtSectionHtml}
 
       {/* Invoice Details Modal */}
       {selectedInvoice && (
-        <div 
-          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" 
+        <div
+          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50"
           onClick={() => setSelectedInvoice(null)}
         >
-          <div 
-            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100" 
+          <div
+            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex justify-between items-center mb-4 border-b pb-3">
               <h3 className="text-xl font-bold text-gray-800">Invoice Number</h3>
-              <button 
+              <button
                 onClick={() => setSelectedInvoice(null)}
                 className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
               >
@@ -2440,11 +2586,11 @@ ${debtSectionHtml}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
               >
                 <span className="truncate">
-                  {selectedMonthFilter.length === 0 
-                    ? 'All Months' 
-                    : selectedMonthFilter.length === 1 
-                    ? selectedMonthFilter[0]
-                    : `${selectedMonthFilter.length} months selected`}
+                  {selectedMonthFilter.length === 0
+                    ? 'All Months'
+                    : selectedMonthFilter.length === 1
+                      ? selectedMonthFilter[0]
+                      : `${selectedMonthFilter.length} months selected`}
                 </span>
                 <svg
                   className={`w-5 h-5 text-gray-400 transition-transform ${isMonthDropdownOpen ? 'transform rotate-180' : ''}`}
@@ -2457,8 +2603,8 @@ ${debtSectionHtml}
               </button>
               {isMonthDropdownOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-10" 
+                  <div
+                    className="fixed inset-0 z-10"
                     onClick={() => setIsMonthDropdownOpen(false)}
                   ></div>
                   <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -2516,11 +2662,11 @@ ${debtSectionHtml}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
               >
                 <span className="truncate">
-                  {selectedMatchingFilter.length === 0 
-                    ? 'All Matchings' 
-                    : selectedMatchingFilter.length === 1 
-                    ? selectedMatchingFilter[0]
-                    : `${selectedMatchingFilter.length} matchings selected`}
+                  {selectedMatchingFilter.length === 0
+                    ? 'All Matchings'
+                    : selectedMatchingFilter.length === 1
+                      ? selectedMatchingFilter[0]
+                      : `${selectedMatchingFilter.length} matchings selected`}
                 </span>
                 <svg
                   className={`w-5 h-5 text-gray-400 transition-transform ${isMatchingDropdownOpen ? 'transform rotate-180' : ''}`}
@@ -2533,8 +2679,8 @@ ${debtSectionHtml}
               </button>
               {isMatchingDropdownOpen && (
                 <>
-                  <div 
-                    className="fixed inset-0 z-10" 
+                  <div
+                    className="fixed inset-0 z-10"
                     onClick={() => setIsMatchingDropdownOpen(false)}
                   ></div>
                   <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
@@ -2543,7 +2689,7 @@ ${debtSectionHtml}
                         <input
                           type="checkbox"
                           checked={
-                            selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) && 
+                            selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) &&
                             availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m)) &&
                             (
                               selectedMatchingFilter.length === availableMatchingsWithResidual.length + 1 ||
@@ -2720,665 +2866,659 @@ ${debtSectionHtml}
       <div className="mb-6 flex justify-center gap-2 border-b border-gray-200">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            activeTab === 'dashboard'
-              ? 'text-purple-600 border-purple-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'dashboard'
+            ? 'text-purple-600 border-purple-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
         >
           📊 Dashboard
         </button>
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            activeTab === 'invoices'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'invoices'
+            ? 'text-blue-600 border-blue-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
         >
           Invoices
         </button>
         <button
           onClick={() => setActiveTab('overdue')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            activeTab === 'overdue'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'overdue'
+            ? 'text-blue-600 border-blue-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
         >
           Overdue
         </button>
         <button
           onClick={() => setActiveTab('monthly')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            activeTab === 'monthly'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'monthly'
+            ? 'text-blue-600 border-blue-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
         >
           Debit by Months
         </button>
         <button
           onClick={() => setActiveTab('ages')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            activeTab === 'ages'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'ages'
+            ? 'text-blue-600 border-blue-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
         >
           Ages
         </button>
         <button
           onClick={() => setActiveTab('notes')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${
-            activeTab === 'notes'
-              ? 'text-blue-600 border-blue-600'
-              : 'text-gray-500 border-transparent hover:text-gray-700'
-          }`}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'notes'
+            ? 'text-blue-600 border-blue-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
         >
           Notes <span className="text-red-600">({notes.length})</span>
         </button>
       </div>
 
-        {/* Tab Content: Dashboard */}
-        {activeTab === 'dashboard' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-            
-            {/* Section 1: Debit Overview */}
-            <div>
-              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                {/* Net Debt Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">💰</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Outstanding</h3>
-                  <p className={`text-3xl font-bold mt-2 ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                    {totalNetDebt.toLocaleString('en-US')}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-1">Current Balance</p>
-                </div>
+      {/* Tab Content: Dashboard */}
+      {activeTab === 'dashboard' && (
+        <div className="space-y-6 animate-in fade-in duration-300">
 
-                {/* Overdue Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">⚠️</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Overdue Amount</h3>
-                  <p className="text-3xl font-bold mt-2 text-orange-600">
-                    {dashboardMetrics.overdueAmount.toLocaleString('en-US')}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-1">{dashboardMetrics.overdueCount} Invoices Overdue</p>
+          {/* Section 1: Debit Overview */}
+          <div>
+            <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              {/* Net Debt Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">💰</span>
                 </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Outstanding</h3>
+                <p className={`text-3xl font-bold mt-2 ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {totalNetDebt.toLocaleString('en-US')}
+                </p>
+                <p className="text-sm text-gray-400 mt-1">Current Balance</p>
+              </div>
 
-                {/* Total Payments Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">💰</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
-                  <p className="text-3xl font-bold mt-2 text-green-600">
-                    {dashboardMetrics.totalPayments.toLocaleString('en-US')}
-                  </p>
-                  <p className="text-sm text-gray-400 mt-1">All Time Payments</p>
+              {/* Overdue Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">⚠️</span>
                 </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Overdue Amount</h3>
+                <p className="text-3xl font-bold mt-2 text-orange-600">
+                  {dashboardMetrics.overdueAmount.toLocaleString('en-US')}
+                </p>
+                <p className="text-sm text-gray-400 mt-1">{dashboardMetrics.overdueCount} Invoices Overdue</p>
+              </div>
 
-                {/* Last Payment Card */}
-                <div 
-                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200 group"
-                  onClick={() => dashboardMetrics.lastPaymentDate && setShowPaymentModal(true)}
-                >
-                  <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <span className="text-6xl">💸</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider group-hover:text-blue-600 transition-colors">Last Payment</h3>
-                  {dashboardMetrics.lastPaymentDate ? (
-                    <>
-                      <p className="text-3xl font-bold mt-2 text-green-600">
-                        {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
-                      </p>
-                      <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
-                        {dashboardMetrics.lastPaymentDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">info</span>
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-3xl font-bold mt-2 text-gray-400">-</p>
-                      <p className="text-sm text-gray-400 mt-1">No payment history</p>
-                    </>
-                  )}
+              {/* Total Payments Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">💰</span>
                 </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
+                <p className="text-3xl font-bold mt-2 text-green-600">
+                  {dashboardMetrics.totalPayments.toLocaleString('en-US')}
+                </p>
+                <p className="text-sm text-gray-400 mt-1">All Time Payments</p>
+              </div>
 
-                {/* Collection Rate Card */}
-                <div 
-                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200"
-                  onClick={() => setShowCollectionModal(true)}
-                  title="Click to view detailed collection breakdown"
-                >
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">📈</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Collection Rate</h3>
-                  <p className="text-3xl font-bold mt-2 text-blue-600">
-                    {dashboardMetrics.collectionRate.toFixed(1)}%
-                  </p>
-                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                    <div 
-                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000" 
-                      style={{ width: `${Math.min(dashboardMetrics.collectionRate, 100)}%` }}
-                    ></div>
-                  </div>
+              {/* Last Payment Card */}
+              <div
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200 group"
+                onClick={() => dashboardMetrics.lastPaymentDate && setShowPaymentModal(true)}
+              >
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                  <span className="text-6xl">💸</span>
+                </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider group-hover:text-blue-600 transition-colors">Last Payment</h3>
+                {dashboardMetrics.lastPaymentDate ? (
+                  <>
+                    <p className="text-3xl font-bold mt-2 text-green-600">
+                      {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
+                      {dashboardMetrics.lastPaymentDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">info</span>
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-3xl font-bold mt-2 text-gray-400">-</p>
+                    <p className="text-sm text-gray-400 mt-1">No payment history</p>
+                  </>
+                )}
+              </div>
+
+              {/* Collection Rate Card */}
+              <div
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200"
+                onClick={() => setShowCollectionModal(true)}
+                title="Click to view detailed collection breakdown"
+              >
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">📈</span>
+                </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Collection Rate</h3>
+                <p className="text-3xl font-bold mt-2 text-blue-600">
+                  {dashboardMetrics.collectionRate.toFixed(1)}%
+                </p>
+                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                  <div
+                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000"
+                    style={{ width: `${Math.min(dashboardMetrics.collectionRate, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+            </div>
+
+            {/* Debit Aging Breakdown - Modern Stacked Bar + Pills */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+              <div className="flex items-center justify-between gap-4 flex-wrap">
+                <h3 className="text-lg font-bold text-gray-800">Debit Aging Breakdown</h3>
+                <div className="text-sm text-gray-600">
+                  Total Outstanding:{' '}
+                  <span className="font-semibold text-gray-900">
+                    {agingTotal.toLocaleString('en-US')}
+                  </span>
                 </div>
               </div>
 
-              {/* Debit Aging Breakdown - Modern Stacked Bar + Pills */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-                <div className="flex items-center justify-between gap-4 flex-wrap">
-                  <h3 className="text-lg font-bold text-gray-800">Debit Aging Breakdown</h3>
-                  <div className="text-sm text-gray-600">
-                    Total Outstanding:{' '}
-                    <span className="font-semibold text-gray-900">
-                      {agingTotal.toLocaleString('en-US')}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="h-44 w-full mt-2">
-                  {agingBuckets.length > 0 ? (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={stackedAgingData}
-                        margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                        layout="vertical"
-                        stackOffset="none"
-                      >
-                        <CartesianGrid horizontal={true} vertical={false} stroke="#E5E7EB" />
-                        <XAxis
-                          type="number"
-                          tick={false}
-                          axisLine={false}
-                          tickLine={false}
-                          domain={[0, agingTotal || 'auto']}
-                        />
-                        <YAxis type="category" dataKey="label" hide />
-                        <RechartsTooltip
-                          formatter={(value: number, name: string, props: any) => {
-                            const percent = agingTotal > 0 ? ((value / agingTotal) * 100).toFixed(1) : '0.0';
-                            const label = agingBuckets.find((b) => b.dataKey === name)?.name || 'Bucket';
-                            return [`${value.toLocaleString('en-US')} (${percent}%)`, label];
-                          }}
-                          contentStyle={{
-                            borderRadius: '12px',
-                            border: 'none',
-                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                            padding: '12px',
-                            backgroundColor: 'white',
-                          }}
-                          cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
-                        />
-                        {agingBuckets.map((bucket) => (
-                          <Bar
-                            key={bucket.dataKey}
-                            dataKey={bucket.dataKey}
-                            stackId="aging"
-                            fill={bucket.color}
-                            radius={[0, 0, 0, 0]}
-                          >
-                            <LabelList
-                              dataKey={bucket.dataKey}
-                              position="inside"
-                              formatter={(value: any) => {
-                                const numValue = typeof value === 'number' ? value : 0;
-                                const percent = agingTotal > 0 ? (numValue / agingTotal) * 100 : 0;
-                                return percent >= 1 ? `${percent.toFixed(0)}%` : '';
-                              }}
-                              fill="#fff"
-                              fontSize={15}
-                              fontWeight={800}
-                            />
-                          </Bar>
-                        ))}
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
-                      <p className="text-4xl mb-2">👍</p>
-                      <p>No outstanding debit to analyze.</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* Pills with value + percent */}
-                {agingBuckets.length > 0 && (
-                  <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2 text-center">
-                    {agingBuckets.map((bucket) => (
-                      <div
-                        key={bucket.name}
-                        className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white border border-gray-100 shadow-[0_8px_24px_rgba(0,0,0,0.06)] min-w-[200px]"
-                      >
-                        <div className="flex flex-col items-start flex-1 leading-tight text-left">
-                          <div className="flex items-center gap-2">
-                            <span
-                              className="w-2.5 h-2.5 rounded-full inline-block"
-                              style={{ backgroundColor: bucket.color }}
-                            ></span>
-                            <span className="text-sm font-semibold text-gray-900">{bucket.name}</span>
-                          </div>
-                          <div className="text-sm text-gray-700 font-semibold mt-1">
-                            {bucket.value.toLocaleString('en-US')}
-                          </div>
-                        </div>
-                        <span
-                          className="px-3 py-1.5 rounded-full text-sm font-bold"
-                          style={{
-                            color: bucket.color,
-                            backgroundColor: `${bucket.color}1A`, // ~10% opacity
-                          }}
+              <div className="h-44 w-full mt-2">
+                {agingBuckets.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={stackedAgingData}
+                      margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+                      layout="vertical"
+                      stackOffset="none"
+                    >
+                      <CartesianGrid horizontal={true} vertical={false} stroke="#E5E7EB" />
+                      <XAxis
+                        type="number"
+                        tick={false}
+                        axisLine={false}
+                        tickLine={false}
+                        domain={[0, agingTotal || 'auto']}
+                      />
+                      <YAxis type="category" dataKey="label" hide />
+                      <RechartsTooltip
+                        formatter={(value: number, name: string, props: any) => {
+                          const percent = agingTotal > 0 ? ((value / agingTotal) * 100).toFixed(1) : '0.0';
+                          const label = agingBuckets.find((b) => b.dataKey === name)?.name || 'Bucket';
+                          return [`${value.toLocaleString('en-US')} (${percent}%)`, label];
+                        }}
+                        contentStyle={{
+                          borderRadius: '12px',
+                          border: 'none',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          padding: '12px',
+                          backgroundColor: 'white',
+                        }}
+                        cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                      />
+                      {agingBuckets.map((bucket) => (
+                        <Bar
+                          key={bucket.dataKey}
+                          dataKey={bucket.dataKey}
+                          stackId="aging"
+                          fill={bucket.color}
+                          radius={[0, 0, 0, 0]}
                         >
-                          {bucket.percent.toFixed(1)}%
-                        </span>
-                      </div>
-                    ))}
+                          <LabelList
+                            dataKey={bucket.dataKey}
+                            position="inside"
+                            formatter={(value: any) => {
+                              const numValue = typeof value === 'number' ? value : 0;
+                              const percent = agingTotal > 0 ? (numValue / agingTotal) * 100 : 0;
+                              return percent >= 1 ? `${percent.toFixed(0)}%` : '';
+                            }}
+                            fill="#fff"
+                            fontSize={15}
+                            fontWeight={800}
+                          />
+                        </Bar>
+                      ))}
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
+                    <p className="text-4xl mb-2">👍</p>
+                    <p>No outstanding debit to analyze.</p>
                   </div>
                 )}
               </div>
 
-              {/* Monthly Payments Trend - Moved here */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Payments Trend</h3>
-                <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart
-                      data={monthlyPaymentsTrendData}
-                      margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+              {/* Pills with value + percent */}
+              {agingBuckets.length > 0 && (
+                <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2 text-center">
+                  {agingBuckets.map((bucket) => (
+                    <div
+                      key={bucket.name}
+                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white border border-gray-100 shadow-[0_8px_24px_rgba(0,0,0,0.06)] min-w-[200px]"
                     >
-                      <defs>
-                        <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#10B981" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis 
-                        dataKey="monthLabel" 
-                        tick={{fontSize: 14, fill: '#374151', fontWeight: 700}} 
-                        axisLine={false}
-                        tickLine={false}
-                        interval={0} 
-                      />
-                      <YAxis 
-                        tick={{fontSize: 12, fill: '#6B7280'}} 
-                        tickFormatter={(value) => `${value / 1000}k`} 
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <RechartsTooltip 
-                        formatter={(value: number) => value.toLocaleString('en-US')}
-                        contentStyle={{ 
-                          borderRadius: '12px', 
-                          border: 'none', 
-                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                          padding: '12px'
-                        }}
-                        cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
-                      />
-                      <Area 
-                        type="monotone" 
-                        dataKey="credit" 
-                        name="" 
-                        stroke="#10B981" 
-                        strokeWidth={3}
-                        fillOpacity={1} 
-                        fill="url(#colorPayments)" 
-                        activeDot={{ r: 6, strokeWidth: 0 }}
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Sales & Performance */}
-            <div>
-              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales & Performance</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                {/* Total Sales Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">🛒</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Sales</h3>
-                  <p className="text-2xl font-bold mt-2 text-blue-600">
-                    {dashboardMetrics.totalSalesSum.toLocaleString('en-US')}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Gross (SAL)</p>
-                </div>
-
-                {/* Total Returns Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">↩️</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Returns</h3>
-                  <p className="text-2xl font-bold mt-2 text-red-500">
-                    {dashboardMetrics.totalReturnsSum.toLocaleString('en-US')}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Returns (RSAL)</p>
-                </div>
-
-                {/* Net Sales Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">💵</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Sales</h3>
-                  <p className="text-2xl font-bold mt-2 text-indigo-600">
-                    {dashboardMetrics.netSalesSum.toLocaleString('en-US')}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Sales - Returns</p>
-                </div>
-
-                {/* Avg Monthly Sales Card */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                  <div className="absolute top-0 right-0 p-4 opacity-10">
-                    <span className="text-6xl">📅</span>
-                  </div>
-                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg. Monthly</h3>
-                  <p className="text-2xl font-bold mt-2 text-purple-600">
-                    {dashboardMetrics.averageMonthlySales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-1">Net / Active Months</p>
-                </div>
-              </div>
-
-              {/* Monthly Sales Trend - Moved here */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Sales Trend</h3>
-                <div className="h-80 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={monthlySalesTrendData}
-                      margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
-                      barCategoryGap="12%"
-                    >
-                      <defs>
-                        <linearGradient id="colorSalesPositive" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#10B981" stopOpacity={1}/>
-                          <stop offset="50%" stopColor="#34D399" stopOpacity={1}/>
-                          <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1}/>
-                        </linearGradient>
-                        <linearGradient id="colorSalesNegative" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#EC4899" stopOpacity={1}/>
-                          <stop offset="50%" stopColor="#F472B6" stopOpacity={1}/>
-                          <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1}/>
-                        </linearGradient>
-                        <linearGradient id="barGlowPositive" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="#10B981" stopOpacity="0.3"/>
-                          <stop offset="50%" stopColor="#34D399" stopOpacity="0.5"/>
-                          <stop offset="100%" stopColor="#10B981" stopOpacity="0.3"/>
-                        </linearGradient>
-                        <linearGradient id="barGlowNegative" x1="0" y1="0" x2="1" y2="0">
-                          <stop offset="0%" stopColor="#EC4899" stopOpacity="0.3"/>
-                          <stop offset="50%" stopColor="#F472B6" stopOpacity="0.5"/>
-                          <stop offset="100%" stopColor="#EC4899" stopOpacity="0.3"/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
-                      <XAxis 
-                        dataKey="monthLabel" 
-                        tick={{fontSize: 14, fill: '#374151', fontWeight: 700}} 
-                        axisLine={false}
-                        tickLine={false}
-                        interval={0} 
-                      />
-                      <YAxis 
-                        tick={{fontSize: 12, fill: '#6B7280'}} 
-                        tickFormatter={(value) => `${value / 1000}k`} 
-                        axisLine={false}
-                        tickLine={false}
-                      />
-                      <RechartsTooltip 
-                        formatter={(value: number, name: string, props: any) => {
-                          // Always show the original value in tooltip
-                          const originalValue = props.payload?.originalDebit ?? value;
-                          return originalValue.toLocaleString('en-US');
-                        }}
-                        labelFormatter={(label) => `Month: ${label}`}
-                        contentStyle={{ 
-                          borderRadius: '12px', 
-                          border: 'none', 
-                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                          padding: '12px',
-                          backgroundColor: 'white'
-                        }}
-                        cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
-                      />
-                      <Bar 
-                        dataKey="displayDebit" 
-                        name="Sales"
-                        radius={[10, 10, 0, 0]}
-                        barSize={58}
-                      >
-                        {monthlySalesTrendData.map((entry: any, index: number) => {
-                          const isPositive = (entry.originalDebit ?? entry.debit ?? 0) >= 0;
-                          return (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={isPositive ? "url(#colorSalesPositive)" : "url(#colorSalesNegative)"}
-                              stroke="none"
-                            />
-                          );
-                        })}
-                        <LabelList 
-                          dataKey="originalDebit" 
-                          position="top" 
-                          formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
-                          style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
-                          offset={10}
-                        />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Actions & Recent Notes */}
-            <div className="grid grid-cols-1 gap-6">
-               {/* Recent Notes Preview */}
-               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                  <h3 className="text-lg font-bold text-gray-800 mb-4 flex justify-between items-center">
-                    Recent Notes
-                    <button onClick={() => setActiveTab('notes')} className="text-sm text-blue-600 hover:underline">View All</button>
-                  </h3>
-                  <div className="space-y-4">
-                    {notes.slice(0, 3).map((note, i) => (
-                      <div key={i} className="border-l-4 border-blue-500 pl-4 py-1">
-                        <p className="text-sm text-gray-500 mb-1 flex justify-between">
-                          <span className="font-bold text-gray-700">{note.user}</span>
-                          <span>{new Date(note.timestamp || '').toLocaleDateString()}</span>
-                        </p>
-                        <div className="text-gray-800 line-clamp-2">
-                          {renderNoteWithLinks(note.content)}
+                      <div className="flex flex-col items-start flex-1 leading-tight text-left">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-2.5 h-2.5 rounded-full inline-block"
+                            style={{ backgroundColor: bucket.color }}
+                          ></span>
+                          <span className="text-sm font-semibold text-gray-900">{bucket.name}</span>
+                        </div>
+                        <div className="text-sm text-gray-700 font-semibold mt-1">
+                          {bucket.value.toLocaleString('en-US')}
                         </div>
                       </div>
-                    ))}
-                    {notes.length === 0 && <p className="text-gray-400 italic">No notes available.</p>}
-                  </div>
-               </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tab Content: Invoices */}
-      {activeTab === 'invoices' && (
-        <div>
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-              <thead className="bg-gray-100">
-                {invoiceTable.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const getWidth = () => {
-                        const columnId = header.column.id;
-                        if (columnId === 'select') return '5%';
-                        if (columnId === 'date') return '13%';
-                        if (columnId === 'type') return '10%';
-                        if (columnId === 'number') return '13%';
-                        if (columnId === 'debit') return '13%';
-                        if (columnId === 'credit') return '13%';
-                        if (columnId === 'netDebt') return '13%';
-                        if (columnId === 'matching') return '13%';
-                        if (columnId === 'residual') return '9%';
-                        return '13%';
-                      };
-                      return (
-                        <th
-                          key={header.id}
-                          className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
-                          style={{ width: getWidth() }}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {{
-                            asc: ' ↑',
-                            desc: ' ↓',
-                          }[header.column.getIsSorted() as string] ?? null}
-                        </th>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {invoiceTable.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-b hover:bg-gray-50">
-                    {row.getVisibleCells().map((cell) => {
-                      const getWidth = () => {
-                        const columnId = cell.column.id;
-                        if (columnId === 'select') return '5%';
-                        if (columnId === 'date') return '13%';
-                        if (columnId === 'type') return '10%';
-                        if (columnId === 'number') return '13%';
-                        if (columnId === 'debit') return '13%';
-                        if (columnId === 'credit') return '13%';
-                        if (columnId === 'netDebt') return '13%';
-                        if (columnId === 'matching') return '13%';
-                        if (columnId === 'residual') return '9%';
-                        return '13%';
-                      };
-                      return (
-                        <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '5%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>Total</td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
-                    {totalDebit.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
-                    {totalCredit.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
-                    <span className={totalNetDebt > 0 ? 'text-red-600' : totalNetDebt < 0 ? 'text-green-600' : ''}>
-                      {totalNetDebt.toLocaleString('en-US')}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '9%' }}></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
-            <div className="flex justify-between flex-1 sm:hidden">
-              <button
-                onClick={() => invoiceTable.previousPage()}
-                disabled={!invoiceTable.getCanPreviousPage()}
-                className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => invoiceTable.nextPage()}
-                disabled={!invoiceTable.getCanNextPage()}
-                className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
-            <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-700">
-                  Page <span className="font-medium">{invoiceTable.getState().pagination.pageIndex + 1}</span> of{' '}
-                  <span className="font-medium">{invoiceTable.getPageCount()}</span>
-                </span>
-                <select
-                  value={invoiceTable.getState().pagination.pageSize}
-                  onChange={e => {
-                    invoiceTable.setPageSize(Number(e.target.value))
-                  }}
-                  className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                >
-                  {[50, 100, 250, 500].map(pageSize => (
-                    <option key={pageSize} value={pageSize}>
-                      Show {pageSize}
-                    </option>
+                      <span
+                        className="px-3 py-1.5 rounded-full text-sm font-bold"
+                        style={{
+                          color: bucket.color,
+                          backgroundColor: `${bucket.color}1A`, // ~10% opacity
+                        }}
+                      >
+                        {bucket.percent.toFixed(1)}%
+                      </span>
+                    </div>
                   ))}
-                </select>
+                </div>
+              )}
+            </div>
+
+            {/* Monthly Payments Trend - Moved here */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Payments Trend</h3>
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={monthlyPaymentsTrendData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: '#6B7280' }}
+                      tickFormatter={(value) => `${value / 1000}k`}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <RechartsTooltip
+                      formatter={(value: number) => value.toLocaleString('en-US')}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                        padding: '12px'
+                      }}
+                      cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="credit"
+                      name=""
+                      stroke="#10B981"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#colorPayments)"
+                      activeDot={{ r: 6, strokeWidth: 0 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-              <div>
-                <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                  <button
-                    onClick={() => invoiceTable.setPageIndex(0)}
-                    disabled={!invoiceTable.getCanPreviousPage()}
-                    className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+            </div>
+          </div>
+
+          {/* Section 2: Sales & Performance */}
+          <div>
+            <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales & Performance</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Total Sales Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">🛒</span>
+                </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Sales</h3>
+                <p className="text-2xl font-bold mt-2 text-blue-600">
+                  {dashboardMetrics.totalSalesSum.toLocaleString('en-US')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Gross (SAL)</p>
+              </div>
+
+              {/* Total Returns Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">↩️</span>
+                </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Returns</h3>
+                <p className="text-2xl font-bold mt-2 text-red-500">
+                  {dashboardMetrics.totalReturnsSum.toLocaleString('en-US')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Returns (RSAL)</p>
+              </div>
+
+              {/* Net Sales Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">💵</span>
+                </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Sales</h3>
+                <p className="text-2xl font-bold mt-2 text-indigo-600">
+                  {dashboardMetrics.netSalesSum.toLocaleString('en-US')}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Sales - Returns</p>
+              </div>
+
+              {/* Avg Monthly Sales Card */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 p-4 opacity-10">
+                  <span className="text-6xl">📅</span>
+                </div>
+                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg. Monthly</h3>
+                <p className="text-2xl font-bold mt-2 text-purple-600">
+                  {dashboardMetrics.averageMonthlySales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">Net / Active Months</p>
+              </div>
+            </div>
+
+            {/* Monthly Sales Trend - Moved here */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Sales Trend</h3>
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={monthlySalesTrendData}
+                    margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+                    barCategoryGap="12%"
                   >
-                    <span className="sr-only">First</span>
-                    ⟪
-                  </button>
-                  <button
-                    onClick={() => invoiceTable.previousPage()}
-                    disabled={!invoiceTable.getCanPreviousPage()}
-                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <span className="sr-only">Previous</span>
-                    ⟨
-                  </button>
-                  <button
-                    onClick={() => invoiceTable.nextPage()}
-                    disabled={!invoiceTable.getCanNextPage()}
-                    className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <span className="sr-only">Next</span>
-                    ⟩
-                  </button>
-                  <button
-                    onClick={() => invoiceTable.setPageIndex(invoiceTable.getPageCount() - 1)}
-                    disabled={!invoiceTable.getCanNextPage()}
-                    className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    <span className="sr-only">Last</span>
-                    ⟫
-                  </button>
-                </nav>
+                    <defs>
+                      <linearGradient id="colorSalesPositive" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                        <stop offset="50%" stopColor="#34D399" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1} />
+                      </linearGradient>
+                      <linearGradient id="colorSalesNegative" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#EC4899" stopOpacity={1} />
+                        <stop offset="50%" stopColor="#F472B6" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1} />
+                      </linearGradient>
+                      <linearGradient id="barGlowPositive" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity="0.3" />
+                        <stop offset="50%" stopColor="#34D399" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#10B981" stopOpacity="0.3" />
+                      </linearGradient>
+                      <linearGradient id="barGlowNegative" x1="0" y1="0" x2="1" y2="0">
+                        <stop offset="0%" stopColor="#EC4899" stopOpacity="0.3" />
+                        <stop offset="50%" stopColor="#F472B6" stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#EC4899" stopOpacity="0.3" />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
+                    <XAxis
+                      dataKey="monthLabel"
+                      tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: '#6B7280' }}
+                      tickFormatter={(value) => `${value / 1000}k`}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <RechartsTooltip
+                      formatter={(value: number, name: string, props: any) => {
+                        // Always show the original value in tooltip
+                        const originalValue = props.payload?.originalDebit ?? value;
+                        return originalValue.toLocaleString('en-US');
+                      }}
+                      labelFormatter={(label) => `Month: ${label}`}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                        padding: '12px',
+                        backgroundColor: 'white'
+                      }}
+                      cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                    />
+                    <Bar
+                      dataKey="displayDebit"
+                      name="Sales"
+                      radius={[10, 10, 0, 0]}
+                      barSize={58}
+                    >
+                      {monthlySalesTrendData.map((entry: any, index: number) => {
+                        const isPositive = (entry.originalDebit ?? entry.debit ?? 0) >= 0;
+                        return (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={isPositive ? "url(#colorSalesPositive)" : "url(#colorSalesNegative)"}
+                            stroke="none"
+                          />
+                        );
+                      })}
+                      <LabelList
+                        dataKey="originalDebit"
+                        position="top"
+                        formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
+                        style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
+                        offset={10}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Actions & Recent Notes */}
+          <div className="grid grid-cols-1 gap-6">
+            {/* Recent Notes Preview */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
+              <h3 className="text-lg font-bold text-gray-800 mb-4 flex justify-between items-center">
+                Recent Notes
+                <button onClick={() => setActiveTab('notes')} className="text-sm text-blue-600 hover:underline">View All</button>
+              </h3>
+              <div className="space-y-4">
+                {notes.slice(0, 3).map((note, i) => (
+                  <div key={i} className="border-l-4 border-blue-500 pl-4 py-1">
+                    <p className="text-sm text-gray-500 mb-1 flex justify-between">
+                      <span className="font-bold text-gray-700">{note.user}</span>
+                      <span>{new Date(note.timestamp || '').toLocaleDateString()}</span>
+                    </p>
+                    <div className="text-gray-800 line-clamp-2">
+                      {renderNoteWithLinks(note.content)}
+                    </div>
+                  </div>
+                ))}
+                {notes.length === 0 && <p className="text-gray-400 italic">No notes available.</p>}
               </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Tab Content: Invoices */}
+      {activeTab === 'invoices' && (
+        <div>
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                <thead className="bg-gray-100">
+                  {invoiceTable.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        const getWidth = () => {
+                          const columnId = header.column.id;
+                          if (columnId === 'select') return '5%';
+                          if (columnId === 'date') return '13%';
+                          if (columnId === 'type') return '10%';
+                          if (columnId === 'number') return '13%';
+                          if (columnId === 'debit') return '13%';
+                          if (columnId === 'credit') return '13%';
+                          if (columnId === 'netDebt') return '13%';
+                          if (columnId === 'matching') return '13%';
+                          if (columnId === 'residual') return '9%';
+                          return '13%';
+                        };
+                        return (
+                          <th
+                            key={header.id}
+                            className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
+                            style={{ width: getWidth() }}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{
+                              asc: ' ↑',
+                              desc: ' ↓',
+                            }[header.column.getIsSorted() as string] ?? null}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {invoiceTable.getRowModel().rows.map((row) => (
+                    <tr key={row.id} className="border-b hover:bg-gray-50">
+                      {row.getVisibleCells().map((cell) => {
+                        const getWidth = () => {
+                          const columnId = cell.column.id;
+                          if (columnId === 'select') return '5%';
+                          if (columnId === 'date') return '13%';
+                          if (columnId === 'type') return '10%';
+                          if (columnId === 'number') return '13%';
+                          if (columnId === 'debit') return '13%';
+                          if (columnId === 'credit') return '13%';
+                          if (columnId === 'netDebt') return '13%';
+                          if (columnId === 'matching') return '13%';
+                          if (columnId === 'residual') return '9%';
+                          return '13%';
+                        };
+                        return (
+                          <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '5%' }}></td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>Total</td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                      {totalDebit.toLocaleString('en-US')}
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                      {totalCredit.toLocaleString('en-US')}
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                      <span className={totalNetDebt > 0 ? 'text-red-600' : totalNetDebt < 0 ? 'text-green-600' : ''}>
+                        {totalNetDebt.toLocaleString('en-US')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '9%' }}></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
+              <div className="flex justify-between flex-1 sm:hidden">
+                <button
+                  onClick={() => invoiceTable.previousPage()}
+                  disabled={!invoiceTable.getCanPreviousPage()}
+                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => invoiceTable.nextPage()}
+                  disabled={!invoiceTable.getCanNextPage()}
+                  className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm text-gray-700">
+                    Page <span className="font-medium">{invoiceTable.getState().pagination.pageIndex + 1}</span> of{' '}
+                    <span className="font-medium">{invoiceTable.getPageCount()}</span>
+                  </span>
+                  <select
+                    value={invoiceTable.getState().pagination.pageSize}
+                    onChange={e => {
+                      invoiceTable.setPageSize(Number(e.target.value))
+                    }}
+                    className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    {[50, 100, 250, 500].map(pageSize => (
+                      <option key={pageSize} value={pageSize}>
+                        Show {pageSize}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                    <button
+                      onClick={() => invoiceTable.setPageIndex(0)}
+                      disabled={!invoiceTable.getCanPreviousPage()}
+                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">First</span>
+                      ⟪
+                    </button>
+                    <button
+                      onClick={() => invoiceTable.previousPage()}
+                      disabled={!invoiceTable.getCanPreviousPage()}
+                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Previous</span>
+                      ⟨
+                    </button>
+                    <button
+                      onClick={() => invoiceTable.nextPage()}
+                      disabled={!invoiceTable.getCanNextPage()}
+                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Next</span>
+                      ⟩
+                    </button>
+                    <button
+                      onClick={() => invoiceTable.setPageIndex(invoiceTable.getPageCount() - 1)}
+                      disabled={!invoiceTable.getCanNextPage()}
+                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      <span className="sr-only">Last</span>
+                      ⟫
+                    </button>
+                  </nav>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Tab Content: Overdue */}
@@ -3423,11 +3563,11 @@ ${debtSectionHtml}
                 </thead>
                 <tbody>
                   {overdueTable.getRowModel().rows.length === 0 ? (
-                     <tr>
-                       <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                         No overdue or open invoices found matching criteria.
-                       </td>
-                     </tr>
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                        No overdue or open invoices found matching criteria.
+                      </td>
+                    </tr>
                   ) : (
                     overdueTable.getRowModel().rows.map((row) => (
                       <tr key={row.id} className="border-b hover:bg-gray-50">
@@ -3476,83 +3616,83 @@ ${debtSectionHtml}
                 </tbody>
               </table>
             </div>
-          {overdueTable.getRowModel().rows.length > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
-              <div className="flex justify-between flex-1 sm:hidden">
-                <button
-                  onClick={() => overdueTable.previousPage()}
-                  disabled={!overdueTable.getCanPreviousPage()}
-                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => overdueTable.nextPage()}
-                  disabled={!overdueTable.getCanNextPage()}
-                  className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-700">
-                    Page <span className="font-medium">{overdueTable.getState().pagination.pageIndex + 1}</span> of{' '}
-                    <span className="font-medium">{overdueTable.getPageCount()}</span>
-                  </span>
-                  <select
-                    value={overdueTable.getState().pagination.pageSize}
-                    onChange={e => {
-                      overdueTable.setPageSize(Number(e.target.value))
-                    }}
-                    className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+            {overdueTable.getRowModel().rows.length > 0 && (
+              <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
+                <div className="flex justify-between flex-1 sm:hidden">
+                  <button
+                    onClick={() => overdueTable.previousPage()}
+                    disabled={!overdueTable.getCanPreviousPage()}
+                    className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                   >
-                    {[50, 100, 250, 500].map(pageSize => (
-                      <option key={pageSize} value={pageSize}>
-                        Show {pageSize}
-                      </option>
-                    ))}
-                  </select>
+                    Previous
+                  </button>
+                  <button
+                    onClick={() => overdueTable.nextPage()}
+                    disabled={!overdueTable.getCanNextPage()}
+                    className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                  >
+                    Next
+                  </button>
                 </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                    <button
-                      onClick={() => overdueTable.setPageIndex(0)}
-                      disabled={!overdueTable.getCanPreviousPage()}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm text-gray-700">
+                      Page <span className="font-medium">{overdueTable.getState().pagination.pageIndex + 1}</span> of{' '}
+                      <span className="font-medium">{overdueTable.getPageCount()}</span>
+                    </span>
+                    <select
+                      value={overdueTable.getState().pagination.pageSize}
+                      onChange={e => {
+                        overdueTable.setPageSize(Number(e.target.value))
+                      }}
+                      className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     >
-                      <span className="sr-only">First</span>
-                      «
-                    </button>
-                    <button
-                      onClick={() => overdueTable.previousPage()}
-                      disabled={!overdueTable.getCanPreviousPage()}
-                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Previous</span>
-                      ‹
-                    </button>
-                    <button
-                      onClick={() => overdueTable.nextPage()}
-                      disabled={!overdueTable.getCanNextPage()}
-                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Next</span>
-                      ›
-                    </button>
-                    <button
-                      onClick={() => overdueTable.setPageIndex(overdueTable.getPageCount() - 1)}
-                      disabled={!overdueTable.getCanNextPage()}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Last</span>
-                      »
-                    </button>
-                  </nav>
+                      {[50, 100, 250, 500].map(pageSize => (
+                        <option key={pageSize} value={pageSize}>
+                          Show {pageSize}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                      <button
+                        onClick={() => overdueTable.setPageIndex(0)}
+                        disabled={!overdueTable.getCanPreviousPage()}
+                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">First</span>
+                        «
+                      </button>
+                      <button
+                        onClick={() => overdueTable.previousPage()}
+                        disabled={!overdueTable.getCanPreviousPage()}
+                        className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Previous</span>
+                        ‹
+                      </button>
+                      <button
+                        onClick={() => overdueTable.nextPage()}
+                        disabled={!overdueTable.getCanNextPage()}
+                        className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Next</span>
+                        ›
+                      </button>
+                      <button
+                        onClick={() => overdueTable.setPageIndex(overdueTable.getPageCount() - 1)}
+                        disabled={!overdueTable.getCanNextPage()}
+                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        <span className="sr-only">Last</span>
+                        »
+                      </button>
+                    </nav>
+                  </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
           </div>
         </div>
       )}
@@ -3560,81 +3700,81 @@ ${debtSectionHtml}
       {/* Tab Content: Monthly Debt */}
       {activeTab === 'monthly' && (
         <div>
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-              <thead className="bg-gray-100">
-                {monthlyTable.getHeaderGroups().map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => {
-                      const getWidth = () => {
-                        const columnId = header.column.id;
-                        if (columnId === 'year') return '20%';
-                        if (columnId === 'month') return '20%';
-                        if (columnId === 'debit') return '20%';
-                        if (columnId === 'credit') return '20%';
-                        if (columnId === 'netDebt') return '20%';
-                        return '20%';
-                      };
-                      return (
-                        <th
-                          key={header.id}
-                          className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
-                          style={{ width: getWidth() }}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          {{
-                            asc: ' ↑',
-                            desc: ' ↓',
-                          }[header.column.getIsSorted() as string] ?? null}
-                        </th>
-                      );
-                    })}
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                <thead className="bg-gray-100">
+                  {monthlyTable.getHeaderGroups().map((headerGroup) => (
+                    <tr key={headerGroup.id}>
+                      {headerGroup.headers.map((header) => {
+                        const getWidth = () => {
+                          const columnId = header.column.id;
+                          if (columnId === 'year') return '20%';
+                          if (columnId === 'month') return '20%';
+                          if (columnId === 'debit') return '20%';
+                          if (columnId === 'credit') return '20%';
+                          if (columnId === 'netDebt') return '20%';
+                          return '20%';
+                        };
+                        return (
+                          <th
+                            key={header.id}
+                            className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
+                            style={{ width: getWidth() }}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            {{
+                              asc: ' ↑',
+                              desc: ' ↓',
+                            }[header.column.getIsSorted() as string] ?? null}
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {monthlyTable.getRowModel().rows.map((row) => (
+                    <tr key={row.id} className="border-b hover:bg-gray-50">
+                      {row.getVisibleCells().map((cell) => {
+                        const getWidth = () => {
+                          const columnId = cell.column.id;
+                          if (columnId === 'year') return '20%';
+                          if (columnId === 'month') return '20%';
+                          if (columnId === 'debit') return '20%';
+                          if (columnId === 'credit') return '20%';
+                          if (columnId === 'netDebt') return '20%';
+                          return '20%';
+                        };
+                        return (
+                          <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>Total</td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                      {monthlyTotalDebit.toLocaleString('en-US')}
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                      {monthlyTotalCredit.toLocaleString('en-US')}
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
+                      <span className={monthlyTotalNetDebt > 0 ? 'text-red-600' : monthlyTotalNetDebt < 0 ? 'text-green-600' : ''}>
+                        {monthlyTotalNetDebt.toLocaleString('en-US')}
+                      </span>
+                    </td>
                   </tr>
-                ))}
-              </thead>
-              <tbody>
-                {monthlyTable.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-b hover:bg-gray-50">
-                    {row.getVisibleCells().map((cell) => {
-                      const getWidth = () => {
-                        const columnId = cell.column.id;
-                        if (columnId === 'year') return '20%';
-                        if (columnId === 'month') return '20%';
-                        if (columnId === 'debit') return '20%';
-                        if (columnId === 'credit') return '20%';
-                        if (columnId === 'netDebt') return '20%';
-                        return '20%';
-                      };
-                      return (
-                        <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-                <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>Total</td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                    {monthlyTotalDebit.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                    {monthlyTotalCredit.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                    <span className={monthlyTotalNetDebt > 0 ? 'text-red-600' : monthlyTotalNetDebt < 0 ? 'text-green-600' : ''}>
-                      {monthlyTotalNetDebt.toLocaleString('en-US')}
-                    </span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
-      </div>
       )}
 
       {/* Tab Content: Ages */}
@@ -3750,36 +3890,36 @@ ${debtSectionHtml}
                           )}
                         </div>
                         <div className="flex items-center gap-4">
-                           {/* Solved Status */}
-                           {note.isSolved ? (
-                              <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded text-sm font-medium border border-green-200">
-                                ✓ Solved
-                              </span>
-                           ) : (
-                              <span className="flex items-center gap-1 text-yellow-600 bg-yellow-50 px-2 py-1 rounded text-sm font-medium border border-yellow-200">
-                                ⏳ Pending
-                              </span>
-                           )}
+                          {/* Solved Status */}
+                          {note.isSolved ? (
+                            <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded text-sm font-medium border border-green-200">
+                              ✓ Solved
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 text-yellow-600 bg-yellow-50 px-2 py-1 rounded text-sm font-medium border border-yellow-200">
+                              ⏳ Pending
+                            </span>
+                          )}
 
-                        {canManageNotes && editingNoteId !== note.rowIndex && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingNoteId(note.rowIndex);
-                                setEditingNoteContent(note.content);
-                              }}
-                              className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteNote(note.rowIndex)}
-                              className="text-red-600 hover:text-red-800 text-sm font-medium"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        )}
+                          {canManageNotes && editingNoteId !== note.rowIndex && (
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingNoteId(note.rowIndex);
+                                  setEditingNoteContent(note.content);
+                                }}
+                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteNote(note.rowIndex)}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
 
@@ -3804,7 +3944,7 @@ ${debtSectionHtml}
                               />
                               <span className="font-medium">Mark as Solved</span>
                             </label>
-                            
+
                             <div className="flex gap-2">
                               <button
                                 onClick={() => {
@@ -3827,20 +3967,20 @@ ${debtSectionHtml}
                         </div>
                       ) : (
                         <div className="flex justify-between items-start gap-4">
-                           <div className="text-gray-700 whitespace-pre-wrap text-lg flex-1">
-                             {renderNoteWithLinks(note.content)}
-                           </div>
-                           {/* Quick Toggle for Solved Status (even if not editing content) */}
-                           {canManageNotes && (
-                             <label className="flex items-center gap-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" title="Toggle Status">
-                                <input
-                                   type="checkbox"
-                                   checked={note.isSolved || false}
-                                   onChange={(e) => handleUpdateNote(note.rowIndex, note.content, e.target.checked)}
-                                   className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-                                />
-                             </label>
-                           )}
+                          <div className="text-gray-700 whitespace-pre-wrap text-lg flex-1">
+                            {renderNoteWithLinks(note.content)}
+                          </div>
+                          {/* Quick Toggle for Solved Status (even if not editing content) */}
+                          {canManageNotes && (
+                            <label className="flex items-center gap-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" title="Toggle Status">
+                              <input
+                                type="checkbox"
+                                checked={note.isSolved || false}
+                                onChange={(e) => handleUpdateNote(note.rowIndex, note.content, e.target.checked)}
+                                className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                              />
+                            </label>
+                          )}
                         </div>
                       )}
                     </div>

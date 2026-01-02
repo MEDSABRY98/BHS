@@ -28,7 +28,7 @@ export default function SalesSidebar({ activeTab, onTabChange, onLogout, current
   return (
     <div className="w-64 bg-gray-100 border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col">
       <div className="p-6 border-b border-gray-200">
-        <div className="flex items-center justify-center gap-2 mb-3">
+        <div className="flex flex-col items-center justify-center gap-2 mb-3">
           <button
             onClick={() => window.location.href = '/'}
             className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
@@ -46,17 +46,16 @@ export default function SalesSidebar({ activeTab, onTabChange, onLogout, current
           </div>
         )}
       </div>
-      
+
       <nav className="p-4 flex-1 overflow-y-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${
-              activeTab === tab.id
+            className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${activeTab === tab.id
                 ? 'bg-green-600 text-white shadow-md'
                 : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
-            }`}
+              }`}
           >
             <span className="mr-3 text-xl">{tab.icon}</span>
             <span className="font-medium">{tab.label}</span>

@@ -217,13 +217,13 @@ export default function CashReceiptTab() {
       {/* Sidebar Navigation */}
       <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 shadow-sm no-print">
         <div className="p-6 border-b border-gray-100">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-center justify-center gap-2">
             <button
               onClick={handleBack}
-              className="p-2 -ml-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-all group"
+              className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-all group"
               title="Back to Home"
             >
-              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
             </button>
             <div className="flex items-center gap-3 text-black">
               <div className="p-2 bg-black rounded-lg">
