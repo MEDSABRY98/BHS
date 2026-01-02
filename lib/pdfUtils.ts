@@ -19,14 +19,14 @@ async function addArabicFont(doc: any): Promise<void> {
   try {
     // Load Amiri Arabic font from GitHub raw content (reliable CORS-wise usually)
     const fontUrl = 'https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf';
-    
+
     const response = await fetch(fontUrl);
     if (!response.ok) {
       throw new Error('Failed to fetch Arabic font');
     }
-    
+
     const fontArrayBuffer = await response.arrayBuffer();
-    
+
     // Convert to Base64
     // In browser environment, we can use btoa with Uint8Array
     let binary = '';
@@ -36,12 +36,12 @@ async function addArabicFont(doc: any): Promise<void> {
       binary += String.fromCharCode(bytes[i]);
     }
     const fontBase64 = btoa(binary);
-    
+
     // Add font to jsPDF
     doc.addFileToVFS('Amiri-Regular.ttf', fontBase64);
     doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
     doc.setFont('Amiri');
-    
+
     console.log('Arabic font (Amiri) loaded successfully');
   } catch (error) {
     console.warn('Failed to load Arabic font:', error);
@@ -63,7 +63,7 @@ export async function generateAccountStatementPDF(
   // 1. Dynamic imports inside the function to ensure they run on the client side
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
-  
+
   // 2. Import autoTable module
   const autoTableModule = await import('jspdf-autotable');
   // Try to get the function from default export or the module itself
@@ -71,20 +71,20 @@ export async function generateAccountStatementPDF(
 
   // 3. Create document
   const doc = new jsPDF('l', 'mm', 'a4');
-  
+
   // 3.5. Add Arabic font support
   await addArabicFont(doc);
-  
+
   // 4. Explicitly apply the plugin if doc.autoTable is missing (Common issue fix)
   if (typeof (doc as any).autoTable !== 'function') {
-     // Sometimes autotable needs to be registered manually if side-effect didn't work
-     // In newer versions, we might just use autoTable(doc, options) directly
+    // Sometimes autotable needs to be registered manually if side-effect didn't work
+    // In newer versions, we might just use autoTable(doc, options) directly
   }
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 15;
   let yPosition = 20;
-  
+
   // Calculate total table width
   const tableWidth = 40 + 35 + 65 + 40 + 40 + 40; // Date + Type + Number + Debit + Credit + Net = 260mm
   // Calculate left margin to center the table
@@ -216,11 +216,11 @@ export async function generateAccountStatementPDF(
     // Fallback: Use the imported function directly (module style)
     // Depending on version, it might be autoTable(doc, options)
     if (typeof autoTable === 'function') {
-        // Cast tableOptions to any to avoid strict type checking issues with 'theme'
-        autoTable(doc, tableOptions as any);
+      // Cast tableOptions to any to avoid strict type checking issues with 'theme'
+      autoTable(doc, tableOptions as any);
     } else {
-        console.error('autoTable is not a function', autoTable);
-        throw new Error('Failed to load autoTable plugin');
+      console.error('autoTable is not a function', autoTable);
+      throw new Error('Failed to load autoTable plugin');
     }
   }
 
@@ -231,7 +231,16 @@ export async function generateAccountStatementPDF(
   const totalBoxWidth = 50;
   const totalBoxHeight = 15;
   const totalBoxX = tableLeftMargin + tableWidth - totalBoxWidth; // Aligned with table right edge
-  const totalBoxY = finalY + 5;
+
+  // Check if we need a new page
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const bottomMargin = 20;
+  let totalBoxY = finalY + 5;
+
+  if (totalBoxY + totalBoxHeight > pageHeight - bottomMargin) {
+    doc.addPage();
+    totalBoxY = 20; // Start at top of new page
+  }
 
   // Draw light gray box (without border)
   doc.setFillColor(240, 240, 240); // Light gray background
@@ -247,13 +256,23 @@ export async function generateAccountStatementPDF(
   doc.setFontSize(14);
   doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
 
+  // Add Page Numbers
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Page ${i} of ${totalPages}`, margin, doc.internal.pageSize.getHeight() - 10);
+  }
+
   // Save PDF
   const fileName = `${customerName}.pdf`;
-  
+
   if (returnBlob) {
     return doc.output('blob');
   }
-  
+
   doc.save(fileName);
 }
 
@@ -270,7 +289,7 @@ export async function generateWaterDeliveryNotePDF(
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
-  
+
   const autoTableModule = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
 
@@ -376,31 +395,31 @@ export async function generateWaterDeliveryNotePDF(
     doc.addPage();
     yPosition = 20;
   }
-  
+
   // Signature names
   const signatureNames = ['MONAI', 'OMAR', 'SALAM'];
   const signatureCount = signatureNames.length;
   const signatureBoxWidth = (pageWidth - 2 * margin) / signatureCount;
   const signatureBoxHeight = 30;
   const signatureY = yPosition;
-  
+
   signatureNames.forEach((name, index) => {
     const xPos = margin + (index * signatureBoxWidth);
-    
+
     // Draw box
     doc.setDrawColor(0, 0, 0);
     doc.setLineWidth(0.5);
     doc.rect(xPos + 5, signatureY, signatureBoxWidth - 10, signatureBoxHeight);
-    
+
     // Add name
     doc.setFontSize(10);
     doc.setFont('helvetica', 'bold');
     doc.text(name, xPos + (signatureBoxWidth / 2), signatureY + 8, { align: 'center' });
-    
+
     // Add signature line
     doc.setLineWidth(0.3);
     doc.line(xPos + 15, signatureY + 20, xPos + signatureBoxWidth - 15, signatureY + 20);
-    
+
     // Add "Signature" label
     doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
@@ -429,22 +448,22 @@ export async function generateMonthlySeparatedPDF(
   // 1. Dynamic imports
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
-  
+
   const autoTableModule = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
 
   // 2. Group invoices by Month-Year (YYYY-MM)
   const invoicesByMonth: Record<string, typeof invoices> = {};
-  
+
   invoices.forEach((inv) => {
     if (!inv.date) return;
     const date = new Date(inv.date);
     if (isNaN(date.getTime())) return;
-    
+
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const key = `${year}-${month}`;
-    
+
     if (!invoicesByMonth[key]) {
       invoicesByMonth[key] = [];
     }
@@ -462,14 +481,14 @@ export async function generateMonthlySeparatedPDF(
   // 4. Create Doc
   const doc = new jsPDF('l', 'mm', 'a4');
   await addArabicFont(doc);
-  
+
   const pageWidth = doc.internal.pageSize.getWidth();
-  
+
   // Loop through each month
   for (let i = 0; i < sortedKeys.length; i++) {
     const key = sortedKeys[i];
     const monthInvoices = invoicesByMonth[key];
-    
+
     // Determine Month Label (e.g. "January 2025")
     const [yearStr, monthStr] = key.split('-');
     const dateObj = new Date(parseInt(yearStr), parseInt(monthStr) - 1);
@@ -479,10 +498,10 @@ export async function generateMonthlySeparatedPDF(
     if (i > 0) {
       doc.addPage();
     }
-    
+
     const margin = 15;
     let yPosition = 20;
-    
+
     // Calculate total table width
     const tableWidth = 40 + 35 + 65 + 40 + 40 + 40;
     const tableLeftMargin = (pageWidth - tableWidth) / 2;
@@ -636,7 +655,7 @@ export async function generateDownloadFormPDF(
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
-  
+
   const autoTableModule = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
 
@@ -665,14 +684,14 @@ export async function generateDownloadFormPDF(
   const maxWidth = pageWidth - 40; // Leave some margin
   let fontSize = 16;
   let textWidth = doc.getTextWidth(customerName);
-  
+
   // Reduce font size if customer name is too long to fit on one line
   while (textWidth > maxWidth && fontSize > 10) {
     fontSize -= 0.5;
     doc.setFontSize(fontSize);
     textWidth = doc.getTextWidth(customerName);
   }
-  
+
   doc.setFontSize(fontSize);
   doc.text(customerName, pageWidth / 2, yPosition, { align: 'center', maxWidth: maxWidth });
   yPosition += 4.6875; // Increased by 25% (from 3.75 to 4.6875)
@@ -680,10 +699,10 @@ export async function generateDownloadFormPDF(
   // Date (aligned with table start, smaller)
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  const dateStr = new Date().toLocaleDateString('en-US', { 
-    year: 'numeric', 
-    month: 'long', 
-    day: 'numeric' 
+  const dateStr = new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
   });
   doc.text(`Date: ${dateStr}`, tableLeftMargin, yPosition, { align: 'left' });
   yPosition += 3; // Reduced by 75% (from 12 to 3)
