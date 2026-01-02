@@ -30,7 +30,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
-  
+
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
@@ -98,19 +98,19 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         try {
           const itemDate = new Date(item.invoiceDate);
           if (isNaN(itemDate.getTime())) return false;
-          
+
           if (dateFrom) {
             const fromDate = new Date(dateFrom);
             fromDate.setHours(0, 0, 0, 0);
             if (itemDate < fromDate) return false;
           }
-          
+
           if (dateTo) {
             const toDate = new Date(dateTo);
             toDate.setHours(23, 59, 59, 999);
             if (itemDate > toDate) return false;
           }
-          
+
           return true;
         } catch (e) {
           return false;
@@ -160,7 +160,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     // Calculate monthly averages
     const monthsSet = new Set<string>();
     const monthlyData = new Map<string, { amount: number; qty: number }>();
-    
+
     filteredData.forEach(item => {
       if (item.invoiceDate) {
         try {
@@ -168,7 +168,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
           if (!isNaN(date.getTime())) {
             const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
             monthsSet.add(monthKey);
-            
+
             const existing = monthlyData.get(monthKey) || { amount: 0, qty: 0 };
             existing.amount += item.amount;
             existing.qty += item.qty;
@@ -232,16 +232,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
   // Monthly sales data for charts - if filters are applied, show filtered data, otherwise show last 12 months
   const monthlySales = useMemo(() => {
     const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
-    
+
     // Check if any filters are applied
     const hasFilters = filterYear.trim() || filterMonth.trim() || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep;
-    
+
     // Process data to get monthly totals
     const dataToProcess = hasFilters ? filteredData : data;
-    
+
     dataToProcess.forEach(item => {
       if (!item.invoiceDate) return;
-      
+
       try {
         const date = new Date(item.invoiceDate);
         if (isNaN(date.getTime())) return;
@@ -249,7 +249,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         const year = date.getFullYear();
         const month = date.getMonth();
         const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-        
+
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
 
@@ -272,7 +272,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     // Find the latest month in the data
     const allMonths = Array.from(monthMap.values());
     if (allMonths.length === 0) return [];
-    
+
     const latestMonth = allMonths.reduce((latest, current) => {
       return current.monthKey > latest.monthKey ? current : latest;
     });
@@ -280,7 +280,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     // Calculate the last 12 months from the latest month
     const last12MonthsKeys = new Set<string>();
     const [latestYear, latestMonthNum] = latestMonth.monthKey.split('-').map(Number);
-    
+
     for (let i = 0; i < 12; i++) {
       const date = new Date(latestYear, latestMonthNum - 1 - i, 1);
       const year = date.getFullYear();
@@ -292,14 +292,14 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     // Create array with all last 12 months, filling missing months with zeros
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const result: Array<{ month: string; monthKey: string; amount: number; qty: number }> = [];
-    
+
     for (let i = 11; i >= 0; i--) {
       const date = new Date(latestYear, latestMonthNum - 1 - i, 1);
       const year = date.getFullYear();
       const month = date.getMonth() + 1;
       const monthKey = `${year}-${String(month).padStart(2, '0')}`;
       const monthLabel = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
-      
+
       const existing = monthMap.get(monthKey);
       result.push({
         month: monthLabel,
@@ -316,7 +316,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         return a.monthKey.localeCompare(b.monthKey);
       });
     }
-    
+
     return result;
   }, [data, filteredData, filterYear, filterMonth, dateFrom, dateTo]);
 
@@ -327,11 +327,11 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
       // Calculate difference from previous month for amount
       const previousAmount = index > 0 ? monthlySales[index - 1].amount : item.amount;
       const amountDiff = item.amount - previousAmount;
-      
+
       // Calculate difference from previous month for quantity
       const previousQty = index > 0 ? monthlySales[index - 1].qty : item.qty;
       const qtyDiff = item.qty - previousQty;
-      
+
       return {
         month: item.month,
         amount: item.amount,
@@ -345,7 +345,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         isMaxMonth: false,
       };
     });
-    
+
     // Find max month by amount (highest positive amount, or least negative if all negative)
     if (data.length > 0) {
       const maxAmount = Math.max(...data.map(d => d.amount));
@@ -353,7 +353,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         item.isMaxMonth = item.amount === maxAmount;
       });
     }
-    
+
     return data;
   }, [monthlySales]);
 
@@ -361,10 +361,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
   const monthlyTableData = useMemo(() => {
     // Get all months from filtered data (not just last 12)
     const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
-    
+
     filteredData.forEach(item => {
       if (!item.invoiceDate) return;
-      
+
       try {
         const date = new Date(item.invoiceDate);
         if (isNaN(date.getTime())) return;
@@ -372,7 +372,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         const year = date.getFullYear();
         const month = date.getMonth();
         const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-        
+
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
 
@@ -394,14 +394,14 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
 
     // Sort from newest to oldest (descending by monthKey)
     const sorted = Array.from(monthMap.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-    
+
     return sorted.map((item, index) => {
       // Get previous month for comparison
       const previousMonth = index < sorted.length - 1 ? sorted[index + 1] : null;
-      
+
       const amountDiff = previousMonth ? item.amount - previousMonth.amount : 0;
       const qtyDiff = previousMonth ? item.qty - previousMonth.qty : 0;
-      
+
       return {
         month: item.month,
         monthKey: item.monthKey,
@@ -542,19 +542,17 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'area'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
                     {filterArea || 'All Areas'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'area' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'area' && (
@@ -564,11 +562,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         setFilterArea('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterArea === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Areas
                     </div>
@@ -579,11 +576,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           setFilterArea(area);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterArea === area
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {area}
                       </div>
@@ -603,19 +599,17 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'merchandiser'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
                     {filterMerchandiser || 'All Merchandisers'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'merchandiser' && (
@@ -625,11 +619,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         setFilterMerchandiser('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterMerchandiser === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Merchandisers
                     </div>
@@ -640,11 +633,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           setFilterMerchandiser(merchandiser);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterMerchandiser === merchandiser
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {merchandiser}
                       </div>
@@ -664,19 +656,17 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'salesrep'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
                     {filterSalesRep || 'All Sales Reps'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'salesrep' && (
@@ -686,11 +676,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         setFilterSalesRep('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterSalesRep === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Sales Reps
                     </div>
@@ -701,11 +690,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           setFilterSalesRep(salesRep);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterSalesRep === salesRep
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {salesRep}
                       </div>
@@ -744,9 +732,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Total Sales Amount</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {metrics.totalAmount.toLocaleString('en-US', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
+                  {metrics.totalAmount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
                   })}
                 </p>
               </div>
@@ -761,9 +749,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Avg Monthly Amount</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {metrics.avgMonthlyAmount.toLocaleString('en-US', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
+                  {metrics.avgMonthlyAmount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
                   })}
                 </p>
               </div>
@@ -778,9 +766,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Total Quantity</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {metrics.totalQty.toLocaleString('en-US', { 
-                    minimumFractionDigits: 0, 
-                    maximumFractionDigits: 0 
+                  {metrics.totalQty.toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
                   })}
                 </p>
               </div>
@@ -795,9 +783,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Avg Monthly Quantity</p>
                 <p className="text-2xl font-bold text-gray-800">
-                  {metrics.avgMonthlyQty.toLocaleString('en-US', { 
-                    minimumFractionDigits: 2, 
-                    maximumFractionDigits: 2 
+                  {metrics.avgMonthlyQty.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
                   })}
                 </p>
               </div>
@@ -867,10 +855,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
                           const isNegative = value < 0;
                           return (
-                            <div 
-                              key={index} 
+                            <div
+                              key={index}
                               className="absolute text-base font-bold text-center"
-                              style={{ 
+                              style={{
                                 left: `${xPercent}%`,
                                 transform: 'translateX(-50%)',
                                 top: 0,
@@ -888,19 +876,19 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                     </div>
                   </div>
                   <ResponsiveContainer width="100%" height={350}>
-                    <LineChart 
+                    <LineChart
                       data={chartData}
                       margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                      <XAxis 
-                        dataKey="month" 
+                      <XAxis
+                        dataKey="month"
                         stroke="#6b7280"
                         style={{ fontSize: '16px', fontWeight: 700 }}
                         tickLine={false}
                         axisLine={false}
                       />
-                      <YAxis 
+                      <YAxis
                         stroke="#9ca3af"
                         style={{ fontSize: '11px' }}
                         tickFormatter={() => ''}
@@ -909,9 +897,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         domain={['auto', 'auto']}
                         hide={true}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#ffffff', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
                           border: 'none',
                           borderRadius: '12px',
                           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
@@ -919,7 +907,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         }}
                         formatter={(value: number, name: string, props: any) => {
                           const isNegative = value < 0;
-                          const displayName = name === 'amountDiff' ? 'Difference' : 'Amount';
+                          const displayName = name === 'Difference from Previous Month' || name === 'amountDiff' ? 'DIFF' : 'Amount';
                           return [
                             <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
                               {value.toLocaleString('en-US', {
@@ -930,16 +918,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                             displayName
                           ];
                         }}
-                        labelStyle={{ 
+                        labelStyle={{
                           color: '#374151',
                           fontWeight: 600,
                           marginBottom: '8px'
                         }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="amount" 
-                        stroke="#10b981" 
+                      <Line
+                        type="monotone"
+                        dataKey="amount"
+                        stroke="#10b981"
                         strokeWidth={3}
                         name="Amount"
                         style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
@@ -949,16 +937,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           const isMaxMonth = payload?.isMaxMonth;
                           const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
                           return (
-                            <circle 
-                              cx={cx} 
-                              cy={cy} 
-                              r={radius} 
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={radius}
                               fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
                               stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
                               strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                              style={{ 
-                                filter: isMaxMonth 
-                                  ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))' 
+                              style={{
+                                filter: isMaxMonth
+                                  ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
                                   : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
                               }}
                             />
@@ -966,10 +954,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         }}
                         activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="amountDiff" 
-                        stroke="#10b981" 
+                      <Line
+                        type="monotone"
+                        dataKey="amountDiff"
+                        stroke="#10b981"
                         strokeWidth={2}
                         strokeDasharray="5 5"
                         name="Difference from Previous Month"
@@ -977,16 +965,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           const { cx, cy, payload } = props;
                           const isNegative = payload?.isNegativeAmountDiff;
                           return (
-                            <circle 
-                              cx={cx} 
-                              cy={cy} 
-                              r={4} 
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={4}
                               fill={isNegative ? "#ef4444" : "#10b981"}
                               stroke={isNegative ? "#dc2626" : "#059669"}
                               strokeWidth={isNegative ? 2 : 0}
-                              style={{ 
-                                filter: isNegative 
-                                  ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' 
+                              style={{
+                                filter: isNegative
+                                  ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
                                   : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
                               }}
                             />
@@ -1029,10 +1017,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
                           const isNegative = value < 0;
                           return (
-                            <div 
-                              key={index} 
+                            <div
+                              key={index}
                               className="absolute text-base font-bold text-center"
-                              style={{ 
+                              style={{
                                 left: `${xPercent}%`,
                                 transform: 'translateX(-50%)',
                                 top: 0,
@@ -1050,19 +1038,19 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                     </div>
                   </div>
                   <ResponsiveContainer width="100%" height={350}>
-                    <LineChart 
+                    <LineChart
                       data={chartData}
                       margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                      <XAxis 
-                        dataKey="month" 
+                      <XAxis
+                        dataKey="month"
                         stroke="#6b7280"
                         style={{ fontSize: '16px', fontWeight: 700 }}
                         tickLine={false}
                         axisLine={false}
                       />
-                      <YAxis 
+                      <YAxis
                         stroke="#9ca3af"
                         style={{ fontSize: '11px' }}
                         tickFormatter={() => ''}
@@ -1071,9 +1059,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         domain={['auto', 'auto']}
                         hide={true}
                       />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#ffffff', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#ffffff',
                           border: 'none',
                           borderRadius: '12px',
                           boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
@@ -1081,7 +1069,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         }}
                         formatter={(value: number, name: string, props: any) => {
                           const isNegative = value < 0;
-                          const displayName = name === 'qtyDiff' ? 'Difference' : 'Quantity';
+                          const displayName = name === 'Difference from Previous Month' || name === 'qtyDiff' ? 'DIFF' : 'Quantity';
                           return [
                             <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
                               {value.toLocaleString('en-US', {
@@ -1092,16 +1080,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                             displayName
                           ];
                         }}
-                        labelStyle={{ 
+                        labelStyle={{
                           color: '#374151',
                           fontWeight: 600,
                           marginBottom: '8px'
                         }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="qty" 
-                        stroke="#3b82f6" 
+                      <Line
+                        type="monotone"
+                        dataKey="qty"
+                        stroke="#3b82f6"
                         strokeWidth={3}
                         style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
                         dot={(props: any) => {
@@ -1110,16 +1098,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           const isMaxMonth = payload?.isMaxMonth;
                           const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
                           return (
-                            <circle 
-                              cx={cx} 
-                              cy={cy} 
-                              r={radius} 
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={radius}
                               fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
                               stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
                               strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                              style={{ 
-                                filter: isMaxMonth 
-                                  ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))' 
+                              style={{
+                                filter: isMaxMonth
+                                  ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
                                   : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
                               }}
                             />
@@ -1127,10 +1115,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         }}
                         activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
                       />
-                      <Line 
-                        type="monotone" 
-                        dataKey="qtyDiff" 
-                        stroke="#10b981" 
+                      <Line
+                        type="monotone"
+                        dataKey="qtyDiff"
+                        stroke="#10b981"
                         strokeWidth={2}
                         strokeDasharray="5 5"
                         name="Difference from Previous Month"
@@ -1138,16 +1126,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           const { cx, cy, payload } = props;
                           const isNegative = payload?.isNegativeQtyDiff;
                           return (
-                            <circle 
-                              cx={cx} 
-                              cy={cy} 
-                              r={4} 
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={4}
                               fill={isNegative ? "#ef4444" : "#10b981"}
                               stroke={isNegative ? "#dc2626" : "#059669"}
                               strokeWidth={isNegative ? 2 : 0}
-                              style={{ 
-                                filter: isNegative 
-                                  ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' 
+                              style={{
+                                filter: isNegative
+                                  ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
                                   : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
                               }}
                             />
@@ -1200,13 +1188,12 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         maximumFractionDigits: 0
                       })}
                     </td>
-                    <td className={`py-3 px-4 text-base text-center font-semibold ${
-                      item.amountDiff > 0 
-                        ? 'text-green-600' 
-                        : item.amountDiff < 0 
-                        ? 'text-red-600' 
-                        : 'text-gray-600'
-                    }`}>
+                    <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
+                        ? 'text-green-600'
+                        : item.amountDiff < 0
+                          ? 'text-red-600'
+                          : 'text-gray-600'
+                      }`}>
                       {item.amountDiff !== 0 ? (
                         <>
                           {item.amountDiff > 0 ? '+' : ''}
@@ -1225,13 +1212,12 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         maximumFractionDigits: 0
                       })}
                     </td>
-                    <td className={`py-3 px-4 text-base text-center font-semibold ${
-                      item.qtyDiff > 0 
-                        ? 'text-green-600' 
-                        : item.qtyDiff < 0 
-                        ? 'text-red-600' 
-                        : 'text-gray-600'
-                    }`}>
+                    <td className={`py-3 px-4 text-base text-center font-semibold ${item.qtyDiff > 0
+                        ? 'text-green-600'
+                        : item.qtyDiff < 0
+                          ? 'text-red-600'
+                          : 'text-gray-600'
+                      }`}>
                       {item.qtyDiff !== 0 ? (
                         <>
                           {item.qtyDiff > 0 ? '+' : ''}
