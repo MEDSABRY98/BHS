@@ -193,20 +193,30 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
       }
     } else {
-      // Default: Last 12 months from latest date in data
+      // Default: ALL TIME (min date to max date from data)
       const today = new Date();
       let maxDate = new Date(0);
+      let minDate = new Date(8640000000000000); // Max possible date
 
-      // Find latest date in data
+      // Find range in data
+      let hasData = false;
       data.forEach(row => {
         const d = parseDate(row.date);
-        if (d && d > maxDate) maxDate = d;
+        if (d) {
+          if (d > maxDate) maxDate = d;
+          if (d < minDate) minDate = d;
+          hasData = true;
+        }
       });
 
-      if (maxDate.getTime() === 0) maxDate = today;
-
-      endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
-      startDate = new Date(maxDate.getFullYear(), maxDate.getMonth() - 11, 1);
+      if (!hasData) {
+        // Fallback if no data
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+      } else {
+        endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
+        startDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+      }
     }
 
     // Adjust date range based on period type
@@ -258,9 +268,19 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         }
       }
     } else {
-      // Monthly view - keep existing logic
-      endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
-      startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      // Monthly view
+      // If dateFrom is provided, respect it. Otherwise snap to 1st.
+      if (!dateFrom) {
+        startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      }
+      // If dateTo is provided, respect it. Otherwise snap to end of month.
+      if (dateTo) {
+        endDate = new Date(endDate);
+        endDate.setHours(23, 59, 59, 999);
+      } else {
+        endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
+      }
     }
 
     const periodStats = new Map<string, {
@@ -491,11 +511,13 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
         if (fromDate && toDate) {
           startDate = fromDate;
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+          endDate = new Date(toDate);
+          endDate.setHours(23, 59, 59, 999);
         } else if (fromDate) {
           const today = new Date();
           startDate = fromDate;
           endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          endDate.setHours(23, 59, 59, 999);
         } else if (toDate) {
           endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
           startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
@@ -603,11 +625,13 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
       if (fromDate && toDate) {
         startDate = fromDate;
-        endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+        endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
       } else if (fromDate) {
         const today = new Date();
         startDate = fromDate;
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        endDate.setHours(23, 59, 59, 999);
       } else if (toDate) {
         endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
         startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
@@ -1281,6 +1305,25 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             onChange={(e) => setDateTo(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+          {(search || selectedSalesRep || chartYear || chartMonth || dateFrom || dateTo) && (
+            <button
+              onClick={() => {
+                setSearch('');
+                setSelectedSalesRep('');
+                setChartYear('');
+                setChartMonth('');
+                setDateFrom('');
+                setDateTo('');
+              }}
+              title="Clear Filters"
+              className="p-2.5 bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-400 transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
@@ -1368,7 +1411,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           {/* First Row - 4 Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Collections (12M)</h3>
+              <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Collections</h3>
               <div className="text-2xl font-bold text-green-600">
                 {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
@@ -1376,7 +1419,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             </div>
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Net Payment Count (12M)</h3>
+              <h3 className="text-gray-500 font-medium mb-2 text-sm">Net Payment Count</h3>
               <div className="text-2xl font-bold text-blue-600">
                 {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
               </div>
@@ -1461,9 +1504,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             <div className="flex flex-col items-center gap-3 mb-4">
               <h3 className="text-lg font-bold text-gray-800 text-center">
                 Collections - {
-                  chartPeriodType === 'daily' ? 'Last 90 Days' :
-                    chartPeriodType === 'weekly' ? 'Last 52 Weeks' :
-                      'Last 12 Months'
+                  chartPeriodType === 'daily' ? (dateFrom || dateTo || chartYear || chartMonth ? 'Daily Trend' : 'All Time Daily') :
+                    chartPeriodType === 'weekly' ? (dateFrom || dateTo || chartYear || chartMonth ? 'Weekly Trend' : 'All Time Weekly') :
+                      (dateFrom || dateTo || chartYear || chartMonth ? 'Monthly Trend' : 'All Time Monthly')
                 }
               </h3>
               <div className="flex flex-wrap items-center justify-center gap-2">
