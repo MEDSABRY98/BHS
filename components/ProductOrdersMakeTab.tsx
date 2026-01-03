@@ -170,7 +170,7 @@ export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderIte
         XLSX.writeFile(wb, `${poNumber}.xlsx`);
     };
 
-    if (loading && allProducts.length === 0) return <Loading message="Loading System..." />;
+    if (loading && allProducts.length === 0) return <Loading message="Loading Make Orders Data..." />;
 
     return (
         <div className="space-y-6 animate-in fade-in duration-500 pb-20">

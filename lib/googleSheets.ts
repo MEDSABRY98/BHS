@@ -1553,7 +1553,7 @@ export async function getEmployeeNames(): Promise<string[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!D:D`, // Employee Name (En) column
+      range: `'Employee DataBase'!C:C`, // Employee Name (En) column
     });
 
     const rows = response.data.values;
@@ -1581,14 +1581,13 @@ export async function getEmployeeNames(): Promise<string[]> {
     throw error;
   }
 }
-
 // Save Employee Overtime record to "Employee Overtime" sheet
-// Columns: A (Date), B (Employee ID - empty), C (Employee Name Ar - empty), 
-//          D (Employee Name En), E (Particulars), F (From Time - empty), 
-//          G (FTime), H (From Time - empty), I (TTime)
+// Columns: A (Date), B (Type), C (Employee ID), D (Employee Name Ar), 
+//          E (Employee Name En), F (Particulars), G (FROM AM/PM), H (FTime), I (TO AM/PM), J (TTime)
 export async function saveEmployeeOvertime(data: {
   date: string;
   employeeName: string;
+  type: string;
   description: string;
   fromAmPm?: string;
   timeFrom: string;
@@ -1597,8 +1596,8 @@ export async function saveEmployeeOvertime(data: {
 }): Promise<{ success: boolean }> {
   try {
     // Validate required fields
-    if (!data.date || !data.employeeName || !data.description || !data.timeFrom || !data.timeTo) {
-      throw new Error('Missing required fields: date, employeeName, description, timeFrom, or timeTo');
+    if (!data.date || !data.employeeName || !data.type || !data.description || !data.timeFrom || !data.timeTo) {
+      throw new Error('Missing required fields: date, employeeName, type, description, timeFrom, or timeTo');
     }
 
     const credentials = getServiceAccountCredentials();
@@ -1612,32 +1611,33 @@ export async function saveEmployeeOvertime(data: {
 
     // Prepare row data according to sheet structure:
     // A: Date
-    // B: Employee ID (empty)
-    // C: Employee Name (Ar) (empty)
-    // D: Employee Name (En)
-    // E: Particulars
-    // F: FROM AM/PM (always PM)
-    // G: FTime (timeFrom)
-    // H: TO AM/PM (always PM)
-    // I: TTime (timeTo)
+    // B: Type (Overtime/Absent)
+    // C: Employee ID (empty)
+    // D: Employee Name (Ar) (empty)
+    // E: Employee Name (En)
+    // F: Particulars
+    // G: FROM AM/PM (always PM)
+    // H: FTime (timeFrom)
+    // I: TO AM/PM (always PM)
+    // J: TTime (timeTo)
     const rowValues = [
       data.date.trim(),           // A: Date
-      '',                         // B: Employee ID (empty)
-      '',                         // C: Employee Name (Ar) (empty)
-      data.employeeName.trim(),   // D: Employee Name (En)
-      data.description.trim(),    // E: Particulars
-      data.fromAmPm || 'PM',      // F: FROM AM/PM
-      data.timeFrom.trim(),       // G: FTime
-      data.toAmPm || 'PM',        // H: TO AM/PM
-      data.timeTo.trim()          // I: TTime
+      data.type || 'Overtime',    // B: Type
+      '',                         // C: Employee ID (empty)
+      '',                         // D: Employee Name (Ar) (empty)
+      data.employeeName.trim(),   // E: Employee Name (En)
+      data.description.trim(),    // F: Particulars
+      data.fromAmPm || 'PM',      // G: FROM AM/PM
+      data.timeFrom.trim(),       // H: FTime
+      data.toAmPm || 'PM',        // I: TO AM/PM
+      data.timeTo.trim()          // J: TTime
     ];
 
     // Use append to add new row at the end
-    // Use A:I range (without row numbers) so append finds the next empty row
-    // and writes data starting from column A
+    // Use A:J range
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Employee Overtime'!A:I`,  // Use quotes for sheet name with space, range A:I
+      range: `'Employee Overtime'!A:J`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [rowValues],
@@ -1655,6 +1655,7 @@ export async function saveEmployeeOvertime(data: {
 export async function getEmployeeOvertimeRecords(): Promise<Array<{
   id: string;
   date: string;
+  type: string;
   employeeName: string;
   description: string;
   timeFrom: string;
@@ -1674,7 +1675,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A:I`, // All columns
+      range: `Employee Overtime!A:J`, // All columns (up to J)
     });
 
     const rows = response.data.values;
@@ -1685,14 +1686,15 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
     // Skip header row
     const records = rows.slice(1).map((row, index) => {
       const date = row[0]?.toString().trim() || '';
-      const employeeId = row[1]?.toString().trim() || ''; // B: Employee ID
-      const employeeNameAr = row[2]?.toString().trim() || ''; // C: Employee Name (Ar)
-      const employeeName = row[3]?.toString().trim() || ''; // D: Employee Name (En)
-      const description = row[4]?.toString().trim() || ''; // E: Particulars
-      const fromAmPm = row[5]?.toString().trim() || 'PM'; // F: FROM AM/PM
-      const timeFrom = row[6]?.toString().trim() || ''; // G: FTime
-      const toAmPm = row[7]?.toString().trim() || 'PM'; // H: TO AM/PM
-      const timeTo = row[8]?.toString().trim() || ''; // I: TTime
+      const type = row[1]?.toString().trim() || 'Overtime'; // B: Type
+      const employeeId = row[2]?.toString().trim() || ''; // C: Employee ID
+      const employeeNameAr = row[3]?.toString().trim() || ''; // D: Employee Name (Ar)
+      const employeeName = row[4]?.toString().trim() || ''; // E: Employee Name (En)
+      const description = row[5]?.toString().trim() || ''; // F: Particulars
+      const fromAmPm = row[6]?.toString().trim() || 'PM'; // G: FROM AM/PM
+      const timeFrom = row[7]?.toString().trim() || ''; // H: FTime
+      const toAmPm = row[8]?.toString().trim() || 'PM'; // I: TO AM/PM
+      const timeTo = row[9]?.toString().trim() || ''; // J: TTime
 
       // Calculate hours
       let hours = '0.00';
@@ -1742,6 +1744,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
       return {
         id: `row_${index + 2}`, // Unique ID based on row index
         date,
+        type,
         employeeId,
         employeeNameAr,
         employeeName,
@@ -1763,11 +1766,12 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
 }
 
 // Update Employee Overtime record
-// Columns: A (Date), B (Employee ID - empty), C (Employee Name Ar - empty), 
-//          D (Employee Name En), E (Particulars), F (FROM AM/PM), G (FTime), H (TO AM/PM), I (TTime)
+// Columns: A (Date), B (Type), C (Employee ID), D (Employee Name Ar), 
+//          E (Employee Name En), F (Particulars), G (FROM AM/PM), H (FTime), I (TO AM/PM), J (TTime)
 export async function updateEmployeeOvertime(rowIndex: number, data: {
   date: string;
   employeeName: string;
+  type: string;
   description: string;
   fromAmPm?: string;
   timeFrom: string;
@@ -1787,20 +1791,21 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
     // Prepare row data based on the column order
     const rowValues = [
       data.date.trim(),           // A: Date
-      '',                         // B: Employee ID (empty)
-      '',                         // C: Employee Name (Ar) (empty)
-      data.employeeName.trim(),   // D: Employee Name (En)
-      data.description.trim(),    // E: Particulars
-      data.fromAmPm || 'PM',      // F: FROM AM/PM
-      data.timeFrom.trim(),       // G: FTime
-      data.toAmPm || 'PM',        // H: TO AM/PM
-      data.timeTo.trim()          // I: TTime
+      data.type || 'Overtime',    // B: Type
+      '',                         // C: Employee ID (empty)
+      '',                         // D: Employee Name (Ar) (empty)
+      data.employeeName.trim(),   // E: Employee Name (En)
+      data.description.trim(),    // F: Particulars
+      data.fromAmPm || 'PM',      // G: FROM AM/PM
+      data.timeFrom.trim(),       // H: FTime
+      data.toAmPm || 'PM',        // I: TO AM/PM
+      data.timeTo.trim()          // J: TTime
     ];
 
     // Update the row at the specified index
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A${rowIndex}:I${rowIndex}`,
+      range: `Employee Overtime!A${rowIndex}:J${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [rowValues],

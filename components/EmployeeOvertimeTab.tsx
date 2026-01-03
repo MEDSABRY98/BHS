@@ -42,6 +42,7 @@ export default function EmployeeOvertimeTab() {
   const [currentRows, setCurrentRows] = useState([{
     id: Date.now(),
     employeeName: '',
+    type: 'Overtime',
     description: '',
     fromAmPm: 'PM',
     timeFrom: '',
@@ -54,7 +55,9 @@ export default function EmployeeOvertimeTab() {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [editingRecord, setEditingRecord] = useState({
     date: '',
+    date: '',
     employeeName: '',
+    type: 'Overtime',
     description: '',
     fromAmPm: 'PM',
     timeFrom: '',
@@ -180,6 +183,7 @@ export default function EmployeeOvertimeTab() {
     setCurrentRows([...currentRows, {
       id: Date.now(),
       employeeName: '',
+      type: 'Overtime',
       description: '',
       fromAmPm: 'PM',
       timeFrom: '',
@@ -221,6 +225,7 @@ export default function EmployeeOvertimeTab() {
           body: JSON.stringify({
             date: currentDate,
             employeeName: row.employeeName,
+            type: row.type || 'Overtime',
             description: row.description,
             fromAmPm: row.fromAmPm || 'PM',
             timeFrom: row.timeFrom,
@@ -239,6 +244,7 @@ export default function EmployeeOvertimeTab() {
       setCurrentRows([{
         id: Date.now(),
         employeeName: '',
+        type: 'Overtime',
         description: '',
         fromAmPm: 'PM',
         timeFrom: '',
@@ -251,10 +257,8 @@ export default function EmployeeOvertimeTab() {
       // Reset the records fetched flag so new records will be fetched when switching to view tab
       recordsFetchedRef.current = false;
 
-      alert('Records saved successfully!');
     } catch (error) {
       console.error('Error saving records:', error);
-      alert(error instanceof Error ? error.message : 'Failed to save records');
     } finally {
       setLoading(false);
     }
@@ -273,6 +277,7 @@ export default function EmployeeOvertimeTab() {
     setEditingRecord({
       date: record.date,
       employeeName: record.employeeName,
+      type: record.type || 'Overtime',
       description: record.description,
       fromAmPm: record.fromAmPm || 'PM',
       timeFrom: record.timeFrom,
@@ -288,6 +293,7 @@ export default function EmployeeOvertimeTab() {
     setEditingRecord({
       date: '',
       employeeName: '',
+      type: 'Overtime',
       description: '',
       fromAmPm: 'PM',
       timeFrom: '',
@@ -318,6 +324,7 @@ export default function EmployeeOvertimeTab() {
           rowIndex: selectedRecord.rowIndex,
           date: editingRecord.date,
           employeeName: editingRecord.employeeName,
+          type: editingRecord.type || 'Overtime',
           description: editingRecord.description,
           fromAmPm: fromAmPm,
           timeFrom: editingRecord.timeFrom,
@@ -450,6 +457,7 @@ export default function EmployeeOvertimeTab() {
       return (
         record.date?.toLowerCase().includes(query) ||
         record.employeeName?.toLowerCase().includes(query) ||
+        record.type?.toLowerCase().includes(query) ||
         record.description?.toLowerCase().includes(query) ||
         record.timeFrom?.toLowerCase().includes(query) ||
         record.timeTo?.toLowerCase().includes(query) ||
@@ -635,6 +643,7 @@ export default function EmployeeOvertimeTab() {
       record.employeeId || '',
       record.employeeNameAr || '',
       record.employeeName || '',
+      record.type || 'Overtime',
       record.description || '',
       record.fromAmPm || 'PM',
       record.timeFrom || '',
@@ -762,10 +771,10 @@ export default function EmployeeOvertimeTab() {
               <div className="space-y-3 mb-6">
                 {currentRows.map((row, index) => (
                   <div key={row.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    {/* Employee Name, Time From, Time To, Delete Button - In one row */}
-                    <div className="grid grid-cols-12 gap-3 items-end mb-3">
+                    {/* Employee Name, Type, Time From, Time To, Delete Button - In one row */}
+                    <div className="grid grid-cols-12 gap-2 items-end mb-3">
                       {/* Employee Name */}
-                      <div className="col-span-12 md:col-span-5">
+                      <div className="col-span-12 md:col-span-3">
                         <label className="block text-xs font-medium text-gray-600 mb-1.5">
                           Employee Name
                         </label>
@@ -796,6 +805,28 @@ export default function EmployeeOvertimeTab() {
                         </div>
                       </div>
 
+                      {/* Type */}
+                      <div className="col-span-12 md:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1.5">
+                          Type
+                        </label>
+                        <div className="relative">
+                          <select
+                            value={row.type || 'Overtime'}
+                            onChange={(e) => updateRow(row.id, 'type', e.target.value)}
+                            className="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 font-medium text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all cursor-pointer appearance-none pr-8"
+                          >
+                            <option value="Overtime">Overtime</option>
+                            <option value="Absent">Absent</option>
+                          </select>
+                          <div className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
+                            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+
                       {/* Time From */}
                       <div className="col-span-6 md:col-span-3">
                         <label className="block text-xs font-medium text-gray-600 mb-1.5">
@@ -805,7 +836,7 @@ export default function EmployeeOvertimeTab() {
                           <select
                             value={row.fromAmPm || 'PM'}
                             onChange={(e) => updateRow(row.id, 'fromAmPm', e.target.value)}
-                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                            className="px-1 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
                           >
                             <option value="AM">AM</option>
                             <option value="PM">PM</option>
@@ -829,7 +860,7 @@ export default function EmployeeOvertimeTab() {
                           <select
                             value={row.toAmPm || 'PM'}
                             onChange={(e) => updateRow(row.id, 'toAmPm', e.target.value)}
-                            className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
+                            className="px-1 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
                           >
                             <option value="AM">AM</option>
                             <option value="PM">PM</option>
@@ -841,19 +872,22 @@ export default function EmployeeOvertimeTab() {
                             placeholder="4, 5, 4.30"
                             className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all text-sm font-medium hover:border-gray-400"
                           />
-                          {/* Delete Button - Icon Only */}
-                          <button
-                            onClick={() => deleteRow(row.id)}
-                            disabled={currentRows.length === 1}
-                            className={`p-2 rounded-lg transition-all flex items-center justify-center ${currentRows.length === 1
-                              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                              : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300'
-                              }`}
-                            title="Remove row"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
                         </div>
+                      </div>
+
+                      {/* Delete Button - Dedicated Column */}
+                      <div className="col-span-12 md:col-span-1 flex justify-center pb-1">
+                        <button
+                          onClick={() => deleteRow(row.id)}
+                          disabled={currentRows.length === 1}
+                          className={`p-2 rounded-lg transition-all flex items-center justify-center w-full md:w-auto ${currentRows.length === 1
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed hidden md:flex'
+                            : 'bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 hover:border-red-300'
+                            }`}
+                          title="Remove row"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
 
@@ -1053,7 +1087,8 @@ export default function EmployeeOvertimeTab() {
                         <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[12%]">Date</th>
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[18%]">Employee</th>
-                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[35%]">Description</th>
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[10%]">Type</th>
+                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[25%]">Description</th>
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[12%]">From</th>
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[12%]">To</th>
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide w-[11%]">Hours</th>
@@ -1077,6 +1112,12 @@ export default function EmployeeOvertimeTab() {
                             >
                               <td className="px-6 py-4 text-center text-gray-900 font-medium truncate" title={record.date}>{record.date}</td>
                               <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>
+                              <td className="px-6 py-4 text-center text-gray-900 font-medium truncate">
+                                <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${record.type === 'Absent' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                  }`}>
+                                  {record.type || 'Overtime'}
+                                </span>
+                              </td>
                               <td className={`px-6 py-4 text-center truncate ${isSunday ? 'text-gray-900 font-bold' : 'text-gray-600'}`} title={record.description}>{record.description}</td>
                               <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeFrom, record.fromAmPm)}</td>
                               <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo, record.toAmPm)}</td>
@@ -1334,6 +1375,28 @@ export default function EmployeeOvertimeTab() {
                             {name}
                           </option>
                         ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                        <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Type
+                    </label>
+                    <div className="relative">
+                      <select
+                        value={editingRecord.type || 'Overtime'}
+                        onChange={(e) => setEditingRecord({ ...editingRecord, type: e.target.value })}
+                        className="w-full px-4 py-2.5 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-medium text-sm hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-gray-900 transition-all cursor-pointer appearance-none pr-10"
+                      >
+                        <option value="Overtime">Overtime</option>
+                        <option value="Absent">Absent</option>
                       </select>
                       <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
                         <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

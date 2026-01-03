@@ -6,7 +6,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
-    
+
     if (type === 'names') {
       // Get employee names for dropdown
       const names = await getEmployeeNames();
@@ -20,9 +20,9 @@ export async function GET(request: Request) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch data';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch data',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { date, employeeName, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
+    const { date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
 
     if (!date || !employeeName || !description || !timeFrom || !timeTo) {
       return NextResponse.json(
@@ -45,21 +45,22 @@ export async function POST(request: Request) {
     await saveEmployeeOvertime({
       date,
       employeeName,
+      type: type || 'Overtime',
       description,
       fromAmPm,
       timeFrom,
       toAmPm,
       timeTo,
     });
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to save overtime record';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to save overtime record',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -70,7 +71,7 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { rowIndex, date, employeeName, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
+    const { rowIndex, date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
 
     if (!rowIndex || !date || !employeeName || !description || !timeFrom || !timeTo) {
       return NextResponse.json(
@@ -82,21 +83,22 @@ export async function PUT(request: Request) {
     await updateEmployeeOvertime(rowIndex, {
       date,
       employeeName,
+      type: type || 'Overtime',
       description,
       fromAmPm,
       timeFrom,
       toAmPm,
       timeTo,
     });
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to update overtime record';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to update overtime record',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -117,15 +119,15 @@ export async function DELETE(request: Request) {
     }
 
     await deleteEmployeeOvertime(rowIndex);
-    
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to delete overtime record';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to delete overtime record',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );

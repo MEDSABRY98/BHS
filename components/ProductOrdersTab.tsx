@@ -196,7 +196,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
         }
     };
 
-    if (loading && products.length === 0) return <Loading message="Loading Product Orders..." />;
+    if (loading && products.length === 0) return <Loading message="Loading Product Orders Data..." />;
 
     if (error) {
         return (
