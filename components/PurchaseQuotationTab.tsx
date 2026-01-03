@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, ArrowLeft, Search, Upload } from 'lucide-react';
+import { Plus, Trash2, Download, ArrowLeft, Search, Upload, Save } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
@@ -40,7 +40,7 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                 id: Date.now() + index,
                 barcode: item.barcode || '',
                 name: item.name || item.productName || '', // Handle different naming conventions
-                quantity: item.quantity || item.qtyOrder || 1,
+                quantity: item.quantity || item.qtyOrder || item.orderQty || 1,
                 unit: item.unit || '-',
                 price: item.price || 0
             })));
@@ -166,7 +166,7 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
         return calculateSubtotal() + calculateVAT();
     };
 
-    const saveQuotation = async () => {
+    const saveQuotation = async (isDraft: boolean = false) => {
         if (!supplierName.trim()) {
             alert('Please enter Supplier Name');
             return;
@@ -201,8 +201,10 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
             });
 
             if (response.ok) {
-                // Download PDF after saving
-                downloadPDF();
+                // Download PDF after saving only if NOT draft
+                if (!isDraft) {
+                    downloadPDF();
+                }
 
                 // Fetch next number for new quotation
                 await fetchNextQuotationNumber();
@@ -554,11 +556,19 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                 </div>
 
                 {/* Action Button */}
-                <div className="p-1 bg-gray-100 print:hidden flex justify-center">
+                <div className="p-1 bg-gray-100 print:hidden flex justify-center gap-4">
                     <button
-                        onClick={saveQuotation}
+                        onClick={() => saveQuotation(true)}
                         disabled={loading}
-                        className="w-1/2 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-1/3 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <Save size={24} />
+                        {loading ? 'Saving...' : 'Save & Draft'}
+                    </button>
+                    <button
+                        onClick={() => saveQuotation(false)}
+                        disabled={loading}
+                        className="w-1/3 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         <Download size={24} />
                         {loading ? 'Saving & Downloading...' : 'Save & Download PDF'}
