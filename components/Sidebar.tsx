@@ -32,7 +32,6 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   // Tabs to hide for restricted users
   const restrictedTabs = [
     'customers-open-matches',
-    'discount-tracker',
     'all-notes'
   ];
 
@@ -40,7 +39,6 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   const medSabryOnlyTabs = [
     'all-transactions',
     'customers-open-matches',
-    'discount-tracker',
     'all-notes'
   ];
 

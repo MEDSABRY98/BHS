@@ -6,6 +6,7 @@ export async function POST(request: Request) {
     const body = await request.json();
     const customerName = body?.customerName;
     const monthKey = body?.monthKey;
+    const action = body?.action || 'reconcile'; // 'reconcile' or 'unreconcile'
 
     if (!customerName || !monthKey) {
       return NextResponse.json(
@@ -14,7 +15,13 @@ export async function POST(request: Request) {
       );
     }
 
-    const reconciliationMonths = await markReconciliationMonth(customerName, monthKey);
+    let reconciliationMonths: string[];
+    if (action === 'unreconcile') {
+      const { unmarkReconciliationMonth } = await import('@/lib/googleSheets');
+      reconciliationMonths = await unmarkReconciliationMonth(customerName, monthKey);
+    } else {
+      reconciliationMonths = await markReconciliationMonth(customerName, monthKey);
+    }
 
     return NextResponse.json({ reconciliationMonths });
   } catch (error) {

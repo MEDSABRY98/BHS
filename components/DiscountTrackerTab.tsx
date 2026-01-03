@@ -22,6 +22,7 @@ interface DiscountSummary {
   duplicateMonths: MonthItem[];
   totalDiscounts: number;
   lastDiscountLabel: string;
+  startKey: string;
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -114,10 +115,11 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [selectedSummary, setSelectedSummary] = useState<DiscountSummary | null>(null);
-  const [detailTab, setDetailTab] = useState<'missing' | 'posted' | 'reconciled' | 'posted-details'>('missing');
-  const [selectedPostedMonth, setSelectedPostedMonth] = useState<MonthItem | null>(null);
+  // Removed detailTab state as we switch to unified Heatmap view
+  const [selectedPostedMonth, setSelectedPostedMonth] = useState<MonthItem | null>(null); // Kept if we want to show details for posted
   const [isExporting, setIsExporting] = useState(false);
   const [reconcilingKey, setReconcilingKey] = useState<string | null>(null);
+  const [showPostedDetails, setShowPostedDetails] = useState(false);
 
   useEffect(() => {
     const fetchEntries = async () => {
@@ -149,10 +151,29 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
 
     return entries.map((entry) => {
       const customerKey = entry.customerName.trim().toLowerCase();
-      const invoices = data.filter(
-        (row) =>
-          row.number?.toString().toUpperCase().startsWith('BIL') &&
-          row.customerName.trim().toLowerCase() === customerKey,
+
+      // Get all customer invoices to find First Sale Date
+      const customerAllRows = data.filter(
+        (row) => row.customerName.trim().toLowerCase() === customerKey
+      );
+
+      // Find first SALE month
+      let firstSaleMonthKey: string | null = null;
+      customerAllRows.forEach((row) => {
+        if (row.number?.toString().toUpperCase().startsWith('SAL')) {
+          const d = parseDate(row.date);
+          const key = toMonthKey(d);
+          if (key) {
+            if (!firstSaleMonthKey || compareMonthKeys(key, firstSaleMonthKey) < 0) {
+              firstSaleMonthKey = key;
+            }
+          }
+        }
+      });
+
+      // Filter for Discount Invoices (BIL) for posted counts
+      const invoices = customerAllRows.filter(
+        (row) => row.number?.toString().toUpperCase().startsWith('BIL')
       );
 
       const monthCounts = new Map<string, number>();
@@ -173,16 +194,17 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
         .filter((m): m is string => Boolean(m));
       const reconciliationSet = new Set(reconciliationMonths);
 
+      // Start Logic: Use First Sale Month if available.
+      // If no sales found, maybe fallback to first BIL/Reconciled or just Empty?
+      // User said "from [first sales month] to today". If no sales, technically no range.
+      // But let's fallback to "earliest activity" (BIL/Reconciled) to be safe if sales data is missing but they are active.
+
       const knownKeys = [...monthCounts.keys(), ...reconciliationSet];
-      const startKeyCandidate = knownKeys.length
-        ? knownKeys.sort(compareMonthKeys)[0]
-        : `${currentYear}-${String(1).padStart(2, '0')}`;
+      const earliestActivity = knownKeys.length ? knownKeys.sort(compareMonthKeys)[0] : null;
 
-      const startKey =
-        compareMonthKeys(startKeyCandidate, `${currentYear}-01`) < 0
-          ? `${currentYear}-01`
-          : startKeyCandidate;
+      const startKey = firstSaleMonthKey || earliestActivity || `${currentYear}-01`;
 
+      // Range from startKey to today
       const monthRange = compareMonthKeys(startKey, currentMonthKey) <= 0
         ? getMonthRange(startKey, currentMonthKey)
         : [];
@@ -209,6 +231,7 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
         duplicateMonths,
         totalDiscounts: invoices.length,
         lastDiscountLabel: latestMonth ? formatMonthLabel(latestMonth) : '—',
+        startKey: startKey, // Return startKey for heatmap
       };
     });
   }, [data, entries]);
@@ -258,18 +281,22 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
     });
   };
 
-  const handleReconcile = async (month: MonthItem) => {
+  const handleReconcile = async (monthKey: string, action: 'reconcile' | 'unreconcile' = 'reconcile') => {
     if (!selectedSummary) return;
-    setReconcilingKey(month.key);
+    setReconcilingKey(monthKey);
     try {
       const res = await fetch('/api/discounts/reconcile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerName: selectedSummary.customerName, monthKey: month.key }),
+        body: JSON.stringify({
+          customerName: selectedSummary.customerName,
+          monthKey: monthKey,
+          action: action
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to mark reconciliation');
+        throw new Error(data.error || 'Failed to update reconciliation');
       }
 
       const updatedKeys: string[] = data.reconciliationMonths || [];
@@ -282,26 +309,195 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
         ),
       );
 
+      // Optimistic/Immediate update for the modal
       setSelectedSummary((prev) => {
         if (!prev) return prev;
-        const newMissing = prev.missingMonths.filter((m) => m.key !== month.key);
-        const newReconciled = Array.from(
-          new Set([...prev.reconciledMonths.map((m) => m.key), month.key]),
-        )
-          .sort(compareMonthKeys)
-          .map((key) => ({ key, label: formatMonthLabel(key) }));
+
+        // Re-calculate based on the action
+        let newMissing = [...prev.missingMonths];
+        let newReconciled = [...prev.reconciledMonths];
+
+        if (action === 'reconcile') {
+          newMissing = newMissing.filter((m) => m.key !== monthKey);
+          if (!newReconciled.find(m => m.key === monthKey)) {
+            newReconciled.push({ key: monthKey, label: formatMonthLabel(monthKey) });
+          }
+        } else {
+          // Unlock/Unfix
+          newReconciled = newReconciled.filter((m) => m.key !== monthKey);
+          if (!newMissing.find(m => m.key === monthKey)) {
+            newMissing.push({ key: monthKey, label: formatMonthLabel(monthKey) });
+          }
+        }
+
         return {
           ...prev,
-          missingMonths: newMissing,
-          reconciledMonths: newReconciled,
+          missingMonths: newMissing.sort((a, b) => compareMonthKeys(a.key, b.key)),
+          reconciledMonths: newReconciled.sort((a, b) => compareMonthKeys(a.key, b.key)),
         };
       });
-      setDetailTab('reconciled');
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to mark reconciliation');
+      alert(err instanceof Error ? err.message : 'Failed to update reconciliation');
     } finally {
       setReconcilingKey(null);
     }
+  };
+
+  const [currentUserName, setCurrentUserName] = useState('');
+
+  useEffect(() => {
+    const storedUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    if (storedUser && storedUser.name) {
+      setCurrentUserName(storedUser.name);
+    }
+  }, []);
+
+  // Heatmap rendering helpers
+  const renderHeatmap = (summary: DiscountSummary) => {
+    const startYear = parseInt(summary.startKey.split('-')[0], 10);
+    const endYear = new Date().getFullYear();
+    const currentMonthKey = `${endYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+    const years = [];
+    for (let y = startYear; y <= endYear; y++) {
+      years.push(y);
+    }
+
+    const canFix = currentUserName === 'MED Sabry';
+
+    return (
+      <div className="space-y-6">
+        {years.map(year => (
+          <div key={year} className="bg-gray-50/50 rounded-xl p-4 border border-gray-200">
+            <h4 className="text-lg font-bold text-gray-700 mb-3">{year}</h4>
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-12 gap-2">
+              {Array.from({ length: 12 }, (_, i) => {
+                const month = i + 1;
+                const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+                const isFuture = compareMonthKeys(monthKey, currentMonthKey) > 0;
+                const isBeforeStart = compareMonthKeys(monthKey, summary.startKey) < 0;
+
+                // Determine Status
+                const isPosted = summary.postedMonths.find(m => m.key === monthKey);
+                const isReconciled = summary.reconciledMonths.find(m => m.key === monthKey);
+                const isMissing = !isPosted && !isReconciled && !isFuture && !isBeforeStart;
+
+                let baseClasses = "relative h-20 rounded-lg border flex flex-col items-center justify-center transition-all duration-200 p-1";
+                let statusColor = "";
+                let content = null;
+                let onClick = undefined;
+                let disabled = false;
+
+                if (isBeforeStart) {
+                  statusColor = "bg-gray-100 border-gray-200 opacity-50";
+                  content = <span className="text-xs text-gray-400 font-medium">{MONTH_NAMES[i]}</span>;
+                } else if (isFuture) {
+                  statusColor = "bg-gray-50 border-gray-100 opacity-40";
+                  content = <span className="text-xs text-gray-300 font-medium">{MONTH_NAMES[i]}</span>;
+                } else if (isPosted) {
+                  statusColor = "bg-green-100 border-green-300 hover:bg-green-200 hover:shadow-sm cursor-pointer";
+                  content = (
+                    <>
+                      <span className="text-xs font-bold text-green-800 uppercase mb-1">{MONTH_NAMES[i]}</span>
+                      <span className="text-[10px] font-bold bg-green-200 text-green-800 px-1.5 py-0.5 rounded-full">
+                        {isPosted.count} BIL
+                      </span>
+                    </>
+                  );
+                  onClick = () => {
+                    setSelectedPostedMonth(isPosted);
+                    setShowPostedDetails(true);
+                  };
+                } else if (isReconciled) {
+                  statusColor = "bg-orange-100 border-orange-300 hover:bg-orange-200";
+                  if (canFix) {
+                    statusColor += " cursor-pointer hover:shadow-md group relative";
+                  }
+
+                  const isReconciling = reconcilingKey === monthKey;
+                  content = (
+                    <>
+                      <span className="text-xs font-bold text-orange-800 uppercase mb-1">{MONTH_NAMES[i]}</span>
+                      {isReconciling ? (
+                        <svg className="animate-spin h-4 w-4 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        <>
+                          <span className="text-[10px] font-bold bg-white/60 text-orange-700 px-1.5 py-0.5 rounded-full border border-orange-200 group-hover:opacity-0 transition-opacity">
+                            REC
+                          </span>
+                          {canFix && (
+                            <span className="absolute inset-x-0 bottom-2 text-[10px] font-bold text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                              Unfix?
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </>
+                  );
+                  if (canFix) {
+                    onClick = () => {
+                      if (window.confirm(`Un-reconcile ${monthKey}? This will mark it as missing.`)) {
+                        handleReconcile(monthKey, 'unreconcile');
+                      }
+                    };
+                    disabled = isReconciling;
+                  }
+                } else if (isMissing) {
+                  statusColor = canFix
+                    ? "bg-red-100 border-red-300 hover:bg-red-200 hover:shadow-md cursor-pointer group"
+                    : "bg-red-50 border-red-200 opacity-80 cursor-default";
+
+                  const isReconciling = reconcilingKey === monthKey;
+                  content = (
+                    <>
+                      <span className={`text-xs font-bold uppercase mb-1 ${canFix ? 'text-red-800' : 'text-red-400'}`}>{MONTH_NAMES[i]}</span>
+                      {isReconciling ? (
+                        <svg className="animate-spin h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                      ) : (
+                        canFix && (
+                          <>
+                            <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-red-700 bg-white/80 px-1 rounded border border-red-200">
+                              Fix?
+                            </span>
+                            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-10 transition-opacity bg-red-400 rounded-lg"></div>
+                          </>
+                        )
+                      )}
+                    </>
+                  );
+                  if (canFix) {
+                    onClick = () => handleReconcile(monthKey);
+                    disabled = isReconciling;
+                  } else {
+                    disabled = true;
+                  }
+                } else {
+                  // Default fallback? Should be covered by logic above
+                  statusColor = "bg-gray-50 border-gray-200";
+                }
+
+                return (
+                  <button
+                    key={monthKey}
+                    className={`${baseClasses} ${statusColor}`}
+                    onClick={!disabled ? onClick : undefined}
+                    disabled={disabled || (!onClick)}
+                    title={isMissing ? (canFix ? "Click to Reconcile" : "Missing Discount") : isPosted ? "View Details" : ""}
+                  >
+                    {content}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
 
 
@@ -387,14 +583,14 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                           <button
                             onClick={() => {
                               setSelectedSummary(summary);
-                              setDetailTab('missing');
+                              setShowPostedDetails(false);
                             }}
                             className="text-left text-blue-700 hover:text-blue-900 font-semibold"
                           >
                             {summary.customerName}
                           </button>
                           <div className="text-xs text-gray-500">
-                            Missing {missingCount} · Posted {postedCount} · Reconciled {reconciledCount}
+                            Started {formatDisplayDate(summary.startKey)}
                           </div>
                         </div>
                       </div>
@@ -448,226 +644,75 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
       </div>
 
       {selectedSummary && (
-        <div className="fixed inset-0 bg-white/5 backdrop-blur-[2px] flex items-center justify-center z-50 px-4">
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div className="flex justify-between items-center px-6 py-4 border-b">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-8 py-5 border-b bg-gray-50">
               <div>
-                <h3 className="text-xl font-bold text-gray-900">{selectedSummary.customerName}</h3>
-                <p className="text-sm text-gray-500">
-                  Missing: {selectedSummary.missingMonths.length} • Posted: {selectedSummary.postedMonths.length} • Reconciled: {selectedSummary.reconciledMonths.length}
-                </p>
+                <h3 className="text-2xl font-bold text-gray-900">{selectedSummary.customerName}</h3>
+                <div className="flex items-center gap-4 mt-1 text-sm">
+                  <span className="flex items-center justify-center w-32 gap-1.5 px-2 py-1 rounded-full bg-green-100 text-green-700 border border-green-200 font-medium shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span> Posted
+                  </span>
+                  <span className="flex items-center justify-center w-32 gap-1.5 px-2 py-1 rounded-full bg-orange-100 text-orange-700 border border-orange-200 font-medium shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-orange-500"></span> Reconciled
+                  </span>
+                  <span className="flex items-center justify-center w-32 gap-1.5 px-2 py-1 rounded-full bg-red-100 text-red-700 border border-red-200 font-medium shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-red-500"></span> Missing
+                  </span>
+                </div>
               </div>
               <button
                 onClick={() => setSelectedSummary(null)}
-                className="text-gray-500 hover:text-gray-700 text-lg"
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-2xl"
                 aria-label="Close"
               >
                 ×
               </button>
             </div>
 
-            <div className="px-6 pt-4">
-              <div className="flex gap-2 mb-4">
-                <button
-                  onClick={() => setDetailTab('missing')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                    detailTab === 'missing'
-                      ? 'bg-red-600 text-white border-red-600 shadow-sm'
-                      : 'bg-white text-red-700 border-red-200 hover:bg-red-50'
-                  }`}
-                >
-                  Missing · {selectedSummary.missingMonths.length}
-                </button>
-                <button
-                  onClick={() => setDetailTab('posted')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                    detailTab === 'posted'
-                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
-                      : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
-                  }`}
-                >
-                  Posted · {selectedSummary.postedMonths.length}
-                </button>
-                <button
-                  onClick={() => setDetailTab('reconciled')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                    detailTab === 'reconciled'
-                      ? 'bg-green-600 text-white border-green-600 shadow-sm'
-                      : 'bg-white text-green-700 border-green-200 hover:bg-green-50'
-                  }`}
-                >
-                  Reconciled · {selectedSummary.reconciledMonths.length}
-                </button>
-                <button
-                  onClick={() => setDetailTab('posted-details')}
-                  className={`px-4 py-2 rounded-full text-sm font-semibold border transition ${
-                    detailTab === 'posted-details'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
-                      : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  Posted Details
-                </button>
-              </div>
-            </div>
-
-            <div className="px-6 pb-6 overflow-y-auto" style={{ maxHeight: '55vh' }}>
-              {detailTab === 'missing' && (
-                <div className="space-y-3">
-                  {selectedSummary.missingMonths.length === 0 ? (
-                    <div className="text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
-                      <span className="text-lg">✓</span>
-                      كل الشهور مسجلة أو تم عمل Reconciliation لها.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {selectedSummary.missingMonths.map((m) => (
-                        <div
-                          key={m.key}
-                          className="flex items-center justify-between px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm font-semibold"
-                        >
-                          <span>{m.label}</span>
-                          <button
-                            onClick={() => handleReconcile(m)}
-                            disabled={reconcilingKey === m.key}
-                            className="text-xs font-semibold px-3 py-1 rounded-full border border-red-300 bg-white/80 text-red-700 hover:bg-white disabled:opacity-60 disabled:cursor-not-allowed"
-                          >
-                            {reconcilingKey === m.key ? 'Saving...' : 'Reconcile'}
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {detailTab === 'reconciled' && (
-                <div className="space-y-3">
-                  {selectedSummary.reconciledMonths.length === 0 ? (
-                    <div className="text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
-                      <span className="text-lg">ℹ</span>
-                      لا توجد شهور Reconciled بعد.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {selectedSummary.reconciledMonths.map((m) => (
-                        <div
-                          key={m.key}
-                          className="flex items-center justify-between px-4 py-3 rounded-lg bg-green-50 border border-green-200 text-green-800 text-sm font-semibold"
-                        >
-                          <span>{m.label}</span>
-                          <span className="text-xs font-medium bg-white/70 text-green-700 px-2 py-1 rounded-full border border-green-200">
-                            Reconciled
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {detailTab === 'posted' && (
-                <div className="space-y-3">
-                  {selectedSummary.postedMonths.length === 0 ? (
-                    <div className="text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
-                      <span className="text-lg">ℹ</span>
-                      لا توجد خصومات BIL مسجلة.
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {selectedSummary.postedMonths.map((m) => {
-                        const isDup = (m.count || 0) > 1;
-                        return (
-                          <button
-                            key={m.key}
-                            className={`flex items-center justify-between px-4 py-3 rounded-lg text-sm font-semibold border ${
-                              isDup
-                                ? 'bg-yellow-50 text-yellow-800 border-yellow-200'
-                                : 'bg-blue-50 text-blue-800 border-blue-200'
-                            } hover:shadow-sm transition cursor-pointer`}
-                            onClick={() => {
-                              setSelectedPostedMonth(m);
-                              setDetailTab('posted-details');
-                            }}
-                          >
-                            <div className="flex flex-col">
-                              <span>{m.label}</span>
-                              {isDup && (
-                                <span className="text-xs font-medium text-yellow-700">
-                                  Duplicates: {m.count}
-                                </span>
-                              )}
-                            </div>
-                            <span className="text-xs font-medium bg-white/60 px-2 py-1 rounded-full border border-white/70 text-gray-700">
-                              {m.count || 1} BIL
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {detailTab === 'posted-details' && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {selectedSummary.postedMonths.map((m) => {
-                      const isActive = selectedPostedMonth?.key === m.key;
-                      return (
-                        <button
-                          key={m.key}
-                          onClick={() => setSelectedPostedMonth(m)}
-                          className={`px-3 py-1 rounded-full text-xs font-semibold border ${
-                            isActive
-                              ? 'bg-blue-600 text-white border-blue-600'
-                              : 'bg-white text-blue-700 border-blue-200 hover:bg-blue-50'
-                          }`}
-                        >
-                          {m.label}
-                        </button>
-                      );
-                    })}
+            <div className="p-8 overflow-y-auto bg-white flex-1 relative min-h-[600px]">
+              {showPostedDetails && selectedPostedMonth ? (
+                <div className="flex flex-col animate-in slide-in-from-right duration-200">
+                  <div className="flex items-center gap-3 mb-6">
+                    <button
+                      onClick={() => setShowPostedDetails(false)}
+                      className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                      </svg>
+                    </button>
+                    <h4 className="text-xl font-bold text-gray-800">
+                      Posted Invoices - {selectedPostedMonth.label}
+                    </h4>
                   </div>
-
-                  {selectedPostedMonth ? (
-                    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-50 border-b border-gray-200">
-                          <tr className="text-left text-gray-600">
-                            <th className="px-4 py-3">Number</th>
-                            <th className="px-4 py-3">Date</th>
-                            <th className="px-4 py-3 text-right">Debit</th>
-                            <th className="px-4 py-3 text-right">Credit</th>
-                            <th className="px-4 py-3">Matching</th>
+                  <div className="bg-white border boundary-gray-200 rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr className="text-center text-gray-600">
+                          <th className="px-6 py-4">Number</th>
+                          <th className="px-6 py-4">Date</th>
+                          <th className="px-6 py-4">Debit</th>
+                          <th className="px-6 py-4">Credit</th>
+                          <th className="px-6 py-4">Matching</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {getPostedInvoices(selectedSummary.customerName, selectedPostedMonth.key).map((inv, idx) => (
+                          <tr key={`${inv.number}-${idx}`} className="hover:bg-gray-50 text-center">
+                            <td className="px-6 py-4 font-semibold text-gray-900 text-center">{inv.number}</td>
+                            <td className="px-6 py-4 text-gray-700 text-center">{formatDisplayDate(inv.date)}</td>
+                            <td className="px-6 py-4 text-gray-800 text-center">{inv.debit?.toLocaleString('en-US')}</td>
+                            <td className="px-6 py-4 text-gray-800 text-center">{inv.credit?.toLocaleString('en-US')}</td>
+                            <td className="px-6 py-4 text-gray-500 text-center">{inv.matching || '—'}</td>
                           </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {getPostedInvoices(selectedSummary.customerName, selectedPostedMonth.key).map((inv, idx) => (
-                            <tr key={`${inv.number}-${idx}`} className="hover:bg-gray-50">
-                              <td className="px-4 py-2 font-semibold text-gray-900">{inv.number}</td>
-                              <td className="px-4 py-2 text-gray-700">{formatDisplayDate(inv.date)}</td>
-                              <td className="px-4 py-2 text-right text-gray-800">{inv.debit?.toLocaleString('en-US')}</td>
-                              <td className="px-4 py-2 text-right text-gray-800">{inv.credit?.toLocaleString('en-US')}</td>
-                              <td className="px-4 py-2 text-gray-500">{inv.matching || '—'}</td>
-                            </tr>
-                          ))}
-                          {getPostedInvoices(selectedSummary.customerName, selectedPostedMonth.key).length === 0 && (
-                            <tr>
-                              <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
-                                لا توجد فواتير BIL لهذا الشهر.
-                              </td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  ) : (
-                    <div className="text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3 text-sm">
-                      اختر شهر من القائمة بالأعلى لعرض الفواتير.
-                    </div>
-                  )}
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
+              ) : (
+                renderHeatmap(selectedSummary)
               )}
             </div>
           </div>

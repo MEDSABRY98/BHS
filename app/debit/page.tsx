@@ -52,7 +52,6 @@ export default function DebitPage() {
     if (isAuthenticated && restrictedUsers.includes(currentUser?.name)) {
       const restrictedTabs = [
         'customers-open-matches',
-        'discount-tracker',
         'all-notes'
       ];
 
@@ -167,7 +166,6 @@ export default function DebitPage() {
     const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
     const restrictedTabs = [
       'customers-open-matches',
-      'discount-tracker',
       'all-notes'
     ];
 
