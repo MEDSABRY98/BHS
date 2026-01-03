@@ -1645,7 +1645,12 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
     setIsDownloading(true);
     try {
+      const JSZip = (await import('jszip')).default;
+      const { saveAs } = await import('file-saver');
       const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+
+      const zip = new JSZip();
+      let count = 0;
 
       // Process each customer
       for (const customerName of selectedCustomersForDownload) {
@@ -1658,7 +1663,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         }
 
         // Build invoices with net debt and residual
-        const invoicesWithNetDebt = buildInvoicesWithNetDebt(customerInvoices);
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
 
         // Apply Net Only filter: Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
         const netOnlyInvoices = invoicesWithNetDebt
@@ -1688,17 +1693,181 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           continue;
         }
 
-        // Generate PDF with Net Only label
-        await generateAccountStatementPDF(customerName, netOnlyInvoices, false, 'All Months (Net Only)');
+        // Generate PDF Blob by passing true as the 3rd argument
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, 'All Months (Net Only)');
 
-        // Small delay to prevent browser from blocking multiple downloads
-        await new Promise(resolve => setTimeout(resolve, 300));
+        if (pdfBlob) {
+          const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+          zip.file(`${cleanName}.pdf`, pdfBlob);
+          count++;
+        }
       }
 
-      setSelectedCustomersForDownload(new Set());
+      if (count > 0) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `Customer_Statements_${new Date().toISOString().split('T')[0]}.zip`);
+        setSelectedCustomersForDownload(new Set());
+      } else {
+        alert('لم يتم إنشاء أي ملفات (قد لا توجد فواتير مفتوحة للعملاء المحددين).');
+      }
+
     } catch (error) {
       console.error('Error in bulk download:', error);
       alert('حدث خطأ أثناء التحميل. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const blobToBase64 = (blob: Blob) => {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = (reader.result as string).split(',')[1];
+        resolve(base64String);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Bulk Email function
+  const handleBulkEmail = async () => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('Please select customers to email');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const { saveAs } = await import('file-saver');
+      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+
+      const zip = new JSZip();
+      let count = 0;
+
+      // Process each customer
+      for (const customerName of selectedCustomersForDownload) {
+        // Get customer invoices
+        const customerInvoices = data.filter(row => row.customerName === customerName);
+
+        if (customerInvoices.length === 0) continue;
+
+        // Fetch emails
+        let customerEmails: string[] = [];
+        try {
+          const res = await fetch(`/api/customer-email?customerName=${encodeURIComponent(customerName)}`);
+          if (res.ok) {
+            const data = await res.json();
+            customerEmails = Array.isArray(data?.emails) ? data.emails.filter(Boolean) : (data?.email ? [data.email] : []);
+          }
+        } catch (e) {
+          console.error(`Error fetching email for ${customerName}`, e);
+        }
+
+        if (customerEmails.length === 0) {
+          // If no email, we skip or maybe add a text file saying no email?
+          // For now, let's just generate without To: (user can fill it) or skip?
+          // User asked to "extract all emails", implying EML files. Better to generate it even without 'To'.
+        }
+
+        const toEmails = customerEmails.join(', ');
+        const ccEmails = ['shady@aladraj.ae', 'altayfy@marae.ae'].join(', ');
+
+        // Prepare invoices (Net Only)
+        // Reuse logic from buildInvoicesWithNetDebtForExport which is available in file scope?
+        // Wait, buildInvoicesWithNetDebtForExport is defined outside component (line 470). Yes.
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
+        const netOnlyInvoices = invoicesWithNetDebt
+          .filter(inv => {
+            if (!inv.matching) return true;
+            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+          })
+          .map(inv => {
+            if (inv.matching && inv.residual !== undefined) {
+              return {
+                ...inv,
+                credit: inv.debit - inv.residual,
+                netDebt: inv.residual
+              };
+            }
+            return inv;
+          });
+
+        if (netOnlyInvoices.length === 0) continue;
+
+        const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+
+        // Generate PDF
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, 'All Months (Net Only)');
+        if (!pdfBlob) continue;
+
+        const pdfBase64 = await blobToBase64(pdfBlob as Blob);
+        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+        const pdfFileName = `${cleanName}.pdf`;
+
+        // Generate EML
+        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+        const subject = `Statement of Account - ${customerName} - Al Marai Al Arabia Trading`;
+
+        const debtSectionHtml = `<p style="margin: 0 0 10px 0; line-height: 1.5;">Please find attached your account statement.</p>
+<ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
+<li style="line-height: 1.5; margin-bottom: 5px;"><b>Your current balance is:</b> <span style="color: blue; font-weight: bold; font-size: 16px;">${netDebt.toLocaleString('en-US')} AED</span></li>
+</ul>`;
+
+        const htmlBody = `<!DOCTYPE html>
+<html>
+<body style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5;">
+<p style="margin: 0 0 10px 0; line-height: 1.5;">Dear Team,</p>
+<p style="margin: 0 0 10px 0; line-height: 1.5;">We hope this message finds you well.</p>
+${debtSectionHtml}
+<p style="margin: 0 0 10px 0; line-height: 1.5;">Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
+<p style="margin: 0; line-height: 1.5;">Best regards,</p>
+</body>
+</html>`;
+
+        const emlLines: string[] = [];
+        emlLines.push('From: accounting@marae.ae');
+        emlLines.push('To: ' + toEmails);
+        emlLines.push('Cc: ' + ccEmails);
+        emlLines.push('Subject: ' + subject);
+        emlLines.push('X-Unsent: 1');
+        emlLines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
+        emlLines.push('');
+        emlLines.push('--' + boundary);
+        emlLines.push('Content-Type: text/html; charset="UTF-8"');
+        emlLines.push('Content-Transfer-Encoding: 7bit');
+        emlLines.push('');
+        emlLines.push(htmlBody);
+        emlLines.push('');
+        emlLines.push('--' + boundary);
+        emlLines.push(`Content-Type: application/pdf; name="${pdfFileName}"`);
+        emlLines.push('Content-Transfer-Encoding: base64');
+        emlLines.push(`Content-Disposition: attachment; filename="${pdfFileName}"`);
+        emlLines.push('');
+        emlLines.push(pdfBase64);
+        emlLines.push('');
+        emlLines.push('--' + boundary + '--');
+
+        const emlContent = emlLines.join('\r\n');
+
+        // Add to zip
+        zip.file(`${cleanName}.eml`, emlContent);
+        count++;
+      }
+
+      if (count > 0) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        setSelectedCustomersForDownload(new Set());
+      } else {
+        alert('No emails generated. Check if selected customers have open invoices.');
+      }
+
+    } catch (error) {
+      console.error('Error in bulk email:', error);
+      alert('Error generating emails.');
     } finally {
       setIsDownloading(false);
     }
@@ -2448,29 +2617,50 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
                   {/* Bulk Download Button */}
                   {selectedCustomersForDownload.size > 0 && (
-                    <button
-                      onClick={handleBulkDownload}
-                      disabled={isDownloading}
-                      className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
-                      title={`Download ${selectedCustomersForDownload.size} account statements`}
-                    >
-                      {isDownloading ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <span>Downloading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                          <span dir="ltr">Download ({selectedCustomersForDownload.size})</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={handleBulkDownload}
+                        disabled={isDownloading}
+                        className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                        title={`Download ${selectedCustomersForDownload.size} account statements`}
+                      >
+                        {isDownloading ? (
+                          <>
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span>Processing...</span>
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                            </svg>
+                            <span dir="ltr">Download PDF ({selectedCustomersForDownload.size})</span>
+                          </>
+                        )}
+                      </button>
+
+                      <button
+                        onClick={handleBulkEmail}
+                        disabled={isDownloading}
+                        className="px-3 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                        title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
+                      >
+                        {isDownloading ? (
+                          <span>...</span>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                            </svg>
+                            <span dir="ltr">Email ({selectedCustomersForDownload.size})</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>

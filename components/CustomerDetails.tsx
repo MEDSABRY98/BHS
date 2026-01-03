@@ -510,6 +510,7 @@ ${debtSectionHtml}
 </body>
 </html>`;
       const emlLines: string[] = [];
+      emlLines.push('From: accounting@marae.ae');
       emlLines.push('To: ' + toEmails);
       emlLines.push('Cc: ' + ccEmails);
       emlLines.push('Subject: ' + subject);
