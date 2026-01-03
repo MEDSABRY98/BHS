@@ -123,7 +123,7 @@ const formatPeriodLabel = (key: string, periodType: 'daily' | 'weekly' | 'monthl
 };
 
 export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period'>('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period' | 'area'>('dashboard');
   const [periodType, setPeriodType] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [chartPeriodType, setChartPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [chartYear, setChartYear] = useState<string>('');
@@ -148,6 +148,34 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return Array.from(reps).sort();
   }, [data]);
 
+  // Pre-calc matching IDs that are tied to OB (opening balance) invoices
+  const obMatchingIds = useMemo(() => {
+    const set = new Set<string>();
+    data.forEach((row) => {
+      const num = (row.number || '').toUpperCase();
+      const matchId = (row.matching || '').toString().toLowerCase();
+      if (num.startsWith('OB') && matchId) {
+        set.add(matchId);
+      }
+    });
+    return set;
+  }, [data]);
+
+  // Pre-calc matching IDs that are tied to current year invoices (SAL)
+  const currentYearMatchingIds = useMemo(() => {
+    const set = new Set<string>();
+    const currentYear = new Date().getFullYear();
+    data.forEach((row) => {
+      const num = (row.number || '').toUpperCase();
+      const matchId = (row.matching || '').toString().toLowerCase();
+      const d = parseDate(row.date);
+      if (num.startsWith('SAL') && matchId && d && d.getFullYear() === currentYear) {
+        set.add(matchId);
+      }
+    });
+    return set;
+  }, [data]);
+
   // Dashboard Data Calculation
   const dashboardData = useMemo(() => {
     // Apply date filters if set, otherwise use last 12 months
@@ -158,10 +186,21 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
     const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
 
-    if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-      // Use specified year and month
-      startDate = new Date(yearNum, monthNum - 1, 1);
-      endDate = new Date(yearNum, monthNum, 0); // Last day of the month
+    if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
+      // Use specified year or month
+      const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
+
+      if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        // Specific Month
+        startDate = new Date(y, monthNum - 1, 1);
+        endDate = new Date(y, monthNum, 0);
+      } else {
+        // Whole Year
+        startDate = new Date(y, 0, 1);
+        endDate = new Date(y, 11, 31);
+      }
+      // Ensure end of day
+      endDate.setHours(23, 59, 59, 999);
     } else if (dateFrom || dateTo) {
       if (dateFrom) {
         const fromDate = parseDate(dateFrom);
@@ -222,7 +261,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     // Adjust date range based on period type
     if (chartPeriodType === 'daily') {
       // لو محدد سنة وشهر، نستخدم نفس الشهر كما هو (يومي داخل نفس الشهر)
-      if (yearNum && monthNum && !isNaN(yearNum) && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
         startDate = new Date(startDate);
         startDate.setHours(0, 0, 0, 0);
         endDate = new Date(endDate);
@@ -246,7 +285,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
     } else if (chartPeriodType === 'weekly') {
       // لو محدد سنة وشهر، نستخدم نفس الشهر كنطاق أسابيع (لا نرجع لـ 52 أسبوع تلقائيًا)
-      if (yearNum && monthNum && !isNaN(yearNum) && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
         startDate = new Date(startDate);
         startDate.setHours(0, 0, 0, 0);
         endDate = new Date(endDate);
@@ -296,7 +335,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     if (chartPeriodType === 'daily') {
       let iterDate = new Date(startDate);
       // Check if we're showing a single month (for shorter date format)
-      const isSingleMonth = yearNum && monthNum && !isNaN(yearNum) && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12;
+      const isSingleMonth = (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12);
       while (iterDate <= endDate) {
         const key = getDailyKey(iterDate);
         // Use shorter format (DD/MM) if showing single month, otherwise full format (DD/MM/YYYY)
@@ -383,6 +422,25 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       );
     }
 
+    // Apply OB / Other Payment filters
+    // Note: This mainly affects Payment rows. Sales/Returns/Discounts are generally kept unless we want to filter them too?
+    // User request: "let the two checkboxes OB Closed Payments and Other/Open Payments affect the dashboard tab"
+    // Usually dashboard shows Collections. So we should filter Payments specifically.
+    // If a row is NOT a payment, we keep it (Sales/Returns)? Or do we only care about Payments for the Collections chart?
+    // The chart shows Collections, Sales, etc. If we filter Payments, Collections will change.
+    filteredData = filteredData.filter(row => {
+      if (getInvoiceType(row) !== 'Payment') return true; // Keep non-payments (Sales, etc.)
+
+      const matchId = (row.matching || '').toString().toLowerCase();
+      const isOBPayment = matchId && obMatchingIds.has(matchId);
+
+      if (isOBPayment) {
+        return showOBClosedPayments;
+      } else {
+        return showOtherPayments;
+      }
+    });
+
     // Count payments with positive net (credit - debit > 0)
     let netPaymentCount = 0;
 
@@ -452,35 +510,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         netPaymentCount
       }
     };
-  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth]);
+  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth, showOBClosedPayments, showOtherPayments, obMatchingIds]);
 
-  // Pre-calc matching IDs that are tied to OB (opening balance) invoices
-  const obMatchingIds = useMemo(() => {
-    const set = new Set<string>();
-    data.forEach((row) => {
-      const num = (row.number || '').toUpperCase();
-      const matchId = (row.matching || '').toString().toLowerCase();
-      if (num.startsWith('OB') && matchId) {
-        set.add(matchId);
-      }
-    });
-    return set;
-  }, [data]);
 
-  // Pre-calc matching IDs that are tied to current year invoices (SAL)
-  const currentYearMatchingIds = useMemo(() => {
-    const set = new Set<string>();
-    const currentYear = new Date().getFullYear();
-    data.forEach((row) => {
-      const num = (row.number || '').toUpperCase();
-      const matchId = (row.matching || '').toString().toLowerCase();
-      const d = parseDate(row.date);
-      if (num.startsWith('SAL') && matchId && d && d.getFullYear() === currentYear) {
-        set.add(matchId);
-      }
-    });
-    return set;
-  }, [data]);
 
   // Calculate payment closure statistics based on net payment amounts (Credit - Debit)
   const paymentClosureStats = useMemo(() => {
@@ -501,9 +533,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       let startDate: Date;
       let endDate: Date;
 
-      if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        startDate = new Date(yearNum, monthNum - 1, 1);
-        endDate = new Date(yearNum, monthNum, 0);
+      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
+        const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
+        if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+          startDate = new Date(y, monthNum - 1, 1);
+          endDate = new Date(y, monthNum, 0);
+        } else {
+          startDate = new Date(y, 0, 1);
+          endDate = new Date(y, 11, 31);
+        }
         endDate.setHours(23, 59, 59, 999);
       } else if (dateFrom || dateTo) {
         const fromDate = dateFrom ? parseDate(dateFrom) : null;
@@ -615,9 +653,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     let startDate: Date;
     let endDate: Date;
 
-    if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-      startDate = new Date(yearNum, monthNum - 1, 1);
-      endDate = new Date(yearNum, monthNum, 0);
+    if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
+      const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
+      if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        startDate = new Date(y, monthNum - 1, 1);
+        endDate = new Date(y, monthNum, 0);
+      } else {
+        startDate = new Date(y, 0, 1);
+        endDate = new Date(y, 11, 31);
+      }
       endDate.setHours(23, 59, 59, 999);
     } else if (dateFrom || dateTo) {
       const fromDate = dateFrom ? parseDate(dateFrom) : null;
@@ -735,9 +779,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       let startDate: Date;
       let endDate: Date;
 
-      if (yearNum && !isNaN(yearNum) && monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        startDate = new Date(yearNum, monthNum - 1, 1);
-        endDate = new Date(yearNum, monthNum, 0);
+      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
+        const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
+        if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+          startDate = new Date(y, monthNum - 1, 1);
+          endDate = new Date(y, monthNum, 0);
+        } else {
+          startDate = new Date(y, 0, 1);
+          endDate = new Date(y, 11, 31);
+        }
         endDate.setHours(23, 59, 59, 999);
       } else if (dateFrom || dateTo) {
         // Parse dates
@@ -1240,6 +1290,168 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return base;
   }, [visiblePayments, selectedPeriod, periodType]);
 
+  // Calculate statistics by Area (Sales Rep)
+  const areaStats = useMemo(() => {
+    // START: Reuse filter logic from averageCollectionDays
+    // Apply filters
+    const searchLower = search.toLowerCase().trim();
+    let filteredPayments = data.filter((row) => {
+      if (getInvoiceType(row) !== 'Payment') return false;
+
+      // Apply sales rep filter (if specific rep selected, only show that rep in table)
+      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
+
+      // Apply date filters - same logic as dashboardData
+      const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+      const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
+      const today = new Date();
+      let startDate: Date;
+      let endDate: Date;
+
+      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
+        const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
+        if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+          startDate = new Date(y, monthNum - 1, 1);
+          endDate = new Date(y, monthNum, 0);
+        } else {
+          startDate = new Date(y, 0, 1);
+          endDate = new Date(y, 11, 31);
+        }
+        endDate.setHours(23, 59, 59, 999);
+      } else if (dateFrom || dateTo) {
+        const fromDate = dateFrom ? parseDate(dateFrom) : null;
+        const toDate = dateTo ? parseDate(dateTo) : null;
+        if (fromDate && toDate) {
+          startDate = fromDate;
+          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+        } else if (fromDate) {
+          startDate = fromDate;
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        } else if (toDate) {
+          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+        } else {
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+        }
+      } else {
+        // Default: ALL TIME (min date to max date from data)
+        const today = new Date();
+        let maxDate = new Date(0);
+        let minDate = new Date(8640000000000000); // Max possible date
+
+        // Find range in data
+        let hasData = false;
+        data.forEach(row => {
+          const d = parseDate(row.date);
+          if (d) {
+            if (d > maxDate) maxDate = d;
+            if (d < minDate) minDate = d;
+            hasData = true;
+          }
+        });
+
+        if (!hasData) {
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+        } else {
+          endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
+          startDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+        }
+        // Ensure end of day
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      const d = parseDate(row.date);
+      if (!d) return false;
+      if (d < startDate || d > endDate) return false;
+
+      // Apply search filter
+      if (searchLower) {
+        if (!row.customerName?.toLowerCase().includes(searchLower) &&
+          !row.number?.toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+
+      // Apply OB / Other Payment Checkbox filters
+      // Same logic as dashboardData
+      const matchId = (row.matching || '').toString().toLowerCase();
+      const isOBPayment = matchId && obMatchingIds.has(matchId);
+
+      if (isOBPayment) {
+        if (!showOBClosedPayments) return false;
+      } else {
+        if (!showOtherPayments) return false;
+      }
+
+      return true;
+    });
+    // END: Reuse filter logic
+
+    // Group by Sales Rep
+    const statsByRep = new Map<string, {
+      repName: string;
+      totalCollected: number;
+      paymentCount: number;
+      avgPaymentAmount: number; // calculated later
+      payments: { date: Date }[]; // store dates for avg interval calc
+      avgCollectionDays: number; // calculated later
+    }>();
+
+    filteredPayments.forEach(row => {
+      const repName = row.salesRep?.trim() || 'Unknown';
+      const netAmount = (row.credit || 0) - (row.debit || 0);
+      const d = parseDate(row.date);
+
+      if (!statsByRep.has(repName)) {
+        statsByRep.set(repName, {
+          repName,
+          totalCollected: 0,
+          paymentCount: 0,
+          avgPaymentAmount: 0,
+          payments: [],
+          avgCollectionDays: 0
+        });
+      }
+
+      const stats = statsByRep.get(repName)!;
+      stats.totalCollected += netAmount;
+      stats.paymentCount += 1;
+      if (d) stats.payments.push({ date: d });
+    });
+
+    // Calculate Averages
+    return Array.from(statsByRep.values()).map(stats => {
+      // Avg Payment Amount
+      stats.avgPaymentAmount = stats.paymentCount > 0 ? stats.totalCollected / stats.paymentCount : 0;
+
+      // Avg Collection Days
+      // Logic: Calculate intervals between payments for this area globally (simplification)
+      // Or: Group by customer within area, calc avg per customer, then avg of those averages?
+      // Request says: "Average every how many days this area pays a payment".
+      // Usually means: Sort ALL payments in area by date, get avg diff between consecutive payments.
+      // E.g. Area pays on 1st, 5th, 10th. Intervals: 4, 5. Avg: 4.5 days.
+      if (stats.payments.length > 1) {
+        stats.payments.sort((a, b) => a.date.getTime() - b.date.getTime());
+        let totalDaysDiff = 0;
+        let diffCount = 0;
+        for (let i = 1; i < stats.payments.length; i++) {
+          const diffTime = Math.abs(stats.payments[i].date.getTime() - stats.payments[i - 1].date.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          totalDaysDiff += diffDays;
+          diffCount++;
+        }
+        stats.avgCollectionDays = diffCount > 0 ? totalDaysDiff / diffCount : 0;
+      } else {
+        stats.avgCollectionDays = 0;
+      }
+
+      return stats;
+    }).sort((a, b) => b.totalCollected - a.totalCollected); // Default sort by total collected
+
+  }, [data, search, selectedSalesRep, chartYear, chartMonth, dateFrom, dateTo, showOBClosedPayments, showOtherPayments, obMatchingIds]);
+
   // (Customer detail restore is handled synchronously in the tab button click handler)
 
   return (
@@ -1403,6 +1615,18 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         >
           Payment by Period
         </button>
+        <button
+          onClick={() => {
+            setActiveSubTab('area');
+            setDetailMode('none');
+          }}
+          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'area'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+        >
+          Payment by Area
+        </button>
       </div>
 
       {/* Dashboard - Cards & Chart */}
@@ -1563,53 +1787,93 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 </button>
               </div>
             </div>
-            <ResponsiveContainer width="100%" height={600}>
-              <BarChart
-                data={dashboardData.chartData}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 20,
-                  bottom: chartPeriodType === 'daily' ? 100 : chartPeriodType === 'weekly' ? 70 : 50,
-                }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis
-                  dataKey="periodLabel"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6B7280', fontSize: chartPeriodType === 'daily' ? 10 : 13, fontWeight: 'bold' }}
-                  height={chartPeriodType === 'daily' ? 70 : chartPeriodType === 'weekly' ? 70 : 60}
-                  interval={0}
-                  angle={0}
-                  textAnchor="middle"
-                  dy={8}
-                />
-                <YAxis
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#6B7280', fontSize: 12 }}
-                  tickFormatter={(value) =>
-                    new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
-                  }
-                />
-                <Tooltip
-                  cursor={{ fill: '#F3F4F6' }}
-                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  formatter={(value: number) =>
-                    new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
-                  }
-                />
-                <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
-                <Bar
-                  dataKey="displayCollections"
-                  name="Net Collections"
-                  fill="#10B981"
-                  radius={[4, 4, 0, 0]}
-                  barSize={chartPeriodType === 'daily' ? 20 : chartPeriodType === 'weekly' ? 25 : 30}
-                />
-              </BarChart>
-            </ResponsiveContainer>
+            {chartPeriodType === 'daily' ? (
+              <div className="overflow-y-auto h-[600px] p-2">
+                <div className="grid grid-cols-8 gap-3">
+                  {(() => {
+                    const sortedData = [...dashboardData.chartData].sort((a, b) => b.periodKey.localeCompare(a.periodKey));
+                    const maxVal = Math.max(...sortedData.map(d => d.collections), 1);
+
+                    return sortedData.map((row) => {
+                      const isZero = row.collections === 0;
+
+                      // Green intensity for non-zero, Red for zero
+                      const intensity = isZero ? 0 : Math.min(Math.max((row.collections / maxVal), 0.1), 1);
+
+                      const bgStyle = isZero
+                        ? { backgroundColor: '#FEF2F2', borderColor: '#FECACA' } // Red-50, Red-200
+                        : { backgroundColor: `rgba(16, 185, 129, ${intensity * 0.2 + 0.05})`, borderColor: `rgba(16, 185, 129, ${intensity * 0.5})` };
+
+                      return (
+                        <div
+                          key={row.periodKey}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border shadow-sm transition-transform hover:scale-105 ${isZero ? 'text-red-600' : 'text-gray-800'}`}
+                          style={bgStyle}
+                        >
+                          <span className={`text-sm font-semibold mb-1 ${isZero ? 'text-red-400' : 'text-gray-500'}`}>{row.periodLabel}</span>
+                          <span className={`text-xl font-bold ${isZero ? 'text-red-700' : 'text-gray-900'}`}>
+                            {row.collections.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })()}
+                  {dashboardData.chartData.length === 0 && (
+                    <div className="col-span-8 text-center text-gray-500 py-12">
+                      No data available for the selected period
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={600}>
+                <BarChart
+                  data={dashboardData.chartData}
+                  margin={{
+                    top: 20,
+                    right: 30,
+                    left: 20,
+                    bottom: chartPeriodType === 'weekly' ? 70 : 50,
+                  }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                  <XAxis
+                    dataKey="periodLabel"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#6B7280', fontSize: 13, fontWeight: 'bold' }}
+                    height={chartPeriodType === 'weekly' ? 70 : 60}
+                    interval={0}
+                    angle={0}
+                    textAnchor="middle"
+                    dy={8}
+                  />
+                  <YAxis
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#6B7280', fontSize: 12 }}
+                    tickFormatter={(value) =>
+                      new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+                    }
+                  />
+                  <Tooltip
+                    cursor={{ fill: '#F3F4F6' }}
+                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                    formatter={(value: number) =>
+                      new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
+                    }
+                  />
+                  <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
+                  <Bar
+                    dataKey="displayCollections"
+                    name="Net Collections"
+                    fill="#10B981"
+                    radius={[4, 4, 0, 0]}
+                    barSize={chartPeriodType === 'weekly' ? 25 : 30}
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       )}
@@ -2208,6 +2472,79 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           </div>
         </div>
       )}
+      {activeSubTab === 'area' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fadeIn">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
+                  Area Name
+                </th>
+                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
+                  Total Collected
+                </th>
+                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
+                  Payment Count
+                </th>
+                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-blue-700 uppercase tracking-wider">
+                  Avg Payment Amount
+                </th>
+                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-orange-700 uppercase tracking-wider">
+                  Avg Days Between Payments
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200 text-base">
+              {areaStats.map((area) => (
+                <tr key={area.repName} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 text-center">
+                    {area.repName}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap font-bold text-emerald-600 text-center">
+                    {area.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-gray-700 text-center">
+                    {area.paymentCount.toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap font-medium text-blue-600 text-center">
+                    {area.avgPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap font-medium text-orange-600 text-center">
+                    {area.avgCollectionDays.toFixed(1)} days
+                  </td>
+                </tr>
+              ))}
+              {areaStats.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                    No data available for the selected filters
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {areaStats.length > 0 && (
+              <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold text-base">
+                <tr>
+                  <td className="px-6 py-4 text-center text-gray-900">Total / Average</td>
+                  <td className="px-6 py-4 text-center text-emerald-700">
+                    {areaStats.reduce((acc, curr) => acc + curr.totalCollected, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-6 py-4 text-center text-gray-800">
+                    {areaStats.reduce((acc, curr) => acc + curr.paymentCount, 0).toLocaleString('en-US')}
+                  </td>
+                  <td className="px-6 py-4 text-center text-blue-700">
+                    {(areaStats.reduce((acc, curr) => acc + curr.totalCollected, 0) / areaStats.reduce((acc, curr) => acc + curr.paymentCount, 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="px-6 py-4 text-center text-orange-700">
+                    -
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      )}
+
     </div>
   );
 }
