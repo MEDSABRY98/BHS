@@ -55,7 +55,7 @@ export default function EmployeeOvertimeTab() {
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
   const [editingRecord, setEditingRecord] = useState({
     date: '',
-    date: '',
+
     employeeName: '',
     type: 'Overtime',
     description: '',
