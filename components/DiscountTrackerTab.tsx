@@ -375,11 +375,12 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                 const monthKey = `${year}-${String(month).padStart(2, '0')}`;
                 const isFuture = compareMonthKeys(monthKey, currentMonthKey) > 0;
                 const isBeforeStart = compareMonthKeys(monthKey, summary.startKey) < 0;
+                if (isBeforeStart) return null;
 
                 // Determine Status
                 const isPosted = summary.postedMonths.find(m => m.key === monthKey);
                 const isReconciled = summary.reconciledMonths.find(m => m.key === monthKey);
-                const isMissing = !isPosted && !isReconciled && !isFuture && !isBeforeStart;
+                const isMissing = !isPosted && !isReconciled && !isFuture;
 
                 let baseClasses = "relative h-20 rounded-lg border flex flex-col items-center justify-center transition-all duration-200 p-1";
                 let statusColor = "";
@@ -387,10 +388,7 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                 let onClick = undefined;
                 let disabled = false;
 
-                if (isBeforeStart) {
-                  statusColor = "bg-gray-100 border-gray-200 opacity-50";
-                  content = <span className="text-xs text-gray-400 font-medium">{MONTH_NAMES[i]}</span>;
-                } else if (isFuture) {
+                if (isFuture) {
                   statusColor = "bg-gray-50 border-gray-100 opacity-40";
                   content = <span className="text-xs text-gray-300 font-medium">{MONTH_NAMES[i]}</span>;
                 } else if (isPosted) {

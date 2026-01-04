@@ -270,11 +270,12 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         // لو مفيش سنة/شهر، نرجع للمنطق القديم (آخر 90 يوم أو المدى من الفلاتر)
         if (!dateFrom && !dateTo) {
           const today = new Date();
-          endDate = new Date(today);
-          endDate.setHours(23, 59, 59, 999);
-          startDate = new Date(today);
-          startDate.setDate(startDate.getDate() - 89);
+          // Default to Current Month
+          startDate = new Date(today.getFullYear(), today.getMonth(), 1);
           startDate.setHours(0, 0, 0, 0);
+
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          endDate.setHours(23, 59, 59, 999);
         } else {
           // Use the filtered date range, but ensure endDate includes the full day
           endDate = new Date(endDate);
@@ -329,6 +330,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       returns: number;
       discounts: number;
       collections: number;
+      paymentCount: number;
+      customerSet: Set<string>;
     }>();
 
     // Initialize periods based on chartPeriodType
@@ -354,7 +357,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           grossSales: 0,
           returns: 0,
           discounts: 0,
-          collections: 0
+          collections: 0,
+          paymentCount: 0,
+          customerSet: new Set()
         });
 
         iterDate = new Date(iterDate);
@@ -380,7 +385,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           grossSales: 0,
           returns: 0,
           discounts: 0,
-          collections: 0
+          collections: 0,
+          paymentCount: 0,
+          customerSet: new Set()
         });
       });
     } else {
@@ -398,7 +405,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           grossSales: 0,
           returns: 0,
           discounts: 0,
-          collections: 0
+          collections: 0,
+          paymentCount: 0,
+          customerSet: new Set()
         });
 
         iterDate = new Date(iterDate);
@@ -475,10 +484,13 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         stats.discounts += credit;
         if (debit < 0) stats.discounts += Math.abs(debit);
       } else if (type === 'Payment') {
-        stats.collections += (credit - debit);
+        const netAmount = credit - debit;
+        stats.collections += netAmount;
         // Count payments with positive net (credit - debit > 0)
-        if ((credit - debit) > 0) {
+        if (netAmount > 0) {
           netPaymentCount++;
+          stats.paymentCount += 1;
+          if (row.customerName) stats.customerSet.add(row.customerName.trim());
         }
       }
     });
@@ -494,6 +506,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           netSalesMinusDiscounts,
           displaySales: Math.round(netSalesMinusDiscounts * 100) / 100,
           displayCollections: Math.round(item.collections * 100) / 100,
+          paymentCount: item.paymentCount,
+          customerCount: item.customerSet.size
         };
       });
 
@@ -889,6 +903,11 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   // Filter payments using the same TYPE logic as the Invoices tab (via shared getInvoiceType).
   const payments = useMemo<PaymentEntry[]>(() => {
+    // OPTIMIZATION: Only calculate if needed for Customer or Period views
+    if (activeSubTab === 'dashboard' || activeSubTab === 'area') {
+      return [];
+    }
+
     // Determine date range filters (Year/Month taking precedence over DateFrom/DateTo)
     const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
     const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
@@ -963,7 +982,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
         return true;
       });
-  }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep, chartYear, chartMonth]);
+  }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep, chartYear, chartMonth, activeSubTab]);
 
   // Apply OB-closed / other payments toggles
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
@@ -979,6 +998,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   // Group by customer
   const paymentsByCustomer = useMemo<PaymentByCustomer[]>(() => {
+    if (activeSubTab !== 'customer') return [];
+
     const grouped = new Map<string, PaymentEntry[]>();
 
     visiblePayments.forEach((payment) => {
@@ -1026,10 +1047,12 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         };
       })
       .sort((a, b) => b.totalPayments - a.totalPayments);
-  }, [visiblePayments]);
+  }, [visiblePayments, activeSubTab]);
 
   // Group by period (respecting search so main rows + popup are aligned)
   const paymentsByPeriod = useMemo<PaymentByPeriod[]>(() => {
+    if (activeSubTab !== 'period') return [];
+
     const grouped = new Map<string, PaymentEntry[]>();
     const searchLower = search.toLowerCase().trim();
 
@@ -1091,7 +1114,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         // For other views, fall back to period key (chronological)
         return b.periodKey.localeCompare(a.periodKey);
       });
-  }, [visiblePayments, periodType, search]);
+  }, [visiblePayments, periodType, search, activeSubTab]);
 
   // Total collected amount respecting filters (date + search + tab)
   const totalFilteredPayments = useMemo(() => {
@@ -1292,6 +1315,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   // Calculate statistics by Area (Sales Rep)
   const areaStats = useMemo(() => {
+    if (activeSubTab !== 'area') return [];
+
     // START: Reuse filter logic from averageCollectionDays
     // Apply filters
     const searchLower = search.toLowerCase().trim();
@@ -1450,7 +1475,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       return stats;
     }).sort((a, b) => b.totalCollected - a.totalCollected); // Default sort by total collected
 
-  }, [data, search, selectedSalesRep, chartYear, chartMonth, dateFrom, dateTo, showOBClosedPayments, showOtherPayments, obMatchingIds]);
+  }, [data, search, selectedSalesRep, chartYear, chartMonth, dateFrom, dateTo, showOBClosedPayments, showOtherPayments, obMatchingIds, activeSubTab]);
 
   // (Customer detail restore is handled synchronously in the tab button click handler)
 
@@ -1814,6 +1839,16 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                           <span className={`text-xl font-bold ${isZero ? 'text-red-700' : 'text-gray-900'}`}>
                             {row.collections.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </span>
+                          {!isZero && (
+                            <div className="flex flex-col items-center mt-1 space-y-0.5">
+                              <span className="text-[10px] sm:text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">
+                                {row.paymentCount} Pays
+                              </span>
+                              <span className="text-[10px] sm:text-xs font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full border border-purple-100">
+                                {row.customerCount} Customers
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     });
@@ -1859,9 +1894,22 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                   <Tooltip
                     cursor={{ fill: '#F3F4F6' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: number) =>
-                      new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
-                    }
+                    formatter={(value: number, name: string, props: any) => {
+                      const rowData = props.payload.payload; // Access payload from the nested payload
+                      if (name === 'Net Collections') {
+                        return [
+                          <>
+                            <div>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
+                            <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
+                              {rowData.paymentCount} Payments<br />
+                              {rowData.customerCount} Customers
+                            </div>
+                          </>,
+                          name
+                        ];
+                      }
+                      return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+                    }}
                   />
                   <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
                   <Bar

@@ -127,7 +127,20 @@ export async function generateAccountStatementPDF(
         dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
       }
     }
-    const type = getInvoiceType(inv);
+    let type = getInvoiceType(inv);
+    if (inv.date && (type === 'Sale' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
+      const d = new Date(inv.date);
+      if (!isNaN(d.getTime())) {
+        const yy = d.getFullYear().toString().slice(-2);
+
+        let base = type;
+        if (type === 'Payment' && (inv.debit || 0) > 0.01) {
+          base = 'Return - Payment';
+        }
+
+        type = `${base} ${yy}`;
+      }
+    }
     return [
       dateStr,
       type,
@@ -187,12 +200,19 @@ export async function generateAccountStatementPDF(
         return;
       }
 
+      const inv = invoices[data.row.index];
+      const isReturnPayment = inv && getInvoiceType(inv) === 'Payment' && (inv.debit || 0) > 0.01;
+
+      if (isReturnPayment && data.column.index !== 1) {
+        data.cell.styles.fillColor = [255, 235, 235]; // Light red highlight
+      }
+
       // Style Type column (fill entire cell) to mirror UI (Overdue tab)
       if (data.column.index === 1 && data.row.index < tableData.length) {
         const type = getInvoiceType(invoices[data.row.index]);
         const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
-        data.cell.styles.fillColor = colors.fillColor;
-        data.cell.styles.textColor = colors.textColor;
+        data.cell.styles.fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor; // Force light red badge bg if return payment, else default
+        data.cell.styles.textColor = isReturnPayment ? [185, 28, 28] : colors.textColor; // Force dark red text if return payment
         data.cell.styles.fontStyle = 'bold';
       }
 
@@ -545,7 +565,14 @@ export async function generateMonthlySeparatedPDF(
           dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         }
       }
-      const type = getInvoiceType(inv);
+      let type = getInvoiceType(inv);
+      if (inv.date && (type === 'Sale' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
+        const d = new Date(inv.date);
+        if (!isNaN(d.getTime())) {
+          const yy = d.getFullYear().toString().slice(-2);
+          type = `${type} ${yy}`;
+        }
+      }
       return [
         dateStr,
         type,
@@ -616,14 +643,22 @@ export async function generateMonthlySeparatedPDF(
           data.cell.styles.fillColor = [255, 245, 200];
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.textColor = 0;
+          return; // Skip further processing for total row
+        }
+
+        const inv = monthInvoices[data.row.index];
+        const isReturnPayment = inv && getInvoiceType(inv) === 'Payment' && (inv.debit || 0) > 0.01;
+
+        if (isReturnPayment && data.column.index !== 1) {
+          data.cell.styles.fillColor = [255, 235, 235];
         }
 
         // Style Type column (fill entire cell) to mirror UI (Overdue tab)
         if (data.column.index === 1 && data.row.index < tableData.length - 1) {
           const type = getInvoiceType(monthInvoices[data.row.index]);
           const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
-          data.cell.styles.fillColor = colors.fillColor;
-          data.cell.styles.textColor = colors.textColor;
+          data.cell.styles.fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor;
+          data.cell.styles.textColor = isReturnPayment ? [185, 28, 28] : colors.textColor;
           data.cell.styles.fontStyle = 'bold';
         }
 

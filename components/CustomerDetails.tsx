@@ -1245,6 +1245,16 @@ ${debtSectionHtml}
     });
   }, [filteredInvoices]);
 
+  const paymentGradientOffset = useMemo(() => {
+    const dataMax = Math.max(...monthlyPaymentsTrendData.map((i) => i.credit), 0);
+    const dataMin = Math.min(...monthlyPaymentsTrendData.map((i) => i.credit), 0);
+
+    if (dataMax <= 0) return 0;
+    if (dataMin >= 0) return 1;
+
+    return dataMax / (dataMax - dataMin);
+  }, [monthlyPaymentsTrendData]);
+
   const monthlySalesTrendData = useMemo(() => {
     const monthShortNames: { [key: string]: string } = {
       January: 'JAN',
@@ -1794,7 +1804,22 @@ ${debtSectionHtml}
 
     const rows = invoices.map(inv => {
       const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
-      const type = getInvoiceTypeFromRow(inv);
+      let type = getInvoiceTypeFromRow(inv);
+      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
+        const d = new Date(inv.date);
+        if (!isNaN(d.getTime())) {
+          const yy = d.getFullYear().toString().slice(-2);
+          // Convert "Sales" to "Sale" to match preference
+          let base = type === 'Sales' ? 'Sale' : type;
+
+          // Special case: Payment in Debit column -> "Return - Payment"
+          if (type === 'Payment' && (inv.debit || 0) > 0.01) {
+            base = 'Return - Payment';
+          }
+
+          type = `${base} ${yy}`;
+        }
+      }
       return [
         date,
         type,
@@ -3137,8 +3162,12 @@ ${debtSectionHtml}
                   >
                     <defs>
                       <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10B981" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                        <stop offset={paymentGradientOffset} stopColor="#10B981" stopOpacity={0.3} />
+                        <stop offset={paymentGradientOffset} stopColor="#EF4444" stopOpacity={0.3} />
+                      </linearGradient>
+                      <linearGradient id="colorPaymentsStroke" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset={paymentGradientOffset} stopColor="#10B981" stopOpacity={1} />
+                        <stop offset={paymentGradientOffset} stopColor="#EF4444" stopOpacity={1} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
@@ -3169,7 +3198,7 @@ ${debtSectionHtml}
                       type="monotone"
                       dataKey="credit"
                       name=""
-                      stroke="#10B981"
+                      stroke="url(#colorPaymentsStroke)"
                       strokeWidth={3}
                       fillOpacity={1}
                       fill="url(#colorPayments)"
