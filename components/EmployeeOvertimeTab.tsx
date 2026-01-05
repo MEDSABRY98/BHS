@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download, Search, BarChart3 } from 'lucide-react';
+import { Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download, Search, BarChart3, ChevronDown, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function EmployeeOvertimeTab() {
@@ -71,6 +71,7 @@ export default function EmployeeOvertimeTab() {
   const [filterDateTo, setFilterDateTo] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [statsSearchQuery, setStatsSearchQuery] = useState('');
+  const [showAbsentStats, setShowAbsentStats] = useState(false);
 
   // Fetch employee names on component mount
   useEffect(() => {
@@ -445,6 +446,13 @@ export default function EmployeeOvertimeTab() {
       }
     }
 
+    // Sort by date from oldest to newest
+    filtered.sort((a, b) => {
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+
     return filtered;
   }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo]);
 
@@ -465,6 +473,38 @@ export default function EmployeeOvertimeTab() {
       );
     });
   }, [filteredRecords, searchQuery]);
+
+  // Group records by date
+  const groupedRecords = useMemo(() => {
+    const groups: { date: string; records: any[] }[] = [];
+    const dateMap = new Map<string, any[]>();
+
+    searchedRecords.forEach(record => {
+      const date = record.date || 'No Date';
+      if (!dateMap.has(date)) {
+        dateMap.set(date, []);
+      }
+      dateMap.get(date)?.push(record);
+    });
+
+    dateMap.forEach((records, date) => {
+      groups.push({ date, records });
+    });
+
+    return groups;
+  }, [searchedRecords]);
+
+  const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+
+  const toggleDate = (date: string) => {
+    const newExpanded = new Set(expandedDates);
+    if (newExpanded.has(date)) {
+      newExpanded.delete(date);
+    } else {
+      newExpanded.add(date);
+    }
+    setExpandedDates(newExpanded);
+  };
 
   // Calculate employee statistics
   const employeeStats = useMemo(() => {
@@ -579,6 +619,10 @@ export default function EmployeeOvertimeTab() {
       }
     }
 
+    // Filter by type (Overtime vs Absent)
+    const typeToFilter = showAbsentStats ? 'Absent' : 'Overtime';
+    filtered = filtered.filter(record => (record.type || 'Overtime').trim().toLowerCase() === typeToFilter.toLowerCase());
+
     // Recalculate stats from filtered records
     const stats: {
       [employeeName: string]: {
@@ -602,10 +646,12 @@ export default function EmployeeOvertimeTab() {
         };
       }
 
+      // Add unique date
       if (record.date) {
         stats[name].dates.add(record.date);
       }
 
+      // Parse hours (format: "4.30" means 4 hours and 30 minutes)
       if (record.hours) {
         const hoursStr = record.hours.toString();
         const parts = hoursStr.split('.');
@@ -616,21 +662,14 @@ export default function EmployeeOvertimeTab() {
       }
     });
 
-    const result = Object.entries(stats).map(([name, data]) => ({
+    // Convert to array and calculate final values
+    return Object.entries(stats).map(([name, data]) => ({
       employeeName: name,
       days: data.dates.size,
       totalHours: data.totalHours,
-      totalAmount: data.totalHours * 10
-    })).sort((a, b) => b.totalAmount - a.totalAmount);
-
-    // Apply search filter
-    if (statsSearchQuery.trim()) {
-      const query = statsSearchQuery.toLowerCase().trim();
-      return result.filter(emp => emp.employeeName.toLowerCase().includes(query));
-    }
-
-    return result;
-  }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo, statsSearchQuery]);
+      totalAmount: data.totalHours * 10 // 10 AED per hour
+    })).sort((a, b) => b.totalAmount - a.totalAmount); // Sort by amount descending
+  }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo, statsSearchQuery, showAbsentStats]);
 
   // Export to Excel
   const exportToExcel = () => {
@@ -1095,38 +1134,70 @@ export default function EmployeeOvertimeTab() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {searchedRecords.map((record, index) => {
-                          const isSunday = record.description?.toLowerCase().includes('sunday');
+                        {groupedRecords.map((group) => {
+                          const isExpanded = expandedDates.has(group.date);
+                          const totalHours = group.records.reduce((sum, r) => sum + (parseFloat(r.hours) || 0), 0);
+
                           return (
-                            <tr
-                              key={record.id}
-                              onClick={() => {
-                                if (currentUser?.name !== 'Overtime Export') {
-                                  openEditModal(record);
-                                }
-                              }}
-                              className={`${currentUser?.name !== 'Overtime Export' ? 'hover:bg-gray-100 cursor-pointer' : ''} transition-colors ${isSunday
-                                ? 'bg-yellow-100 hover:bg-yellow-200'
-                                : index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                                }`}
-                            >
-                              <td className="px-6 py-4 text-center text-gray-900 font-medium truncate" title={record.date}>{record.date}</td>
-                              <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>
-                              <td className="px-6 py-4 text-center text-gray-900 font-medium truncate">
-                                <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${record.type === 'Absent' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                                  }`}>
-                                  {record.type || 'Overtime'}
-                                </span>
-                              </td>
-                              <td className={`px-6 py-4 text-center truncate ${isSunday ? 'text-gray-900 font-bold' : 'text-gray-600'}`} title={record.description}>{record.description}</td>
-                              <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeFrom, record.fromAmPm)}</td>
-                              <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo, record.toAmPm)}</td>
-                              <td className="px-6 py-4 text-center">
-                                <span className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
-                                  {record.hours && !isNaN(parseFloat(record.hours)) ? `${convertHoursToBase60(record.hours)}h` : '0.00h'}
-                                </span>
-                              </td>
-                            </tr>
+                            <React.Fragment key={group.date}>
+                              {/* Group Header */}
+                              <tr
+                                className="bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors"
+                                onClick={() => toggleDate(group.date)}
+                              >
+                                <td colSpan={7} className="px-6 py-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2 font-bold text-gray-800">
+                                      {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+                                      <span className="w-28 inline-block">{group.date}</span>
+                                      <span className="text-sm font-normal text-gray-600 bg-white border border-gray-200 px-3 py-1 rounded-full shadow-sm w-32 text-center inline-block">
+                                        {group.records.length} records
+                                      </span>
+                                    </div>
+                                    <span className="text-sm font-bold text-gray-700 bg-white px-3 py-1 rounded-full shadow-sm w-36 text-center inline-block">
+                                      Total: {totalHours.toFixed(2)}h
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+
+                              {/* Records */}
+                              {isExpanded && group.records.map((record, index) => {
+                                const isSunday = record.description?.toLowerCase().includes('sunday');
+                                return (
+                                  <tr
+                                    key={record.id}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (currentUser?.name !== 'Overtime Export') {
+                                        openEditModal(record);
+                                      }
+                                    }}
+                                    className={`${currentUser?.name !== 'Overtime Export' ? 'hover:bg-gray-100 cursor-pointer' : ''} transition-colors ${isSunday
+                                      ? 'bg-yellow-100 hover:bg-yellow-200'
+                                      : index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
+                                      }`}
+                                  >
+                                    <td className="px-6 py-4 text-center text-gray-900 font-medium truncate opacity-50" title={record.date}>{record.date}</td>
+                                    <td className="px-6 py-4 text-center text-gray-900 font-semibold truncate" title={record.employeeName}>{record.employeeName}</td>
+                                    <td className="px-6 py-4 text-center text-gray-900 font-medium truncate">
+                                      <span className={`inline-block px-2 py-1 rounded-md text-xs font-bold ${record.type === 'Absent' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
+                                        }`}>
+                                        {record.type || 'Overtime'}
+                                      </span>
+                                    </td>
+                                    <td className={`px-6 py-4 text-center truncate ${isSunday ? 'text-gray-900 font-bold' : 'text-gray-600'}`} title={record.description}>{record.description}</td>
+                                    <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeFrom, record.fromAmPm)}</td>
+                                    <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo, record.toAmPm)}</td>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
+                                        {record.hours && !isNaN(parseFloat(record.hours)) ? `${convertHoursToBase60(record.hours)}h` : '0.00h'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </React.Fragment>
                           );
                         })}
                       </tbody>
@@ -1140,14 +1211,33 @@ export default function EmployeeOvertimeTab() {
           {/* Statistics Tab */}
           {activeTab === 'statistics' && (
             <div className="bg-white rounded-xl shadow-md">
-              <div className="p-6 border-b border-gray-200">
-                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-3">
+              <div className="p-6 border-b border-gray-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
                     <BarChart3 className="w-5 h-5 text-gray-700" />
                   </div>
-                  Employee Statistics
-                  <span className="text-lg text-gray-500 font-normal">({filteredEmployeeStats.length})</span>
-                </h2>
+                  <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    Employee Statistics
+                    <span className="text-lg text-gray-500 font-normal">({filteredEmployeeStats.length})</span>
+                  </h2>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 cursor-pointer bg-gray-100 px-4 py-2 rounded-lg hover:bg-gray-200 transition-all select-none border border-gray-200">
+                    <span className={`text-sm font-bold ${!showAbsentStats ? 'text-blue-600' : 'text-gray-500'}`}>Overtime</span>
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={showAbsentStats}
+                        onChange={(e) => setShowAbsentStats(e.target.checked)}
+                        className="sr-only"
+                      />
+                      <div className={`w-10 h-6 bg-gray-300 rounded-full shadow-inner transition-colors ${showAbsentStats ? 'bg-red-500' : 'bg-blue-600'}`}></div>
+                      <div className={`absolute top-1 left-1 bg-white w-4 h-4 rounded-full shadow transition-transform ${showAbsentStats ? 'translate-x-4' : ''}`}></div>
+                    </div>
+                    <span className={`text-sm font-bold ${showAbsentStats ? 'text-red-600' : 'text-gray-500'}`}>Absent</span>
+                  </label>
+                </div>
               </div>
 
               {/* Filters */}
@@ -1261,23 +1351,36 @@ export default function EmployeeOvertimeTab() {
               ) : (
                 <div className="p-6">
                   {/* Summary Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg text-white">
+                  {/* Summary Cards */}
+                  {/* Summary Cards */}
+                  <div className={`grid gap-4 mb-6 ${showAbsentStats ? 'grid-cols-1 md:grid-cols-2 max-w-3xl mx-auto' : 'grid-cols-1 md:grid-cols-3'}`}>
+                    <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-5 shadow-lg text-white text-center">
                       <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Employees</p>
                       <h3 className="text-4xl font-black">{filteredEmployeeStats.length}</h3>
                     </div>
-                    <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-5 shadow-lg text-white">
-                      <p className="text-green-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Hours</p>
-                      <h3 className="text-4xl font-black">
-                        {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalHours, 0).toFixed(1)}h
-                      </h3>
-                    </div>
-                    <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg text-white">
-                      <p className="text-purple-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Amount</p>
-                      <h3 className="text-4xl font-black">
-                        {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                      </h3>
-                    </div>
+                    {showAbsentStats ? (
+                      <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-5 shadow-lg text-white text-center">
+                        <p className="text-red-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Absent Days</p>
+                        <h3 className="text-4xl font-black">
+                          {filteredEmployeeStats.reduce((sum, emp) => sum + emp.days, 0)}
+                        </h3>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-5 shadow-lg text-white text-center">
+                          <p className="text-green-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Hours</p>
+                          <h3 className="text-4xl font-black">
+                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalHours, 0).toFixed(1)}h
+                          </h3>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl p-5 shadow-lg text-white text-center">
+                          <p className="text-purple-100 text-sm font-semibold uppercase tracking-wide mb-2">Total Amount</p>
+                          <h3 className="text-4xl font-black">
+                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                          </h3>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Statistics Table */}
@@ -1288,8 +1391,12 @@ export default function EmployeeOvertimeTab() {
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">#</th>
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Employee Name</th>
                           <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Days</th>
-                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Total Hours</th>
-                          <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Total Amount (10 AED/hr)</th>
+                          {!showAbsentStats && (
+                            <>
+                              <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Total Hours</th>
+                              <th className="px-6 py-4 text-center text-gray-700 font-bold text-xs uppercase tracking-wide">Total Amount (10 AED/hr)</th>
+                            </>
+                          )}
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
@@ -1298,12 +1405,16 @@ export default function EmployeeOvertimeTab() {
                             <td className="px-6 py-4 text-center text-gray-600 font-medium">{index + 1}</td>
                             <td className="px-6 py-4 text-center text-gray-900 font-semibold">{emp.employeeName}</td>
                             <td className="px-6 py-4 text-center text-gray-700 font-medium">{emp.days}</td>
-                            <td className="px-6 py-4 text-center text-gray-700 font-medium">{emp.totalHours.toFixed(1)}h</td>
-                            <td className="px-6 py-4 text-center">
-                              <span className="inline-block bg-green-600 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
-                                {emp.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                              </span>
-                            </td>
+                            {!showAbsentStats && (
+                              <>
+                                <td className="px-6 py-4 text-center text-gray-700 font-medium">{emp.totalHours.toFixed(1)}h</td>
+                                <td className="px-6 py-4 text-center">
+                                  <span className="inline-block bg-green-600 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
+                                    {emp.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                                  </span>
+                                </td>
+                              </>
+                            )}
                           </tr>
                         ))}
                         {/* Total Row */}
@@ -1312,12 +1423,16 @@ export default function EmployeeOvertimeTab() {
                           <td className="px-6 py-4 text-center text-lg">
                             {filteredEmployeeStats.reduce((sum, emp) => sum + emp.days, 0)}
                           </td>
-                          <td className="px-6 py-4 text-center text-lg">
-                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalHours, 0).toFixed(1)}h
-                          </td>
-                          <td className="px-6 py-4 text-center text-lg">
-                            {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                          </td>
+                          {!showAbsentStats && (
+                            <>
+                              <td className="px-6 py-4 text-center text-lg">
+                                {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalHours, 0).toFixed(1)}h
+                              </td>
+                              <td className="px-6 py-4 text-center text-lg">
+                                {filteredEmployeeStats.reduce((sum, emp) => sum + emp.totalAmount, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+                              </td>
+                            </>
+                          )}
                         </tr>
                       </tbody>
                     </table>

@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -59,9 +59,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               </div>
               <button
                 onClick={onLogout}
-                className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
+                className="p-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors border border-red-200"
+                title="Log Out"
               >
-                Log Out
+                <LogOut className="w-5 h-5" />
               </button>
             </div>
           )}
