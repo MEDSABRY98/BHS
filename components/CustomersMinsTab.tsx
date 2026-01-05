@@ -1871,7 +1871,7 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
         {/* Main Tabs */}
         <div className="flex gap-2 border-b-2 border-gray-200 mb-6 bg-gray-50/50 p-1 rounded-t-xl">
           <button
-            className={`py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${activeTab === 'PARTNERS'
+            className={`flex-1 py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${activeTab === 'PARTNERS'
               ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50'
               : 'text-gray-600 hover:text-gray-800 hover:bg-white'
               }`}
@@ -1880,7 +1880,7 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
             All Partners
           </button>
           <button
-            className={`py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${activeTab === 'FILTERS'
+            className={`flex-1 py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${activeTab === 'FILTERS'
               ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50'
               : 'text-gray-600 hover:text-gray-800 hover:bg-white'
               }`}

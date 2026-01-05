@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar } from 'lucide-react';
+import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Receipt {
@@ -35,6 +35,7 @@ export default function PettyCashTab() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Yes' | 'No'>('All');
+  const [recipientFilter, setRecipientFilter] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<Receipt | Expense | null>(null);
   const [entryType, setEntryType] = useState<'receipt' | 'expense'>('receipt');
@@ -309,6 +310,12 @@ export default function PettyCashTab() {
     }
   };
 
+  // Get unique recipients from expenses for the filter
+  const uniqueRecipients = useMemo(() => {
+    const recipients = new Set(expenses.map(e => e.source));
+    return ['All', ...Array.from(recipients).sort()];
+  }, [expenses]);
+
   // Filter data based on search and date range
   const filteredReceipts = useMemo(() => {
     return receipts.filter(receipt => {
@@ -342,6 +349,9 @@ export default function PettyCashTab() {
       // Status filter
       if (statusFilter !== 'All' && expense.paid !== statusFilter) return false;
 
+      // Recipient filter
+      if (recipientFilter !== 'All' && expense.source !== recipientFilter) return false;
+
       // Search filter
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -354,11 +364,11 @@ export default function PettyCashTab() {
       }
       return true;
     });
-  }, [expenses, searchQuery, fromDate, toDate, statusFilter]);
+  }, [expenses, searchQuery, fromDate, toDate, statusFilter, recipientFilter]);
 
   // Pending Payments - Calculate unpaid amounts per recipient
   const pendingPayments = useMemo(() => {
-    const unpaidExpenses = expenses.filter(e => e.paid === 'No');
+    const unpaidExpenses = filteredExpenses.filter(e => e.paid === 'No');
 
     // Group by recipient and sum amounts
     const grouped: { [key: string]: number } = {};
@@ -374,7 +384,7 @@ export default function PettyCashTab() {
     return Object.entries(grouped)
       .map(([recipient, amount]) => ({ recipient, amount }))
       .sort((a, b) => b.amount - a.amount);
-  }, [expenses]);
+  }, [filteredExpenses]);
 
   const exportToExcel = () => {
     // Prepare Receipts data (use filtered data)
@@ -415,7 +425,9 @@ export default function PettyCashTab() {
   };
 
   const totalReceipts = receipts.reduce((sum, r) => sum + r.amount, 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const totalExpenses = expenses.filter(e => e.paid === 'Yes').reduce((sum, e) => sum + e.amount, 0);
+  const totalPending = expenses.filter(e => e.paid === 'No').reduce((sum, e) => sum + e.amount, 0);
+  const pendingCount = expenses.filter(e => e.paid === 'No').length;
   const balance = totalReceipts - totalExpenses;
 
   const tabs = [
@@ -693,7 +705,7 @@ export default function PettyCashTab() {
           {/* Statistics Tab */}
           {activeTab === 'stats' && (
             <div className="max-w-7xl mx-auto space-y-6">
-              <div className="grid grid-cols-3 gap-4 md:gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
                 <div className="bg-gradient-to-br from-green-50 to-white rounded-xl shadow-lg p-4 border-2 border-green-100">
                   <div className="flex items-center gap-2 mb-3">
                     <div className="bg-green-500 text-white p-2 rounded-lg">
@@ -719,6 +731,20 @@ export default function PettyCashTab() {
                   <p className="text-xs text-gray-600 mb-3">AED</p>
                   <div className="pt-3 border-t border-red-100">
                     <p className="text-xs text-gray-600">Transactions: <span className="font-bold">{expenses.length}</span></p>
+                  </div>
+                </div>
+
+                <div className="bg-gradient-to-br from-orange-50 to-white rounded-xl shadow-lg p-4 border-2 border-orange-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-orange-500 text-white p-2 rounded-lg">
+                      <Clock className="w-4 h-4" />
+                    </div>
+                    <h3 className="text-sm font-bold text-gray-800">Pending (Unpaid)</h3>
+                  </div>
+                  <p className="text-2xl font-bold mb-1 text-gray-900">{totalPending.toFixed(2)}</p>
+                  <p className="text-xs text-gray-600 mb-3">AED</p>
+                  <div className="pt-3 border-t border-orange-100">
+                    <p className="text-xs text-gray-600">Transactions: <span className="font-bold">{pendingCount}</span></p>
                   </div>
                 </div>
 
@@ -751,9 +777,22 @@ export default function PettyCashTab() {
                         placeholder="Search by source, description, amount, or date..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors"
+                        className="w-full pl-10 pr-4 py-2 h-11 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors"
                       />
                     </div>
+                  </div>
+
+                  {/* Recipient Filter */}
+                  <div className="md:w-48">
+                    <select
+                      value={recipientFilter}
+                      onChange={(e) => setRecipientFilter(e.target.value)}
+                      className="w-full px-4 py-2 h-11 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors bg-white font-semibold text-gray-700"
+                    >
+                      {uniqueRecipients.map(recipient => (
+                        <option key={recipient} value={recipient}>{recipient === 'All' ? 'All Recipients' : recipient}</option>
+                      ))}
+                    </select>
                   </div>
 
                   {/* Status Filter */}
@@ -761,7 +800,7 @@ export default function PettyCashTab() {
                     <select
                       value={statusFilter}
                       onChange={(e) => setStatusFilter(e.target.value as any)}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors bg-white font-semibold text-gray-700"
+                      className="w-full px-4 py-2 h-11 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-black transition-colors bg-white font-semibold text-gray-700"
                     >
                       <option value="All">All Status</option>
                       <option value="Yes">PAID</option>
