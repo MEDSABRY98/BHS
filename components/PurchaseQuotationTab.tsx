@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, ArrowLeft, Search, Upload, Save } from 'lucide-react';
+import { Plus, Trash2, Download, ArrowLeft, Search, Upload, Save, Box, FileText, Loader2, RotateCcw } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
@@ -18,6 +18,8 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
     const [supplierName, setSupplierName] = useState('');
     const [supplierAddress, setSupplierAddress] = useState('');
     const [supplierPhone, setSupplierPhone] = useState('');
+    const [notes, setNotes] = useState('');
+    const [isEditMode, setIsEditMode] = useState(false);
 
     const [quotationNumber, setQuotationNumber] = useState('PO-2025-001');
     const [quotationDate, setQuotationDate] = useState(new Date().toISOString().split('T')[0]);
@@ -53,6 +55,7 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
             const data = await response.json();
             if (data.quotationNumber) {
                 setQuotationNumber(data.quotationNumber);
+                setIsEditMode(false);
             }
         } catch (error) {
             console.error('Error fetching quotation number:', error);
@@ -75,10 +78,12 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                 setQuotationNumber(result.data.quotationNumber);
                 setQuotationDate(result.data.date);
                 setSupplierName(result.data.supplierName);
+                setNotes(result.data.notes || '');
                 setItems(result.data.items.map((item: any, index: number) => ({
                     id: index + 1,
                     ...item
                 })));
+                setIsEditMode(true);
             } else {
                 alert('Quotation not found');
             }
@@ -88,6 +93,19 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
         } finally {
             setLoading(false);
         }
+    };
+
+    const resetForm = async () => {
+        setSearchNumber('');
+        setSupplierName('');
+        setSupplierAddress('');
+        setSupplierPhone('');
+        setNotes('');
+        setItems([{ id: 1, barcode: '', name: '', quantity: 1, unit: '-', price: 0 }]);
+        setIsEditMode(false);
+        // Ensure date is reset to today
+        setQuotationDate(new Date().toISOString().split('T')[0]);
+        await fetchNextQuotationNumber();
     };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,6 +206,7 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                     date: quotationDate,
                     quotationNumber,
                     supplierName,
+                    notes,
                     items: [...items]
                         .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
                         .map(item => ({
@@ -212,6 +231,7 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                 setSupplierName('');
                 setSupplierAddress('');
                 setSupplierPhone('');
+                setNotes('');
                 setItems([{ id: 1, barcode: '', name: '', quantity: 1, unit: '-', price: 0 }]);
             } else {
                 alert('Failed to save quotation');
@@ -330,98 +350,122 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
         doc.text('TOTAL AMOUNT:', 222, y + 2);
         doc.text(`AED ${total.toFixed(2)}`, 280, y + 2, { align: 'right' });
 
+        // Notes
+        if (notes.trim()) {
+            y += 15;
+            doc.setFillColor(31, 41, 55);
+            doc.rect(15, y, 267, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('NOTES', 20, y + 5.5);
+
+            y += 8;
+            doc.setTextColor(0, 0, 0);
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+
+            const splitNotes = doc.splitTextToSize(notes, 260); // Wrap text
+            doc.text(splitNotes, 20, y + 5);
+        }
+
         // Save with company name and last part of quotation number
         const quotationLastPart = quotationNumber.split('-').pop() || quotationNumber;
         doc.save(`Al Marai Al Arabia Trading Sole Proprietorship L.L.C - ${quotationLastPart}.pdf`);
     };
 
-    const handleBack = () => {
-        window.location.href = '/';
-    };
+
 
     return (
-        <div className="bg-gray-50 p-0.5">
-            <div className="max-w-7xl mx-auto bg-white shadow-lg">
+        <div className="bg-gray-50 px-6 py-0.5 min-h-screen">
+            <div className="max-w-7xl mx-auto bg-white shadow-xl rounded-xl overflow-hidden border-t-4 border-yellow-500">
                 {/* Top Section */}
-                <div className="bg-green-600 text-white p-6">
-                    <div className="flex items-center justify-between">
-                        <button
-                            onClick={handleBack}
-                            className="flex items-center justify-center w-10 h-10 bg-white/20 hover:bg-white/30 rounded-lg transition-colors"
-                        >
-                            <ArrowLeft className="w-5 h-5" />
-                        </button>
-                        <h1 className="text-2xl font-bold flex-1 text-center">PO # - Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
-                        <div className="w-10"></div> {/* Spacer for centering */}
-                    </div>
-                </div>
 
-                <div className="p-4 bg-gray-100 border-b border-gray-200">
-                    <div className="flex gap-2 max-w-xl mx-auto">
+
+                <div className="p-6 bg-gray-50 border-b border-gray-200">
+                    <div className="flex gap-2 max-w-2xl mx-auto">
                         <input
                             type="text"
                             value={searchNumber}
                             onChange={(e) => setSearchNumber(e.target.value)}
                             placeholder="Search by Quotation Number (e.g. PO-2025-001)"
-                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 shadow-sm"
+                            className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:border-green-600 shadow-sm text-lg"
                             onKeyDown={(e) => e.key === 'Enter' && searchQuotation()}
                         />
                         <button
                             onClick={searchQuotation}
                             disabled={loading}
-                            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 font-medium shadow-sm disabled:opacity-50"
+                            className="bg-blue-600 text-white px-8 py-3 rounded-xl hover:bg-blue-700 transition-colors flex items-center gap-2 font-bold shadow-md disabled:opacity-50"
                         >
-                            <Search size={18} />
-                            Search
+                            {loading ? <Loader2 className="animate-spin" size={20} /> : <Search size={20} />}
+                            {loading ? 'Searching...' : 'Search'}
+                        </button>
+                        <button
+                            onClick={resetForm}
+                            disabled={loading}
+                            className="bg-gray-200 text-gray-700 px-4 py-3 rounded-xl hover:bg-gray-300 transition-colors flex items-center justify-center font-bold shadow-md"
+                            title="Reset / New Quotation"
+                        >
+                            <RotateCcw size={20} />
                         </button>
                     </div>
                 </div>
 
                 {/* Info Section */}
-                <div className="p-6 border-b-2 border-gray-200">
-                    <div className="grid grid-cols-2 gap-8">
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-600 mb-3 border-b-2 border-green-600 pb-1 inline-block">SUPPLIER INFORMATION</h3>
-                            <div className="space-y-2 mt-3">
-                                <div className="flex items-center">
-                                    <span className="text-sm font-semibold text-gray-700 w-32">Supplier Name:</span>
+                <div className="p-8 border-b-2 border-gray-100">
+                    <div className="flex flex-col gap-10">
+                        {/* Supplier Information Card */}
+                        <div className={`p-6 rounded-xl border transition-colors ${isEditMode ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isEditMode ? 'text-orange-800' : 'text-gray-800'}`}>
+                                <Box className={`w-5 h-5 ${isEditMode ? 'text-orange-600' : 'text-green-600'}`} />
+                                {isEditMode ? 'EDITING SUPPLIER INFORMATION' : 'SUPPLIER INFORMATION'}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-600">Supplier Name</label>
                                     <input
                                         type="text"
                                         value={supplierName}
                                         onChange={(e) => setSupplierName(e.target.value)}
-                                        className="flex-1 px-2 py-1 border-b border-gray-300 focus:outline-none focus:border-green-600"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600 transition-all"
+                                        placeholder="Enter Supplier Name"
                                     />
                                 </div>
-                                <div className="flex items-center">
-                                    <span className="text-sm font-semibold text-gray-700 w-32">Address:</span>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-600">Address</label>
                                     <input
                                         type="text"
                                         value={supplierAddress}
                                         onChange={(e) => setSupplierAddress(e.target.value)}
-                                        className="flex-1 px-2 py-1 border-b border-gray-300 focus:outline-none focus:border-green-600"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600 transition-all"
+                                        placeholder="Address"
                                     />
                                 </div>
                             </div>
                         </div>
-                        <div>
-                            <h3 className="text-sm font-bold text-gray-600 mb-3 border-b-2 border-green-600 pb-1 inline-block">QUOTATION DETAILS</h3>
-                            <div className="space-y-2 mt-3">
-                                <div className="flex items-center">
-                                    <span className="text-sm font-semibold text-gray-700 w-32">Quotation No:</span>
+
+                        {/* Quotation Details Card */}
+                        <div className={`p-6 rounded-xl border transition-colors ${isEditMode ? 'bg-orange-50 border-orange-200' : 'bg-gray-50 border-gray-200'}`}>
+                            <h3 className={`text-lg font-bold mb-4 flex items-center gap-2 ${isEditMode ? 'text-orange-800' : 'text-gray-800'}`}>
+                                <FileText className={`w-5 h-5 ${isEditMode ? 'text-orange-600' : 'text-blue-600'}`} />
+                                {isEditMode ? 'EDITING QUOTATION DETAILS' : 'QUOTATION DETAILS'}
+                            </h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-600">Quotation No</label>
                                     <input
                                         type="text"
                                         value={quotationNumber}
                                         readOnly
-                                        className="flex-1 px-2 py-1 border-b border-gray-300 bg-gray-100 cursor-not-allowed"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-200 text-gray-600 cursor-not-allowed font-medium"
                                     />
                                 </div>
-                                <div className="flex items-center">
-                                    <span className="text-sm font-semibold text-gray-700 w-32">Date:</span>
+                                <div className="space-y-2">
+                                    <label className="text-sm font-bold text-gray-600">Date</label>
                                     <input
                                         type="date"
                                         value={quotationDate}
                                         onChange={(e) => setQuotationDate(e.target.value)}
-                                        className="flex-1 px-2 py-1 border-b border-gray-300 focus:outline-none focus:border-green-600"
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 focus:ring-1 focus:ring-green-600 transition-all"
                                     />
                                 </div>
                             </div>
@@ -552,6 +596,17 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                                 <span className="text-xl font-bold">AED {calculateTotal().toFixed(2)}</span>
                             </div>
                         </div>
+                    </div>
+
+                    {/* Notes Section */}
+                    <div className="mt-8 border-t border-gray-200 pt-4">
+                        <label className="block text-sm font-bold text-gray-700 mb-2">Notes:</label>
+                        <textarea
+                            value={notes}
+                            onChange={(e) => setNotes(e.target.value)}
+                            placeholder="Add any additional notes here..."
+                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:border-green-600 h-24 resize-none"
+                        />
                     </div>
                 </div>
 

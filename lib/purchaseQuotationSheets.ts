@@ -119,6 +119,7 @@ export async function savePurchaseQuotation(data: {
     date: string;
     quotationNumber: string;
     supplierName: string;
+    notes?: string;
     items: Array<{
         barcode: string;
         name: string;
@@ -200,13 +201,14 @@ export async function savePurchaseQuotation(data: {
             item.quantity,
             item.unit,
             item.price,
-            item.quantity * item.price
+            item.quantity * item.price,
+            data.notes || ''
         ]);
 
         // 5. Append new rows
         await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
-            range: `${sheetName}!A:I`,
+            range: `${sheetName}!A:J`,
             valueInputOption: 'USER_ENTERED',
             requestBody: {
                 values: newRows
@@ -226,6 +228,7 @@ export async function searchQuotationByNumber(quotationNumber: string): Promise<
         date: string;
         quotationNumber: string;
         supplierName: string;
+        notes?: string;
         items: Array<{
             barcode: string;
             name: string;
@@ -243,7 +246,7 @@ export async function searchQuotationByNumber(quotationNumber: string): Promise<
         // Get all data
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `${sheetName}!A:I`,
+            range: `${sheetName}!A:J`,
         });
 
         const rows = response.data.values || [];
@@ -271,6 +274,7 @@ export async function searchQuotationByNumber(quotationNumber: string): Promise<
                 date: firstRow[0] || '',
                 quotationNumber: firstRow[1] || '',
                 supplierName: firstRow[2] || '',
+                notes: firstRow[9] || '',
                 items
             }
         };
