@@ -25,6 +25,7 @@ export interface CustomerAnalysis {
   lastPaymentClosure?: string; // Human label describing whether last payment is closed
   lastSalesDate?: Date | null;
   lastSalesAmount?: number | null; // Amount of last sale
+  lastTransactionDate?: Date | null; // NEW: Date of valid transaction of any type
   overdueAmount?: number; // Total overdue amount
   hasOB?: boolean; // Has unpaid OB invoices (OB invoices with netDebt > 0)
   openOBAmount?: number; // Total netDebt of unpaid OB invoices
@@ -36,6 +37,10 @@ export interface CustomerAnalysis {
     ninetyOneToOneTwenty: number; // 91-120 days
     older: number; // > 120 days
   };
+  creditPayments?: number;
+  creditReturns?: number;
+  creditDiscounts?: number;
+  totalSalesDebit?: number;
 }
 
 export interface SalesRepAnalysis {

@@ -2217,16 +2217,17 @@ ${debtSectionHtml}
                 <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
                   <p className="text-xs text-gray-500 uppercase">Payments</p>
                   <p className="text-lg font-bold text-gray-900">{dashboardMetrics.paymentsAmount.toLocaleString('en-US')}</p>
+                  <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.paymentsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
                 </div>
                 <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
                   <p className="text-xs text-gray-500 uppercase">Returns (RSAL)</p>
                   <p className="text-lg font-bold text-gray-900">{dashboardMetrics.returnsAmount.toLocaleString('en-US')}</p>
-                  <p className="text-xs text-gray-500">Impact: {dashboardMetrics.returnsImpact.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.returnsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
                 </div>
                 <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
                   <p className="text-xs text-gray-500 uppercase">Discounts (JV/BIL)</p>
                   <p className="text-lg font-bold text-gray-900">{dashboardMetrics.discountsAmount.toLocaleString('en-US')}</p>
-                  <p className="text-xs text-gray-500">Impact: {dashboardMetrics.discountsImpact.toFixed(1)}%</p>
+                  <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.discountsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
                 </div>
               </div>
 

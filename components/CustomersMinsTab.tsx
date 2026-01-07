@@ -1869,848 +1869,351 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
     <div className="p-6">
       <div className="mb-6">
         {/* Main Tabs */}
-        <div className="flex gap-2 border-b-2 border-gray-200 mb-6 bg-gray-50/50 p-1 rounded-t-xl">
-          <button
-            className={`flex-1 py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${activeTab === 'PARTNERS'
-              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50'
-              : 'text-gray-600 hover:text-gray-800 hover:bg-white'
-              }`}
-            onClick={() => setActiveTab('PARTNERS')}
-          >
-            All Partners
-          </button>
-          <button
-            className={`flex-1 py-3 px-6 font-semibold text-base rounded-lg transition-all duration-200 ${activeTab === 'FILTERS'
-              ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-200/50'
-              : 'text-gray-600 hover:text-gray-800 hover:bg-white'
-              }`}
-            onClick={() => setActiveTab('FILTERS')}
-          >
-            Filters
-          </button>
-        </div>
+
 
         {/* Tab Content */}
-        {activeTab === 'FILTERS' && (
-          <div className="bg-white/80 backdrop-blur p-6 rounded-2xl mb-6 border border-gray-200 shadow-[0_8px_24px_rgba(0,0,0,0.06)]">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-gray-100 pb-4">
-              <div className="space-y-1.5">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 text-xs font-semibold uppercase tracking-wide shadow-[0_1px_3px_rgba(79,70,229,0.18)]">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
+
+
+
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-4 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6">
+          <div className="relative flex flex-col lg:flex-row lg:items-center gap-4">
+            {/* Left Side - Total Net Debit */}
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${totalDebt > 0
+                ? 'bg-gradient-to-br from-red-500 to-red-600'
+                : 'bg-gradient-to-br from-green-500 to-green-600'
+                }`}>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Total Net Debit</p>
+                <p className="text-xl font-bold">
+                  <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
+                    {totalDebt.toLocaleString('en-US')}
+                  </span>
+                </p>
+                <p className="text-xs text-gray-600 mt-0.5">
+                  <span className="font-medium">{filteredData.length}</span> customers
+                  {searchQuery && <span className="text-gray-400"> (from {customerAnalysis.length})</span>}
+                </p>
+              </div>
+            </div>
+
+            {/* Center - Filters and Search */}
+            <div className="flex flex-col sm:flex-row gap-2 items-center justify-center max-w-3xl mx-auto w-full lg:absolute lg:left-1/2 lg:-translate-x-1/2">
+              <select
+                value={matchingFilter}
+                onChange={(e) => setMatchingFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+              >
+                <option value="ALL">All Statuses</option>
+                <option value="OPEN">Open Matching Only</option>
+                <option value="WITH_EMAIL">Customers with Email</option>
+                <option value="RATING_GOOD">Rating: Good</option>
+                <option value="RATING_MEDIUM">Rating: Medium</option>
+                <option value="RATING_BAD">Rating: Bad</option>
+              </select>
+
+              <select
+                value={selectedSalesRep}
+                onChange={(e) => setSelectedSalesRep(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+              >
+                <option value="ALL">All Sales Reps</option>
+                {availableSalesReps.map(rep => (
+                  <option key={rep} value={rep}>{rep}</option>
+                ))}
+              </select>
+
+              <div className="relative flex-1 max-w-md w-full">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                   </svg>
-                  Filters Panel
                 </div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-xl font-bold text-gray-900">Advanced Filtering</h3>
-                  <span className="text-xs text-gray-400 font-medium px-2 py-0.5 rounded-full bg-gray-100 border border-gray-200">Live preview</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-full shadow-md border border-gray-100">
-                <span className="text-xs text-gray-500 font-semibold uppercase tracking-wide">Matches</span>
-                <span className="text-lg font-bold text-blue-600">{filteredData.length}</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-              {/* Date Range Section */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-purple-200 transition-colors">
-                <h4 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                  <span className="p-1.5 bg-purple-50 text-purple-600 rounded">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                    </svg>
-                  </span>
-                  Date Range Filters
-                </h4>
-
-                <div className="space-y-3">
-                  {/* Date Range Type */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Filter By</label>
-                    <select
-                      className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      value={dateRangeType}
-                      onChange={(e) => setDateRangeType(e.target.value as any)}
-                    >
-                      <option value="LAST_TRANSACTION">Last Transaction (Any)</option>
-                      <option value="LAST_SALE">Last Sale</option>
-                      <option value="LAST_PAYMENT">Last Payment</option>
-                    </select>
-                  </div>
-
-                  {/* From Date */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">From Date</label>
-                    <input
-                      type="date"
-                      className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      value={dateRangeFrom}
-                      onChange={(e) => setDateRangeFrom(e.target.value)}
-                    />
-                  </div>
-
-                  {/* To Date */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">To Date</label>
-                    <input
-                      type="date"
-                      className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      value={dateRangeTo}
-                      onChange={(e) => setDateRangeTo(e.target.value)}
-                    />
-                  </div>
-                </div>
+                <input
+                  type="text"
+                  placeholder="Search by customer name or invoice number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
+                />
               </div>
 
-              {/* Financial Section */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors">
-                <h4 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                  <span className="p-1.5 bg-red-50 text-red-600 rounded">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" />
-                    </svg>
-                  </span>
-                  Debit Filters
-                </h4>
-
-                <div className="space-y-3">
-                  {/* Net Debit Range */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Debit</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={debtOperator}
-                        onChange={(e) => setDebtOperator(e.target.value as any)}
-                      >
-                        <option value="GT">&gt; More</option>
-                        <option value="LT">&lt; Less</option>
-                      </select>
-                      <div className="relative flex-1">
-                        <input
-                          type="number"
-                          placeholder="Amount"
-                          className="w-full bg-white border text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 border-gray-300"
-                          value={debtAmount}
-                          onChange={(e) => setDebtAmount(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Collection Rate */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Collection Rate</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={collectionRateOperator}
-                        onChange={(e) => setCollectionRateOperator(e.target.value as any)}
-                      >
-                        <option value="GT">&gt; More</option>
-                        <option value="LT">&lt; Less</option>
-                      </select>
-                      <div className="relative flex-1">
-                        <input
-                          type="number"
-                          placeholder="Percentage"
-                          className="w-full bg-white border text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 border-gray-300"
-                          value={collectionRateValue}
-                          onChange={(e) => setCollectionRateValue(e.target.value)}
-                        />
-                        <span className="absolute right-3 top-2.5 text-gray-400 text-sm">%</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Last Payment moved here */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment</label>
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          placeholder="Value"
-                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={lastPaymentValue}
-                          onChange={(e) => setLastPaymentValue(e.target.value)}
-                        />
-                        <select
-                          className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={lastPaymentUnit}
-                          onChange={(e) => setLastPaymentUnit(e.target.value as any)}
-                        >
-                          <option value="DAYS">Days</option>
-                          <option value="MONTHS">Months</option>
-                        </select>
-                      </div>
-                      <select
-                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={lastPaymentStatus}
-                        onChange={(e) => setLastPaymentStatus(e.target.value as any)}
-                      >
-                        <option value="ACTIVE">Active (paid in last period)</option>
-                        <option value="INACTIVE">Inactive (no payment in last period)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Last Payment Amount Filter */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment Amount</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={lastPaymentAmountOperator}
-                        onChange={(e) => setLastPaymentAmountOperator(e.target.value as any)}
-                      >
-                        <option value="GT">&gt; More</option>
-                        <option value="LT">&lt; Less</option>
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Amount"
-                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={lastPaymentAmountValue}
-                        onChange={(e) => setLastPaymentAmountValue(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* OB Filter Checkbox */}
-                  <div className="pt-2 border-t border-gray-200">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={hasOB}
-                        onChange={(e) => setHasOB(e.target.checked)}
-                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                      />
-                      <span className="text-sm font-medium text-gray-700">Has Unpaid OB Invoices</span>
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Overdue Amount Section */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-orange-200 transition-colors">
-                <h4 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                  <span className="p-1.5 bg-orange-50 text-orange-600 rounded">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                  </span>
-                  Overdue Amount
-                </h4>
-
-                <div className="space-y-3">
-                  {/* Overdue Amount Input */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Overdue Amount</label>
-                    <input
-                      type="number"
-                      placeholder="Minimum overdue amount"
-                      className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      value={overdueAmount}
-                      onChange={(e) => setOverdueAmount(e.target.value)}
-                    />
-                  </div>
-
-                  {/* Aging Buckets Checkboxes - Matching AGES tab order */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-3 uppercase">Aging Buckets</label>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (overdueAging.includes('AT_DATE')) {
-                            setOverdueAging(overdueAging.filter(b => b !== 'AT_DATE'));
-                          } else {
-                            setOverdueAging([...overdueAging, 'AT_DATE']);
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${overdueAging.includes('AT_DATE')
-                          ? 'bg-green-50 border-green-500 text-green-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('AT_DATE') ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                        <span>AT DATE</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (overdueAging.includes('1-30')) {
-                            setOverdueAging(overdueAging.filter(b => b !== '1-30'));
-                          } else {
-                            setOverdueAging([...overdueAging, '1-30']);
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${overdueAging.includes('1-30')
-                          ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('1-30') ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                        <span>1 - 30</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (overdueAging.includes('31-60')) {
-                            setOverdueAging(overdueAging.filter(b => b !== '31-60'));
-                          } else {
-                            setOverdueAging([...overdueAging, '31-60']);
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${overdueAging.includes('31-60')
-                          ? 'bg-yellow-50 border-yellow-500 text-yellow-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('31-60') ? 'bg-yellow-500' : 'bg-gray-300'}`}></div>
-                        <span>31 - 60</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (overdueAging.includes('61-90')) {
-                            setOverdueAging(overdueAging.filter(b => b !== '61-90'));
-                          } else {
-                            setOverdueAging([...overdueAging, '61-90']);
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${overdueAging.includes('61-90')
-                          ? 'bg-orange-50 border-orange-500 text-orange-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('61-90') ? 'bg-orange-500' : 'bg-gray-300'}`}></div>
-                        <span>61 - 90</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (overdueAging.includes('91-120')) {
-                            setOverdueAging(overdueAging.filter(b => b !== '91-120'));
-                          } else {
-                            setOverdueAging([...overdueAging, '91-120']);
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${overdueAging.includes('91-120')
-                          ? 'bg-red-50 border-red-500 text-red-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('91-120') ? 'bg-red-500' : 'bg-gray-300'}`}></div>
-                        <span>91 - 120</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (overdueAging.includes('OLDER')) {
-                            setOverdueAging(overdueAging.filter(b => b !== 'OLDER'));
-                          } else {
-                            setOverdueAging([...overdueAging, 'OLDER']);
-                          }
-                        }}
-                        className={`flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg border-2 transition-all duration-200 font-medium text-sm ${overdueAging.includes('OLDER')
-                          ? 'bg-purple-50 border-purple-500 text-purple-700 shadow-sm'
-                          : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes('OLDER') ? 'bg-purple-500' : 'bg-gray-300'}`}></div>
-                        <span>OLDER</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Activity Section */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:border-blue-200 transition-colors">
-                <h4 className="text-base font-semibold text-gray-800 flex items-center gap-2 mb-4">
-                  <span className="p-1.5 bg-blue-50 text-blue-600 rounded">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                    </svg>
-                  </span>
-                  Sales Filters
-                </h4>
-
-                <div className="space-y-3">
-                  {/* Net Sales Volume (moved here) */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Sales</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={netSalesOperator}
-                        onChange={(e) => setNetSalesOperator(e.target.value as any)}
-                      >
-                        <option value="GT">&gt; More</option>
-                        <option value="LT">&lt; Less</option>
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Net Sales amount"
-                        className="w-full bg-white border text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 border-gray-300"
-                        value={minTotalDebit}
-                        onChange={(e) => setMinTotalDebit(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Last Sales */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales</label>
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="number"
-                          placeholder="Value"
-                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={noSalesValue}
-                          onChange={(e) => setNoSalesValue(e.target.value)}
-                        />
-                        <select
-                          className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={noSalesUnit}
-                          onChange={(e) => setNoSalesUnit(e.target.value as any)}
-                        >
-                          <option value="DAYS">Days</option>
-                          <option value="MONTHS">Months</option>
-                        </select>
-                      </div>
-                      <select
-                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={lastSalesStatus}
-                        onChange={(e) => setLastSalesStatus(e.target.value as any)}
-                      >
-                        <option value="ACTIVE">Active (sold in last period)</option>
-                        <option value="INACTIVE">Inactive (no sales in last period)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Last Sales Amount Filter */}
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales Amount</label>
-                    <div className="flex gap-2">
-                      <select
-                        className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={lastSalesAmountOperator}
-                        onChange={(e) => setLastSalesAmountOperator(e.target.value as any)}
-                      >
-                        <option value="GT">&gt; More</option>
-                        <option value="LT">&lt; Less</option>
-                      </select>
-                      <input
-                        type="number"
-                        placeholder="Amount"
-                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                        value={lastSalesAmountValue}
-                        onChange={(e) => setLastSalesAmountValue(e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6 flex justify-end items-center gap-3 pt-4 border-t border-gray-200">
               <button
-                className={`text-sm font-medium px-3 py-2 rounded-md transition-colors ${debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || matchingFilter !== 'ALL' || selectedSalesRep !== 'ALL' || searchQuery || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo
-                  ? 'text-red-600 hover:bg-red-50 cursor-pointer'
-                  : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                onClick={() => {
-                  setDebtOperator('');
-                  setDebtAmount('');
-                  setLastPaymentValue('');
-                  setLastPaymentStatus('ACTIVE');
-                  setLastPaymentAmountOperator('');
-                  setLastPaymentAmountValue('');
-                  setNoSalesValue('');
-                  setLastSalesStatus('ACTIVE');
-                  setLastSalesAmountOperator('');
-                  setLastSalesAmountValue('');
-                  setMatchingFilter('ALL');
-                  setSelectedSalesRep('ALL');
-                  setSearchQuery('');
-                  setDebtType('ALL');
-                  setMinTotalDebit('');
-                  setNetSalesOperator('');
-                  setCollectionRateOperator('');
-                  setCollectionRateValue('');
-                  setOverdueAmount('');
-                  setOverdueAging([]);
-                  setDateRangeFrom('');
-                  setDateRangeTo('');
-                  setDateRangeType('LAST_TRANSACTION');
-                  setHasOB(false);
-                }}
-                disabled={!(debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || matchingFilter !== 'ALL' || selectedSalesRep !== 'ALL' || searchQuery || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB)}
+                onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
+                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
+                title="Export to Excel (Summary + Net Only Details)"
               >
-                Clear All
-              </button>
-              <button
-                className="bg-blue-600 text-white px-5 py-2 rounded-md hover:bg-blue-700 shadow-sm transition-all font-medium flex items-center gap-2 text-sm"
-                onClick={() => setActiveTab('PARTNERS')}
-              >
-                <span>View Results</span>
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-                  <path fillRule="evenodd" d="M3 10a.75.75 0 0 1 .75-.75h10.638L10.23 5.29a.75.75 0 1 1 1.04-1.08l5.5 5.25a.75.75 0 0 1 0 1.08l-5.5 5.25a.75.75 0 1 1-1.04-1.08l4.158-3.96H3.75A.75.75 0 0 1 3 10Z" clipRule="evenodd" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                 </svg>
               </button>
-            </div>
-          </div>
-        )}
 
-        {activeTab === 'PARTNERS' && (
-          <>
-            <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-4 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6">
-              <div className="relative flex flex-col lg:flex-row lg:items-center gap-4">
-                {/* Left Side - Total Net Debit */}
-                <div className="flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${totalDebt > 0
-                    ? 'bg-gradient-to-br from-red-500 to-red-600'
-                    : 'bg-gradient-to-br from-green-500 to-green-600'
-                    }`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Total Net Debit</p>
-                    <p className="text-xl font-bold">
-                      <span className={totalDebt > 0 ? 'text-red-600' : 'text-green-600'}>
-                        {totalDebt.toLocaleString('en-US')}
-                      </span>
-                    </p>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                      <span className="font-medium">{filteredData.length}</span> customers
-                      {searchQuery && <span className="text-gray-400"> (from {customerAnalysis.length})</span>}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Center - Filters and Search */}
-                <div className="flex flex-col sm:flex-row gap-2 items-center justify-center max-w-3xl mx-auto w-full lg:absolute lg:left-1/2 lg:-translate-x-1/2">
-                  <select
-                    value={matchingFilter}
-                    onChange={(e) => setMatchingFilter(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-                  >
-                    <option value="ALL">All Statuses</option>
-                    <option value="OPEN">Open Matching Only</option>
-                    <option value="WITH_EMAIL">Customers with Email</option>
-                    <option value="RATING_GOOD">Rating: Good</option>
-                    <option value="RATING_MEDIUM">Rating: Medium</option>
-                    <option value="RATING_BAD">Rating: Bad</option>
-                  </select>
-
-                  <select
-                    value={selectedSalesRep}
-                    onChange={(e) => setSelectedSalesRep(e.target.value)}
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-                  >
-                    <option value="ALL">All Sales Reps</option>
-                    {availableSalesReps.map(rep => (
-                      <option key={rep} value={rep}>{rep}</option>
-                    ))}
-                  </select>
-
-                  <div className="relative flex-1 max-w-md w-full">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              {/* Bulk Download Button */}
+              {selectedCustomersForDownload.size > 0 && (
+                <button
+                  onClick={handleBulkDownload}
+                  disabled={isDownloading}
+                  className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
+                  title={`Download ${selectedCustomersForDownload.size} account statements`}
+                >
+                  {isDownloading ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="Search by customer name or invoice number..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
-                    className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
-                    title="Export to Excel (Summary + Net Only Details)"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-
-                  {/* Bulk Download Button */}
-                  {selectedCustomersForDownload.size > 0 && (
-                    <button
-                      onClick={handleBulkDownload}
-                      disabled={isDownloading}
-                      className="px-3 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium"
-                      title={`Download ${selectedCustomersForDownload.size} account statements`}
-                    >
-                      {isDownloading ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <span>Downloading...</span>
-                        </>
-                      ) : (
-                        <>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                          </svg>
-                          <span dir="ltr">Download ({selectedCustomersForDownload.size})</span>
-                        </>
-                      )}
-                    </button>
+                      <span>Downloading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                      <span dir="ltr">Download ({selectedCustomersForDownload.size})</span>
+                    </>
                   )}
-                </div>
-              </div>
-
-              {/* Advanced Filters Warning */}
-              {(debtOperator || lastPaymentValue || noSalesValue || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB) && (
-                <div className="mt-3 flex items-center bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-2.5 rounded-lg border border-amber-200">
-                  <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mr-3 flex-shrink-0">
-                    <svg className="h-4 w-4 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-semibold text-amber-800 text-sm">Advanced Filters Active</p>
-                    <button
-                      onClick={() => setActiveTab('FILTERS')}
-                      className="text-blue-700 hover:text-blue-900 font-medium text-xs underline decoration-2 underline-offset-2 transition-colors"
-                    >
-                      Edit Filters →
-                    </button>
-                  </div>
-                </div>
+                </button>
               )}
             </div>
+          </div>
 
-            {/* Header with Sort Controls */}
-            <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                {table.getHeaderGroups().map((headerGroup) => (
-                  <div key={headerGroup.id} className="contents">
-                    {headerGroup.headers.map((header, index) => {
-                      const columnId = header.column.id;
-                      const isSelectColumn = columnId === 'select';
-                      return (
-                        <div
-                          key={header.id}
-                          className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${columnId === 'customerName' ? 'md:col-span-2' : ''
-                            } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
-                        >
-                          {isSelectColumn ? (
-                            flexRender(header.column.columnDef.header, header.getContext())
-                          ) : (
-                            <button
-                              onClick={header.column.getToggleSortingHandler()}
-                              className="flex items-center justify-center gap-2 w-full"
-                            >
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              <span className="text-blue-600">
-                                {{
-                                  asc: '↑',
-                                  desc: '↓',
-                                }[header.column.getIsSorted() as string] ?? (
-                                    <span className="text-gray-300">↕</span>
-                                  )}
-                              </span>
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
+          {/* Advanced Filters Warning */}
+          {(debtOperator || lastPaymentValue || noSalesValue || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB) && (
+            <div className="mt-3 flex items-center bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-2.5 rounded-lg border border-amber-200">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mr-3 flex-shrink-0">
+                <svg className="h-4 w-4 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-amber-800 text-sm">Advanced Filters Active</p>
+                <button
+                  onClick={() => setActiveTab('FILTERS')}
+                  className="text-blue-700 hover:text-blue-900 font-medium text-xs underline decoration-2 underline-offset-2 transition-colors"
+                >
+                  Edit Filters →
+                </button>
               </div>
             </div>
+          )}
+        </div>
 
-            {/* Cards Grid */}
-            <div className="space-y-3 mb-6">
-              {table.getRowModel().rows.map((row) => {
-                const customer = row.original;
-                const netDebt = customer.netDebt;
-                const collectionRate = customer.totalDebit > 0
-                  ? ((customer.totalCredit / customer.totalDebit) * 100)
-                  : 0;
-                const rating = calculateDebtRating(customer, closedCustomers);
-                const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
-                const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
-                const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
+        {/* Header with Sort Controls */}
+        <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <div key={headerGroup.id} className="contents">
+                {headerGroup.headers.map((header, index) => {
+                  const columnId = header.column.id;
+                  const isSelectColumn = columnId === 'select';
+                  return (
+                    <div
+                      key={header.id}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${columnId === 'customerName' ? 'md:col-span-2' : ''
+                        } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
+                    >
+                      {isSelectColumn ? (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      ) : (
+                        <button
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="flex items-center justify-center gap-2 w-full"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          <span className="text-blue-600">
+                            {{
+                              asc: '↑',
+                              desc: '↓',
+                            }[header.column.getIsSorted() as string] ?? (
+                                <span className="text-gray-300">↕</span>
+                              )}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
 
-                return (
-                  <div
-                    key={row.id}
-                    className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
-                  >
-                    <div className="p-5">
-                      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                        {/* Customer Name with Checkbox */}
-                        <div className="md:col-span-2">
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={selectedCustomersForDownload.has(customer.customerName)}
-                              onChange={() => toggleCustomerSelection(customer.customerName)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
-                            />
-                            <button
-                              onClick={() => setSelectedCustomer(customer.customerName)}
-                              className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
-                            >
-                              {customer.customerName}
-                            </button>
-                            <button
-                              onClick={async (e) => {
-                                e.stopPropagation();
-                                // Grab the element BEFORE awaiting (React may null out event fields after await)
-                                const buttonEl = (e.currentTarget as HTMLButtonElement | null);
-                                const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
-                                const success = await copyToClipboard(customer.customerName);
-                                if (success) {
-                                  if (!buttonEl) return;
-                                  buttonEl.title = 'تم النسخ!';
-                                  setTimeout(() => {
-                                    buttonEl.title = originalTitle;
-                                  }, 2000);
-                                }
-                              }}
-                              className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
-                              title="نسخ اسم العميل"
-                            >
-                              <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                              <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                            </button>
-                          </div>
+        {/* Cards Grid */}
+        <div className="space-y-3 mb-6">
+          {table.getRowModel().rows.map((row) => {
+            const customer = row.original;
+            const netDebt = customer.netDebt;
+            const collectionRate = customer.totalDebit > 0
+              ? ((customer.totalCredit / customer.totalDebit) * 100)
+              : 0;
+            const rating = calculateDebtRating(customer, closedCustomers);
+            const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
+            const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+            const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
+
+            return (
+              <div
+                key={row.id}
+                className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
+              >
+                <div className="p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    {/* Customer Name with Checkbox */}
+                    <div className="md:col-span-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomersForDownload.has(customer.customerName)}
+                          onChange={() => toggleCustomerSelection(customer.customerName)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                        />
+                        <button
+                          onClick={() => setSelectedCustomer(customer.customerName)}
+                          className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
+                        >
+                          {customer.customerName}
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Grab the element BEFORE awaiting (React may null out event fields after await)
+                            const buttonEl = (e.currentTarget as HTMLButtonElement | null);
+                            const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
+                            const success = await copyToClipboard(customer.customerName);
+                            if (success) {
+                              if (!buttonEl) return;
+                              buttonEl.title = 'تم النسخ!';
+                              setTimeout(() => {
+                                buttonEl.title = originalTitle;
+                              }, 2000);
+                            }
+                          }}
+                          className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
+                          title="نسخ اسم العميل"
+                        >
+                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Net Debit */}
+                    <div className="md:col-span-1">
+                      <button
+                        onClick={() => setSelectedCustomerForMonths(customer.customerName)}
+                        className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0
+                          ? 'text-red-600 hover:text-red-700'
+                          : netDebt < 0
+                            ? 'text-green-600 hover:text-green-700'
+                            : 'text-gray-600 hover:text-gray-700'
+                          }`}
+                        title="Click to view monthly debt breakdown"
+                      >
+                        {netDebt.toLocaleString('en-US')}
+                      </button>
+                    </div>
+
+                    {/* Collection Rate */}
+                    <div className="md:col-span-1">
+                      {customer.netDebt < 0 ? (
+                        <div className="text-center">
+                          <span className="text-gray-500 text-xl font-bold">-</span>
                         </div>
-
-                        {/* Net Debit */}
-                        <div className="md:col-span-1">
-                          <button
-                            onClick={() => setSelectedCustomerForMonths(customer.customerName)}
-                            className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0
-                              ? 'text-red-600 hover:text-red-700'
-                              : netDebt < 0
-                                ? 'text-green-600 hover:text-green-700'
-                                : 'text-gray-600 hover:text-gray-700'
-                              }`}
-                            title="Click to view monthly debt breakdown"
-                          >
-                            {netDebt.toLocaleString('en-US')}
-                          </button>
-                        </div>
-
-                        {/* Collection Rate */}
-                        <div className="md:col-span-1">
-                          {customer.netDebt < 0 ? (
-                            <div className="text-center">
-                              <span className="text-gray-500 text-xl font-bold">-</span>
-                            </div>
-                          ) : (
-                            <div className="flex flex-col items-center gap-2">
-                              <span className={`text-xl font-bold ${collectionRate >= 80
-                                ? 'text-green-600'
+                      ) : (
+                        <div className="flex flex-col items-center gap-2">
+                          <span className={`text-xl font-bold ${collectionRate >= 80
+                            ? 'text-green-600'
+                            : collectionRate >= 50
+                              ? 'text-yellow-600'
+                              : 'text-red-600'
+                            }`}>
+                            {collectionRate.toFixed(1)}%
+                          </span>
+                          <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
+                                ? 'bg-green-500'
                                 : collectionRate >= 50
-                                  ? 'text-yellow-600'
-                                  : 'text-red-600'
-                                }`}>
-                                {collectionRate.toFixed(1)}%
-                              </span>
-                              <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
-                                    ? 'bg-green-500'
-                                    : collectionRate >= 50
-                                      ? 'bg-yellow-500'
-                                      : 'bg-red-500'
-                                    }`}
-                                  style={{ width: `${Math.min(collectionRate, 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Debit Rating */}
-                        <div className="md:col-span-1">
-                          <div className="flex justify-center">
-                            <button
-                              onClick={() => {
-                                const breakdown = calculateDebtRating(customer, closedCustomers, true);
-                                setSelectedRatingCustomer(customer);
-                                setRatingBreakdown(breakdown);
-                              }}
-                              className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
-                              title="اضغط لعرض تفاصيل التقييم"
-                            >
-                              <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
-                              {rating}
-                            </button>
+                                  ? 'bg-yellow-500'
+                                  : 'bg-red-500'
+                                }`}
+                              style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                            />
                           </div>
                         </div>
+                      )}
+                    </div>
+
+                    {/* Debit Rating */}
+                    <div className="md:col-span-1">
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => {
+                            const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                            setSelectedRatingCustomer(customer);
+                            setRatingBreakdown(breakdown);
+                          }}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
+                          title="اضغط لعرض تفاصيل التقييم"
+                        >
+                          <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
+                          {rating}
+                        </button>
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-
-            {/* Total Summary Card */}
-            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold text-gray-700">Summary</p>
-                </div>
-                <div className="md:col-span-1">
-                  <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
-                    ? 'text-red-600'
-                    : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
-                      ? 'text-green-600'
-                      : 'text-gray-600'
-                    }`}>
-                    {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
-                  </p>
-                </div>
-                <div className="md:col-span-1">
-                  {(() => {
-                    const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-                    if (totalNetDebt < 0) {
-                      return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
-                    }
-                    const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
-                    const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
-                    const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
-                    const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
-                    return (
-                      <p className={`text-xl font-bold text-center ${rateColor}`}>
-                        {avgCollectionRate.toFixed(1)}%
-                      </p>
-                    );
-                  })()}
-                </div>
-                <div className="md:col-span-1">
-                  <p className="text-xl font-bold text-blue-600 text-center">
-                    {filteredData.length}
-                  </p>
                 </div>
               </div>
+            );
+          })}
+        </div>
+
+        {/* Total Summary Card */}
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="md:col-span-2">
+              <p className="text-sm font-semibold text-gray-700">Summary</p>
             </div>
-          </>
-        )}
+            <div className="md:col-span-1">
+              <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
+                ? 'text-red-600'
+                : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
+                  ? 'text-green-600'
+                  : 'text-gray-600'
+                }`}>
+                {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
+              </p>
+            </div>
+            <div className="md:col-span-1">
+              {(() => {
+                const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+                if (totalNetDebt < 0) {
+                  return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
+                }
+                const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
+                const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
+                const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
+                const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
+                return (
+                  <p className={`text-xl font-bold text-center ${rateColor}`}>
+                    {avgCollectionRate.toFixed(1)}%
+                  </p>
+                );
+              })()}
+            </div>
+            <div className="md:col-span-1">
+              <p className="text-xl font-bold text-blue-600 text-center">
+                {filteredData.length}
+              </p>
+            </div>
+          </div>
+        </div>
+
 
       </div>
 

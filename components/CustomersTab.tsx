@@ -525,6 +525,9 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     'Overdue Amount',
     'Overdue Months',
     'Collection Rate %',
+    'Payment Rate %',
+    'Return Rate %',
+    'Discount Rate %',
     'Last Payment Date',
     'Last Payment Closure',
     'Payments Last 90d',
@@ -539,6 +542,12 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     const collectionRate = customer.totalDebit > 0
       ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(2) + '%'
       : '0.00%';
+
+    // Breakdown rates relative to Total Credit (Share of Collection)
+    const creditDenom = customer.totalCredit || 0;
+    const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
+    const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
+    const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
 
     const salesRep = customer.salesReps && customer.salesReps.size > 0
       ? Array.from(customer.salesReps).join(', ')
@@ -556,6 +565,9 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       (customer.overdueAmount || 0).toFixed(2),
       overdueMonths,
       collectionRate,
+      payRate,
+      returnRate,
+      discountRate,
       customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
       customer.lastPaymentClosure || 'Still Open',
       (customer as any).payments3m?.toFixed(2) || '0.00',
@@ -695,6 +707,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any>(null);
+  const [selectedCollectionStats, setSelectedCollectionStats] = useState<any>(null);
+
+  // Closed Status Filter
+  const [closedFilter, setClosedFilter] = useState<'ALL' | 'HIDE' | 'ONLY'>('ALL');
 
   // Bulk download state
   const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
@@ -789,6 +805,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
   // New Date Filters State
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'ALL' | 'OB' | 'SAL'>('ALL'); // NEW: Invoice Type Filter
   const [collectionRateTypes, setCollectionRateTypes] = useState<Set<string>>(new Set(['PAYMENT', 'RETURN', 'DISCOUNT']));
 
   // 1. First, filter the Raw Data based on Date Range (Year, Month, From/To)
@@ -861,6 +878,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           lastPaymentAmount: null,
           lastSalesDate: null,
           lastSalesAmount: null,
+          lastTransactionDate: null,
           creditPayments: 0,
           creditReturns: 0,
           creditDiscounts: 0,
@@ -904,6 +922,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
       const num = row.number?.toString().toUpperCase() || '';
       if (num.startsWith('SAL')) {
         existing.netSales = (existing.netSales || 0) + row.debit;
+        existing.totalSalesDebit = (existing.totalSalesDebit || 0) + row.debit;
       } else if (num.startsWith('RSAL')) {
         existing.netSales = (existing.netSales || 0) - row.credit;
       }
@@ -923,6 +942,11 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
       const rowDate = parseDate(row.date);
       if (rowDate) {
+        // Track Last Transaction of ANY type
+        if (!existing.lastTransactionDate || rowDate > existing.lastTransactionDate) {
+          existing.lastTransactionDate = rowDate;
+        }
+
         // Last Payment: max date where matches payment logic AND credit > 0
         if (isPaymentTxn(row) && (row.credit || 0) > 0.01) {
           if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
@@ -1194,11 +1218,143 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         return creditCount - debitCount;
       })();
 
+      // Calculate Net Debt & Collection Rate based on Filters (if active)
+      let calculatedNetDebt = c.netDebt;
+      let calculatedTotalDebit = c.totalDebit;
+      let calculatedTotalCredit = c.totalCredit;
+
+      const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
+
+      if (isDateFilterActive) {
+        let specializedNetDebt = 0;
+        let specializedTotalIssued = 0;
+        let specializedTotalCredit = 0;
+
+        // Reuse checking logic from filteredRawData
+        const isRowInFilter = (row: InvoiceRow) => {
+          const rowDate = parseDate(row.date);
+          if (!rowDate) return false;
+
+          if (filterYear && rowDate.getFullYear().toString() !== filterYear) return false;
+          if (filterMonth && (rowDate.getMonth() + 1).toString() !== filterMonth) return false;
+
+          if (dateRangeFrom) {
+            const fromDate = new Date(dateRangeFrom);
+            fromDate.setHours(0, 0, 0, 0);
+            if (rowDate < fromDate) return false;
+          }
+          if (dateRangeTo) {
+            const toDate = new Date(dateRangeTo);
+            toDate.setHours(23, 59, 59, 999);
+            if (rowDate > toDate) return false;
+          }
+          return true;
+        };
+
+        // Helper to check credit type against active filters
+        const checkCreditType = (inv: InvoiceRow) => {
+          const n = (inv.number || '').toUpperCase();
+          let type = 'Payment';
+
+          if (n.startsWith('OB')) type = 'OB';
+          else if (n.startsWith('BNK')) type = 'Payment';
+          else if (n.startsWith('SAL')) type = 'Sales';
+          else if (n.startsWith('RSAL')) type = 'Return';
+          else if (n.startsWith('JV') || n.startsWith('BIL')) type = 'Discount';
+
+          if (type === 'Payment' && collectionRateTypes.has('PAYMENT')) return true;
+          if (type === 'Return' && collectionRateTypes.has('RETURN')) return true;
+          if (type === 'Discount' && collectionRateTypes.has('DISCOUNT')) return true;
+
+          return false;
+        };
+
+        // Determine which types to include for ISSUED (Sales Only)
+        const checkInvoiceType = (num: string) => {
+          num = (num || '').toUpperCase();
+          if (invoiceTypeFilter === 'ALL') {
+            return num.startsWith('OB') || num.startsWith('SAL');
+          } else if (invoiceTypeFilter === 'OB') {
+            return num.startsWith('OB');
+          } else if (invoiceTypeFilter === 'SAL') {
+            return num.startsWith('SAL');
+          }
+          return false;
+        };
+
+        // Determine which types to include for NET DEBT (Matches Overdue Tab - All Types)
+        const checkNetDebtType = (num: string) => {
+          if (invoiceTypeFilter === 'ALL') return true;
+          return checkInvoiceType(num);
+        };
+
+        // Iterate ALL groups (open and closed) to find Issued Amount in period
+        matchingGroups.forEach((group, matchingKey) => {
+          // For UNMATCHED, treat each invoice independently
+          if (matchingKey === 'UNMATCHED') {
+            group.forEach(inv => {
+              if (isRowInFilter(inv)) {
+                // Issued is restricted to OB/SAL
+                if (checkInvoiceType(inv.number || '')) {
+                  specializedTotalIssued += inv.debit;
+                }
+                // Net Debt includes ALL types (e.g. including payments/returns/debit notes if unmatched)
+                if (checkNetDebtType(inv.number || '')) {
+                  specializedNetDebt += (inv.debit - inv.credit);
+                }
+              }
+            });
+            return;
+          }
+
+          // For MATCHED groups:
+          // 1. Calculate the Group's Current Residual (Net Debt)
+          const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
+          const groupResidual = Math.abs(groupNetDebt) > 0.01 ? groupNetDebt : 0;
+
+          // 2. Calculate Total Issued (Sales/OB) in the period
+          // accumulated from ALL matching invoices in the group
+          group.forEach(inv => {
+            if (inv.debit > 0.01 && checkInvoiceType(inv.number || '')) {
+              if (isRowInFilter(inv)) {
+                specializedTotalIssued += inv.debit;
+              }
+            }
+          });
+
+          // 3. Calculate Net Debt based on Residual Holder (Overdue Tab Logic)
+          // Only add residual if the "Residual Holder" (invoice with max debit) is in the filter period
+          if (Math.abs(groupResidual) > 0.01) {
+            let maxDebit = -1;
+            let residualHolder = group[0];
+
+            group.forEach((inv) => {
+              if (inv.debit > maxDebit) {
+                maxDebit = inv.debit;
+                residualHolder = inv;
+              }
+            });
+
+            if (isRowInFilter(residualHolder)) {
+              // Net Debt allows ALL types
+              if (checkNetDebtType(residualHolder.number || '')) {
+                specializedNetDebt += groupResidual;
+              }
+            }
+          }
+        });
+
+        calculatedNetDebt = specializedNetDebt;
+        calculatedTotalDebit = specializedTotalIssued;
+        calculatedTotalCredit = specializedTotalIssued - specializedNetDebt; // Collected = Issued - Remaining
+      }
+
       return {
         customerName: c.customerName,
-        totalDebit: c.totalDebit,
-        totalCredit: c.totalCredit,
-        netDebt: c.netDebt,
+        totalDebit: calculatedTotalDebit,
+        totalCredit: calculatedTotalCredit,
+
+        netDebt: calculatedNetDebt,
         netSales: c.netSales || 0,
         transactionCount: c.transactionCount,
         hasOpenMatchings: hasOpen,
@@ -1220,10 +1376,12 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         salesCount3m,
         creditPayments: c.creditPayments,
         creditReturns: c.creditReturns,
-        creditDiscounts: c.creditDiscounts
+        creditDiscounts: c.creditDiscounts,
+        totalSalesDebit: c.totalSalesDebit,
+        lastTransactionDate: c.lastTransactionDate,
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
-  }, [filteredRawData]);
+  }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter]);
 
   const filteredData = useMemo(() => {
     let result = customerAnalysis;
@@ -1235,7 +1393,10 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     // Date Range Filter
     if (dateRangeFrom || dateRangeTo) {
       const fromDate = dateRangeFrom ? new Date(dateRangeFrom) : null;
+      if (fromDate) fromDate.setHours(0, 0, 0, 0);
+
       const toDate = dateRangeTo ? new Date(dateRangeTo) : null;
+      if (toDate) toDate.setHours(23, 59, 59, 999);
 
       if (fromDate || toDate) {
         result = result.filter(c => {
@@ -1243,14 +1404,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
 
           switch (dateRangeType) {
             case 'LAST_TRANSACTION':
-              // Use the most recent date (last payment or last sale)
-              if (c.lastPaymentDate && c.lastSalesDate) {
-                targetDate = c.lastPaymentDate > c.lastSalesDate ? c.lastPaymentDate : c.lastSalesDate;
-              } else if (c.lastPaymentDate) {
-                targetDate = c.lastPaymentDate;
-              } else if (c.lastSalesDate) {
-                targetDate = c.lastSalesDate;
-              }
+              // Use the most recent date of ANY transaction type
+              targetDate = c.lastTransactionDate || null;
               break;
             case 'LAST_SALE':
               targetDate = c.lastSalesDate || null;
@@ -1290,6 +1445,13 @@ export default function CustomersTab({ data }: CustomersTabProps) {
     } else if (matchingFilter === 'RATING_BAD') {
       // العملاء تقييمهم Bad
       result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Bad');
+    }
+
+    // Closed Status Filter
+    if (closedFilter === 'HIDE') {
+      result = result.filter(c => !closedCustomers.has(c.customerName.toLowerCase().trim().replace(/\s+/g, ' ')));
+    } else if (closedFilter === 'ONLY') {
+      result = result.filter(c => closedCustomers.has(c.customerName.toLowerCase().trim().replace(/\s+/g, ' ')));
     }
 
     if (selectedSalesRep !== 'ALL') {
@@ -1481,7 +1643,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         num.toString().toLowerCase().includes(query)
       )
     );
-  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, lastPaymentStatus, lastPaymentAmountOperator, lastPaymentAmountValue, noSalesValue, noSalesUnit, lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB, collectionRateTypes]);
+  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, lastPaymentStatus, lastPaymentAmountOperator, lastPaymentAmountValue, noSalesValue, noSalesUnit, lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB, collectionRateTypes, closedFilter, closedCustomers]);
 
   // Calculate unmatched payments for Last Payment tab - using same logic as Overdue tab
   interface UnmatchedPayment {
@@ -2051,13 +2213,75 @@ ${debtSectionHtml}
           if (customer.netDebt < 0) {
             return <span className="text-gray-500">-</span>;
           }
-          const collectionRate = customer.totalDebit > 0
-            ? ((customer.totalCredit / customer.totalDebit) * 100)
+
+          const totalDebit = customer.totalDebit;
+          const collectionRate = totalDebit > 0
+            ? ((customer.totalCredit / totalDebit) * 100)
             : 0;
+
+          // Calculate breakdown relative to Total Credit (Share of Collection)
+          const creditDenom = customer.totalCredit || 0;
+          const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
+          const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
+          const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
+
           return (
-            <span className={collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}>
-              {collectionRate.toFixed(1)}%
-            </span>
+            <button
+              onClick={() => {
+                // Calculate rankings within the current filtered view
+                const stats = filteredData.map(c => {
+                  const denom = c.totalCredit || 0;
+                  return {
+                    name: c.customerName,
+                    collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                    payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                    returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                    discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                  };
+                });
+
+                const getRank = (metric: keyof typeof stats[0], val: number) => {
+                  // Sort descending
+                  const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                  // Find index (1-based)
+                  return sorted.findIndex(s => s.name === customer.customerName) + 1;
+                };
+
+                const collRank = getRank('collRate', collectionRate);
+                const payRank = getRank('payRate', payRate);
+                const returnRank = getRank('returnRate', returnRate);
+                const discountRank = getRank('discountRate', discountRate);
+
+                setSelectedCollectionStats({
+                  customer,
+                  ranks: {
+                    collRank,
+                    payRank,
+                    returnRank,
+                    discountRank,
+                    totalCount: filteredData.length
+                  },
+                  rates: {
+                    payRate,
+                    returnRate,
+                    discountRate
+                  }
+                });
+              }}
+              className="flex flex-col items-start hover:bg-gray-50 p-1 rounded-lg transition-colors text-left group w-full"
+            >
+              <div className="flex items-center gap-1">
+                <span className={`font-bold ${collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                  {collectionRate.toFixed(1)}%
+                </span>
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+              </span>
+            </button>
           );
         },
       }),
@@ -2126,8 +2350,8 @@ ${debtSectionHtml}
     <div className="p-6">
       <div className="mb-6">
 
-        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 p-4 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6">
-          <div className="relative flex flex-col lg:flex-row lg:items-center gap-4">
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 py-8 px-6 min-h-[180px] rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6 flex items-center relative">
+          <div className="w-full flex flex-col lg:flex-row lg:items-center gap-4">
             {/* Left Side - Total Net Debit */}
             <div className="flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${totalDebt > 0
@@ -2153,146 +2377,175 @@ ${debtSectionHtml}
             </div>
 
             {/* Center - Filters and Search */}
-            <div className="flex flex-col sm:flex-row gap-2 items-center justify-center max-w-3xl mx-auto w-full lg:absolute lg:left-1/2 lg:-translate-x-1/2">
-              <select
-                value={matchingFilter}
-                onChange={(e) => setMatchingFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-              >
-                <option value="ALL">All Statuses</option>
-
-                <option value="WITH_EMAIL">Customers with Email</option>
-                <option value="RATING_GOOD">Rating: Good</option>
-                <option value="RATING_MEDIUM">Rating: Medium</option>
-                <option value="RATING_BAD">Rating: Bad</option>
-              </select>
-
-              <select
-                value={selectedSalesRep}
-                onChange={(e) => setSelectedSalesRep(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-              >
-                <option value="ALL">All Sales Reps</option>
-                {availableSalesReps.map(rep => (
-                  <option key={rep} value={rep}>{rep}</option>
-                ))}
-              </select>
-
-              <div className="relative flex-1 max-w-md w-full">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
+            <div className="flex flex-col gap-3 items-center justify-center max-w-4xl mx-auto w-full lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:top-1/2 lg:-translate-y-1/2 p-2">
+              {/* Row 1: Search and Date Controls */}
+              <div className="flex flex-wrap items-center justify-center gap-2 w-full max-w-5xl">
+                <div className="relative flex-grow min-w-[350px]">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Search by customer name or invoice number..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
+                  />
                 </div>
-                <input
-                  type="text"
-                  placeholder="Search by customer name or invoice number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
-                />
+
+                {/* Quick Date Filters */}
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    placeholder="Year"
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
+                    value={filterYear}
+                    onChange={(e) => setFilterYear(e.target.value)}
+                  />
+                  <input
+                    type="number"
+                    placeholder="Month"
+                    min="1"
+                    max="12"
+                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
+                    value={filterMonth}
+                    onChange={(e) => setFilterMonth(e.target.value)}
+                  />
+                  <input
+                    type="date"
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm w-40"
+                    value={dateRangeFrom}
+                    onChange={(e) => setDateRangeFrom(e.target.value)}
+                    title="From Date"
+                  />
+                  <span className="text-gray-400 text-sm">to</span>
+                  <input
+                    type="date"
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm w-40"
+                    value={dateRangeTo}
+                    onChange={(e) => setDateRangeTo(e.target.value)}
+                    title="To Date"
+                  />
+                </div>
               </div>
 
-              {/* Filter Button */}
-              <button
-                onClick={() => setIsFilterModalOpen(true)}
-                className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB || filterYear || filterMonth || collectionRateTypes.size !== 3
-                  ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-                  : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
-                  }`}
-                title="Advanced Filters"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
-                </svg>
-                {(debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB || filterYear || filterMonth || collectionRateTypes.size !== 3) && (
-                  <span className="absolute top-0 right-0 -mt-1 -mr-1 h-3 w-3 bg-red-500 rounded-full border-2 border-white"></span>
-                )}
-              </button>
+              {/* Row 2: Dropdowns & Buttons */}
+              <div className="flex flex-wrap items-center justify-center gap-2 w-full">
+                <select
+                  value={matchingFilter}
+                  onChange={(e) => setMatchingFilter(e.target.value)}
+                  className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                >
+                  <option value="ALL">All Statuses</option>
 
-              <button
-                onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
-                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
-                title="Export to Excel (Summary + Net Only Details)"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
+                  <option value="WITH_EMAIL">Customers with Email</option>
+                  <option value="RATING_GOOD">Rating: Good</option>
+                  <option value="RATING_MEDIUM">Rating: Medium</option>
+                  <option value="RATING_BAD">Rating: Bad</option>
+                </select>
 
-              {/* Bulk Download Button */}
-              {selectedCustomersForDownload.size > 0 && (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleBulkDownload}
-                    disabled={isDownloading}
-                    className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                    title={`Download ${selectedCustomersForDownload.size} account statements`}
-                  >
-                    {isDownloading ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                        </svg>
-                        <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                      </>
-                    )}
-                  </button>
+                <select
+                  value={closedFilter}
+                  onChange={(e) => setClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
+                  className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                >
+                  <option value="ALL">Show Closed</option>
+                  <option value="HIDE">Hide Closed</option>
+                  <option value="ONLY">Only Closed</option>
+                </select>
 
-                  <button
-                    onClick={handleBulkEmail}
-                    disabled={isDownloading}
-                    className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                    title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
-                  >
-                    {isDownloading ? (
-                      <>
-                        <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                      </>
-                    ) : (
-                      <>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                          <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                        </svg>
-                        <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
+                <select
+                  value={selectedSalesRep}
+                  onChange={(e) => setSelectedSalesRep(e.target.value)}
+                  className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                >
+                  <option value="ALL">All Sales Reps</option>
+                  {availableSalesReps.map(rep => (
+                    <option key={rep} value={rep}>{rep}</option>
+                  ))}
+                </select>
 
-          {/* Advanced Filters Warning */}
-          {(debtOperator || lastPaymentValue || noSalesValue || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB || filterYear || filterMonth || collectionRateTypes.size !== 3) && (
-            <div className="mt-3 flex items-center bg-gradient-to-r from-amber-50 to-yellow-50 px-4 py-2.5 rounded-lg border border-amber-200">
-              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mr-3 flex-shrink-0">
-                <svg className="h-4 w-4 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-amber-800 text-sm">Advanced Filters Active</p>
+                {/* Filter Button */}
                 <button
                   onClick={() => setIsFilterModalOpen(true)}
-                  className="text-blue-700 hover:text-blue-900 font-medium text-xs underline decoration-2 underline-offset-2 transition-colors"
+                  className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB || filterYear || filterMonth || collectionRateTypes.size !== 3
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                    : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                    }`}
+                  title="Advanced Filters"
                 >
-                  Edit Filters →
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                  </svg>
+                  {/* Red dot removed */}
                 </button>
+
+                <button
+                  onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
+                  className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
+                  title="Export to Excel (Summary + Net Only Details)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+
+                {/* Bulk Download Button */}
+                {selectedCustomersForDownload.size > 0 && (
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleBulkDownload}
+                      disabled={isDownloading}
+                      className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                      title={`Download ${selectedCustomersForDownload.size} account statements`}
+                    >
+                      {isDownloading ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={handleBulkEmail}
+                      disabled={isDownloading}
+                      className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                      title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
+                    >
+                      {isDownloading ? (
+                        <>
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                            <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                          </svg>
+                          <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Header with Sort Controls */}
@@ -2340,9 +2593,14 @@ ${debtSectionHtml}
           {table.getRowModel().rows.map((row) => {
             const customer = row.original;
             const netDebt = customer.netDebt;
-            const collectionRate = customer.totalDebit > 0
-              ? ((customer.totalCredit / customer.totalDebit) * 100)
+            const totalDebit = customer.totalDebit;
+            const collectionRate = totalDebit > 0
+              ? ((customer.totalCredit / totalDebit) * 100)
               : 0;
+            const creditDenom = customer.totalCredit || 0;
+            const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
+            const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
+            const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
             const rating = calculateDebtRating(customer, closedCustomers);
             const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
             const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
@@ -2418,15 +2676,77 @@ ${debtSectionHtml}
                           <span className="text-gray-500 text-xl font-bold">-</span>
                         </div>
                       ) : (
-                        <div className="flex flex-col items-center gap-2">
-                          <span className={`text-xl font-bold ${collectionRate >= 80
-                            ? 'text-green-600'
-                            : collectionRate >= 50
-                              ? 'text-yellow-600'
-                              : 'text-red-600'
-                            }`}>
-                            {collectionRate.toFixed(1)}%
-                          </span>
+                        <button
+                          onClick={() => {
+                            // Disable popup if date filter is active
+                            const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
+                            if (isDateFilterActive) return;
+
+                            // Calculate rankings within the current filtered view
+                            const stats = filteredData.map(c => {
+                              const denom = c.totalCredit || 0;
+                              return {
+                                name: c.customerName,
+                                collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                                payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                                returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                                discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                              };
+                            });
+
+                            const getRank = (metric: keyof typeof stats[0], val: number) => {
+                              // Sort descending
+                              const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                              // Find index (1-based)
+                              return sorted.findIndex(s => s.name === customer.customerName) + 1;
+                            };
+
+                            const collRank = getRank('collRate', collectionRate);
+                            const payRank = getRank('payRate', payRate);
+                            const returnRank = getRank('returnRate', returnRate);
+                            const discountRank = getRank('discountRate', discountRate);
+
+                            setSelectedCollectionStats({
+                              customer,
+                              ranks: {
+                                collRank,
+                                payRank,
+                                returnRank,
+                                discountRank,
+                                totalCount: filteredData.length
+                              },
+                              rates: {
+                                payRate,
+                                returnRate,
+                                discountRate
+                              }
+                            });
+                          }}
+                          className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
+                            ? 'cursor-default'
+                            : 'hover:bg-gray-50 group cursor-pointer'
+                            }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xl font-bold ${collectionRate >= 80
+                              ? 'text-green-600'
+                              : collectionRate >= 50
+                                ? 'text-yellow-600'
+                                : 'text-red-600'
+                              }`}>
+                              {collectionRate.toFixed(1)}%
+                            </span>
+                            {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            )}
+                            {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                              <span className="text-xs text-gray-500">
+                                ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                              </span>
+                            )}
+                          </div>
                           <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
                             <div
                               className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
@@ -2438,7 +2758,7 @@ ${debtSectionHtml}
                               style={{ width: `${Math.min(collectionRate, 100)}%` }}
                             />
                           </div>
-                        </div>
+                        </button>
                       )}
                     </div>
 
@@ -2610,6 +2930,19 @@ ${debtSectionHtml}
                           value={dateRangeTo}
                           onChange={(e) => setDateRangeTo(e.target.value)}
                         />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Invoice Type</label>
+                        <select
+                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                          value={invoiceTypeFilter}
+                          onChange={(e) => setInvoiceTypeFilter(e.target.value as 'ALL' | 'OB' | 'SAL')}
+                        >
+                          <option value="ALL">All (OB & SAL)</option>
+                          <option value="OB">Opening Balance (OB) Only</option>
+                          <option value="SAL">Sales (SAL) Only</option>
+                        </select>
+                        <p className="text-xs text-gray-400 mt-1">Filters the specialized Net Debit calculation when date filters are active.</p>
                       </div>
                     </div>
                   </div>
@@ -3116,7 +3449,20 @@ ${debtSectionHtml}
                                 {ratingBreakdown.breakdown.scores.score2}/2
                               </div>
                             </div>
-                            <p className="text-2xl font-bold text-gray-900">{ratingBreakdown.breakdown.collRate.toFixed(1)}%</p>
+                            <div className="flex items-baseline gap-2">
+                              <p className="text-2xl font-bold text-gray-900">{ratingBreakdown.breakdown.collRate.toFixed(1)}%</p>
+                              {(() => {
+                                const creditDenom = selectedRatingCustomer.totalCredit || 0;
+                                const payRate = creditDenom > 0 ? ((selectedRatingCustomer.creditPayments || 0) / creditDenom * 100) : 0;
+                                const returnRate = creditDenom > 0 ? ((selectedRatingCustomer.creditReturns || 0) / creditDenom * 100) : 0;
+                                const discountRate = creditDenom > 0 ? ((selectedRatingCustomer.creditDiscounts || 0) / creditDenom * 100) : 0;
+                                return (
+                                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                                    ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
                         </div >
 
@@ -3218,152 +3564,333 @@ ${debtSectionHtml}
         )
       }
 
-      {/* Monthly Breakdown Modal */}
-      {
-        selectedCustomerForMonths && (() => {
-          const monthlyData = calculateCustomerMonthlyBreakdown(selectedCustomerForMonths, data);
-          const debitMonths = monthlyData.months.filter((m) => m.amount > 0.01);
-          const creditMonths = monthlyData.months.filter((m) => m.amount < -0.01);
-
-          return (
-            <div
-              className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200"
-              onClick={() => setSelectedCustomerForMonths(null)}
-            >
-              <div
-                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200"
-                onClick={e => e.stopPropagation()}
+      {/* Collection Analysis Rankings Modal */}
+      {selectedCollectionStats && (
+        <div
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200"
+          onClick={() => setSelectedCollectionStats(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedCollectionStats.customer.customerName}</h3>
+                  <p className="text-sm text-gray-500 font-medium">Collection Analysis Rankings</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCollectionStats(null)}
+                className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
+                aria-label="Close"
               >
-                {/* Header */}
-                <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+
+              {/* Main Gauge Section - Collection Rate */}
+              <div className="mb-8 p-6 rounded-2xl shadow-lg bg-white border border-blue-100 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full mix-blend-multiply filter blur-3xl opacity-30 -mr-16 -mt-16"></div>
+
+                <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                  <div className="flex items-center gap-5">
+                    <div className="relative">
+                      {/* Ring */}
+                      <svg className="w-24 h-24 transform -rotate-90">
+                        <circle
+                          cx="48"
+                          cy="48"
+                          r="40"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          className="text-gray-100"
+                        />
+                        <circle
+                          cx="48"
+                          cy="48"
+                          r="40"
+                          stroke="currentColor"
+                          strokeWidth="8"
+                          fill="transparent"
+                          strokeDasharray={251.2}
+                          strokeDashoffset={251.2 - (251.2 * Math.min(100, (selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0)) / 100)}
+                          className={`transition-all duration-1000 ease-out ${(selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0) >= 80 ? 'text-green-500' :
+                            (selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0) >= 50 ? 'text-yellow-500' : 'text-red-500'
+                            }`}
+                        />
                       </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xl font-bold text-gray-800">
+                          {(selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0).toFixed(1)}%
+                        </span>
+                      </div>
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold text-gray-900">{selectedCustomerForMonths}</h3>
-                      <p className="text-sm text-gray-500 font-medium">Monthly Debt Breakdown</p>
+                      <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">Total Collection Rate</p>
+                      <p className="text-3xl font-bold text-gray-900">{selectedCollectionStats.customer.totalCredit.toLocaleString('en-US')} <span className="text-sm font-normal text-gray-500">collected</span></p>
                     </div>
                   </div>
-                  <button
-                    onClick={() => setSelectedCustomerForMonths(null)}
-                    className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
-                    aria-label="Close"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
+
+                  <div className="text-right">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-bold shadow-sm border border-blue-100">
+                      <span className="text-xl">#{selectedCollectionStats.ranks.collRank}</span>
+                      <span className="text-sm font-medium opacity-80">of {selectedCollectionStats.ranks.totalCount} customers</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Breakdown Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                {/* Payments Card */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="text-right">
+                        <span className="block text-2xl font-bold text-green-600">#{selectedCollectionStats.ranks.payRank}</span>
+                        <span className="text-xs text-gray-400 font-medium">Rank</span>
+                      </div>
+                    </div>
+
+                    <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Payments Share</h4>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.payRate.toFixed(0)}%</span>
+                      <span className="text-sm text-gray-500 font-medium">of total collected</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                      {(selectedCollectionStats.customer.creditPayments || 0).toLocaleString('en-US')} AED
+                    </p>
+                  </div>
                 </div>
 
-                <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-                  {/* Net Total Summary */}
-                  <div className={`mb-8 p-6 rounded-2xl shadow-lg border-2 transition-all ${monthlyData.netTotal > 0
-                    ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200/50'
-                    : monthlyData.netTotal < 0
-                      ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50'
-                      : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200/50'
-                    }`}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${monthlyData.netTotal > 0
-                          ? 'bg-red-100 text-red-600'
-                          : monthlyData.netTotal < 0
-                            ? 'bg-emerald-100 text-emerald-600'
-                            : 'bg-gray-100 text-gray-600'
-                          }`}>
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <div>
-                          <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Net Total Debt</p>
-                          <p className="text-xs text-gray-500 mt-0.5">All open items combined</p>
-                        </div>
+                {/* Returns Card */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                        </svg>
                       </div>
-                      <span className={`text-4xl font-bold tracking-tight ${monthlyData.netTotal > 0
-                        ? 'text-red-600'
-                        : monthlyData.netTotal < 0
-                          ? 'text-emerald-600'
-                          : 'text-gray-600'
-                        }`}>
-                        {Math.round(monthlyData.netTotal).toLocaleString('en-US')}
-                      </span>
+                      <div className="text-right">
+                        <span className="block text-2xl font-bold text-orange-600">#{selectedCollectionStats.ranks.returnRank}</span>
+                        <span className="text-xs text-gray-400 font-medium">Rank</span>
+                      </div>
                     </div>
+
+                    <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Returns Share</h4>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.returnRate.toFixed(0)}%</span>
+                      <span className="text-sm text-gray-500 font-medium">of total collected</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                      {(selectedCollectionStats.customer.creditReturns || 0).toLocaleString('en-US')} AED
+                    </p>
                   </div>
+                </div>
 
-                  {/* Months Breakdown */}
-                  <div className="space-y-6">
-                    {/* Debit Months */}
-                    {debitMonths.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
-                          <h4 className="text-lg font-bold text-gray-800">Debit Months</h4>
-                          <span className="text-sm text-gray-500 font-medium">({debitMonths.length} {debitMonths.length === 1 ? 'month' : 'months'})</span>
-                        </div>
-                        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                          <div className="grid grid-cols-5 gap-3">
-                            {debitMonths.map((m, idx) => (
-                              <div
-                                key={m.key}
-                                className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
-                                  ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-red-200'
-                                  : 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-orange-200'
-                                  }`}
-                              >
-                                {m.label}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                {/* Discounts Card */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
 
-                    {/* Credit Months */}
-                    {creditMonths.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-2 mb-4">
-                          <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
-                          <h4 className="text-lg font-bold text-gray-800">Credit Months</h4>
-                          <span className="text-sm text-gray-500 font-medium">({creditMonths.length} {creditMonths.length === 1 ? 'month' : 'months'})</span>
-                        </div>
-                        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                          <div className="grid grid-cols-5 gap-3">
-                            {creditMonths.map((m, idx) => (
-                              <div
-                                key={m.key}
-                                className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
-                                  ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200'
-                                  : 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-teal-200'
-                                  }`}
-                              >
-                                {m.label}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
+                  <div className="relative z-10">
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                        </svg>
                       </div>
-                    )}
+                      <div className="text-right">
+                        <span className="block text-2xl font-bold text-purple-600">#{selectedCollectionStats.ranks.discountRank}</span>
+                        <span className="text-xs text-gray-400 font-medium">Rank</span>
+                      </div>
+                    </div>
 
-                    {debitMonths.length === 0 && creditMonths.length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500 font-medium">No monthly data available</p>
-                      </div>
-                    )}
+                    <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Discounts Share</h4>
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.discountRate.toFixed(0)}%</span>
+                      <span className="text-sm text-gray-500 font-medium">of total collected</span>
+                    </div>
+                    <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                      {(selectedCollectionStats.customer.creditDiscounts || 0).toLocaleString('en-US')} AED
+                    </p>
                   </div>
-                </div >
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Monthly Breakdown Modal */}
+      {selectedCustomerForMonths && (() => {
+        const monthlyData = calculateCustomerMonthlyBreakdown(selectedCustomerForMonths, data);
+        const debitMonths = monthlyData.months.filter((m) => m.amount > 0.01);
+        const creditMonths = monthlyData.months.filter((m) => m.amount < -0.01);
+
+        return (
+          <div
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200"
+            onClick={() => setSelectedCustomerForMonths(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedCustomerForMonths}</h3>
+                    <p className="text-sm text-gray-500 font-medium">Monthly Debt Breakdown</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedCustomerForMonths(null)}
+                  className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
+                  aria-label="Close"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+
+              <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+                {/* Net Total Summary */}
+                <div className={`mb-8 p-6 rounded-2xl shadow-lg border-2 transition-all ${monthlyData.netTotal > 0
+                  ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200/50'
+                  : monthlyData.netTotal < 0
+                    ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50'
+                    : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200/50'
+                  }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${monthlyData.netTotal > 0
+                        ? 'bg-red-100 text-red-600'
+                        : monthlyData.netTotal < 0
+                          ? 'bg-emerald-100 text-emerald-600'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Net Total Debt</p>
+                        <p className="text-xs text-gray-500 mt-0.5">All open items combined</p>
+                      </div>
+                    </div>
+                    <span className={`text-4xl font-bold tracking-tight ${monthlyData.netTotal > 0
+                      ? 'text-red-600'
+                      : monthlyData.netTotal < 0
+                        ? 'text-emerald-600'
+                        : 'text-gray-600'
+                      }`}>
+                      {Math.round(monthlyData.netTotal).toLocaleString('en-US')}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Months Breakdown */}
+                <div className="space-y-6">
+                  {/* Debit Months */}
+                  {debitMonths.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
+                        <h4 className="text-lg font-bold text-gray-800">Debit Months</h4>
+                        <span className="text-sm text-gray-500 font-medium">({debitMonths.length} {debitMonths.length === 1 ? 'month' : 'months'})</span>
+                      </div>
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <div className="grid grid-cols-5 gap-3">
+                          {debitMonths.map((m, idx) => (
+                            <div
+                              key={m.key}
+                              className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
+                                ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-red-200'
+                                : 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-orange-200'
+                                }`}
+                            >
+                              {m.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Credit Months */}
+                  {creditMonths.length > 0 && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-4">
+                        <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
+                        <h4 className="text-lg font-bold text-gray-800">Credit Months</h4>
+                        <span className="text-sm text-gray-500 font-medium">({creditMonths.length} {creditMonths.length === 1 ? 'month' : 'months'})</span>
+                      </div>
+                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                        <div className="grid grid-cols-5 gap-3">
+                          {creditMonths.map((m, idx) => (
+                            <div
+                              key={m.key}
+                              className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
+                                ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200'
+                                : 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-teal-200'
+                                }`}
+                            >
+                              {m.label}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {debitMonths.length === 0 && creditMonths.length === 0 && (
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </div>
+                      <p className="text-gray-500 font-medium">No monthly data available</p>
+                    </div>
+                  )}
+                </div>
               </div >
             </div >
-          );
-        })()
+          </div >
+        );
+      })()
       }
     </div >
   );
