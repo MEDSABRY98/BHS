@@ -628,7 +628,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
 
     // Add rows for this customer
     netOnlyInvoices.forEach(inv => {
-      const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
+      const date = formatDmy(parseDate(inv.date));
       const type = getInvoiceType(inv);
 
       netOnlyRows.push([
@@ -2025,7 +2025,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         }
 
         const toEmails = customerEmails.join(', ');
-        const ccEmails = ['shady@aladraj.ae', 'altayfy@marae.ae'].join(', ');
+        const ccEmails = '';
 
         // Prepare invoices (Net Only)
         // Reuse logic from buildInvoicesWithNetDebtForExport which is available in file scope?

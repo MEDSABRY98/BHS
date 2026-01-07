@@ -421,7 +421,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
     try {
       const toEmails = customerEmails.join(', ');
-      const ccEmails = ['shady@aladraj.ae', 'altayfy@marae.ae'].join(', ');
+      const ccEmails = '';
 
       // Determine which customers we should include (supports "A & B" grouping coming from the sheet resolver)
       const targets = (emailCustomers && emailCustomers.length > 0 ? emailCustomers : [customerName]).filter(Boolean);
@@ -1803,7 +1803,13 @@ ${debtSectionHtml}
     const headers = ['Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
 
     const rows = invoices.map(inv => {
-      const date = inv.date ? new Date(inv.date).toLocaleDateString('en-US') : '';
+      const date = inv.date ? (() => {
+        const d = new Date(inv.date);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      })() : '';
       let type = getInvoiceTypeFromRow(inv);
       if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
         const d = new Date(inv.date);
