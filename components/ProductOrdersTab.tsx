@@ -7,9 +7,12 @@ import {
 } from 'lucide-react';
 import Loading from './Loading';
 import { OrderItem, ProductOrder as BaseProductOrder } from './ProductOrdersMakeTab';
+import ProductSalesAnalysisModal from './ProductSalesAnalysisModal';
 
 // Ensure local interface matches BaseProductOrder so we can cast it.
-interface ProductOrder extends BaseProductOrder { }
+interface ProductOrder extends BaseProductOrder {
+    salesBreakdown?: { label: string; qty: number }[];
+}
 
 interface Props {
     orderItems: OrderItem[];
@@ -52,6 +55,9 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
 
     const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'out_of_stock' | 'low_stock'>('all');
     const [packSizes, setPackSizes] = useState<Record<string, string>>({});
+
+    // Modal State
+    const [selectedProductForAnalysis, setSelectedProductForAnalysis] = useState<ProductOrder | null>(null);
 
     useEffect(() => {
         fetchOrders();
@@ -309,17 +315,27 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                         {getSortIcon('qtyFreeToUse')}
                                     </div>
                                 </th>
-                                <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
-                                    onClick={() => handleSort('salesQty')}
-                                >
-                                    <div className="flex items-center justify-center gap-2">
-                                        SALES (PCS)
-                                        {getSortIcon('salesQty')}
-                                    </div>
-                                </th>
+                                {products[0]?.salesBreakdown ? (
+                                    products[0].salesBreakdown.map((m, i) => (
+                                        <th
+                                            key={i}
+                                            className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[5%] shadow-md whitespace-nowrap"
+                                        >
+                                            {m.label}
+                                        </th>
+                                    ))
+                                ) : (
+                                    <th
+                                        className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                        onClick={() => handleSort('salesQty')}
+                                    >
+                                        <div className="flex items-center justify-center gap-2">
+                                            SALES (PCS)
+                                            {getSortIcon('salesQty')}
+                                        </div>
+                                    </th>
+                                )}
                                 <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Units/Carton</th>
-                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Sales (Cartons)</th>
                                 <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Status</th>
                                 <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Make Order</th>
                             </tr>
@@ -337,8 +353,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                         className="hover:bg-blue-50"
                                     >
                                         <td className="border border-gray-300 p-2 text-center">
-                                            <div className="flex flex-col items-center">
-                                                <span className="font-semibold text-gray-800 text-sm leading-snug" title={product.productName}>
+                                            <div className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setSelectedProductForAnalysis(product)}>
+                                                <span className="font-semibold text-gray-800 text-sm leading-snug underline decoration-dotted decoration-gray-400 underline-offset-4" title="Click for Analysis">
                                                     {product.productName}
                                                 </span>
                                                 <div className="flex items-center gap-2 mt-1">
@@ -371,11 +387,28 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                                 )}
                                             </div>
                                         </td>
-                                        <td className="border border-gray-300 p-2 text-center">
-                                            <span className="font-bold text-blue-600 text-sm">
-                                                {product.salesQty || 0}
-                                            </span>
-                                        </td>
+                                        {product.salesBreakdown ? (
+                                            product.salesBreakdown.map((m, i) => {
+                                                const size = parseFloat(packSizes[product.productId]) || 1;
+                                                // If size > 1, convert to cartons
+                                                const displayQty = size > 1 ? m.qty / size : m.qty;
+                                                const formatted = Number.isInteger(displayQty) ? displayQty : displayQty.toFixed(1);
+
+                                                return (
+                                                    <td key={i} className="border border-gray-300 p-2 text-center">
+                                                        <span className="font-bold text-blue-600 text-sm">
+                                                            {formatted || 0}
+                                                        </span>
+                                                    </td>
+                                                );
+                                            })
+                                        ) : (
+                                            <td className="border border-gray-300 p-2 text-center">
+                                                <span className="font-bold text-blue-600 text-sm">
+                                                    {product.salesQty || 0}
+                                                </span>
+                                            </td>
+                                        )}
                                         <td className="border border-gray-300 p-2">
                                             <input
                                                 type="number"
@@ -386,16 +419,6 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                                 onChange={(e) => setPackSizes(prev => ({ ...prev, [product.productId]: e.target.value }))}
                                                 onBlur={() => handleQincSave(product)}
                                             />
-                                        </td>
-                                        <td className="border border-gray-300 p-2 text-center">
-                                            <span className="font-bold text-gray-800 text-sm">
-                                                {(() => {
-                                                    const size = parseFloat(packSizes[product.productId]) || 1;
-                                                    const sales = product.salesQty || 0;
-                                                    const cartons = sales / size;
-                                                    return Number.isInteger(cartons) ? cartons : cartons.toFixed(1);
-                                                })()}
-                                            </span>
                                         </td>
                                         <td className="border border-gray-300 p-2 text-center">
                                             {isOutOfStock ? (
@@ -439,6 +462,16 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                     Showing {filteredAndSortedProducts.length} of {products.length} products
                 </div>
             </div>
+
+            {/* Analysis Modal */}
+            {selectedProductForAnalysis && (
+                <ProductSalesAnalysisModal
+                    product={selectedProductForAnalysis}
+                    isOpen={!!selectedProductForAnalysis}
+                    onClose={() => setSelectedProductForAnalysis(null)}
+                    packSize={parseFloat(packSizes[selectedProductForAnalysis.productId]) || 1}
+                />
+            )}
         </div>
     );
 }

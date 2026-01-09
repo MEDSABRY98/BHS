@@ -2082,6 +2082,7 @@ export interface ProductOrder {
   qtyFreeToUse: number;
   salesQty: number;
   rowIndex: number;
+  salesBreakdown: { label: string; qty: number }[];
 }
 
 export async function getProductOrdersData(): Promise<ProductOrder[]> {
@@ -2108,38 +2109,65 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     ]);
 
     // Process Sales Data
-    const salesMap = new Map<string, number>();
+    // Define 3 month buckets (current, last, 2 ago)
+    const now = new Date();
+    // Get start of months
+    const getMonthStart = (monthsAgo: number) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
+      return d;
+    };
+
+    // M4 (3 Ago), ... , M1 (Current)
+    const months = [3, 2, 1, 0].map(i => getMonthStart(i));
+
+    const monthKeys = months.map(d => `${d.getFullYear()}-${d.getMonth()}`);
+    const monthLabels = months.map(d => {
+      const mon = d.toLocaleString('en-US', { month: 'short' });
+      const yy = d.getFullYear().toString().slice(-2);
+      return `${mon} ${yy}`;
+    });
+
+    // Maps for each month bucket
+    const salesBreakdownMap = new Map<string, number[]>(); // productId -> [q1, q2, q3, q4]
+    const salesMap = new Map<string, number>(); // Legacy 90-day total
+
     const salesRows = salesResponse.data.values || [];
 
-    // Calculate 90 days ago cutoff
-    const today = new Date();
+    // Calculate 90 days ago cutoff for total salesQty
     const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(today.getDate() - 90);
-    // Reset time to start of day for accurate comparison
+    ninetyDaysAgo.setDate(now.getDate() - 120); // extend logic to roughly cover 4 months for map if needed, though strict 90 days kept for legacy total
     ninetyDaysAgo.setHours(0, 0, 0, 0);
 
     // Skip header row for sales
     salesRows.slice(1).forEach(row => {
-      // Column A (index 0) = Invoice Date
       const dateStr = row[0]?.toString().trim();
-
-      // Parse date: assuming MM/DD/YYYY or YYYY-MM-DD or similar from Sheets
-      // If empty or invalid, decide strategy. Usually better to skip or include if unsure?
-      // Let's try to parse. Javascript Date parsing is robust for standard formats.
       if (!dateStr) return;
 
+      // Handle various date formats if needed, but assuming standard
       const invoiceDate = new Date(dateStr);
-      if (isNaN(invoiceDate.getTime())) return; // Skip invalid dates
+      if (isNaN(invoiceDate.getTime())) return;
 
-      // Check if within last 90 days
-      if (invoiceDate < ninetyDaysAgo) return;
-
-      const productId = row[8]?.toString().trim(); // I column (index 8 now, since we fetched A:P)
-      const qtyStr = row[15]?.toString().replace(/,/g, '') || '0'; // P column (index 15)
+      const productId = row[8]?.toString().trim();
+      const qtyStr = row[15]?.toString().replace(/,/g, '') || '0';
       const qty = parseFloat(qtyStr);
 
-      if (productId && !isNaN(qty)) {
+      if (!productId || isNaN(qty)) return;
+
+      // 1. Total 90 Days Logic (Keep consistent or extend? User didn't ask to change total sales logic, just breakdown columns)
+      // Actually strictly speaking, if we show 4 months, user might expect total calculation to cover clean 4 months or keep strict 90 days.
+      // Let's keep strict 90 days for "salesQty" property to avoid changing semantic meaning elsewhere, but breakdown will show full months.
+      if (invoiceDate >= ninetyDaysAgo) {
         salesMap.set(productId, (salesMap.get(productId) || 0) + qty);
+      }
+
+      // 2. Monthly Logic
+      const key = `${invoiceDate.getFullYear()}-${invoiceDate.getMonth()}`;
+      const monthIndex = monthKeys.findIndex(k => k === key);
+
+      if (monthIndex !== -1) {
+        const breakdown = salesBreakdownMap.get(productId) || new Array(months.length).fill(0);
+        breakdown[monthIndex] += qty;
+        salesBreakdownMap.set(productId, breakdown);
       }
     });
 
@@ -2161,6 +2189,13 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
         else productId = `ROW-${index}`;
       }
 
+      const breakdownQtys = salesBreakdownMap.get(productId) || new Array(months.length).fill(0);
+      // Map to label/qty objects
+      const salesBreakdown = breakdownQtys.map((qty, idx) => ({
+        label: monthLabels[idx],
+        qty: qty
+      }));
+
       return {
         productId,
         barcode,
@@ -2170,7 +2205,8 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
         qtyOnHand: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
         qtyFreeToUse: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
         salesQty: salesMap.get(productId) || 0,
-        rowIndex: index + 2 // 1-based index, header is 1
+        rowIndex: index + 2, // 1-based index, header is 1
+        salesBreakdown
       };
     }).filter(row => row.productName); // Filter out empty rows
 
