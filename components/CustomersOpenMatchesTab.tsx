@@ -22,7 +22,7 @@ interface OpenMatchItem {
   debit: number;
   credit: number;
   remainingAmount: number;
-  type: 'Payment' | 'Discount' | 'Return' | 'Sales' | 'OB';
+  type: 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB';
   matching?: string;
 }
 
@@ -49,7 +49,7 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'Discount' | 'Return' | 'Sales' | 'OB'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB'>('ALL');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -150,8 +150,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
         if (num.startsWith('OB')) {
           type = 'OB';
         } else if (num.startsWith('BNK')) {
-          // Bank transfers should be treated as payments (even if credit isn't populated as expected)
-          type = 'Payment';
+          // Bank transfers with Debit are 'R-Payment' (Bounced/Refund)
+          type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
         } else if (num.startsWith('SAL')) {
           // Only show SAL if it's partially closed (has matching and residual)
           // Don't show unmatched SAL (fully open)
@@ -272,6 +272,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
     switch (type) {
       case 'Payment':
         return 'bg-green-100 text-green-700';
+      case 'R-Payment':
+        return 'bg-red-100 text-red-700';
       case 'Discount':
         return 'bg-yellow-100 text-yellow-700';
       case 'Return':
@@ -386,8 +388,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
             type="button"
             onClick={() => setViewMode('details')}
             className={`px-4 py-1.5 font-medium transition-colors ${viewMode === 'details'
-                ? 'bg-blue-600 text-white'
-                : 'text-blue-700 hover:bg-blue-50'
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-700 hover:bg-blue-50'
               }`}
           >
             Detail View
@@ -396,8 +398,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
             type="button"
             onClick={() => setViewMode('byCustomer')}
             className={`px-4 py-1.5 font-medium border-l border-blue-100 transition-colors ${viewMode === 'byCustomer'
-                ? 'bg-blue-600 text-white'
-                : 'text-blue-700 hover:bg-blue-50'
+              ? 'bg-blue-600 text-white'
+              : 'text-blue-700 hover:bg-blue-50'
               }`}
           >
             Group by Customer
@@ -449,6 +451,7 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
             >
               <option value="ALL">All Types</option>
               <option value="Payment">Payments</option>
+              <option value="R-Payment">R-Payment</option>
               <option value="Discount">Discounts</option>
               <option value="Return">Returns</option>
               <option value="Sales">Sales</option>
@@ -699,8 +702,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
                             <div className="flex items-center gap-2">
                               <span
                                 className={`inline-flex h-6 w-6 items-center justify-center rounded-full border text-xs font-bold ${isExpanded
-                                    ? 'bg-blue-600 text-white border-blue-600'
-                                    : 'bg-white text-blue-700 border-blue-300'
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-blue-700 border-blue-300'
                                   }`}
                               >
                                 {isExpanded ? '-' : '+'}

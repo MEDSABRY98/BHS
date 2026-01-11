@@ -123,7 +123,7 @@ const formatPeriodLabel = (key: string, periodType: 'daily' | 'weekly' | 'monthl
 };
 
 export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period' | 'area'>('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period' | 'area' | 'analysis'>('dashboard');
   const [periodType, setPeriodType] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [chartPeriodType, setChartPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [chartYear, setChartYear] = useState<string>('');
@@ -131,8 +131,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   const [search, setSearch] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [showOBClosedPayments, setShowOBClosedPayments] = useState(true);
-  const [showOtherPayments, setShowOtherPayments] = useState(true);
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('');
   const [sortColumn, setSortColumn] = useState<'customerName' | 'totalPayments' | 'paymentCount' | 'lastPayment' | 'daysSince'>('totalPayments');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -176,6 +174,25 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return set;
   }, [data]);
 
+  // Pre-calc map of Matching ID -> Invoice Date (for Analysis breakdown)
+  const matchIdToDateMap = useMemo(() => {
+    const map = new Map<string, Date>();
+    data.forEach(row => {
+      // We only care about "source" invoices (Sales, OB, etc) to find their dates.
+      const type = getInvoiceType(row);
+      if (type === 'Payment') return;
+
+      const matchId = (row.matching || '').toString().toLowerCase();
+      if (!matchId) return;
+
+      const d = parseDate(row.date);
+      if (d && !map.has(matchId)) {
+        map.set(matchId, d);
+      }
+    });
+    return map;
+  }, [data]);
+
   // Dashboard Data Calculation
   const dashboardData = useMemo(() => {
     // Apply date filters if set, otherwise use last 12 months
@@ -206,30 +223,27 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         const fromDate = parseDate(dateFrom);
         startDate = fromDate || new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1);
       } else {
-        // If only dateTo is set, go back 12 months from dateTo
-        const toDate = parseDate(dateTo);
-        if (toDate) {
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
-        } else {
-          const today = new Date();
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-        }
+        // If only dateTo is set, we can default start date to "beginning of time" or a reasonable past
+        // But logic below was creating a 12-month window ending at dateTo.
+        // Let's set a very old start date if not provided to encompass "until dateTo"
+        startDate = new Date(0);
       }
 
       if (dateTo) {
         const toDate = parseDate(dateTo);
         if (toDate) {
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+          endDate = new Date(toDate);
+          // End of the day
+          endDate.setHours(23, 59, 59, 999);
         } else {
           const today = new Date();
           endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
         }
       } else {
-        // If only dateFrom is set, use last 12 months from dateFrom
+        // If only dateFrom is set, go until today/end of time
         const today = new Date();
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        // Or should it be max possible date? Usually "From X" means "From X until Now".
       }
     } else {
       // Default: ALL TIME (min date to max date from data)
@@ -431,24 +445,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       );
     }
 
-    // Apply OB / Other Payment filters
-    // Note: This mainly affects Payment rows. Sales/Returns/Discounts are generally kept unless we want to filter them too?
-    // User request: "let the two checkboxes OB Closed Payments and Other/Open Payments affect the dashboard tab"
-    // Usually dashboard shows Collections. So we should filter Payments specifically.
-    // If a row is NOT a payment, we keep it (Sales/Returns)? Or do we only care about Payments for the Collections chart?
-    // The chart shows Collections, Sales, etc. If we filter Payments, Collections will change.
-    filteredData = filteredData.filter(row => {
-      if (getInvoiceType(row) !== 'Payment') return true; // Keep non-payments (Sales, etc.)
 
-      const matchId = (row.matching || '').toString().toLowerCase();
-      const isOBPayment = matchId && obMatchingIds.has(matchId);
-
-      if (isOBPayment) {
-        return showOBClosedPayments;
-      } else {
-        return showOtherPayments;
-      }
-    });
 
     // Count payments with positive net (credit - debit > 0)
     let netPaymentCount = 0;
@@ -521,10 +518,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         totalNetSalesMinusDiscounts,
         totalCollections,
         difference,
-        netPaymentCount
+        netPaymentCount,
       }
     };
-  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth, showOBClosedPayments, showOtherPayments, obMatchingIds]);
+  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth, obMatchingIds]);
 
 
 
@@ -903,11 +900,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
   // Filter payments using the same TYPE logic as the Invoices tab (via shared getInvoiceType).
   const payments = useMemo<PaymentEntry[]>(() => {
-    // OPTIMIZATION: Only calculate if needed for Customer or Period views
-    if (activeSubTab === 'dashboard' || activeSubTab === 'area') {
-      return [];
-    }
-
     // Determine date range filters (Year/Month taking precedence over DateFrom/DateTo)
     const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
     const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
@@ -984,17 +976,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       });
   }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep, chartYear, chartMonth, activeSubTab]);
 
-  // Apply OB-closed / other payments toggles
+  // Apply OB / Other / Unmatched payments toggles (Removed per request, showing all)
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
-    if (showOBClosedPayments && showOtherPayments) return payments;
-
-    return payments.filter((p) => {
-      if (p.matchedOpeningBalance) {
-        return showOBClosedPayments;
-      }
-      return showOtherPayments;
-    });
-  }, [payments, showOBClosedPayments, showOtherPayments]);
+    return payments;
+  }, [payments]);
 
   // Group by customer
   const paymentsByCustomer = useMemo<PaymentByCustomer[]>(() => {
@@ -1318,74 +1303,79 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     if (activeSubTab !== 'area') return [];
 
     // START: Reuse filter logic from averageCollectionDays
-    // Apply filters
     const searchLower = search.toLowerCase().trim();
+
+    // Determine date range ONCE before filtering loop
+    let startDate: Date;
+    let endDate: Date;
+
+    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
+    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
+
+    if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
+      const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
+      if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
+        startDate = new Date(y, monthNum - 1, 1);
+        endDate = new Date(y, monthNum, 0);
+      } else {
+        startDate = new Date(y, 0, 1);
+        endDate = new Date(y, 11, 31);
+      }
+      endDate.setHours(23, 59, 59, 999);
+    } else if (dateFrom || dateTo) {
+      if (dateFrom) {
+        const fromDate = parseDate(dateFrom);
+        startDate = fromDate || new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1);
+      } else {
+        startDate = new Date(0);
+      }
+
+      if (dateTo) {
+        const toDate = parseDate(dateTo);
+        if (toDate) {
+          endDate = new Date(toDate);
+          endDate.setHours(23, 59, 59, 999);
+        } else {
+          const today = new Date();
+          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        }
+      } else {
+        const today = new Date();
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      }
+    } else {
+      // Default: ALL TIME (min date to max date from data)
+      const today = new Date();
+      let maxDate = new Date(0);
+      let minDate = new Date(8640000000000000); // Max possible date
+
+      // Find range in data (Iterate once if needed, but only if no date filters set)
+      let hasData = false;
+      data.forEach(row => {
+        const d = parseDate(row.date);
+        if (d) {
+          if (d > maxDate) maxDate = d;
+          if (d < minDate) minDate = d;
+          hasData = true;
+        }
+      });
+
+      if (!hasData) {
+        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+      } else {
+        endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
+        startDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+      }
+      // Ensure end of day
+      endDate.setHours(23, 59, 59, 999);
+    }
+
     let filteredPayments = data.filter((row) => {
       if (getInvoiceType(row) !== 'Payment') return false;
 
       // Apply sales rep filter (if specific rep selected, only show that rep in table)
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-
-      // Apply date filters - same logic as dashboardData
-      const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
-      const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
-      const today = new Date();
-      let startDate: Date;
-      let endDate: Date;
-
-      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
-        const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
-        if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-          startDate = new Date(y, monthNum - 1, 1);
-          endDate = new Date(y, monthNum, 0);
-        } else {
-          startDate = new Date(y, 0, 1);
-          endDate = new Date(y, 11, 31);
-        }
-        endDate.setHours(23, 59, 59, 999);
-      } else if (dateFrom || dateTo) {
-        const fromDate = dateFrom ? parseDate(dateFrom) : null;
-        const toDate = dateTo ? parseDate(dateTo) : null;
-        if (fromDate && toDate) {
-          startDate = fromDate;
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-        } else if (fromDate) {
-          startDate = fromDate;
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        } else if (toDate) {
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
-        } else {
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-        }
-      } else {
-        // Default: ALL TIME (min date to max date from data)
-        const today = new Date();
-        let maxDate = new Date(0);
-        let minDate = new Date(8640000000000000); // Max possible date
-
-        // Find range in data
-        let hasData = false;
-        data.forEach(row => {
-          const d = parseDate(row.date);
-          if (d) {
-            if (d > maxDate) maxDate = d;
-            if (d < minDate) minDate = d;
-            hasData = true;
-          }
-        });
-
-        if (!hasData) {
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-          startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-        } else {
-          endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
-          startDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-        }
-        // Ensure end of day
-        endDate.setHours(23, 59, 59, 999);
-      }
 
       const d = parseDate(row.date);
       if (!d) return false;
@@ -1397,17 +1387,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           !row.number?.toLowerCase().includes(searchLower)) {
           return false;
         }
-      }
-
-      // Apply OB / Other Payment Checkbox filters
-      // Same logic as dashboardData
-      const matchId = (row.matching || '').toString().toLowerCase();
-      const isOBPayment = matchId && obMatchingIds.has(matchId);
-
-      if (isOBPayment) {
-        if (!showOBClosedPayments) return false;
-      } else {
-        if (!showOtherPayments) return false;
       }
 
       return true;
@@ -1475,7 +1454,63 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       return stats;
     }).sort((a, b) => b.totalCollected - a.totalCollected); // Default sort by total collected
 
-  }, [data, search, selectedSalesRep, chartYear, chartMonth, dateFrom, dateTo, showOBClosedPayments, showOtherPayments, obMatchingIds, activeSubTab]);
+  }, [data, search, selectedSalesRep, chartYear, chartMonth, dateFrom, dateTo, obMatchingIds, activeSubTab]);
+
+  // Calculate Analysis / Breakdown Stats
+  const breakdownStats = useMemo(() => {
+    if (activeSubTab !== 'analysis') return [];
+
+    const stats = new Map<string, {
+      monthLabel: string,
+      monthKey: string, // YYYY-MM
+      totalCollected: number,
+      breakdown: Map<string, number> // Label -> Amount
+    }>();
+
+    visiblePayments.forEach(p => {
+      if (!p.parsedDate) return;
+      const pKey = getMonthlyKey(p.parsedDate);
+      const pLabel = formatPeriodLabel(pKey, 'monthly'); // May 2025
+
+      if (!stats.has(pKey)) {
+        stats.set(pKey, {
+          monthLabel: pLabel,
+          monthKey: pKey,
+          totalCollected: 0,
+          breakdown: new Map()
+        });
+      }
+      const entry = stats.get(pKey)!;
+      const amount = p.credit; // Payment amount (credit - debit logic is handled in payments memo, p.credit is net amount there)
+
+      entry.totalCollected += amount;
+
+      // Determine Source
+      let sourceLabel = 'Unmatched';
+      const matchId = (p.matching || '').toString().toLowerCase();
+
+      if (matchId && matchId.trim() !== '') {
+        if (obMatchingIds.has(matchId)) {
+          sourceLabel = 'OB';
+        } else if (matchIdToDateMap.has(matchId)) {
+          const iDate = matchIdToDateMap.get(matchId)!;
+          // Format: MMM YY (Jan 25)
+          const m = iDate.toLocaleString('en-US', { month: 'short' });
+          const y = iDate.getFullYear().toString().slice(-2);
+          sourceLabel = `${m}${y}`;
+        } else {
+          sourceLabel = 'ADV';
+        }
+      }
+
+      const currentSourceVal = entry.breakdown.get(sourceLabel) || 0;
+      entry.breakdown.set(sourceLabel, currentSourceVal + amount);
+    });
+
+    // Sort by Month Key Descending (latest payments first)
+    return Array.from(stats.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+
+  }, [visiblePayments, activeSubTab, obMatchingIds, matchIdToDateMap]);
 
   // (Customer detail restore is handled synchronously in the tab button click handler)
 
@@ -1564,27 +1599,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         </div>
       </div>
 
-      {/* OB matching filters */}
-      <div className="mb-6 flex flex-wrap gap-4 items-center justify-center text-sm text-gray-700">
-        <label className="inline-flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showOBClosedPayments}
-            onChange={(e) => setShowOBClosedPayments(e.target.checked)}
-            className="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500"
-          />
-          <span>OB Closed Payments</span>
-        </label>
-        <label className="inline-flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showOtherPayments}
-            onChange={(e) => setShowOtherPayments(e.target.checked)}
-            className="w-4 h-4 text-slate-600 border-gray-300 rounded focus:ring-slate-500"
-          />
-          <span>Other / Open Payments</span>
-        </label>
-      </div>
 
       {/* Sub-tabs */}
       <div className="mb-6 flex w-full border-b border-gray-200">
@@ -1632,6 +1646,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             setActiveSubTab('period');
             setDetailMode('none');
             setSelectedPeriod(null);
+            setSelectedCustomer(null);
           }}
           className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'period'
             ? 'border-blue-600 text-blue-600'
@@ -1644,6 +1659,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           onClick={() => {
             setActiveSubTab('area');
             setDetailMode('none');
+            setSelectedCustomer(null);
+            setSelectedPeriod(null);
           }}
           className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'area'
             ? 'border-blue-600 text-blue-600'
@@ -1652,13 +1669,29 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         >
           Payment by Area
         </button>
+        <button
+          onClick={() => {
+            setActiveSubTab('analysis');
+            setDetailMode('none');
+            setSelectedCustomer(null);
+            setSelectedPeriod(null);
+          }}
+          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'analysis'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+        >
+          Analysis
+        </button>
+
       </div>
 
       {/* Dashboard - Cards & Chart */}
       {activeSubTab === 'dashboard' && (
         <div className="space-y-4 animate-fadeIn">
           {/* First Row - 4 Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {/* Summary Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
               <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Collections</h3>
               <div className="text-2xl font-bold text-green-600">
@@ -1673,48 +1706,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
               </div>
               <p className="text-xs text-gray-400 mt-1">Payments with Credit - Debit &gt; 0</p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">OB Only</h3>
-              <div className="text-2xl font-bold text-purple-600">
-                {paymentClosureStats.obOnlyPercent.toFixed(1)}%
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {paymentClosureStats.obOnlyAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentClosureStats.obOnlyCount} payments)
-              </p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Current Year Only</h3>
-              <div className="text-2xl font-bold text-indigo-600">
-                {paymentClosureStats.currentYearOnlyPercent.toFixed(1)}%
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {paymentClosureStats.currentYearOnlyAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentClosureStats.currentYearOnlyCount} payments)
-              </p>
-            </div>
-          </div>
-
-          {/* Second Row - 5 Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Mixed (OB + Current Year)</h3>
-              <div className="text-2xl font-bold text-pink-600">
-                {paymentClosureStats.mixedPercent.toFixed(1)}%
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {paymentClosureStats.mixedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentClosureStats.mixedCount} payments)
-              </p>
-            </div>
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Unmatched</h3>
-              <div className="text-2xl font-bold text-gray-600">
-                {paymentClosureStats.unmatchedPercent.toFixed(1)}%
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                {paymentClosureStats.unmatchedAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({paymentClosureStats.unmatchedCount} payments)
-              </p>
             </div>
 
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
@@ -1817,7 +1808,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 <div className="grid grid-cols-8 gap-3">
                   {(() => {
                     const sortedData = [...dashboardData.chartData].sort((a, b) => b.periodKey.localeCompare(a.periodKey));
-                    const maxVal = Math.max(...sortedData.map(d => d.collections), 1);
+                    const maxVal = sortedData.reduce((max, d) => Math.max(max, d.collections), 1);
 
                     return sortedData.map((row) => {
                       const isZero = row.collections === 0;
@@ -1895,14 +1886,14 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                     cursor={{ fill: '#F3F4F6' }}
                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
                     formatter={(value: number, name: string, props: any) => {
-                      const rowData = props.payload.payload; // Access payload from the nested payload
+                      const rowData = props?.payload || {};
                       if (name === 'Net Collections') {
                         return [
                           <>
                             <div>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
                             <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
-                              {rowData.paymentCount} Payments<br />
-                              {rowData.customerCount} Customers
+                              {rowData.paymentCount || 0} Payments<br />
+                              {rowData.customerCount || 0} Customers
                             </div>
                           </>,
                           name
@@ -2590,6 +2581,124 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               </tfoot>
             )}
           </table>
+        </div>
+      )}
+
+      {/* Analysis Tab Content */}
+      {activeSubTab === 'analysis' && (
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-center border-collapse">
+              <thead>
+                <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
+                  <th className="py-4 px-6 font-semibold w-[15%] text-center">Collection Month</th>
+                  <th className="py-4 px-6 font-semibold w-[15%] text-center">Total Collected</th>
+                  <th className="py-4 px-6 font-semibold w-[15%] text-center">Year Summary</th>
+                  <th className="py-4 px-6 font-semibold text-center">Breakdown (Source & Amount)</th>
+                </tr>
+              </thead>
+              <tbody className="text-gray-700">
+                {breakdownStats.map((item) => (
+                  <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                    <td className="py-4 px-6 align-middle text-center">
+                      <div className="font-semibold text-gray-900">{item.monthLabel}</div>
+                    </td>
+                    <td className="py-4 px-6 align-middle text-center">
+                      <div className="font-bold text-green-700">
+                        {item.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 align-middle text-center">
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {(() => {
+                          const yearSummary = new Map<string, number>();
+                          Array.from(item.breakdown.entries()).forEach(([label, amount]) => {
+                            let key = 'Other';
+                            if (label === 'OB') key = 'OB';
+                            else if (label === 'ADV') key = 'ADV';
+                            else if (label !== 'Unmatched') {
+                              // Extract Year from MMMYY (e.g. Jan25 -> 25)
+                              // Or full year if needed, user said "25", "26".
+                              const y = label.slice(-2);
+                              if (!isNaN(parseInt(y))) key = `20${y}`;
+                            } else {
+                              key = label; // Unmatched
+                            }
+                            yearSummary.set(key, (yearSummary.get(key) || 0) + amount);
+                          });
+
+                          // Sort years: OB first, then Years desc, then ADV/Unmatched
+                          return Array.from(yearSummary.entries())
+                            .sort(([aKey], [bKey]) => {
+                              if (aKey === 'OB') return -1;
+                              if (bKey === 'OB') return 1;
+                              if (aKey === 'ADV') return 1; // Put ADV at end or near end
+                              if (bKey === 'ADV') return -1;
+                              if (!isNaN(parseInt(aKey)) && !isNaN(parseInt(bKey))) return bKey.localeCompare(aKey);
+                              return aKey.localeCompare(bKey);
+                            })
+                            .map(([yLabel, yAmount]) => (
+                              <div key={yLabel} className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-800 rounded-full text-xs font-medium border border-purple-100">
+                                <span className="opacity-75">{yLabel}</span>
+                                <span className="font-bold">
+                                  {yAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                            ));
+                        })()}
+                      </div>
+                    </td>
+                    <td className="py-4 px-6 align-middle">
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {Array.from(item.breakdown.entries())
+                          // Sort priority: OB first, then date-based?
+                          // Source labels are 'OB', 'MMM YY', 'Unmatched', 'ADV'.
+                          // We can sort simply by label, or put OB first.
+                          .sort(([aLabel], [bLabel]) => {
+                            const getScore = (lbl: string) => {
+                              if (lbl === 'OB') return 9999999;
+                              if (lbl === 'Unmatched') return -9999999;
+                              if (lbl === 'ADV') return -9999998;
+
+                              // Parse MmmYY (e.g. May25)
+                              const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                              const mStr = lbl.substring(0, 3);
+                              const yStr = lbl.substring(3);
+                              const mIdx = monthNames.indexOf(mStr);
+                              const yInt = parseInt(yStr, 10);
+
+                              if (mIdx >= 0 && !isNaN(yInt)) {
+                                // Score = YY * 100 + MonthIndex. e.g. 2500 for Jan 25, 2501 for Feb 25
+                                return (yInt * 100) + mIdx;
+                              }
+                              return -1; // Unknown format
+                            };
+
+                            // Descending sort (Higher score first)
+                            return getScore(bLabel) - getScore(aLabel);
+                          })
+                          .map(([label, amount]) => (
+                            <div key={label} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-800 rounded-full text-xs font-medium border border-blue-100">
+                              <span className="opacity-75">{label}</span>
+                              <span className="font-bold">
+                                {amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                              </span>
+                            </div>
+                          ))}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {breakdownStats.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-gray-500">
+                      No payment data found for the selected period.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
