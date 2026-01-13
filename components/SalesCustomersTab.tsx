@@ -18,7 +18,7 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{rowNumber}</td>
-      <td 
+      <td
         className="py-3 px-4 text-sm text-gray-800 font-medium text-center cursor-pointer hover:text-green-600 hover:underline"
         onClick={() => onCustomerClick(item.customer)}
       >
@@ -59,7 +59,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
-  
+
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
@@ -137,19 +137,19 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         try {
           const itemDate = new Date(item.invoiceDate);
           if (isNaN(itemDate.getTime())) return false;
-          
+
           if (dateFrom) {
             const fromDate = new Date(dateFrom);
             fromDate.setHours(0, 0, 0, 0);
             if (itemDate < fromDate) return false;
           }
-          
+
           if (dateTo) {
             const toDate = new Date(dateTo);
             toDate.setHours(23, 59, 59, 999);
             if (itemDate > toDate) return false;
           }
-          
+
           return true;
         } catch (e) {
           return false;
@@ -178,32 +178,32 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   // Group data by customerId - optimized
   const customersData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
-    
-    const customerMap = new Map<string, { 
+
+    const customerMap = new Map<string, {
       customerId: string;
       customer: string;
       merchandiser: string;
       salesRep: string;
-      totalAmount: number; 
+      totalAmount: number;
       totalQty: number;
       barcodes: Set<string>;
       months: Set<string>;
       invoiceNumbers: Set<string>;
     }>();
-    
+
     // Pre-compile date parsing to avoid repeated try-catch
     for (let i = 0; i < filteredData.length; i++) {
       const item = filteredData[i];
       const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
       let existing = customerMap.get(key);
-      
+
       if (!existing) {
-        existing = { 
+        existing = {
           customerId: key,
           customer: item.customerName, // Display customerName
           merchandiser: item.merchandiser || '',
           salesRep: item.salesRep || '',
-          totalAmount: 0, 
+          totalAmount: 0,
           totalQty: 0,
           barcodes: new Set<string>(),
           months: new Set<string>(),
@@ -211,20 +211,20 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         };
         customerMap.set(key, existing);
       }
-      
+
       existing.totalAmount += item.amount;
       existing.totalQty += item.qty;
-      
+
       // Add invoice number for transaction count (only invoices starting with "SAL")
       if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         existing.invoiceNumbers.add(item.invoiceNumber);
-        
+
         // Add product to count (only for invoices starting with "SAL")
         // Use productId || barcode || product as key to match SalesCustomerDetails logic
         const productKey = item.productId || item.barcode || item.product;
         existing.barcodes.add(productKey);
       }
-      
+
       // Optimized date parsing
       if (item.invoiceDate) {
         const date = new Date(item.invoiceDate);
@@ -240,12 +240,12 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     // Pre-calculate array length
     const result = new Array(customerMap.size);
     let index = 0;
-    
+
     // Get current date for calculating months span
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
     const currentMonth = currentDate.getMonth(); // 0-based (0 = January)
-    
+
     customerMap.forEach(item => {
       // Calculate months from first month to current month
       let totalMonths = 1;
@@ -254,17 +254,17 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         const sortedMonths = Array.from(item.months).sort();
         const firstMonthKey = sortedMonths[0];
         const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
-        
+
         // Calculate months from first month to current month (inclusive)
         const firstDate = new Date(firstYear, firstMonth - 1, 1);
         const lastDate = new Date(currentYear, currentMonth, 1);
-        
+
         // Calculate difference in months
         const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
         const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
         totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
       }
-      
+
       result[index++] = {
         customer: item.customer,
         totalAmount: item.totalAmount,
@@ -275,7 +275,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         transactions: item.invoiceNumbers.size
       };
     });
-    
+
     return result;
   }, [filteredData]);
 
@@ -313,22 +313,22 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   // Filter and sort customers - optimized
   const filteredCustomers = useMemo(() => {
     if (customersData.length === 0) return [];
-    
+
     let filtered: typeof customersData;
-    
+
     // Apply search filter using debounced query
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
-      filtered = customersData.filter(item => 
+      filtered = customersData.filter(item =>
         item.customer.toLowerCase().includes(query)
       );
     } else {
       filtered = customersData;
     }
-    
+
     // Sort by amount descending (in-place for better performance)
     filtered.sort((a, b) => b.totalAmount - a.totalAmount);
-    
+
     return filtered;
   }, [customersData, debouncedSearchQuery]);
 
@@ -449,7 +449,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
 
     data.forEach(item => {
       if (!item.invoiceDate) return;
-      
+
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
 
@@ -463,7 +463,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       if (!customerMonthMap.has(customerId)) {
         customerMonthMap.set(customerId, new Map());
       }
-      
+
       // Store customerName for this customerId (use first occurrence)
       if (!customerNameMap.has(customerId)) {
         customerNameMap.set(customerId, item.customerName);
@@ -716,19 +716,17 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'area'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
                     {filterArea || 'All Areas'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'area' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'area' && (
@@ -738,11 +736,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                         setFilterArea('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterArea === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Areas
                     </div>
@@ -753,11 +750,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                           setFilterArea(area);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterArea === area
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {area}
                       </div>
@@ -777,19 +773,17 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'merchandiser'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
                     {filterMerchandiser || 'All Merchandisers'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'merchandiser' && (
@@ -799,11 +793,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                         setFilterMerchandiser('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterMerchandiser === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Merchandisers
                     </div>
@@ -814,11 +807,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                           setFilterMerchandiser(merchandiser);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterMerchandiser === merchandiser
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {merchandiser}
                       </div>
@@ -838,19 +830,17 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'salesrep'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
                     {filterSalesRep || 'All Sales Reps'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'salesrep' && (
@@ -860,11 +850,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                         setFilterSalesRep('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterSalesRep === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Sales Reps
                     </div>
@@ -875,11 +864,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                           setFilterSalesRep(salesRep);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterSalesRep === salesRep
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {salesRep}
                       </div>
@@ -943,7 +931,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
               </thead>
               <tbody>
                 {paginatedCustomers.map((item, index) => (
-                  <CustomerRow 
+                  <CustomerRow
                     key={`${item.customer}-${startIndex + index}`}
                     item={item}
                     rowNumber={startIndex + index + 1}
@@ -961,27 +949,27 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                   <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
                     <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAmount.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      {totals.totalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAverageAmount.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      {totals.totalAverageAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalQty.toLocaleString('en-US', { 
-                        minimumFractionDigits: 0, 
-                        maximumFractionDigits: 0 
+                      {totals.totalQty.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAverageQty.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
+                      {totals.totalAverageQty.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
                       })}
                     </td>
                     <td className="py-3 px-4 text-sm text-gray-800 text-center">{totals.totalTransactions}</td>
@@ -1025,11 +1013,10 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium ${
-                          currentPage === pageNum
+                        className={`px-3 py-2 rounded-lg text-sm font-medium ${currentPage === pageNum
                             ? 'bg-green-600 text-white'
                             : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {pageNum}
                       </button>

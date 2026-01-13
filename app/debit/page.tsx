@@ -6,7 +6,6 @@ import CustomersTab from '@/components/CustomersTab';
 import CustomersMinsTab from '@/components/CustomersMinsTab';
 import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
 import AllTransactionsTab from '@/components/AllTransactionsTab';
-import DiscountTrackerTab from '@/components/DiscountTrackerTab';
 import PaymentTrackerTab from '@/components/PaymentTrackerTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
 import HistoryTab from '@/components/HistoryTab';
@@ -124,7 +123,6 @@ export default function DebitPage() {
     { id: 'all-transactions', label: 'All Transactions' },
     { id: 'customers-open-matches', label: 'Open Transactions' },
     { id: 'payment-tracker', label: 'Payment Tracker' },
-    { id: 'discount-tracker', label: 'Discount Tracker' },
     { id: 'salesreps', label: 'Sales Reps' },
     { id: 'history', label: 'History' },
     { id: 'ages', label: 'Ages' },
@@ -181,8 +179,6 @@ export default function DebitPage() {
         return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':
         return <CustomersOpenMatchesTab data={data} />;
-      case 'discount-tracker':
-        return <DiscountTrackerTab data={data} />;
       case 'payment-tracker':
         return <PaymentTrackerTab data={data} />;
       case 'salesreps':

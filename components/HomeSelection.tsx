@@ -126,6 +126,22 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
+          {/* Discount Tracker Card - Visible only for MED Sabry and Mr. Shady */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Mr. Shady') && (
+            <div
+              onClick={() => window.location.href = '/discount-tracker'}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-yellow-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-yellow-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <div className="w-7 h-7 flex items-center justify-center text-yellow-600 text-2xl">🏷️</div>
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Discount Tracker</h2>
+            </div>
+          )}
+
           {/* Sales Analysis Card - Hidden for Mahmoud Shaker, Overtime Export and Mr. Sadiq Akandi */}
           {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && (
             <div

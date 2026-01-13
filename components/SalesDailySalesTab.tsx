@@ -931,6 +931,58 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           </div>
         </div>
 
+
+        {/* Statistics Cards - Visible across all sub-tabs */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {/* Net Sales Card */}
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 shadow-lg text-white">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-green-100 text-sm font-semibold uppercase tracking-wide">Net Sales</p>
+              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+            </div>
+            <h3 className="text-3xl font-black mb-1">
+              {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </h3>
+            <p className="text-green-100 text-sm font-medium">
+              AED (Sales - Returns)
+            </p>
+          </div>
+
+          {/* Sales Invoices Count Card */}
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-lg text-white">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide">Count Sales Invoices</p>
+              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+            </div>
+            <h3 className="text-3xl font-black mb-1">
+              {allInvoicesStats.salesCount.toLocaleString('en-US')} <span className="text-xl">Invoice{allInvoicesStats.salesCount !== 1 ? 's' : ''}</span>
+            </h3>
+            <p className="text-blue-100 text-sm font-medium">
+              Total: {allInvoicesStats.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+            </p>
+          </div>
+
+          {/* Returns Invoices Count Card */}
+          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 shadow-lg text-white">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-red-100 text-sm font-semibold uppercase tracking-wide">Count Return Invoices</p>
+              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                <ShoppingBag className="w-5 h-5" />
+              </div>
+            </div>
+            <h3 className="text-3xl font-black mb-1">
+              {allInvoicesStats.returnsCount.toLocaleString('en-US')} <span className="text-xl">Return{allInvoicesStats.returnsCount !== 1 ? 's' : ''}</span>
+            </h3>
+            <p className="text-red-100 text-sm font-medium">
+              Total: {allInvoicesStats.totalReturns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
+            </p>
+          </div>
+        </div>
+
         {/* All Invoices /LPO Tab */}
         {activeSubTab === 'all-invoices' && (
           <div className="bg-white rounded-xl shadow-md p-6">
@@ -943,58 +995,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
               >
                 <Download className="w-5 h-5" />
               </button>
-            </div>
-
-
-            {/* Statistics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              {/* Net Sales Card */}
-              <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 shadow-lg text-white">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-green-100 text-sm font-semibold uppercase tracking-wide">Net Sales</p>
-                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                    <ShoppingBag className="w-5 h-5" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-black mb-1">
-                  {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </h3>
-                <p className="text-green-100 text-sm font-medium">
-                  AED (Sales - Returns)
-                </p>
-              </div>
-
-              {/* Sales Invoices Count Card */}
-              <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-lg text-white">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide">Count Sales Invoices</p>
-                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                    <ShoppingBag className="w-5 h-5" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-black mb-1">
-                  {allInvoicesStats.salesCount.toLocaleString('en-US')} <span className="text-xl">Invoice{allInvoicesStats.salesCount !== 1 ? 's' : ''}</span>
-                </h3>
-                <p className="text-blue-100 text-sm font-medium">
-                  Total: {allInvoicesStats.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                </p>
-              </div>
-
-              {/* Returns Invoices Count Card */}
-              <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 shadow-lg text-white">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-red-100 text-sm font-semibold uppercase tracking-wide">Count Return Invoices</p>
-                  <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                    <ShoppingBag className="w-5 h-5" />
-                  </div>
-                </div>
-                <h3 className="text-3xl font-black mb-1">
-                  {allInvoicesStats.returnsCount.toLocaleString('en-US')} <span className="text-xl">Return{allInvoicesStats.returnsCount !== 1 ? 's' : ''}</span>
-                </h3>
-                <p className="text-red-100 text-sm font-medium">
-                  Total: {allInvoicesStats.totalReturns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-                </p>
-              </div>
             </div>
 
             {searchedData.length === 0 ? (

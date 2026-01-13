@@ -66,9 +66,9 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // First, find the customerId for this customerName (use first match)
     const firstMatch = data.find(item => item.customerName === customerName);
     const customerId = firstMatch?.customerId;
-    
+
     // Filter by customerId if available, otherwise by customerName
-    return customerId 
+    return customerId
       ? data.filter(item => item.customerId === customerId)
       : data.filter(item => item.customerName === customerName);
   }, [data, customerName]);
@@ -77,7 +77,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   // Note: customerName is used for display, but we need to find by customerId if available
   const customerData = useMemo(() => {
     let filtered = [...unfilteredCustomerData];
-    
+
     // Year filter
     if (filterYear.trim()) {
       const yearNum = parseInt(filterYear.trim(), 10);
@@ -109,7 +109,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         });
       }
     }
-    
+
     // Date filter
     if (dateFrom || dateTo) {
       filtered = filtered.filter(item => {
@@ -117,37 +117,38 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         try {
           const itemDate = new Date(item.invoiceDate);
           if (isNaN(itemDate.getTime())) return false;
-          
+
           if (dateFrom) {
             const fromDate = new Date(dateFrom);
             fromDate.setHours(0, 0, 0, 0);
             if (itemDate < fromDate) return false;
           }
-          
+
           if (dateTo) {
             const toDate = new Date(dateTo);
             toDate.setHours(23, 59, 59, 999);
             if (itemDate > toDate) return false;
           }
-          
+
           return true;
         } catch (e) {
           return false;
         }
       });
     }
-    
+
     // Search filter
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
-      filtered = filtered.filter(item => 
+      filtered = filtered.filter(item =>
         item.product.toLowerCase().includes(query) ||
         item.barcode.toLowerCase().includes(query) ||
         item.merchandiser.toLowerCase().includes(query) ||
-        item.salesRep.toLowerCase().includes(query)
+        item.salesRep.toLowerCase().includes(query) ||
+        (item.invoiceNumber && item.invoiceNumber.toLowerCase().includes(query))
       );
     }
-    
+
     return filtered;
   }, [unfilteredCustomerData, dateFrom, dateTo, filterYear, filterMonth, debouncedSearchQuery]);
 
@@ -157,7 +158,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
     customerData.forEach(item => {
       if (!item.invoiceDate) return;
-      
+
       try {
         const date = new Date(item.invoiceDate);
         if (isNaN(date.getTime())) return;
@@ -165,7 +166,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         const year = date.getFullYear();
         const month = date.getMonth();
         const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-        
+
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
 
@@ -179,7 +180,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
         existing.amount += item.amount;
         existing.qty += item.qty;
-        
+
         // Add invoice number for transaction count (only invoices starting with "SAL")
         if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
           existing.invoiceNumbers.add(item.invoiceNumber);
@@ -207,23 +208,23 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       // Find first month (oldest) and last month (newest)
       const firstMonthKey = sorted[sorted.length - 1].monthKey; // Oldest (last in descending order)
       const lastMonthKey = sorted[0].monthKey; // Newest (first in descending order)
-      
+
       // Parse first month
       const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
-      
+
       // Get current date
       const currentDate = new Date();
       const currentYear = currentDate.getFullYear();
       const currentMonth = currentDate.getMonth() + 1; // 1-based
       const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
-      
+
       // Use current month or last purchase month, whichever is newer
       const endMonthKey = currentMonthKey > lastMonthKey ? currentMonthKey : lastMonthKey;
       const [endYear, endMonth] = endMonthKey.split('-').map(Number);
-      
+
       // Create a map for quick lookup
       const monthDataMap = new Map(sorted.map(item => [item.monthKey, item]));
-      
+
       // Generate all months from first to end
       const allMonths: Array<{
         month: string;
@@ -233,18 +234,18 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         count: number;
         isZeroMonth: boolean;
       }> = [];
-      
+
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      
+
       let year = firstYear;
       let month = firstMonth;
-      
+
       while (year < endYear || (year === endYear && month <= endMonth)) {
         const monthKey = `${year}-${String(month).padStart(2, '0')}`;
         const monthLabel = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
-        
+
         const existingData = monthDataMap.get(monthKey);
-        
+
         if (existingData) {
           allMonths.push({
             ...existingData,
@@ -261,7 +262,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
             isZeroMonth: true
           });
         }
-        
+
         // Move to next month
         month++;
         if (month > 12) {
@@ -269,15 +270,15 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
           year++;
         }
       }
-      
+
       // Sort by date descending (newest first)
       allMonths.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-      
+
       // Calculate amount change from previous month
       return allMonths.map((item, index) => {
         const previousAmount = index < allMonths.length - 1 ? allMonths[index + 1].amount : null;
         const amountChange = previousAmount !== null ? item.amount - previousAmount : null;
-        
+
         return {
           ...item,
           amountChange
@@ -290,10 +291,10 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
   // Products data
   const productsData = useMemo(() => {
-    const productMap = new Map<string, { 
-      barcode: string; 
-      product: string; 
-      amount: number; 
+    const productMap = new Map<string, {
+      barcode: string;
+      product: string;
+      amount: number;
       qty: number;
       totalCost: number;
       totalPrice: number;
@@ -363,7 +364,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
     // Sort by amount descending and mark duplicates
     const result = Array.from(productMap.values()).sort((a, b) => b.amount - a.amount);
-    
+
     // Mark duplicates based on productId and format invoice numbers
     return result.map(item => {
       const productId = item.barcode || item.product;
@@ -398,7 +399,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
     customerData.forEach(item => {
       if (!item.invoiceNumber) return;
-      
+
       const existing = invoiceMap.get(item.invoiceNumber) || {
         invoiceDate: item.invoiceDate || '',
         invoiceNumber: item.invoiceNumber,
@@ -413,11 +414,11 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
       existing.amount += item.amount;
       existing.qty += item.qty;
-      
+
       // Add product to set
       const productKey = item.productId || item.barcode || item.product;
       existing.products.add(productKey);
-      
+
       // Add cost and price
       if (item.productCost) {
         existing.totalCost += item.productCost;
@@ -435,7 +436,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     return Array.from(invoiceMap.values()).map(invoice => {
       const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
       const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
-      
+
       return {
         ...invoice,
         productCount: invoice.products.size,
@@ -459,7 +460,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     const totalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
     const totalQty = customerData.reduce((sum, item) => sum + item.qty, 0);
     const uniqueProducts = new Set(customerData.map(item => item.productId || item.barcode || item.product)).size;
-    
+
     // Calculate months from first month to current month (not just active months)
     let totalMonths = 1;
     if (monthlySales.length > 0) {
@@ -467,22 +468,22 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       const sortedMonths = [...monthlySales].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
       const firstMonthKey = sortedMonths[0].monthKey;
       const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
-      
+
       // Get current date
       const currentDate = new Date();
       const currentYear = currentDate.getFullYear();
       const currentMonth = currentDate.getMonth() + 1; // 1-based for comparison
-      
+
       // Calculate months from first month to current month (inclusive)
       const firstDate = new Date(firstYear, firstMonth - 1, 1);
       const lastDate = new Date(currentYear, currentMonth - 1, 1);
-      
+
       // Calculate difference in months
       const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
       const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
       totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
     }
-    
+
     const avgMonthlyAmount = totalMonths > 0 ? totalAmount / totalMonths : 0;
     const avgMonthlyQty = totalMonths > 0 ? totalQty / totalMonths : 0;
 
@@ -492,7 +493,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // Calculate last invoice date and days since (from unfiltered data)
     let lastInvoiceDate: Date | null = null;
     let daysSinceLastInvoice: number | null = null;
-    
+
     if (unfilteredCustomerData.length > 0) {
       const dates = unfilteredCustomerData
         .map(item => {
@@ -505,7 +506,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
           }
         })
         .filter((date): date is Date => date !== null);
-      
+
       if (dates.length > 0) {
         lastInvoiceDate = new Date(Math.max(...dates.map(d => d.getTime())));
         const today = new Date();
@@ -518,8 +519,8 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
     // Calculate discounts based on sales ratio
     // 1. Get CUSTOMER MAIN NAME from customerData
-    const customerMainName = customerData.length > 0 && customerData[0].customerMainName 
-      ? customerData[0].customerMainName 
+    const customerMainName = customerData.length > 0 && customerData[0].customerMainName
+      ? customerData[0].customerMainName
       : customerName; // Fallback to customerName if customerMainName not available
 
     // 2. Calculate total sales amount for sub-customer
@@ -528,7 +529,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     // 3. Calculate total sales amount for main customer (all sub-customers with same customerMainName)
     const normalizeCustomerName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
     const normalizedMainName = normalizeCustomerName(customerMainName);
-    
+
     const mainCustomerTotalAmount = data.reduce((sum, item) => {
       const itemMainName = item.customerMainName || item.customerName;
       const normalizedItemMainName = normalizeCustomerName(itemMainName);
@@ -539,8 +540,8 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     }, 0);
 
     // 4. Calculate sales ratio
-    const salesRatio = mainCustomerTotalAmount > 0 
-      ? subCustomerTotalAmount / mainCustomerTotalAmount 
+    const salesRatio = mainCustomerTotalAmount > 0
+      ? subCustomerTotalAmount / mainCustomerTotalAmount
       : 0;
 
     // 5. Find the latest date in sales data
@@ -557,7 +558,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
           }
         })
         .filter((date): date is Date => date !== null);
-      
+
       if (salesDates.length > 0) {
         latestSalesDate = new Date(Math.max(...salesDates.map(d => d.getTime())));
         // Set to end of day to include all invoices on that date
@@ -571,7 +572,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       if (!inv.customerName) return false;
       const normalizedInvName = normalizeCustomerName(inv.customerName);
       if (normalizedInvName !== normalizedMainName) return false;
-      
+
       // Filter by date: only include invoices up to latest sales date
       if (latestSalesDate && inv.date) {
         try {
@@ -587,7 +588,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
           return false;
         }
       }
-      
+
       return true;
     });
 
@@ -645,7 +646,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     }));
     // Reverse to show oldest to newest (left to right)
     const reversedData = [...data].reverse();
-    
+
     // Find max month by amount (highest positive amount, or least negative if all negative)
     if (reversedData.length > 0) {
       const maxAmount = Math.max(...reversedData.map(d => d.amount));
@@ -653,7 +654,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         item.isMaxMonth = item.amount === maxAmount;
       });
     }
-    
+
     return reversedData;
   }, [monthlySales]);
 
@@ -737,7 +738,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
-              placeholder="Search by product, barcode, merchandiser, sales rep..."
+              placeholder="Search by product, barcode, merchandiser, sales rep, invoice..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
@@ -796,41 +797,37 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         <div className="mb-6 flex border-b border-gray-200">
           <button
             onClick={() => setActiveTab('dashboard')}
-            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${
-              activeTab === 'dashboard'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'dashboard'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
           >
             Dashboard
           </button>
           <button
             onClick={() => setActiveTab('monthly')}
-            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${
-              activeTab === 'monthly'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'monthly'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
           >
             Sales by Month
           </button>
           <button
             onClick={() => setActiveTab('products')}
-            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${
-              activeTab === 'products'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'products'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
           >
             Products
           </button>
           <button
             onClick={() => setActiveTab('invoices')}
-            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${
-              activeTab === 'invoices'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
-            }`}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'invoices'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
           >
             Invoices / LPO
           </button>
@@ -842,18 +839,16 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
             {/* Key Metrics Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Last Invoice Date Card */}
-              <div className={`bg-white rounded-xl shadow-md p-6 ${
-                dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
-                  ? 'border-2 border-red-500 bg-red-50'
-                  : ''
-              }`}>
+              <div className={`bg-white rounded-xl shadow-md p-6 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                ? 'border-2 border-red-500 bg-red-50'
+                : ''
+                }`}>
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-sm font-medium text-gray-600">Last Invoice Date</h3>
-                  <Calendar className={`w-6 h-6 ${
-                    dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
-                      ? 'text-red-600'
-                      : 'text-gray-600'
-                  }`} />
+                  <Calendar className={`w-6 h-6 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                    ? 'text-red-600'
+                    : 'text-gray-600'
+                    }`} />
                 </div>
                 {dashboardMetrics.lastInvoiceDate ? (
                   <div>
@@ -864,12 +859,11 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                         day: 'numeric'
                       })}
                     </p>
-                    <p className={`text-sm font-medium ${
-                      dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
-                        ? 'text-red-600 font-bold'
-                        : 'text-gray-600'
-                    }`}>
-                      {dashboardMetrics.daysSinceLastInvoice !== null 
+                    <p className={`text-sm font-medium ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                      ? 'text-red-600 font-bold'
+                      : 'text-gray-600'
+                      }`}>
+                      {dashboardMetrics.daysSinceLastInvoice !== null
                         ? `${dashboardMetrics.daysSinceLastInvoice} days ago`
                         : '-'}
                     </p>
@@ -892,7 +886,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                 </p>
               </div>
 
-              <div 
+              <div
                 className="bg-white rounded-xl shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
                 onClick={() => setShowDiscountsModal(true)}
                 title="Click to see calculation details"
@@ -1004,10 +998,10 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                               const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
                               const isNegative = value < 0;
                               return (
-                                <div 
-                                  key={index} 
+                                <div
+                                  key={index}
                                   className="absolute text-base font-bold text-center"
-                                  style={{ 
+                                  style={{
                                     left: `${xPercent}%`,
                                     transform: 'translateX(-50%)',
                                     top: 0,
@@ -1024,85 +1018,85 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           </div>
                         </div>
                       </div>
-                    <ResponsiveContainer width="100%" height={350}>
-                      <LineChart 
-                        data={chartData}
-                        margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                        <XAxis 
-                          dataKey="month" 
-                          stroke="#6b7280"
-                          style={{ fontSize: '16px', fontWeight: 700 }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          stroke="#9ca3af"
-                          style={{ fontSize: '11px' }}
-                          tickFormatter={() => ''}
-                          tickLine={false}
-                          axisLine={false}
-                          domain={['auto', 'auto']}
-                          hide={true}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#ffffff', 
-                            border: 'none',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                            padding: '12px'
-                          }}
-                          formatter={(value: number, name: string, props: any) => {
-                            const isNegative = value < 0;
-                            return [
-                              <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                                {value.toLocaleString('en-US', {
-                                  minimumFractionDigits: 2,
-                                  maximumFractionDigits: 2
-                                })}
-                              </span>,
-                              'Amount'
-                            ];
-                          }}
-                          labelStyle={{ 
-                            color: '#374151',
-                            fontWeight: 600,
-                            marginBottom: '8px'
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="amount" 
-                          stroke="#10b981" 
-                          strokeWidth={3}
-                          style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
-                          dot={(props: any) => {
-                            const { cx, cy, payload } = props;
-                            const isNegative = payload?.isNegativeAmount;
-                            const isMaxMonth = payload?.isMaxMonth;
-                            const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                            return (
-                              <circle 
-                                cx={cx} 
-                                cy={cy} 
-                                r={radius} 
-                                fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
-                                stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
-                                strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                                style={{ 
-                                  filter: isMaxMonth 
-                                    ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))' 
-                                    : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
-                                }}
-                              />
-                            );
-                          }}
-                          activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                      <ResponsiveContainer width="100%" height={350}>
+                        <LineChart
+                          data={chartData}
+                          margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                          <XAxis
+                            dataKey="month"
+                            stroke="#6b7280"
+                            style={{ fontSize: '16px', fontWeight: 700 }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            stroke="#9ca3af"
+                            style={{ fontSize: '11px' }}
+                            tickFormatter={() => ''}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={['auto', 'auto']}
+                            hide={true}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#ffffff',
+                              border: 'none',
+                              borderRadius: '12px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                              padding: '12px'
+                            }}
+                            formatter={(value: number, name: string, props: any) => {
+                              const isNegative = value < 0;
+                              return [
+                                <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
+                                  {value.toLocaleString('en-US', {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2
+                                  })}
+                                </span>,
+                                'Amount'
+                              ];
+                            }}
+                            labelStyle={{
+                              color: '#374151',
+                              fontWeight: 600,
+                              marginBottom: '8px'
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="amount"
+                            stroke="#10b981"
+                            strokeWidth={3}
+                            style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
+                            dot={(props: any) => {
+                              const { cx, cy, payload } = props;
+                              const isNegative = payload?.isNegativeAmount;
+                              const isMaxMonth = payload?.isMaxMonth;
+                              const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
+                              return (
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={radius}
+                                  fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
+                                  stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
+                                  strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
+                                  style={{
+                                    filter: isMaxMonth
+                                      ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
+                                      : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
+                                  }}
+                                />
+                              );
+                            }}
+                            activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
 
@@ -1136,10 +1130,10 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                               const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
                               const isNegative = value < 0;
                               return (
-                                <div 
-                                  key={index} 
+                                <div
+                                  key={index}
                                   className="absolute text-base font-bold text-center"
-                                  style={{ 
+                                  style={{
                                     left: `${xPercent}%`,
                                     transform: 'translateX(-50%)',
                                     top: 0,
@@ -1156,85 +1150,85 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           </div>
                         </div>
                       </div>
-                    <ResponsiveContainer width="100%" height={350}>
-                      <LineChart 
-                        data={chartData}
-                        margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                        <XAxis 
-                          dataKey="month" 
-                          stroke="#6b7280"
-                          style={{ fontSize: '16px', fontWeight: 700 }}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          stroke="#9ca3af"
-                          style={{ fontSize: '11px' }}
-                          tickFormatter={() => ''}
-                          tickLine={false}
-                          axisLine={false}
-                          domain={['auto', 'auto']}
-                          hide={true}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#ffffff', 
-                            border: 'none',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                            padding: '12px'
-                          }}
-                          formatter={(value: number, name: string, props: any) => {
-                            const isNegative = value < 0;
-                            return [
-                              <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                                {value.toLocaleString('en-US', {
-                                  minimumFractionDigits: 0,
-                                  maximumFractionDigits: 0
-                                })}
-                              </span>,
-                              'Quantity'
-                            ];
-                          }}
-                          labelStyle={{ 
-                            color: '#374151',
-                            fontWeight: 600,
-                            marginBottom: '8px'
-                          }}
-                        />
-                        <Line 
-                          type="monotone" 
-                          dataKey="qty" 
-                          stroke="#3b82f6" 
-                          strokeWidth={3}
-                          style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
-                          dot={(props: any) => {
-                            const { cx, cy, payload } = props;
-                            const isNegative = payload?.isNegativeQty;
-                            const isMaxMonth = payload?.isMaxMonth;
-                            const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                            return (
-                              <circle 
-                                cx={cx} 
-                                cy={cy} 
-                                r={radius} 
-                                fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
-                                stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
-                                strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                                style={{ 
-                                  filter: isMaxMonth 
-                                    ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))' 
-                                    : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
-                                }}
-                              />
-                            );
-                          }}
-                          activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                        />
-                      </LineChart>
-                    </ResponsiveContainer>
+                      <ResponsiveContainer width="100%" height={350}>
+                        <LineChart
+                          data={chartData}
+                          margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
+                        >
+                          <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                          <XAxis
+                            dataKey="month"
+                            stroke="#6b7280"
+                            style={{ fontSize: '16px', fontWeight: 700 }}
+                            tickLine={false}
+                            axisLine={false}
+                          />
+                          <YAxis
+                            stroke="#9ca3af"
+                            style={{ fontSize: '11px' }}
+                            tickFormatter={() => ''}
+                            tickLine={false}
+                            axisLine={false}
+                            domain={['auto', 'auto']}
+                            hide={true}
+                          />
+                          <Tooltip
+                            contentStyle={{
+                              backgroundColor: '#ffffff',
+                              border: 'none',
+                              borderRadius: '12px',
+                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                              padding: '12px'
+                            }}
+                            formatter={(value: number, name: string, props: any) => {
+                              const isNegative = value < 0;
+                              return [
+                                <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
+                                  {value.toLocaleString('en-US', {
+                                    minimumFractionDigits: 0,
+                                    maximumFractionDigits: 0
+                                  })}
+                                </span>,
+                                'Quantity'
+                              ];
+                            }}
+                            labelStyle={{
+                              color: '#374151',
+                              fontWeight: 600,
+                              marginBottom: '8px'
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="qty"
+                            stroke="#3b82f6"
+                            strokeWidth={3}
+                            style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
+                            dot={(props: any) => {
+                              const { cx, cy, payload } = props;
+                              const isNegative = payload?.isNegativeQty;
+                              const isMaxMonth = payload?.isMaxMonth;
+                              const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
+                              return (
+                                <circle
+                                  cx={cx}
+                                  cy={cy}
+                                  r={radius}
+                                  fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
+                                  stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
+                                  strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
+                                  style={{
+                                    filter: isMaxMonth
+                                      ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
+                                      : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
+                                  }}
+                                />
+                              );
+                            }}
+                            activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
                 </div>
@@ -1264,20 +1258,17 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                 </thead>
                 <tbody>
                   {monthlySales.map((item, index) => (
-                    <tr 
-                      key={index} 
-                      className={`border-b border-gray-100 hover:bg-gray-50 ${
-                        item.isZeroMonth ? 'bg-gray-50 opacity-60' : ''
-                      }`}
+                    <tr
+                      key={index}
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${item.isZeroMonth ? 'bg-gray-50 opacity-60' : ''
+                        }`}
                     >
-                      <td className={`py-3 px-4 text-base font-medium text-center ${
-                        item.isZeroMonth ? 'text-gray-500 line-through' : 'text-gray-800'
-                      }`}>
+                      <td className={`py-3 px-4 text-base font-medium text-center ${item.isZeroMonth ? 'text-gray-500 line-through' : 'text-gray-800'
+                        }`}>
                         {item.month}
                       </td>
-                      <td className={`py-3 px-4 text-base font-semibold text-center ${
-                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
-                      }`}>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                        }`}>
                         {item.amount.toLocaleString('en-US', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2
@@ -1296,17 +1287,15 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
-                      <td className={`py-3 px-4 text-base font-semibold text-center ${
-                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
-                      }`}>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                        }`}>
                         {item.qty.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 0
                         })}
                       </td>
-                      <td className={`py-3 px-4 text-base font-semibold text-center ${
-                        item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
-                      }`}>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                        }`}>
                         {item.count}
                       </td>
                     </tr>
@@ -1354,16 +1343,14 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                 </thead>
                 <tbody>
                   {productsData.map((item, index) => (
-                    <tr 
-                      key={index} 
-                      className={`border-b border-gray-100 hover:bg-gray-50 ${
-                        item.isDuplicate ? 'bg-yellow-50 hover:bg-yellow-100' : ''
-                      }`}
+                    <tr
+                      key={index}
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${item.isDuplicate ? 'bg-yellow-50 hover:bg-yellow-100' : ''
+                        }`}
                     >
                       <td className="py-3 px-4 text-base text-gray-600 font-medium text-center">{index + 1}</td>
-                      <td className={`py-3 px-4 text-base font-medium text-center ${
-                        item.isDuplicate ? 'text-red-600 font-bold' : 'text-gray-800'
-                      }`}>
+                      <td className={`py-3 px-4 text-base font-medium text-center ${item.isDuplicate ? 'text-red-600 font-bold' : 'text-gray-800'
+                        }`}>
                         {item.barcode || '-'}
                       </td>
                       <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.product}</td>
@@ -1374,13 +1361,13 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                         })}
                       </td>
                       <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.avgCost % 1 === 0 
+                        {item.avgCost % 1 === 0
                           ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                           : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                         }
                       </td>
                       <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.avgPrice % 1 === 0 
+                        {item.avgPrice % 1 === 0
                           ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                           : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                         }
@@ -1446,46 +1433,45 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   {groupedInvoicesData.map((item, index) => {
                     const isRSAL = item.invoiceNumber.trim().toUpperCase().startsWith('RSAL');
                     return (
-                    <tr 
-                      key={index} 
-                      className={`border-b border-gray-100 hover:bg-gray-50 ${
-                        isRSAL ? 'bg-red-50 hover:bg-red-100' : ''
-                      }`}
-                    >
-                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
-                        {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
-                          year: 'numeric',
-                          month: 'short',
-                          day: 'numeric'
-                        }) : '-'}
-                      </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.invoiceNumber}</td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.amount.toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2
-                        })}
-                      </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.qty.toLocaleString('en-US', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 0
-                        })}
-                      </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.productCount}</td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.avgCost % 1 === 0 
-                          ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                          : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        }
-                      </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.avgPrice % 1 === 0 
-                          ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                          : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        }
-                      </td>
-                    </tr>
+                      <tr
+                        key={index}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${isRSAL ? 'bg-red-50 hover:bg-red-100' : ''
+                          }`}
+                      >
+                        <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
+                          {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.invoiceNumber}</td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.amount.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.qty.toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.productCount}</td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.avgCost % 1 === 0
+                            ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                            : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.avgPrice % 1 === 0
+                            ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                            : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }
+                        </td>
+                      </tr>
                     );
                   })}
                   {groupedInvoicesData.length === 0 && (
@@ -1515,7 +1501,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                   <X className="w-5 h-5 text-gray-600" />
                 </button>
               </div>
-              
+
               <div className="p-5">
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
