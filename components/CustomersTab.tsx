@@ -351,14 +351,15 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
 // Helper to identify payment transactions consistently
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
   const num = (inv.number?.toString() || '').toUpperCase();
-  if (num.startsWith('BNK')) return true;
+  if (num.startsWith('BNK') || num.startsWith('PBNK4')) return true;
   if ((inv.credit || 0) <= 0.01) return false;
   return (
     !num.startsWith('SAL') &&
     !num.startsWith('RSAL') &&
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
-    !num.startsWith('OB')
+    !num.startsWith('OB') &&
+    !num.startsWith('PBNK4')
   );
 };
 
@@ -671,6 +672,8 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null })
     return 'Opening Balance';
   } else if (num.startsWith('BNK')) {
     return 'Payment';
+  } else if (num.startsWith('PBNK4')) {
+    return 'Our-Paid';
   } else if (num.startsWith('SAL')) {
     return 'Sale';
   } else if (num.startsWith('RSAL')) {
@@ -899,6 +902,8 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           type = 'OB';
         } else if (n.startsWith('BNK')) {
           type = 'Payment';
+        } else if (n.startsWith('PBNK4')) {
+          type = 'Our-Paid';
         } else if (n.startsWith('SAL')) {
           type = 'Sales';
         } else if (n.startsWith('RSAL')) {
@@ -909,12 +914,17 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           type = 'Payment';
         }
 
-        if (type === 'Payment') {
+        if (type === 'Payment' || type === 'Our-Paid') {
           existing.creditPayments += row.credit;
         } else if (type === 'Return') {
           existing.creditReturns += row.credit;
         } else if (type === 'Discount') {
-          existing.creditDiscounts += row.credit;
+          if (n.startsWith('BIL')) {
+            existing.creditDiscounts += row.credit;
+          } else {
+            // JV is classified as Discount type but treated as Payment for Rate stats
+            existing.creditPayments += row.credit;
+          }
         }
       }
 
@@ -1257,7 +1267,7 @@ export default function CustomersTab({ data }: CustomersTabProps) {
           let type = 'Payment';
 
           if (n.startsWith('OB')) type = 'OB';
-          else if (n.startsWith('BNK')) type = 'Payment';
+          else if (n.startsWith('BNK') || n.startsWith('PBNK4')) type = 'Payment';
           else if (n.startsWith('SAL')) type = 'Sales';
           else if (n.startsWith('RSAL')) type = 'Return';
           else if (n.startsWith('JV') || n.startsWith('BIL')) type = 'Discount';

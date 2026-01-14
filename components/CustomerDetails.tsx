@@ -86,8 +86,9 @@ const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | 
   if (num.startsWith('OB')) {
     return 'OB';
   } else if (num.startsWith('BNK')) {
-    // Bank transfers should be treated as payments
     return 'Payment';
+  } else if (num.startsWith('PBNK4')) {
+    return 'Our-Paid';
   } else if (num.startsWith('SAL')) {
     return 'Sales';
   } else if (num.startsWith('RSAL')) {
@@ -102,15 +103,16 @@ const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | 
 
 // Helper to identify payment transactions consistently
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
-  const num = (inv.number || '').toUpperCase();
-  if (num.startsWith('BNK')) return true;
+  const num = (inv.number?.toString() || '').toUpperCase();
+  if (num.startsWith('BNK') || num.startsWith('PBNK4')) return true;
   if ((inv.credit || 0) <= 0.01) return false;
   return (
     !num.startsWith('SAL') &&
     !num.startsWith('RSAL') &&
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
-    !num.startsWith('OB')
+    !num.startsWith('OB') &&
+    !num.startsWith('PBNK4')
   );
 };
 
@@ -127,7 +129,7 @@ const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   const direct = new Date(dateStr);
   if (!isNaN(direct.getTime())) return direct;
 
-  // Fallback for DD/MM/YYYY or DD-MM-YYYY
+  // Fallback for DD/MM/YYYY or DD-MM/YYYY
   const parts = dateStr.split(/[\/\-]/);
   if (parts.length === 3) {
     const [p1, p2, p3] = parts.map((p) => parseInt(p, 10));
@@ -343,7 +345,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [exportMode, setExportMode] = useState<'combined' | 'separated'>('combined');
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [pdfExportType, setPdfExportType] = useState<'all' | 'net'>('all');
-  const [exportScope, setExportScope] = useState<'custom' | 'view'>('custom');
+  const [exportScope, setExportScope] = useState<'custom' | 'view' | 'selection'>('custom');
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');
 
   // Notes State
@@ -907,14 +909,15 @@ ${debtSectionHtml}
         if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
         if (showPayments) {
           // Treat BNK* as payments even if credit isn't populated as expected
-          if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
-          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
+          if ((num.startsWith('BNK') || num.startsWith('PBNK4')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
+          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB, PBNK
           if (inv.credit > 0.01 &&
             !num.startsWith('SAL') &&
             !num.startsWith('RSAL') &&
             !num.startsWith('BIL') &&
             !num.startsWith('JV') &&
-            !num.startsWith('OB')) {
+            !num.startsWith('OB') &&
+            !num.startsWith('PBNK4')) {
             return true;
           }
         }
@@ -982,7 +985,7 @@ ${debtSectionHtml}
     let discountsTotal = 0;
 
     filtered.forEach((inv) => {
-      const num = inv.number.toUpperCase();
+      const num = inv.number ? inv.number.toUpperCase() : '';
       const netDebt = inv.netDebt;
       const type = getInvoiceTypeFromRow(inv);
 
@@ -992,7 +995,7 @@ ${debtSectionHtml}
         salesTotal += netDebt;
       } else if (num.startsWith('RSAL') && inv.credit > 0) {
         returnsTotal += netDebt;
-      } else if (num.startsWith('JV') || num.startsWith('BIL')) {
+      } else if (num.startsWith('BIL')) {
         discountsTotal += netDebt;
       } else if (isPaymentTxn(inv)) {
         // Payments checkbox total: Credit - Debit
@@ -1067,14 +1070,15 @@ ${debtSectionHtml}
         if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
         if (showPayments) {
           // Treat BNK* as payments even if credit isn't populated as expected
-          if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
-          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB
+          if ((num.startsWith('BNK') || num.startsWith('PBNK4')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
+          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB, PBNK
           if (inv.credit > 0.01 &&
             !num.startsWith('SAL') &&
             !num.startsWith('RSAL') &&
             !num.startsWith('BIL') &&
             !num.startsWith('JV') &&
-            !num.startsWith('OB')) {
+            !num.startsWith('OB') &&
+            !num.startsWith('PBNK4')) {
             return true;
           }
         }
@@ -1447,8 +1451,9 @@ ${debtSectionHtml}
               type === 'Return' ? 'bg-orange-100 text-orange-700' :
                 type === 'Payment' ? 'bg-green-100 text-green-700' :
                   type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
-                    type === 'OB' ? 'bg-purple-100 text-purple-700' :
-                      'bg-gray-100 text-gray-700';
+                    type === 'Our-Paid' ? 'bg-emerald-100 text-emerald-800' :
+                      type === 'OB' ? 'bg-purple-100 text-purple-700' :
+                        'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -1587,8 +1592,9 @@ ${debtSectionHtml}
               type === 'Return' ? 'bg-orange-100 text-orange-700' :
                 type === 'Payment' ? 'bg-green-100 text-green-700' :
                   type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
-                    type === 'OB' ? 'bg-purple-100 text-purple-700' :
-                      'bg-gray-100 text-gray-700';
+                    type === 'Our-Paid' ? 'bg-emerald-100 text-emerald-800' :
+                      type === 'OB' ? 'bg-purple-100 text-purple-700' :
+                        'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -1811,7 +1817,7 @@ ${debtSectionHtml}
         return `${day}/${month}/${year}`;
       })() : '';
       let type = getInvoiceTypeFromRow(inv);
-      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
+      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'Our-Paid')) {
         const d = new Date(inv.date);
         if (!isNaN(d.getTime())) {
           const yy = d.getFullYear().toString().slice(-2);
@@ -1819,7 +1825,7 @@ ${debtSectionHtml}
           let base = type === 'Sales' ? 'Sale' : type;
 
           // Special case: Payment in Debit column -> "Return - Payment"
-          if (type === 'Payment' && (inv.debit || 0) > 0.01) {
+          if ((type === 'Payment' || type === 'Our-Paid') && (inv.debit || 0) > 0.01) {
             base = 'Return - Payment';
           }
 
@@ -1887,6 +1893,19 @@ ${debtSectionHtml}
         if (invoiceSearchQuery) {
           monthsLabel += ` (Search: ${invoiceSearchQuery})`;
         }
+
+      } else if (exportScope === 'selection') {
+        const isOverdueTab = activeTab === 'overdue';
+        const selectedIds = isOverdueTab ? selectedOverdueIds : selectedInvoiceIds;
+        const sourceList = isOverdueTab ? overdueInvoices : invoicesWithNetDebt;
+
+        if (selectedIds.size === 0) {
+          alert('Please select at least one transaction to export.');
+          return;
+        }
+
+        finalInvoices = sourceList.filter(inv => selectedIds.has(inv.originalIndex));
+        monthsLabel = 'Selected Transactions';
 
       } else {
         // Custom Selection Logic
@@ -1983,11 +2002,12 @@ ${debtSectionHtml}
 
     const discountsAmount = filteredInvoices.reduce((sum, inv) => {
       const num = inv.number.toUpperCase();
-      return (num.startsWith('JV') || num.startsWith('BIL')) ? sum + inv.credit : sum;
+      return num.startsWith('BIL') ? sum + inv.credit : sum;
     }, 0);
 
     const paymentsAmount = filteredInvoices.reduce((sum, inv) => {
-      if (!isPaymentTxn(inv)) return sum;
+      const num = inv.number.toUpperCase();
+      if (!isPaymentTxn(inv) && !num.startsWith('JV')) return sum;
       return sum + getPaymentAmount(inv);
     }, 0);
 
@@ -2008,7 +2028,7 @@ ${debtSectionHtml}
 
     // Calculate Last Payment
     // Filter out non-payment transaction types
-    const paymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv));
+    const paymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv) || inv.number.toUpperCase().startsWith('JV'));
 
     let lastPaymentAmount = 0;
     let lastPaymentDate = null;
@@ -2044,7 +2064,7 @@ ${debtSectionHtml}
     const lifetimeSmartSales = netSales;
 
     // Lifetime Smart Payments (Credit not SAL/RSAL/BIL/JV)
-    const smartPaymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv));
+    const smartPaymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv) || inv.number.toUpperCase().startsWith('JV'));
     const lifetimeSmartPayments = smartPaymentInvoices.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
 
     // Duration
@@ -2231,7 +2251,7 @@ ${debtSectionHtml}
                   <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.returnsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
                 </div>
                 <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
-                  <p className="text-xs text-gray-500 uppercase">Discounts (JV/BIL)</p>
+                  <p className="text-xs text-gray-500 uppercase">Discounts (BIL)</p>
                   <p className="text-lg font-bold text-gray-900">{dashboardMetrics.discountsAmount.toLocaleString('en-US')}</p>
                   <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.discountsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
                 </div>
@@ -2396,6 +2416,22 @@ ${debtSectionHtml}
                         <div>
                           <span className="block font-semibold text-gray-700">Current View</span>
                           <span className="text-xs text-gray-500">Export active filters</span>
+                        </div>
+                      </button>
+
+                      <button
+                        onClick={() => setExportScope('selection')}
+                        className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'selection'
+                          ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
+                          : 'border-transparent bg-white hover:bg-gray-50'
+                          }`}
+                      >
+                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'selection' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                          {exportScope === 'selection' && <div className="w-2 h-2 rounded-full bg-white" />}
+                        </div>
+                        <div>
+                          <span className="block font-semibold text-gray-700">Current Selection</span>
+                          <span className="text-xs text-gray-500">Export selected rows</span>
                         </div>
                       </button>
                     </div>
@@ -2884,7 +2920,7 @@ ${debtSectionHtml}
                   className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-1 focus:ring-yellow-500 cursor-pointer"
                 />
                 <span className="text-sm font-medium text-gray-700">
-                  الخصومات (JV/BIL)
+                  الخصومات (BIL)
                 </span>
                 <span className="text-sm font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded">
                   {invoiceTypeTotals.discounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -22,7 +22,7 @@ interface OpenMatchItem {
   debit: number;
   credit: number;
   remainingAmount: number;
-  type: 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB';
+  type: 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid';
   matching?: string;
 }
 
@@ -49,7 +49,7 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid'>('ALL');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -152,6 +152,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
         } else if (num.startsWith('BNK')) {
           // Bank transfers with Debit are 'R-Payment' (Bounced/Refund)
           type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
+        } else if (num.startsWith('PBNK4')) {
+          type = 'Our-Paid';
         } else if (num.startsWith('SAL')) {
           // Only show SAL if it's partially closed (has matching and residual)
           // Don't show unmatched SAL (fully open)
@@ -282,6 +284,8 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
         return 'bg-blue-100 text-blue-700';
       case 'OB':
         return 'bg-purple-100 text-purple-700';
+      case 'Our-Paid':
+        return 'bg-emerald-100 text-emerald-800';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -456,6 +460,7 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
               <option value="Return">Returns</option>
               <option value="Sales">Sales</option>
               <option value="OB">Opening Balance</option>
+              <option value="Our-Paid">Our-Paid</option>
             </select>
           </div>
           {(dateFrom || dateTo) && (

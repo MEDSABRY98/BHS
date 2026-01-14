@@ -22,7 +22,7 @@ interface TransactionItem {
   debit: number;
   credit: number;
   netAmount: number;
-  type: 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB';
+  type: 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid';
   matching?: string;
 }
 
@@ -49,7 +49,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid'>('ALL');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -74,6 +74,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       } else if (num.startsWith('BNK')) {
         // BNK with Debit is a 'R-Payment' (Refund/Bounced), otherwise Payment
         type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
+      } else if (num.startsWith('PBNK4')) {
+        type = 'Our-Paid';
       } else if (num.startsWith('SAL')) {
         type = 'Sales';
       } else if (num.startsWith('RSAL')) {
@@ -200,6 +202,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
         return 'bg-blue-100 text-blue-700';
       case 'OB':
         return 'bg-purple-100 text-purple-700';
+      case 'Our-Paid':
+        return 'bg-emerald-100 text-emerald-800';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -374,6 +378,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
               <option value="Return">Returns</option>
               <option value="Sales">Sales</option>
               <option value="OB">Opening Balance</option>
+              <option value="Our-Paid">Our-Paid</option>
             </select>
           </div>
           {(dateFrom || dateTo) && (
