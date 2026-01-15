@@ -15,6 +15,8 @@ import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
+  mode?: 'DEBIT' | 'OB_POS' | 'OB_NEG';
+  onBack?: () => void;
 }
 
 const columnHelper = createColumnHelper<CustomerAnalysis>();
@@ -686,7 +688,7 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null })
   return 'Invoice/Txn';
 };
 
-export default function CustomersTab({ data }: CustomersTabProps) {
+export default function CustomersTab({ data, mode = 'DEBIT', onBack }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
@@ -1383,21 +1385,25 @@ export default function CustomersTab({ data }: CustomersTabProps) {
         payments3m,
         paymentsCount3m,
         sales3m,
-        salesCount3m,
-        creditPayments: c.creditPayments,
-        creditReturns: c.creditReturns,
-        creditDiscounts: c.creditDiscounts,
-        totalSalesDebit: c.totalSalesDebit,
         lastTransactionDate: c.lastTransactionDate,
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter]);
 
+
+
   const filteredData = useMemo(() => {
     let result = customerAnalysis;
-    // Filter out customers with zero net debt
-    // Filter out customers with zero net debt AND negative net debt (show only positive debt)
-    result = result.filter(c => c.netDebt > 0.01);
+
+    // Mode-based filtering
+    if (mode === 'OB_POS') {
+      result = result.filter(c => (c.openOBAmount || 0) > 0.01);
+    } else if (mode === 'OB_NEG') {
+      result = result.filter(c => (c.openOBAmount || 0) < -0.01);
+    } else {
+      // Default DEBIT: Filter out zero/negative net debt
+      result = result.filter(c => c.netDebt > 0.01);
+    }
     const now = new Date();
 
     // Date Range Filter
@@ -2214,87 +2220,104 @@ ${debtSectionHtml}
           );
         },
       }),
-      columnHelper.display({
-        id: 'collectionRate',
-        header: 'Collection Rate',
-        cell: (info) => {
-          const customer = info.row.original;
-          // If net debt is negative (creditor), show "-"
-          if (customer.netDebt < 0) {
-            return <span className="text-gray-500">-</span>;
-          }
-
-          const totalDebit = customer.totalDebit;
-          const collectionRate = totalDebit > 0
-            ? ((customer.totalCredit / totalDebit) * 100)
-            : 0;
-
-          // Calculate breakdown relative to Total Credit (Share of Collection)
-          const creditDenom = customer.totalCredit || 0;
-          const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
-          const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
-          const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
-
-          return (
-            <button
-              onClick={() => {
-                // Calculate rankings within the current filtered view
-                const stats = filteredData.map(c => {
-                  const denom = c.totalCredit || 0;
-                  return {
-                    name: c.customerName,
-                    collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
-                    payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
-                    returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
-                    discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
-                  };
-                });
-
-                const getRank = (metric: keyof typeof stats[0], val: number) => {
-                  // Sort descending
-                  const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
-                  // Find index (1-based)
-                  return sorted.findIndex(s => s.name === customer.customerName) + 1;
-                };
-
-                const collRank = getRank('collRate', collectionRate);
-                const payRank = getRank('payRate', payRate);
-                const returnRank = getRank('returnRate', returnRate);
-                const discountRank = getRank('discountRate', discountRate);
-
-                setSelectedCollectionStats({
-                  customer,
-                  ranks: {
-                    collRank,
-                    payRank,
-                    returnRank,
-                    discountRank,
-                    totalCount: filteredData.length
-                  },
-                  rates: {
-                    payRate,
-                    returnRate,
-                    discountRate
-                  }
-                });
-              }}
-              className="flex flex-col items-start hover:bg-gray-50 p-1 rounded-lg transition-colors text-left group w-full"
-            >
-              <div className="flex items-center gap-1">
-                <span className={`font-bold ${collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                  {collectionRate.toFixed(1)}%
-                </span>
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <span className="text-xs text-gray-500 whitespace-nowrap">
-                ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+      ...(mode === 'OB_POS' || mode === 'OB_NEG' ? [
+        columnHelper.accessor('openOBAmount', {
+          header: 'OB Amount',
+          cell: (info) => {
+            const val = info.getValue() || 0;
+            return (
+              <span className={`font-bold ${val > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                {val.toLocaleString('en-US')}
               </span>
-            </button>
-          );
-        },
-      }),
+            );
+          },
+        })
+      ] : []),
+      // Conditional Collection Rate (Visible only in DEBIT mode)
+      ...(mode === 'DEBIT' ? [
+        columnHelper.display({
+          id: 'collectionRate',
+          header: 'Collection Rate',
+          cell: (info) => {
+            const customer = info.row.original;
+            // If net debt is negative (creditor), show "-"
+            if (customer.netDebt < 0) {
+              return <span className="text-gray-500">-</span>;
+            }
+
+            const totalDebit = customer.totalDebit;
+            const collectionRate = totalDebit > 0
+              ? ((customer.totalCredit / totalDebit) * 100)
+              : 0;
+
+            // Calculate breakdown relative to Total Credit (Share of Collection)
+            const creditDenom = customer.totalCredit || 0;
+            const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
+            const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
+            const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
+
+            return (
+              <button
+                onClick={() => {
+                  // Calculate rankings within the current filtered view
+                  const stats = filteredData.map(c => {
+                    const denom = c.totalCredit || 0;
+                    return {
+                      name: c.customerName,
+                      collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                      payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                      returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                      discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                    };
+                  });
+
+                  const getRank = (metric: keyof typeof stats[0], val: number) => {
+                    // Sort descending
+                    const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                    // Find index (1-based)
+                    return sorted.findIndex(s => s.name === customer.customerName) + 1;
+                  };
+
+                  const collRank = getRank('collRate', collectionRate);
+                  const payRank = getRank('payRate', payRate);
+                  const returnRank = getRank('returnRate', returnRate);
+                  const discountRank = getRank('discountRate', discountRate);
+
+                  setSelectedCollectionStats({
+                    customer,
+                    ranks: {
+                      collRank,
+                      payRank,
+                      returnRank,
+                      discountRank,
+                      totalCount: filteredData.length
+                    },
+                    rates: {
+                      payRate,
+                      returnRate,
+                      discountRate
+                    }
+                  });
+                }}
+                className="flex flex-col items-start hover:bg-gray-50 p-1 rounded-lg transition-colors text-left group w-full"
+              >
+                <div className="flex items-center gap-1">
+                  <span className={`font-bold ${collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    {collectionRate.toFixed(1)}%
+                  </span>
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <span className="text-xs text-gray-500 whitespace-nowrap">
+                  ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                </span>
+              </button>
+            );
+          },
+        })
+      ] : []),
+
       columnHelper.display({
         id: 'debtRating',
         header: 'Debit Rating',
@@ -2319,7 +2342,7 @@ ${debtSectionHtml}
         },
       }),
     ],
-    [closedCustomers, selectedCustomersForDownload, filteredData]
+    [closedCustomers, selectedCustomersForDownload, filteredData, mode]
   );
 
   const table = useReactTable({
@@ -2679,98 +2702,113 @@ ${debtSectionHtml}
                       </button>
                     </div>
 
-                    {/* Collection Rate */}
-                    <div className="md:col-span-1">
-                      {customer.netDebt < 0 ? (
-                        <div className="text-center">
-                          <span className="text-gray-500 text-xl font-bold">-</span>
+                    {/* OB Amount (Visible only in OB modes) */}
+                    {(mode === 'OB_POS' || mode === 'OB_NEG') && (
+                      <div className="md:col-span-1">
+                        <div className="text-xl font-bold transition-colors w-full text-center">
+                          <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {(customer.openOBAmount || 0).toLocaleString('en-US')}
+                          </span>
                         </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            // Disable popup if date filter is active
-                            const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
-                            if (isDateFilterActive) return;
+                      </div>
+                    )}
 
-                            // Calculate rankings within the current filtered view
-                            const stats = filteredData.map(c => {
-                              const denom = c.totalCredit || 0;
-                              return {
-                                name: c.customerName,
-                                collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
-                                payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
-                                returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
-                                discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                    {/* Collection Rate (Visible only in DEBIT mode) */}
+                    {mode === 'DEBIT' && (
+                      <div className="md:col-span-1">
+                        {customer.netDebt < 0 ? (
+                          <div className="text-center">
+                            <span className="text-gray-500 text-xl font-bold">-</span>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              // Disable popup if date filter is active
+                              const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
+                              if (isDateFilterActive) return;
+
+                              // Calculate rankings within the current filtered view
+                              const stats = filteredData.map(c => {
+                                const denom = c.totalCredit || 0;
+                                return {
+                                  name: c.customerName,
+                                  collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                                  payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                                  returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                                  discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                                };
+                              });
+
+                              const getRank = (metric: keyof typeof stats[0], val: number) => {
+                                // Sort descending
+                                const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                                // Find index (1-based)
+                                return sorted.findIndex(s => s.name === customer.customerName) + 1;
                               };
-                            });
 
-                            const getRank = (metric: keyof typeof stats[0], val: number) => {
-                              // Sort descending
-                              const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
-                              // Find index (1-based)
-                              return sorted.findIndex(s => s.name === customer.customerName) + 1;
-                            };
+                              const collRank = getRank('collRate', collectionRate);
+                              const payRank = getRank('payRate', payRate);
+                              const returnRank = getRank('returnRate', returnRate);
+                              const discountRank = getRank('discountRate', discountRate);
 
-                            const collRank = getRank('collRate', collectionRate);
-                            const payRank = getRank('payRate', payRate);
-                            const returnRank = getRank('returnRate', returnRate);
-                            const discountRank = getRank('discountRate', discountRate);
-
-                            setSelectedCollectionStats({
-                              customer,
-                              ranks: {
-                                collRank,
-                                payRank,
-                                returnRank,
-                                discountRank,
-                                totalCount: filteredData.length
-                              },
-                              rates: {
-                                payRate,
-                                returnRate,
-                                discountRate
-                              }
-                            });
-                          }}
-                          className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
-                            ? 'cursor-default'
-                            : 'hover:bg-gray-50 group cursor-pointer'
-                            }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className={`text-xl font-bold ${collectionRate >= 80
-                              ? 'text-green-600'
-                              : collectionRate >= 50
-                                ? 'text-yellow-600'
-                                : 'text-red-600'
-                              }`}>
-                              {collectionRate.toFixed(1)}%
-                            </span>
-                            {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                            )}
-                            {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
-                              <span className="text-xs text-gray-500">
-                                ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
-                              </span>
-                            )}
-                          </div>
-                          <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
-                                ? 'bg-green-500'
+                              setSelectedCollectionStats({
+                                customer,
+                                ranks: {
+                                  collRank,
+                                  payRank,
+                                  returnRank,
+                                  discountRank,
+                                  totalCount: filteredData.length
+                                },
+                                rates: {
+                                  payRate,
+                                  returnRate,
+                                  discountRate
+                                }
+                              });
+                            }}
+                            className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
+                              ? 'cursor-default'
+                              : 'hover:bg-gray-50 group cursor-pointer'
+                              }`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xl font-bold ${collectionRate >= 80
+                                ? 'text-green-600'
                                 : collectionRate >= 50
-                                  ? 'bg-yellow-500'
-                                  : 'bg-red-500'
-                                }`}
-                              style={{ width: `${Math.min(collectionRate, 100)}%` }}
-                            />
-                          </div>
-                        </button>
-                      )}
-                    </div>
+                                  ? 'text-yellow-600'
+                                  : 'text-red-600'
+                                }`}>
+                                {collectionRate.toFixed(1)}%
+                              </span>
+                              {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                              {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                                <span className="text-xs text-gray-500">
+                                  ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                                </span>
+                              )}
+                            </div>
+                            <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
+                                  ? 'bg-green-500'
+                                  : collectionRate >= 50
+                                    ? 'bg-yellow-500'
+                                    : 'bg-red-500'
+                                  }`}
+                                style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                              />
+                            </div>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+
 
                     {/* Debit Rating */}
                     <div className="md:col-span-1">
@@ -2794,10 +2832,10 @@ ${debtSectionHtml}
               </div>
             );
           })}
-        </div>
+        </div >
 
         {/* Total Summary Card */}
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+        < div className="bg-gray-50 rounded-lg border border-gray-200 p-4" >
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
             <div className="md:col-span-2">
               <p className="text-sm font-semibold text-gray-700">Summary</p>
@@ -2835,449 +2873,451 @@ ${debtSectionHtml}
               </p>
             </div>
           </div>
-        </div>
+        </div >
 
 
-      </div>
+      </div >
 
       {/* Filter Modal */}
-      {isFilterModalOpen && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Advanced Filters</h3>
-                <p className="text-sm text-gray-500">
-                  <span className="font-medium text-blue-600">{filteredData.length}</span> results found
-                </p>
-              </div>
-              <button onClick={() => setIsFilterModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body - Split Layout */}
-            <div className="flex flex-1 overflow-hidden">
-              {/* Sidebar Tabs */}
-              <div className="w-48 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto">
-                <button
-                  onClick={() => setActiveFilterModalTab('DATE')}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'DATE' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                >
-                  Date Range
-                </button>
-                <button
-                  onClick={() => setActiveFilterModalTab('DEBIT')}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'DEBIT' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                >
-                  Debit & Collection
-                </button>
-                <button
-                  onClick={() => setActiveFilterModalTab('OVERDUE')}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'OVERDUE' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                >
-                  Overdue
-                </button>
-                <button
-                  onClick={() => setActiveFilterModalTab('SALES')}
-                  className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'SALES' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
-                    }`}
-                >
-                  Sales Activity
+      {
+        isFilterModalOpen && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Advanced Filters</h3>
+                  <p className="text-sm text-gray-500">
+                    <span className="font-medium text-blue-600">{filteredData.length}</span> results found
+                  </p>
+                </div>
+                <button onClick={() => setIsFilterModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
                 </button>
               </div>
 
-              {/* Content Area */}
-              <div className="flex-1 p-6 overflow-y-auto bg-white">
-                {activeFilterModalTab === 'DATE' && (
-                  <div className="space-y-6 max-w-lg">
-                    <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Date Range Settings</h4>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Year</label>
-                          <input
-                            type="number"
-                            placeholder="YYYY"
-                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={filterYear}
-                            onChange={(e) => setFilterYear(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Month</label>
-                          <input
-                            type="number"
-                            placeholder="MM"
-                            min="1"
-                            max="12"
-                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={filterMonth}
-                            onChange={(e) => setFilterMonth(e.target.value)}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">From Date</label>
-                        <input
-                          type="date"
-                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={dateRangeFrom}
-                          onChange={(e) => setDateRangeFrom(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">To Date</label>
-                        <input
-                          type="date"
-                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={dateRangeTo}
-                          onChange={(e) => setDateRangeTo(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Invoice Type</label>
-                        <select
-                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={invoiceTypeFilter}
-                          onChange={(e) => setInvoiceTypeFilter(e.target.value as 'ALL' | 'OB' | 'SAL')}
-                        >
-                          <option value="ALL">All (OB & SAL)</option>
-                          <option value="OB">Opening Balance (OB) Only</option>
-                          <option value="SAL">Sales (SAL) Only</option>
-                        </select>
-                        <p className="text-xs text-gray-400 mt-1">Filters the specialized Net Debit calculation when date filters are active.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
+              {/* Modal Body - Split Layout */}
+              <div className="flex flex-1 overflow-hidden">
+                {/* Sidebar Tabs */}
+                <div className="w-48 bg-gray-50 border-r border-gray-100 p-2 space-y-1 overflow-y-auto">
+                  <button
+                    onClick={() => setActiveFilterModalTab('DATE')}
+                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'DATE' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                  >
+                    Date Range
+                  </button>
+                  <button
+                    onClick={() => setActiveFilterModalTab('DEBIT')}
+                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'DEBIT' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                  >
+                    Debit & Collection
+                  </button>
+                  <button
+                    onClick={() => setActiveFilterModalTab('OVERDUE')}
+                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'OVERDUE' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                  >
+                    Overdue
+                  </button>
+                  <button
+                    onClick={() => setActiveFilterModalTab('SALES')}
+                    className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'SALES' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      }`}
+                  >
+                    Sales Activity
+                  </button>
+                </div>
 
-                {activeFilterModalTab === 'DEBIT' && (
-                  <div className="space-y-6 max-w-lg">
-                    <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Debit & Collection Logic</h4>
-                    <div className="space-y-4">
-                      {/* Net Debit */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Debit</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={debtOperator}
-                            onChange={(e) => setDebtOperator(e.target.value as any)}
-                          >
-                            <option value="GT">&gt; More</option>
-                            <option value="LT">&lt; Less</option>
-                          </select>
-                          <input
-                            type="number"
-                            placeholder="Amount"
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={debtAmount}
-                            onChange={(e) => setDebtAmount(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Collection Rate */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Collection Rate</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={collectionRateOperator}
-                            onChange={(e) => setCollectionRateOperator(e.target.value as any)}
-                          >
-                            <option value="GT">&gt; More</option>
-                            <option value="LT">&lt; Less</option>
-                          </select>
-                          <div className="relative flex-1">
+                {/* Content Area */}
+                <div className="flex-1 p-6 overflow-y-auto bg-white">
+                  {activeFilterModalTab === 'DATE' && (
+                    <div className="space-y-6 max-w-lg">
+                      <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Date Range Settings</h4>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Year</label>
                             <input
                               type="number"
-                              placeholder="Percentage"
-                              className="w-full bg-white border text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 border-gray-300"
-                              value={collectionRateValue}
-                              onChange={(e) => setCollectionRateValue(e.target.value)}
+                              placeholder="YYYY"
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={filterYear}
+                              onChange={(e) => setFilterYear(e.target.value)}
                             />
-                            <span className="absolute right-3 top-2.5 text-gray-400 text-sm">%</span>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Month</label>
+                            <input
+                              type="number"
+                              placeholder="MM"
+                              min="1"
+                              max="12"
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={filterMonth}
+                              onChange={(e) => setFilterMonth(e.target.value)}
+                            />
                           </div>
                         </div>
-                      </div>
-
-                      {/* Collection Rate Includes */}
-                      <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                        <span className="block text-xs font-semibold text-gray-500 mb-3 uppercase">Calculation Includes:</span>
-                        <div className="grid grid-cols-3 gap-2">
-                          {['PAYMENT', 'RETURN', 'DISCOUNT'].map(type => (
-                            <button
-                              key={type}
-                              onClick={() => {
-                                const newSet = new Set(collectionRateTypes);
-                                if (newSet.has(type)) newSet.delete(type);
-                                else newSet.add(type);
-                                setCollectionRateTypes(newSet);
-                              }}
-                              className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${collectionRateTypes.has(type)
-                                ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
-                                }`}
-                            >
-                              <span className={`w-2 h-2 rounded-full ${collectionRateTypes.has(type) ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
-                              {type}
-                            </button>
-                          ))}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">From Date</label>
+                          <input
+                            type="date"
+                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={dateRangeFrom}
+                            onChange={(e) => setDateRangeFrom(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">To Date</label>
+                          <input
+                            type="date"
+                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={dateRangeTo}
+                            onChange={(e) => setDateRangeTo(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Invoice Type</label>
+                          <select
+                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={invoiceTypeFilter}
+                            onChange={(e) => setInvoiceTypeFilter(e.target.value as 'ALL' | 'OB' | 'SAL')}
+                          >
+                            <option value="ALL">All (OB & SAL)</option>
+                            <option value="OB">Opening Balance (OB) Only</option>
+                            <option value="SAL">Sales (SAL) Only</option>
+                          </select>
+                          <p className="text-xs text-gray-400 mt-1">Filters the specialized Net Debit calculation when date filters are active.</p>
                         </div>
                       </div>
+                    </div>
+                  )}
 
-                      {/* Last Payment */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment Date</label>
-                        <div className="space-y-2">
+                  {activeFilterModalTab === 'DEBIT' && (
+                    <div className="space-y-6 max-w-lg">
+                      <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Debit & Collection Logic</h4>
+                      <div className="space-y-4">
+                        {/* Net Debit */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Debit</label>
                           <div className="flex gap-2">
-                            <input
-                              type="number"
-                              placeholder="Value"
-                              className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                              value={lastPaymentValue}
-                              onChange={(e) => setLastPaymentValue(e.target.value)}
-                            />
                             <select
                               className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                              value={lastPaymentUnit}
-                              onChange={(e) => setLastPaymentUnit(e.target.value as any)}
+                              value={debtOperator}
+                              onChange={(e) => setDebtOperator(e.target.value as any)}
                             >
-                              <option value="DAYS">Days</option>
-                              <option value="MONTHS">Months</option>
+                              <option value="GT">&gt; More</option>
+                              <option value="LT">&lt; Less</option>
                             </select>
-                          </div>
-                          <select
-                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={lastPaymentStatus}
-                            onChange={(e) => setLastPaymentStatus(e.target.value as any)}
-                          >
-                            <option value="ACTIVE">Active (Paid recently)</option>
-                            <option value="INACTIVE">Inactive (No Payment)</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {/* Last Payment Amount */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment Amount</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={lastPaymentAmountOperator}
-                            onChange={(e) => setLastPaymentAmountOperator(e.target.value as any)}
-                          >
-                            <option value="GT">&gt; More</option>
-                            <option value="LT">&lt; Less</option>
-                          </select>
-                          <input
-                            type="number"
-                            placeholder="Amount"
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={lastPaymentAmountValue}
-                            onChange={(e) => setLastPaymentAmountValue(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* OB Checkbox */}
-                      <label className="flex items-center gap-2 cursor-pointer pt-2">
-                        <input
-                          type="checkbox"
-                          checked={hasOB}
-                          onChange={(e) => setHasOB(e.target.checked)}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-medium text-gray-700">Has Unpaid OB Invoices</span>
-                      </label>
-
-                    </div>
-                  </div>
-                )}
-
-                {activeFilterModalTab === 'OVERDUE' && (
-                  <div className="space-y-6 max-w-lg">
-                    <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Overdue Filtering</h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Minimum Overdue Amount</label>
-                        <input
-                          type="number"
-                          placeholder="Amount"
-                          className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                          value={overdueAmount}
-                          onChange={(e) => setOverdueAmount(e.target.value)}
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-3 uppercase">Aging Buckets to Include</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {['AT_DATE', '1-30', '31-60', '61-90', '91-120', 'OLDER'].map(bucket => (
-                            <button
-                              key={bucket}
-                              onClick={() => {
-                                if (overdueAging.includes(bucket)) {
-                                  setOverdueAging(overdueAging.filter(b => b !== bucket));
-                                } else {
-                                  setOverdueAging([...overdueAging, bucket]);
-                                }
-                              }}
-                              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${overdueAging.includes(bucket)
-                                ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm'
-                                : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                                }`}
-                            >
-                              <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes(bucket) ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
-                              <span>{bucket}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {activeFilterModalTab === 'SALES' && (
-                  <div className="space-y-6 max-w-lg">
-                    <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Sales Activity</h4>
-                    <div className="space-y-4">
-                      {/* Net Sales */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Sales Volume</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={netSalesOperator}
-                            onChange={(e) => setNetSalesOperator(e.target.value as any)}
-                          >
-                            <option value="GT">&gt; More</option>
-                            <option value="LT">&lt; Less</option>
-                          </select>
-                          <input
-                            type="number"
-                            placeholder="Amount"
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={minTotalDebit}
-                            onChange={(e) => setMinTotalDebit(e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Last Sales Date */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales Date</label>
-                        <div className="space-y-2">
-                          <div className="flex gap-2">
                             <input
                               type="number"
-                              placeholder="Value"
+                              placeholder="Amount"
                               className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                              value={noSalesValue}
-                              onChange={(e) => setNoSalesValue(e.target.value)}
+                              value={debtAmount}
+                              onChange={(e) => setDebtAmount(e.target.value)}
                             />
+                          </div>
+                        </div>
+
+                        {/* Collection Rate */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Collection Rate</label>
+                          <div className="flex gap-2">
                             <select
                               className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                              value={noSalesUnit}
-                              onChange={(e) => setNoSalesUnit(e.target.value as any)}
+                              value={collectionRateOperator}
+                              onChange={(e) => setCollectionRateOperator(e.target.value as any)}
                             >
-                              <option value="DAYS">Days</option>
-                              <option value="MONTHS">Months</option>
+                              <option value="GT">&gt; More</option>
+                              <option value="LT">&lt; Less</option>
+                            </select>
+                            <div className="relative flex-1">
+                              <input
+                                type="number"
+                                placeholder="Percentage"
+                                className="w-full bg-white border text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 border-gray-300"
+                                value={collectionRateValue}
+                                onChange={(e) => setCollectionRateValue(e.target.value)}
+                              />
+                              <span className="absolute right-3 top-2.5 text-gray-400 text-sm">%</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Collection Rate Includes */}
+                        <div className="bg-gray-50 p-3 rounded-lg border border-gray-100">
+                          <span className="block text-xs font-semibold text-gray-500 mb-3 uppercase">Calculation Includes:</span>
+                          <div className="grid grid-cols-3 gap-2">
+                            {['PAYMENT', 'RETURN', 'DISCOUNT'].map(type => (
+                              <button
+                                key={type}
+                                onClick={() => {
+                                  const newSet = new Set(collectionRateTypes);
+                                  if (newSet.has(type)) newSet.delete(type);
+                                  else newSet.add(type);
+                                  setCollectionRateTypes(newSet);
+                                }}
+                                className={`flex items-center justify-center gap-2 px-3 py-1.5 rounded-md border text-xs font-medium transition-all ${collectionRateTypes.has(type)
+                                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                  : 'border-gray-200 bg-white text-gray-500 hover:border-gray-300'
+                                  }`}
+                              >
+                                <span className={`w-2 h-2 rounded-full ${collectionRateTypes.has(type) ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
+                                {type}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Last Payment */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment Date</label>
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                placeholder="Value"
+                                className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                value={lastPaymentValue}
+                                onChange={(e) => setLastPaymentValue(e.target.value)}
+                              />
+                              <select
+                                className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                value={lastPaymentUnit}
+                                onChange={(e) => setLastPaymentUnit(e.target.value as any)}
+                              >
+                                <option value="DAYS">Days</option>
+                                <option value="MONTHS">Months</option>
+                              </select>
+                            </div>
+                            <select
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={lastPaymentStatus}
+                              onChange={(e) => setLastPaymentStatus(e.target.value as any)}
+                            >
+                              <option value="ACTIVE">Active (Paid recently)</option>
+                              <option value="INACTIVE">Inactive (No Payment)</option>
                             </select>
                           </div>
-                          <select
-                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={lastSalesStatus}
-                            onChange={(e) => setLastSalesStatus(e.target.value as any)}
-                          >
-                            <option value="ACTIVE">Active (Sold recently)</option>
-                            <option value="INACTIVE">Inactive (No Sales)</option>
-                          </select>
                         </div>
-                      </div>
 
-                      {/* Last Sales Amount */}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales Amount</label>
-                        <div className="flex gap-2">
-                          <select
-                            className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={lastSalesAmountOperator}
-                            onChange={(e) => setLastSalesAmountOperator(e.target.value as any)}
-                          >
-                            <option value="GT">&gt; More</option>
-                            <option value="LT">&lt; Less</option>
-                          </select>
+                        {/* Last Payment Amount */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Payment Amount</label>
+                          <div className="flex gap-2">
+                            <select
+                              className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={lastPaymentAmountOperator}
+                              onChange={(e) => setLastPaymentAmountOperator(e.target.value as any)}
+                            >
+                              <option value="GT">&gt; More</option>
+                              <option value="LT">&lt; Less</option>
+                            </select>
+                            <input
+                              type="number"
+                              placeholder="Amount"
+                              className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={lastPaymentAmountValue}
+                              onChange={(e) => setLastPaymentAmountValue(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {/* OB Checkbox */}
+                        <label className="flex items-center gap-2 cursor-pointer pt-2">
+                          <input
+                            type="checkbox"
+                            checked={hasOB}
+                            onChange={(e) => setHasOB(e.target.checked)}
+                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-medium text-gray-700">Has Unpaid OB Invoices</span>
+                        </label>
+
+                      </div>
+                    </div>
+                  )}
+
+                  {activeFilterModalTab === 'OVERDUE' && (
+                    <div className="space-y-6 max-w-lg">
+                      <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Overdue Filtering</h4>
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Minimum Overdue Amount</label>
                           <input
                             type="number"
                             placeholder="Amount"
-                            className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                            value={lastSalesAmountValue}
-                            onChange={(e) => setLastSalesAmountValue(e.target.value)}
+                            className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            value={overdueAmount}
+                            onChange={(e) => setOverdueAmount(e.target.value)}
                           />
                         </div>
+
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-3 uppercase">Aging Buckets to Include</label>
+                          <div className="grid grid-cols-2 gap-2">
+                            {['AT_DATE', '1-30', '31-60', '61-90', '91-120', 'OLDER'].map(bucket => (
+                              <button
+                                key={bucket}
+                                onClick={() => {
+                                  if (overdueAging.includes(bucket)) {
+                                    setOverdueAging(overdueAging.filter(b => b !== bucket));
+                                  } else {
+                                    setOverdueAging([...overdueAging, bucket]);
+                                  }
+                                }}
+                                className={`flex items-center justify-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${overdueAging.includes(bucket)
+                                  ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm'
+                                  : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                  }`}
+                              >
+                                <div className={`w-2.5 h-2.5 rounded-full ${overdueAging.includes(bucket) ? 'bg-blue-500' : 'bg-gray-300'}`}></div>
+                                <span>{bucket}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
                       </div>
-
                     </div>
-                  </div>
-                )}
-              </div>
-            </div>
+                  )}
 
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
-              <button
-                onClick={() => {
-                  setDebtOperator('');
-                  setDebtAmount('');
-                  setLastPaymentValue('');
-                  setLastPaymentStatus('ACTIVE');
-                  setLastPaymentAmountOperator('');
-                  setLastPaymentAmountValue('');
-                  setNoSalesValue('');
-                  setLastSalesStatus('ACTIVE');
-                  setLastSalesAmountOperator('');
-                  setLastSalesAmountValue('');
-                  setMatchingFilter('ALL');
-                  setSelectedSalesRep('ALL');
-                  setSearchQuery('');
-                  setDebtType('ALL');
-                  setMinTotalDebit('');
-                  setNetSalesOperator('');
-                  setCollectionRateOperator('');
-                  setCollectionRateValue('');
-                  setOverdueAmount('');
-                  setOverdueAging([]);
-                  setDateRangeFrom('');
-                  setDateRangeTo('');
-                  setDateRangeType('LAST_TRANSACTION');
-                  setHasOB(false);
-                  setFilterYear('');
-                  setFilterMonth('');
-                  setCollectionRateTypes(new Set(['PAYMENT', 'RETURN', 'DISCOUNT']));
-                }}
-                className="text-red-600 hover:text-red-700 text-sm font-semibold px-4 py-2 hover:bg-red-50 rounded-lg transition-colors"
-              >
-                Reset All Filters
-              </button>
-              <button
-                onClick={() => setIsFilterModalOpen(false)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm transition-all shadow-blue-200"
-              >
-                Apply Filters
-              </button>
+                  {activeFilterModalTab === 'SALES' && (
+                    <div className="space-y-6 max-w-lg">
+                      <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Sales Activity</h4>
+                      <div className="space-y-4">
+                        {/* Net Sales */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Net Sales Volume</label>
+                          <div className="flex gap-2">
+                            <select
+                              className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={netSalesOperator}
+                              onChange={(e) => setNetSalesOperator(e.target.value as any)}
+                            >
+                              <option value="GT">&gt; More</option>
+                              <option value="LT">&lt; Less</option>
+                            </select>
+                            <input
+                              type="number"
+                              placeholder="Amount"
+                              className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={minTotalDebit}
+                              onChange={(e) => setMinTotalDebit(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Last Sales Date */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales Date</label>
+                          <div className="space-y-2">
+                            <div className="flex gap-2">
+                              <input
+                                type="number"
+                                placeholder="Value"
+                                className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                value={noSalesValue}
+                                onChange={(e) => setNoSalesValue(e.target.value)}
+                              />
+                              <select
+                                className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                value={noSalesUnit}
+                                onChange={(e) => setNoSalesUnit(e.target.value as any)}
+                              >
+                                <option value="DAYS">Days</option>
+                                <option value="MONTHS">Months</option>
+                              </select>
+                            </div>
+                            <select
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={lastSalesStatus}
+                              onChange={(e) => setLastSalesStatus(e.target.value as any)}
+                            >
+                              <option value="ACTIVE">Active (Sold recently)</option>
+                              <option value="INACTIVE">Inactive (No Sales)</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Last Sales Amount */}
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Last Sales Amount</label>
+                          <div className="flex gap-2">
+                            <select
+                              className="w-24 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-2.5 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={lastSalesAmountOperator}
+                              onChange={(e) => setLastSalesAmountOperator(e.target.value as any)}
+                            >
+                              <option value="GT">&gt; More</option>
+                              <option value="LT">&lt; Less</option>
+                            </select>
+                            <input
+                              type="number"
+                              placeholder="Amount"
+                              className="flex-1 bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                              value={lastSalesAmountValue}
+                              onChange={(e) => setLastSalesAmountValue(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+                <button
+                  onClick={() => {
+                    setDebtOperator('');
+                    setDebtAmount('');
+                    setLastPaymentValue('');
+                    setLastPaymentStatus('ACTIVE');
+                    setLastPaymentAmountOperator('');
+                    setLastPaymentAmountValue('');
+                    setNoSalesValue('');
+                    setLastSalesStatus('ACTIVE');
+                    setLastSalesAmountOperator('');
+                    setLastSalesAmountValue('');
+                    setMatchingFilter('ALL');
+                    setSelectedSalesRep('ALL');
+                    setSearchQuery('');
+                    setDebtType('ALL');
+                    setMinTotalDebit('');
+                    setNetSalesOperator('');
+                    setCollectionRateOperator('');
+                    setCollectionRateValue('');
+                    setOverdueAmount('');
+                    setOverdueAging([]);
+                    setDateRangeFrom('');
+                    setDateRangeTo('');
+                    setDateRangeType('LAST_TRANSACTION');
+                    setHasOB(false);
+                    setFilterYear('');
+                    setFilterMonth('');
+                    setCollectionRateTypes(new Set(['PAYMENT', 'RETURN', 'DISCOUNT']));
+                  }}
+                  className="text-red-600 hover:text-red-700 text-sm font-semibold px-4 py-2 hover:bg-red-50 rounded-lg transition-colors"
+                >
+                  Reset All Filters
+                </button>
+                <button
+                  onClick={() => setIsFilterModalOpen(false)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-medium shadow-sm transition-all shadow-blue-200"
+                >
+                  Apply Filters
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Rating Breakdown Modal */}
       {
@@ -3575,197 +3615,11 @@ ${debtSectionHtml}
       }
 
       {/* Collection Analysis Rankings Modal */}
-      {selectedCollectionStats && (
-        <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200"
-          onClick={() => setSelectedCollectionStats(null)}
-        >
-          <div
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900">{selectedCollectionStats.customer.customerName}</h3>
-                  <p className="text-sm text-gray-500 font-medium">Collection Analysis Rankings</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setSelectedCollectionStats(null)}
-                className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
-                aria-label="Close"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-
-              {/* Main Gauge Section - Collection Rate */}
-              <div className="mb-8 p-6 rounded-2xl shadow-lg bg-white border border-blue-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full mix-blend-multiply filter blur-3xl opacity-30 -mr-16 -mt-16"></div>
-
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
-                  <div className="flex items-center gap-5">
-                    <div className="relative">
-                      {/* Ring */}
-                      <svg className="w-24 h-24 transform -rotate-90">
-                        <circle
-                          cx="48"
-                          cy="48"
-                          r="40"
-                          stroke="currentColor"
-                          strokeWidth="8"
-                          fill="transparent"
-                          className="text-gray-100"
-                        />
-                        <circle
-                          cx="48"
-                          cy="48"
-                          r="40"
-                          stroke="currentColor"
-                          strokeWidth="8"
-                          fill="transparent"
-                          strokeDasharray={251.2}
-                          strokeDashoffset={251.2 - (251.2 * Math.min(100, (selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0)) / 100)}
-                          className={`transition-all duration-1000 ease-out ${(selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0) >= 80 ? 'text-green-500' :
-                            (selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0) >= 50 ? 'text-yellow-500' : 'text-red-500'
-                            }`}
-                        />
-                      </svg>
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xl font-bold text-gray-800">
-                          {(selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0).toFixed(1)}%
-                        </span>
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">Total Collection Rate</p>
-                      <p className="text-3xl font-bold text-gray-900">{selectedCollectionStats.customer.totalCredit.toLocaleString('en-US')} <span className="text-sm font-normal text-gray-500">collected</span></p>
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-bold shadow-sm border border-blue-100">
-                      <span className="text-xl">#{selectedCollectionStats.ranks.collRank}</span>
-                      <span className="text-sm font-medium opacity-80">of {selectedCollectionStats.ranks.totalCount} customers</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Breakdown Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {/* Payments Card */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
-
-                  <div className="relative z-10">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-green-100 rounded-lg text-green-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="text-right">
-                        <span className="block text-2xl font-bold text-green-600">#{selectedCollectionStats.ranks.payRank}</span>
-                        <span className="text-xs text-gray-400 font-medium">Rank</span>
-                      </div>
-                    </div>
-
-                    <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Payments Share</h4>
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.payRate.toFixed(0)}%</span>
-                      <span className="text-sm text-gray-500 font-medium">of total collected</span>
-                    </div>
-                    <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
-                      {(selectedCollectionStats.customer.creditPayments || 0).toLocaleString('en-US')} AED
-                    </p>
-                  </div>
-                </div>
-
-                {/* Returns Card */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
-
-                  <div className="relative z-10">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-                        </svg>
-                      </div>
-                      <div className="text-right">
-                        <span className="block text-2xl font-bold text-orange-600">#{selectedCollectionStats.ranks.returnRank}</span>
-                        <span className="text-xs text-gray-400 font-medium">Rank</span>
-                      </div>
-                    </div>
-
-                    <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Returns Share</h4>
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.returnRate.toFixed(0)}%</span>
-                      <span className="text-sm text-gray-500 font-medium">of total collected</span>
-                    </div>
-                    <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
-                      {(selectedCollectionStats.customer.creditReturns || 0).toLocaleString('en-US')} AED
-                    </p>
-                  </div>
-                </div>
-
-                {/* Discounts Card */}
-                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
-
-                  <div className="relative z-10">
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
-                      </div>
-                      <div className="text-right">
-                        <span className="block text-2xl font-bold text-purple-600">#{selectedCollectionStats.ranks.discountRank}</span>
-                        <span className="text-xs text-gray-400 font-medium">Rank</span>
-                      </div>
-                    </div>
-
-                    <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Discounts Share</h4>
-                    <div className="flex items-baseline gap-2 mb-2">
-                      <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.discountRate.toFixed(0)}%</span>
-                      <span className="text-sm text-gray-500 font-medium">of total collected</span>
-                    </div>
-                    <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
-                      {(selectedCollectionStats.customer.creditDiscounts || 0).toLocaleString('en-US')} AED
-                    </p>
-                  </div>
-                </div>
-
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Monthly Breakdown Modal */}
-      {selectedCustomerForMonths && (() => {
-        const monthlyData = calculateCustomerMonthlyBreakdown(selectedCustomerForMonths, data);
-        const debitMonths = monthlyData.months.filter((m) => m.amount > 0.01);
-        const creditMonths = monthlyData.months.filter((m) => m.amount < -0.01);
-
-        return (
+      {
+        selectedCollectionStats && (
           <div
             className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200"
-            onClick={() => setSelectedCustomerForMonths(null)}
+            onClick={() => setSelectedCollectionStats(null)}
           >
             <div
               className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200"
@@ -3776,16 +3630,16 @@ ${debtSectionHtml}
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                     </svg>
                   </div>
                   <div>
-                    <h3 className="text-2xl font-bold text-gray-900">{selectedCustomerForMonths}</h3>
-                    <p className="text-sm text-gray-500 font-medium">Monthly Debt Breakdown</p>
+                    <h3 className="text-2xl font-bold text-gray-900">{selectedCollectionStats.customer.customerName}</h3>
+                    <p className="text-sm text-gray-500 font-medium">Collection Analysis Rankings</p>
                   </div>
                 </div>
                 <button
-                  onClick={() => setSelectedCustomerForMonths(null)}
+                  onClick={() => setSelectedCollectionStats(null)}
                   className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
                   aria-label="Close"
                 >
@@ -3796,111 +3650,300 @@ ${debtSectionHtml}
               </div>
 
               <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-                {/* Net Total Summary */}
-                <div className={`mb-8 p-6 rounded-2xl shadow-lg border-2 transition-all ${monthlyData.netTotal > 0
-                  ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200/50'
-                  : monthlyData.netTotal < 0
-                    ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50'
-                    : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200/50'
-                  }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${monthlyData.netTotal > 0
-                        ? 'bg-red-100 text-red-600'
-                        : monthlyData.netTotal < 0
-                          ? 'bg-emerald-100 text-emerald-600'
-                          : 'bg-gray-100 text-gray-600'
-                        }`}>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+
+                {/* Main Gauge Section - Collection Rate */}
+                <div className="mb-8 p-6 rounded-2xl shadow-lg bg-white border border-blue-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 w-64 h-64 bg-blue-50 rounded-full mix-blend-multiply filter blur-3xl opacity-30 -mr-16 -mt-16"></div>
+
+                  <div className="flex flex-col md:flex-row items-center justify-between gap-6 relative z-10">
+                    <div className="flex items-center gap-5">
+                      <div className="relative">
+                        {/* Ring */}
+                        <svg className="w-24 h-24 transform -rotate-90">
+                          <circle
+                            cx="48"
+                            cy="48"
+                            r="40"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            className="text-gray-100"
+                          />
+                          <circle
+                            cx="48"
+                            cy="48"
+                            r="40"
+                            stroke="currentColor"
+                            strokeWidth="8"
+                            fill="transparent"
+                            strokeDasharray={251.2}
+                            strokeDashoffset={251.2 - (251.2 * Math.min(100, (selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0)) / 100)}
+                            className={`transition-all duration-1000 ease-out ${(selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0) >= 80 ? 'text-green-500' :
+                              (selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0) >= 50 ? 'text-yellow-500' : 'text-red-500'
+                              }`}
+                          />
                         </svg>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <span className="text-xl font-bold text-gray-800">
+                            {(selectedCollectionStats.customer.totalDebit > 0 ? (selectedCollectionStats.customer.totalCredit / selectedCollectionStats.customer.totalDebit * 100) : 0).toFixed(1)}%
+                          </span>
+                        </div>
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Net Total Debt</p>
-                        <p className="text-xs text-gray-500 mt-0.5">All open items combined</p>
+                        <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide mb-1">Total Collection Rate</p>
+                        <p className="text-3xl font-bold text-gray-900">{selectedCollectionStats.customer.totalCredit.toLocaleString('en-US')} <span className="text-sm font-normal text-gray-500">collected</span></p>
                       </div>
                     </div>
-                    <span className={`text-4xl font-bold tracking-tight ${monthlyData.netTotal > 0
-                      ? 'text-red-600'
-                      : monthlyData.netTotal < 0
-                        ? 'text-emerald-600'
-                        : 'text-gray-600'
-                      }`}>
-                      {Math.round(monthlyData.netTotal).toLocaleString('en-US')}
-                    </span>
+
+                    <div className="text-right">
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-700 rounded-full font-bold shadow-sm border border-blue-100">
+                        <span className="text-xl">#{selectedCollectionStats.ranks.collRank}</span>
+                        <span className="text-sm font-medium opacity-80">of {selectedCollectionStats.ranks.totalCount} customers</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Months Breakdown */}
-                <div className="space-y-6">
-                  {/* Debit Months */}
-                  {debitMonths.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
-                        <h4 className="text-lg font-bold text-gray-800">Debit Months</h4>
-                        <span className="text-sm text-gray-500 font-medium">({debitMonths.length} {debitMonths.length === 1 ? 'month' : 'months'})</span>
-                      </div>
-                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                        <div className="grid grid-cols-5 gap-3">
-                          {debitMonths.map((m, idx) => (
-                            <div
-                              key={m.key}
-                              className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
-                                ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-red-200'
-                                : 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-orange-200'
-                                }`}
-                            >
-                              {m.label}
-                            </div>
-                          ))}
+                {/* Breakdown Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {/* Payments Card */}
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-green-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+
+                    <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="p-2 bg-green-100 rounded-lg text-green-600">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-2xl font-bold text-green-600">#{selectedCollectionStats.ranks.payRank}</span>
+                          <span className="text-xs text-gray-400 font-medium">Rank</span>
                         </div>
                       </div>
-                    </div>
-                  )}
 
-                  {/* Credit Months */}
-                  {creditMonths.length > 0 && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-4">
-                        <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
-                        <h4 className="text-lg font-bold text-gray-800">Credit Months</h4>
-                        <span className="text-sm text-gray-500 font-medium">({creditMonths.length} {creditMonths.length === 1 ? 'month' : 'months'})</span>
+                      <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Payments Share</h4>
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.payRate.toFixed(0)}%</span>
+                        <span className="text-sm text-gray-500 font-medium">of total collected</span>
                       </div>
-                      <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
-                        <div className="grid grid-cols-5 gap-3">
-                          {creditMonths.map((m, idx) => (
-                            <div
-                              key={m.key}
-                              className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
-                                ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200'
-                                : 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-teal-200'
-                                }`}
-                            >
-                              {m.label}
-                            </div>
-                          ))}
+                      <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                        {(selectedCollectionStats.customer.creditPayments || 0).toLocaleString('en-US')} AED
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Returns Card */}
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+
+                    <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="p-2 bg-orange-100 rounded-lg text-orange-600">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+                          </svg>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-2xl font-bold text-orange-600">#{selectedCollectionStats.ranks.returnRank}</span>
+                          <span className="text-xs text-gray-400 font-medium">Rank</span>
                         </div>
                       </div>
-                    </div>
-                  )}
 
-                  {debitMonths.length === 0 && creditMonths.length === 0 && (
-                    <div className="text-center py-12">
-                      <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
+                      <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Returns Share</h4>
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.returnRate.toFixed(0)}%</span>
+                        <span className="text-sm text-gray-500 font-medium">of total collected</span>
                       </div>
-                      <p className="text-gray-500 font-medium">No monthly data available</p>
+                      <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                        {(selectedCollectionStats.customer.creditReturns || 0).toLocaleString('en-US')} AED
+                      </p>
                     </div>
-                  )}
+                  </div>
+
+                  {/* Discounts Card */}
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-purple-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
+
+                    <div className="relative z-10">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="p-2 bg-purple-100 rounded-lg text-purple-600">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                          </svg>
+                        </div>
+                        <div className="text-right">
+                          <span className="block text-2xl font-bold text-purple-600">#{selectedCollectionStats.ranks.discountRank}</span>
+                          <span className="text-xs text-gray-400 font-medium">Rank</span>
+                        </div>
+                      </div>
+
+                      <h4 className="text-gray-500 font-semibold text-sm uppercase tracking-wide mb-1">Discounts Share</h4>
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className="text-3xl font-bold text-gray-900">{selectedCollectionStats.rates.discountRate.toFixed(0)}%</span>
+                        <span className="text-sm text-gray-500 font-medium">of total collected</span>
+                      </div>
+                      <p className="text-sm font-medium text-gray-600 bg-gray-50 inline-block px-2 py-1 rounded border border-gray-100">
+                        {(selectedCollectionStats.customer.creditDiscounts || 0).toLocaleString('en-US')} AED
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
+
+              </div>
+            </div>
+          </div>
+        )
+      }
+
+      {/* Monthly Breakdown Modal */}
+      {
+        selectedCustomerForMonths && (() => {
+          const monthlyData = calculateCustomerMonthlyBreakdown(selectedCustomerForMonths, data);
+          const debitMonths = monthlyData.months.filter((m) => m.amount > 0.01);
+          const creditMonths = monthlyData.months.filter((m) => m.amount < -0.01);
+
+          return (
+            <div
+              className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 px-4 py-8 animate-in fade-in duration-200"
+              onClick={() => setSelectedCustomerForMonths(null)}
+            >
+              <div
+                className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200"
+                onClick={e => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="flex justify-between items-center px-8 py-5 bg-gradient-to-r from-slate-50 to-gray-50 border-b border-gray-200">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900">{selectedCustomerForMonths}</h3>
+                      <p className="text-sm text-gray-500 font-medium">Monthly Debt Breakdown</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedCustomerForMonths(null)}
+                    className="w-9 h-9 rounded-lg bg-white hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center shadow-sm border border-gray-200 hover:border-gray-300"
+                    aria-label="Close"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="px-8 py-6 overflow-y-auto bg-gray-50/50" style={{ maxHeight: 'calc(90vh - 120px)' }}>
+                  {/* Net Total Summary */}
+                  <div className={`mb-8 p-6 rounded-2xl shadow-lg border-2 transition-all ${monthlyData.netTotal > 0
+                    ? 'bg-gradient-to-br from-red-50 to-rose-50 border-red-200/50'
+                    : monthlyData.netTotal < 0
+                      ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-200/50'
+                      : 'bg-gradient-to-br from-gray-50 to-slate-50 border-gray-200/50'
+                    }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${monthlyData.netTotal > 0
+                          ? 'bg-red-100 text-red-600'
+                          : monthlyData.netTotal < 0
+                            ? 'bg-emerald-100 text-emerald-600'
+                            : 'bg-gray-100 text-gray-600'
+                          }`}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold text-gray-600 uppercase tracking-wide">Net Total Debt</p>
+                          <p className="text-xs text-gray-500 mt-0.5">All open items combined</p>
+                        </div>
+                      </div>
+                      <span className={`text-4xl font-bold tracking-tight ${monthlyData.netTotal > 0
+                        ? 'text-red-600'
+                        : monthlyData.netTotal < 0
+                          ? 'text-emerald-600'
+                          : 'text-gray-600'
+                        }`}>
+                        {Math.round(monthlyData.netTotal).toLocaleString('en-US')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Months Breakdown */}
+                  <div className="space-y-6">
+                    {/* Debit Months */}
+                    {debitMonths.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-1 h-6 bg-gradient-to-b from-red-500 to-red-600 rounded-full"></div>
+                          <h4 className="text-lg font-bold text-gray-800">Debit Months</h4>
+                          <span className="text-sm text-gray-500 font-medium">({debitMonths.length} {debitMonths.length === 1 ? 'month' : 'months'})</span>
+                        </div>
+                        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                          <div className="grid grid-cols-5 gap-3">
+                            {debitMonths.map((m, idx) => (
+                              <div
+                                key={m.key}
+                                className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
+                                  ? 'bg-gradient-to-br from-red-500 to-red-600 text-white shadow-red-200'
+                                  : 'bg-gradient-to-br from-orange-500 to-amber-500 text-white shadow-orange-200'
+                                  }`}
+                              >
+                                {m.label}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Credit Months */}
+                    {creditMonths.length > 0 && (
+                      <div>
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="w-1 h-6 bg-gradient-to-b from-emerald-500 to-green-600 rounded-full"></div>
+                          <h4 className="text-lg font-bold text-gray-800">Credit Months</h4>
+                          <span className="text-sm text-gray-500 font-medium">({creditMonths.length} {creditMonths.length === 1 ? 'month' : 'months'})</span>
+                        </div>
+                        <div className="bg-white rounded-xl p-5 border border-gray-200 shadow-sm">
+                          <div className="grid grid-cols-5 gap-3">
+                            {creditMonths.map((m, idx) => (
+                              <div
+                                key={m.key}
+                                className={`w-full px-3 py-2.5 rounded-xl font-semibold text-base transition-all hover:scale-105 shadow-sm text-center ${idx % 2 === 0
+                                  ? 'bg-gradient-to-br from-emerald-500 to-green-600 text-white shadow-emerald-200'
+                                  : 'bg-gradient-to-br from-teal-500 to-cyan-500 text-white shadow-teal-200'
+                                  }`}
+                              >
+                                {m.label}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {debitMonths.length === 0 && creditMonths.length === 0 && (
+                      <div className="text-center py-12">
+                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </div>
+                        <p className="text-gray-500 font-medium">No monthly data available</p>
+                      </div>
+                    )}
+                  </div>
+                </div >
               </div >
             </div >
-          </div >
-        );
-      })()
+          );
+        })()
       }
     </div >
   );
