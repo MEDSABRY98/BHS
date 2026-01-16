@@ -710,12 +710,15 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
   const [selectedSalesRep, setSelectedSalesRep] = useState('ALL');
   const [customersWithEmails, setCustomersWithEmails] = useState<Set<string>>(new Set());
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
+  const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any>(null);
   const [selectedCollectionStats, setSelectedCollectionStats] = useState<any>(null);
 
   // Closed Status Filter
+  // Closed Status Filter
   const [closedFilter, setClosedFilter] = useState<'ALL' | 'HIDE' | 'ONLY'>('ALL');
+  const [semiClosedFilter, setSemiClosedFilter] = useState<'ALL' | 'HIDE' | 'ONLY'>('ALL');
 
   // Bulk download state
   const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
@@ -805,6 +808,26 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       }
     };
     fetchClosedCustomers();
+  }, []);
+
+  useEffect(() => {
+    const fetchSemiClosedCustomers = async () => {
+      try {
+        const response = await fetch('/api/semi-closed-customers');
+        if (response.ok) {
+          const data = await response.json();
+          const normalizedSet = new Set<string>();
+          data.semiClosedCustomers.forEach((name: string) => {
+            const normalized = name.toLowerCase().trim().replace(/\s+/g, ' ');
+            normalizedSet.add(normalized);
+          });
+          setSemiClosedCustomers(normalizedSet);
+        }
+      } catch (error) {
+        console.error('Failed to fetch semi-closed customers:', error);
+      }
+    };
+    fetchSemiClosedCustomers();
   }, []);
 
   // New Date Filters State
@@ -1470,6 +1493,13 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       result = result.filter(c => closedCustomers.has(c.customerName.toLowerCase().trim().replace(/\s+/g, ' ')));
     }
 
+    // Semi-Closed Status Filter
+    if (semiClosedFilter === 'HIDE') {
+      result = result.filter(c => !semiClosedCustomers.has(c.customerName.toLowerCase().trim().replace(/\s+/g, ' ')));
+    } else if (semiClosedFilter === 'ONLY') {
+      result = result.filter(c => semiClosedCustomers.has(c.customerName.toLowerCase().trim().replace(/\s+/g, ' ')));
+    }
+
     if (selectedSalesRep !== 'ALL') {
       result = result.filter(c => c.salesReps && c.salesReps.has(selectedSalesRep));
     }
@@ -1659,7 +1689,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         num.toString().toLowerCase().includes(query)
       )
     );
-  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, lastPaymentStatus, lastPaymentAmountOperator, lastPaymentAmountValue, noSalesValue, noSalesUnit, lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB, collectionRateTypes, closedFilter, closedCustomers]);
+  }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, lastPaymentStatus, lastPaymentAmountOperator, lastPaymentAmountValue, noSalesValue, noSalesUnit, lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB, collectionRateTypes, closedFilter, closedCustomers, semiClosedFilter, semiClosedCustomers]);
 
   // Calculate unmatched payments for Last Payment tab - using same logic as Overdue tab
   interface UnmatchedPayment {
@@ -2487,6 +2517,16 @@ ${debtSectionHtml}
                   <option value="ALL">Show Closed</option>
                   <option value="HIDE">Hide Closed</option>
                   <option value="ONLY">Only Closed</option>
+                </select>
+
+                <select
+                  value={semiClosedFilter}
+                  onChange={(e) => setSemiClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
+                  className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                >
+                  <option value="ALL">Show Semi-Closed</option>
+                  <option value="HIDE">Hide Semi-Closed</option>
+                  <option value="ONLY">Only Semi-Closed</option>
                 </select>
 
                 <select

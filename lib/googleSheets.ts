@@ -768,6 +768,45 @@ export async function getClosedCustomers(): Promise<Set<string>> {
   }
 }
 
+export async function getSemiClosedCustomers(): Promise<Set<string>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `SEMI-CLOSED!A:B`, // CUSTOMER ID, CUSTOMER NAME
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return new Set();
+    }
+
+    // Skip header row and return set of customer names (normalized for exact match)
+    const semiClosedCustomers = new Set<string>();
+    rows.slice(1).forEach((row) => {
+      const customerName = row[1]?.toString().trim(); // CUSTOMER NAME is in column B
+      if (customerName) {
+        // Normalize: lowercase, trim, and normalize whitespace only
+        const normalized = customerName.toLowerCase().trim().replace(/\s+/g, ' ');
+        semiClosedCustomers.add(normalized);
+      }
+    });
+
+    return semiClosedCustomers;
+  } catch (error) {
+    console.error('Error fetching semi-closed customers:', error);
+    return new Set();
+  }
+}
+
 export async function deleteNoteRow(rowIndex: number) {
   try {
     const sheetId = await getSheetId('Notes');

@@ -34,7 +34,7 @@ interface CustomerDetailsProps {
   customerName: string;
   invoices: InvoiceRow[];
   onBack: () => void;
-  initialTab?: 'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue';
+  initialTab?: 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue';
 }
 
 interface InvoiceWithNetDebt extends InvoiceRow {
@@ -51,6 +51,7 @@ interface MonthlyDebt {
   credit: number;
   netDebt: number;
 }
+
 
 interface AgingSummary {
   atDate: number;
@@ -73,7 +74,6 @@ interface OverdueInvoice extends InvoiceRow {
 
 const invoiceColumnHelper = createColumnHelper<InvoiceWithNetDebt>();
 const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
-const monthlyColumnHelper = createColumnHelper<MonthlyDebt>();
 
 const normalizeCustomerKey = (name: string): string =>
   name.toString().toLowerCase().trim().replace(/\s+/g, ' ');
@@ -309,10 +309,9 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
-  const [monthlySorting, setMonthlySorting] = useState<SortingState>([]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -1146,13 +1145,12 @@ ${debtSectionHtml}
     });
 
     return Array.from(monthlyMap.values()).sort((a, b) => {
-      if (a.year !== b.year) return b.year.localeCompare(a.year);
-      return new Date(`${a.month} 1, ${a.year}`).getTime() - new Date(`${b.month} 1, ${b.year}`).getTime();
+      const dateA = new Date(`${a.month} 1, ${a.year}`);
+      const dateB = new Date(`${b.month} 1, ${b.year}`);
+      return dateB.getTime() - dateA.getTime();
     });
   }, [filteredInvoices]);
 
-  // NOTE: Hooks must never be called inside JSX. These are used by dashboard charts but must be declared here
-  // so hook order is stable across tab switches.
   const last12MonthsBase = useMemo((): MonthlyDebt[] => {
     const last12Months: MonthlyDebt[] = [];
     const now = new Date();
@@ -1652,41 +1650,6 @@ ${debtSectionHtml}
     [filteredOverdueInvoices, selectedOverdueIds]
   );
 
-  // Monthly debt columns - Order: Year, Month, DEBIT, CREDIT, Net Debt
-  const monthlyColumns = useMemo(
-    () => [
-      monthlyColumnHelper.accessor('year', {
-        header: 'Year',
-        cell: (info) => info.getValue(),
-      }),
-      monthlyColumnHelper.accessor('month', {
-        header: 'Month',
-        cell: (info) => info.getValue(),
-      }),
-      monthlyColumnHelper.accessor('debit', {
-        header: 'Debit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      monthlyColumnHelper.accessor('credit', {
-        header: 'Credit',
-        cell: (info) => info.getValue().toLocaleString('en-US'),
-      }),
-      monthlyColumnHelper.accessor('netDebt', {
-        header: 'Net Debit',
-        cell: (info) => {
-          const value = info.getValue();
-          return (
-            <span className={value > 0 ? 'text-red-600' : value < 0 ? 'text-green-600' : ''}>
-              {value.toLocaleString('en-US')}
-            </span>
-          );
-        },
-      }),
-    ],
-    []
-  );
-
-
   const invoiceTable = useReactTable({
     data: filteredInvoices,
     columns: invoiceColumns,
@@ -1701,14 +1664,7 @@ ${debtSectionHtml}
     onPaginationChange: setPagination,
   });
 
-  const monthlyTable = useReactTable({
-    data: monthlyDebt,
-    columns: monthlyColumns,
-    getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    state: { sorting: monthlySorting },
-    onSortingChange: setMonthlySorting,
-  });
+
 
   const overdueTable = useReactTable({
     data: filteredOverdueInvoices,
@@ -1735,9 +1691,7 @@ ${debtSectionHtml}
   const overdueTotalCredit = overdueToSum.reduce((sum, inv) => sum + inv.credit, 0);
   const overdueTotalDifference = overdueToSum.reduce((sum, inv) => sum + inv.difference, 0);
 
-  const monthlyTotalNetDebt = monthlyDebt.reduce((sum, m) => sum + m.netDebt, 0);
-  const monthlyTotalDebit = monthlyDebt.reduce((sum, m) => sum + m.debit, 0);
-  const monthlyTotalCredit = monthlyDebt.reduce((sum, m) => sum + m.credit, 0);
+
 
   // Aging totals (initialized later after dashboardMetrics to avoid TDZ)
 
@@ -2007,7 +1961,8 @@ ${debtSectionHtml}
 
     const paymentsAmount = filteredInvoices.reduce((sum, inv) => {
       const num = inv.number.toUpperCase();
-      if (!isPaymentTxn(inv) && !num.startsWith('JV')) return sum;
+      // Strict Payment: Only 'BNK'
+      if (!num.startsWith('BNK')) return sum;
       return sum + getPaymentAmount(inv);
     }, 0);
 
@@ -2027,8 +1982,8 @@ ${debtSectionHtml}
     const overdueCount = filteredOverdueInvoices.length;
 
     // Calculate Last Payment
-    // Filter out non-payment transaction types
-    const paymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv) || inv.number.toUpperCase().startsWith('JV'));
+    // Filter out non-payment transaction types - Strict 'BNK' only
+    const paymentInvoices = filteredInvoices.filter((inv) => inv.number.toUpperCase().startsWith('BNK'));
 
     let lastPaymentAmount = 0;
     let lastPaymentDate = null;
@@ -2063,8 +2018,8 @@ ${debtSectionHtml}
     // Lifetime Smart Sales (SAL - RSAL)
     const lifetimeSmartSales = netSales;
 
-    // Lifetime Smart Payments (Credit not SAL/RSAL/BIL/JV)
-    const smartPaymentInvoices = filteredInvoices.filter((inv) => isPaymentTxn(inv) || inv.number.toUpperCase().startsWith('JV'));
+    // Lifetime Smart Payments (Strict BNK)
+    const smartPaymentInvoices = filteredInvoices.filter((inv) => inv.number.toUpperCase().startsWith('BNK'));
     const lifetimeSmartPayments = smartPaymentInvoices.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
 
     // Duration
@@ -2960,15 +2915,7 @@ ${debtSectionHtml}
         >
           Overdue
         </button>
-        <button
-          onClick={() => setActiveTab('monthly')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'monthly'
-            ? 'text-blue-600 border-blue-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
-            }`}
-        >
-          Debit by Months
-        </button>
+
         <button
           onClick={() => setActiveTab('ages')}
           className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'ages'
@@ -2996,7 +2943,7 @@ ${debtSectionHtml}
           {/* Section 1: Debit Overview */}
           <div>
             <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Net Debt Card */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -3007,18 +2954,6 @@ ${debtSectionHtml}
                   {totalNetDebt.toLocaleString('en-US')}
                 </p>
                 <p className="text-sm text-gray-400 mt-1">Current Balance</p>
-              </div>
-
-              {/* Overdue Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">⚠️</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Overdue Amount</h3>
-                <p className="text-3xl font-bold mt-2 text-orange-600">
-                  {dashboardMetrics.overdueAmount.toLocaleString('en-US')}
-                </p>
-                <p className="text-sm text-gray-400 mt-1">{dashboardMetrics.overdueCount} Invoices Overdue</p>
               </div>
 
               {/* Total Payments Card */}
@@ -3771,84 +3706,7 @@ ${debtSectionHtml}
       )}
 
       {/* Tab Content: Monthly Debt */}
-      {activeTab === 'monthly' && (
-        <div>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100">
-                  {monthlyTable.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => {
-                        const getWidth = () => {
-                          const columnId = header.column.id;
-                          if (columnId === 'year') return '20%';
-                          if (columnId === 'month') return '20%';
-                          if (columnId === 'debit') return '20%';
-                          if (columnId === 'credit') return '20%';
-                          if (columnId === 'netDebt') return '20%';
-                          return '20%';
-                        };
-                        return (
-                          <th
-                            key={header.id}
-                            className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
-                            style={{ width: getWidth() }}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: ' ↑',
-                              desc: ' ↓',
-                            }[header.column.getIsSorted() as string] ?? null}
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {monthlyTable.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-b hover:bg-gray-50">
-                      {row.getVisibleCells().map((cell) => {
-                        const getWidth = () => {
-                          const columnId = cell.column.id;
-                          if (columnId === 'year') return '20%';
-                          if (columnId === 'month') return '20%';
-                          if (columnId === 'debit') return '20%';
-                          if (columnId === 'credit') return '20%';
-                          if (columnId === 'netDebt') return '20%';
-                          return '20%';
-                        };
-                        return (
-                          <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>Total</td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}></td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                      {monthlyTotalDebit.toLocaleString('en-US')}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                      {monthlyTotalCredit.toLocaleString('en-US')}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>
-                      <span className={monthlyTotalNetDebt > 0 ? 'text-red-600' : monthlyTotalNetDebt < 0 ? 'text-green-600' : ''}>
-                        {monthlyTotalNetDebt.toLocaleString('en-US')}
-                      </span>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Tab Content: Ages */}
       {activeTab === 'ages' && (
