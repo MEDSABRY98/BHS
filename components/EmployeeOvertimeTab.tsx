@@ -668,7 +668,7 @@ export default function EmployeeOvertimeTab() {
       days: data.dates.size,
       totalHours: data.totalHours,
       totalAmount: data.totalHours * 10 // 10 AED per hour
-    })).sort((a, b) => b.totalAmount - a.totalAmount); // Sort by amount descending
+    })).sort((a, b) => showAbsentStats ? b.days - a.days : b.totalAmount - a.totalAmount); // Sort by amount or days descending
   }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo, statsSearchQuery, showAbsentStats]);
 
   // Export to Excel
@@ -1138,11 +1138,13 @@ export default function EmployeeOvertimeTab() {
                           const isExpanded = expandedDates.has(group.date);
                           const totalHours = group.records.reduce((sum, r) => sum + (parseFloat(r.hours) || 0), 0);
 
+                          const isGroupSunday = group.date ? new Date(group.date).getDay() === 0 : false;
+
                           return (
                             <React.Fragment key={group.date}>
                               {/* Group Header */}
                               <tr
-                                className="bg-gray-100 cursor-pointer hover:bg-gray-200 transition-colors"
+                                className={`cursor-pointer transition-colors ${isGroupSunday ? 'bg-yellow-100 hover:bg-yellow-200' : 'bg-gray-100 hover:bg-gray-200'}`}
                                 onClick={() => toggleDate(group.date)}
                               >
                                 <td colSpan={7} className="px-6 py-3">
@@ -1163,7 +1165,7 @@ export default function EmployeeOvertimeTab() {
 
                               {/* Records */}
                               {isExpanded && group.records.map((record, index) => {
-                                const isSunday = record.description?.toLowerCase().includes('sunday');
+                                const isSunday = record.date ? new Date(record.date).getDay() === 0 : false;
                                 return (
                                   <tr
                                     key={record.id}
@@ -1191,7 +1193,7 @@ export default function EmployeeOvertimeTab() {
                                     <td className="px-6 py-4 text-center text-gray-700 font-medium truncate">{formatTime(record.timeTo, record.toAmPm)}</td>
                                     <td className="px-6 py-4 text-center">
                                       <span className="inline-block bg-gray-900 text-white px-4 py-1.5 rounded-lg font-bold text-sm shadow-sm">
-                                        {record.hours && !isNaN(parseFloat(record.hours)) ? `${convertHoursToBase60(record.hours)}h` : '0.00h'}
+                                        {record.hours && !isNaN(parseFloat(record.hours)) ? `${record.hours}h` : '0.00h'}
                                       </span>
                                     </td>
                                   </tr>

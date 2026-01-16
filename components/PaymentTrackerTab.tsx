@@ -174,9 +174,9 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return set;
   }, [data]);
 
-  // Pre-calc map of Matching ID -> Invoice Date (for Analysis breakdown)
+  // Pre-calc map of Matching ID -> Invoice Dates (for Analysis breakdown)
   const matchIdToDateMap = useMemo(() => {
-    const map = new Map<string, Date>();
+    const map = new Map<string, Date[]>();
     data.forEach(row => {
       // We only care about "source" invoices (Sales, OB, etc) to find their dates.
       const type = getInvoiceType(row);
@@ -186,8 +186,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       if (!matchId) return;
 
       const d = parseDate(row.date);
-      if (d && !map.has(matchId)) {
-        map.set(matchId, d);
+      if (d) {
+        if (!map.has(matchId)) {
+          map.set(matchId, []);
+        }
+        // Avoid adding duplicate timestamps for the exact same date
+        const existing = map.get(matchId)!;
+        if (!existing.some(existingDate => existingDate.getTime() === d.getTime())) {
+          existing.push(d);
+        }
       }
     });
     return map;
@@ -976,10 +983,16 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       });
   }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep, chartYear, chartMonth, activeSubTab]);
 
-  // Apply OB / Other / Unmatched payments toggles (Removed per request, showing all)
+  // Apply Search Filter globally to visible payments
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
-    return payments;
-  }, [payments]);
+    const searchLower = search.trim().toLowerCase();
+    if (!searchLower) return payments;
+
+    return payments.filter(p =>
+      (p.customerName || '').toLowerCase().includes(searchLower) ||
+      (p.number || '').toLowerCase().includes(searchLower)
+    );
+  }, [payments, search]);
 
   // Group by customer
   const paymentsByCustomer = useMemo<PaymentByCustomer[]>(() => {
@@ -1493,11 +1506,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         if (obMatchingIds.has(matchId)) {
           sourceLabel = 'OB';
         } else if (matchIdToDateMap.has(matchId)) {
-          const iDate = matchIdToDateMap.get(matchId)!;
-          // Format: MMM YY (Jan 25)
-          const m = iDate.toLocaleString('en-US', { month: 'short' });
-          const y = iDate.getFullYear().toString().slice(-2);
-          sourceLabel = `${m}${y}`;
+          const dates = matchIdToDateMap.get(matchId)!;
+          // Use the earliest date for statistical grouping
+          // Or latest? Earliest makes sense for "Debt Age".
+          // Let's sort and pick 0.
+          if (dates.length > 0) {
+            const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+            const iDate = sortedDates[0];
+            // Format: MMM YY (Jan 25)
+            const m = iDate.toLocaleString('en-US', { month: 'short' });
+            const y = iDate.getFullYear().toString().slice(-2);
+            sourceLabel = `${m}${y}`;
+          } else {
+            sourceLabel = 'ADV';
+          }
         } else {
           sourceLabel = 'ADV';
         }
@@ -2304,39 +2326,163 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
-                    {customerDetailPayments.map((payment, idx) => (
-                      <tr
-                        key={`${payment.number}-${idx}`}
-                        className={`hover:bg-gray-50 text-center ${payment.credit < 0
-                          ? 'bg-red-50/60'
-                          : payment.matchedOpeningBalance
-                            ? 'bg-emerald-50/60'
-                            : ''
-                          }`}
-                      >
-                        <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
-                        <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
-                        <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                          {payment.credit.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </td>
-                        <td className="px-4 py-2 text-gray-500 text-center">
-                          {payment.matching || '—'}
-                          {payment.matchedOpeningBalance && (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                              OB Closed
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {customerDetailPayments.length === 0 && (
-                      <tr>
-                        <td colSpan={4} className="p-8 text-center text-gray-400">No payments found</td>
-                      </tr>
-                    )}
+                    {(() => {
+                      // Group payments by Number
+                      const groupedMap = new Map<string, {
+                        date: Date | null;
+                        number: string;
+                        totalCredit: number;
+                        matches: { id: string; isOB: boolean }[];
+                        hasNegative: boolean;
+                        hasOB: boolean;
+                      }>();
+
+                      customerDetailPayments.forEach(p => {
+                        const key = p.number.trim().toUpperCase();
+                        if (!groupedMap.has(key)) {
+                          groupedMap.set(key, {
+                            date: p.parsedDate,
+                            number: p.number,
+                            totalCredit: 0,
+                            matches: [],
+                            hasNegative: false,
+                            hasOB: false
+                          });
+                        }
+                        const group = groupedMap.get(key)!;
+                        group.totalCredit += p.credit;
+                        if (p.credit < 0) group.hasNegative = true;
+
+                        if (p.matching) {
+                          const matchId = p.matching.toString().trim(); // Keep original case for display? Or normalize? Usually normalized for lookup.
+                          const matchIdLower = matchId.toLowerCase();
+
+                          // Avoid duplicates in matches list (by checking ID)
+                          if (!group.matches.some(m => m.id.toLowerCase() === matchIdLower)) {
+                            const isOB = p.matchedOpeningBalance; // This was calculated using normalized lower case in useMemo
+                            group.matches.push({ id: matchId, isOB });
+                            if (isOB) group.hasOB = true;
+                          }
+                        }
+                      });
+
+                      const groupedPayments = Array.from(groupedMap.values()).sort((a, b) => {
+                        // Sort by date desc
+                        const da = a.date?.getTime() || 0;
+                        const db = b.date?.getTime() || 0;
+                        return db - da;
+                      });
+
+                      if (groupedPayments.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={4} className="p-8 text-center text-gray-400">No payments found</td>
+                          </tr>
+                        );
+                      }
+
+                      return groupedPayments.map((group, idx) => (
+                        <tr
+                          key={`${group.number}-${idx}`}
+                          className={`hover:bg-gray-50 text-center ${group.hasNegative
+                            ? 'bg-red-50/60'
+                            : group.hasOB
+                              ? 'bg-emerald-50/60'
+                              : ''
+                            }`}
+                        >
+                          <td className="px-4 py-2 text-gray-700 text-center">{formatDate(group.date)}</td>
+                          <td className="px-4 py-2 font-semibold text-gray-900 text-center">{group.number}</td>
+                          <td className={`px-4 py-2 font-semibold text-center text-base ${group.totalCredit < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                            {group.totalCredit.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </td>
+                          <td className="px-4 py-2 text-center text-gray-500">
+                            {group.matches.length === 0 ? '—' : (
+                              <div className="flex flex-col gap-2 items-center w-full max-w-[200px] mx-auto">
+                                {(() => {
+                                  // First, group everything by ID to handle the visual grouping
+                                  const matchesById = new Map<string, {
+                                    id: string;
+                                    badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[];
+                                  }>();
+
+                                  group.matches.forEach(m => {
+                                    const matchIdRaw = m.id; // Display ID
+                                    const matchIdKey = m.id.toLowerCase(); // Lookup Key
+
+                                    if (!matchesById.has(matchIdKey)) {
+                                      matchesById.set(matchIdKey, { id: matchIdRaw, badges: [] });
+                                    }
+                                    const entry = matchesById.get(matchIdKey)!;
+
+                                    if (m.isOB) {
+                                      // Avoid dupes if already added
+                                      if (!entry.badges.some(b => b.type === 'OB')) {
+                                        entry.badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
+                                      }
+                                    }
+
+                                    if (matchIdToDateMap.has(matchIdKey)) {
+                                      const dates = matchIdToDateMap.get(matchIdKey)!;
+                                      dates.forEach(d => {
+                                        const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                                        // Avoid dupes
+                                        if (!entry.badges.some(b => b.label === label)) {
+                                          entry.badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
+                                        }
+                                      });
+                                    }
+
+                                    // If no OB and no Dates found, add Invalid
+                                    if (!m.isOB && (!matchIdToDateMap.has(matchIdKey) || matchIdToDateMap.get(matchIdKey)!.length === 0)) {
+                                      if (!entry.badges.some(b => b.type === 'INVALID')) {
+                                        entry.badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
+                                      }
+                                    }
+                                  });
+
+                                  // Convert to array and Sort Badges within each ID
+                                  const renderGroups = Array.from(matchesById.values()).map(g => {
+                                    g.badges.sort((a, b) => {
+                                      if (a.type === 'OB' && b.type !== 'OB') return -1;
+                                      if (a.type !== 'OB' && b.type === 'OB') return 1;
+                                      return a.dateIdx - b.dateIdx;
+                                    });
+                                    return g;
+                                  });
+
+                                  return renderGroups.map((g, idx) => (
+                                    <div key={`${g.id}-${idx}`} className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden transition-all hover:shadow-md">
+                                      <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
+                                        <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{g.id}</span>
+                                      </div>
+                                      <div className="flex flex-wrap justify-center gap-2 p-2.5">
+                                        {g.badges.map((b, bIdx) => {
+                                          let colors = '';
+                                          if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                          else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
+                                          else colors = 'bg-red-50 text-red-500 border-red-200';
+
+                                          return (
+                                            <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
+                                              {b.label}
+                                            </span>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  ));
+                                })()}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>

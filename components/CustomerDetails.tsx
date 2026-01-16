@@ -104,7 +104,10 @@ const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | 
 // Helper to identify payment transactions consistently
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
   const num = (inv.number?.toString() || '').toUpperCase();
-  if (num.startsWith('BNK') || num.startsWith('PBNK4')) return true;
+  if (num.startsWith('BNK')) return true;
+  // PBNK4 excluded from payment stats per request
+  if (num.startsWith('PBNK4')) return false;
+
   if ((inv.credit || 0) <= 0.01) return false;
   return (
     !num.startsWith('SAL') &&
@@ -929,7 +932,7 @@ ${debtSectionHtml}
         if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
         if (showPayments) {
           // Treat BNK* as payments even if credit isn't populated as expected
-          if ((num.startsWith('BNK') || num.startsWith('PBNK4')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
+          if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
           // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB, PBNK
           if (inv.credit > 0.01 &&
             !num.startsWith('SAL') &&
@@ -2326,84 +2329,7 @@ ${debtSectionHtml}
               return <span>{salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep'}</span>;
             })()}
 
-            {/* Rating Badge */}
-            {(() => {
-              // Calculate Rating Locally
-              const isClosed = closedCustomers.has(normalizeCustomerKey(customerName));
-              if (isClosed) {
-                return (
-                  <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
-                    Bad
-                  </span>
-                );
-              }
 
-              const netDebt = dashboardMetrics.overdueAmount; // Use overdueAmount or totalNetDebt? netDebt is usually totalDebit - totalCredit. 
-              // In this component, totalSales - totalPaid is closer to netDebit for the filtered view, but we generally want Global Net Debt for rating.
-              // However, this component receives 'invoices' which might be all invoices.
-              // Let's use the total calculated in the metrics: salesDebit (Total Debit) - (returnsAmount + discountsAmount + paymentsAmount... wait. 
-              // metrics.totalSales = totalDebit, metrics.totalPaid = totalCredit.
-              const calculatedNetDebt = dashboardMetrics.totalSales - dashboardMetrics.totalPaid;
-
-              const collRate = dashboardMetrics.totalSales > 0 ? (dashboardMetrics.totalPaid / dashboardMetrics.totalSales) : 0;
-              const lastPay = dashboardMetrics.lastPaymentDate;
-              // We just added these:
-              const payCount = dashboardMetrics.paymentsCount3m || 0;
-              const sales90d = dashboardMetrics.sales3m || 0;
-              const salesCount = dashboardMetrics.salesCount3m || 0;
-
-              // Score 1: Net Debt
-              let score1 = 0;
-              if (calculatedNetDebt < 0) score1 = 2;
-              else if (calculatedNetDebt <= 5000) score1 = 2;
-              else if (calculatedNetDebt <= 20000) score1 = 1;
-              else score1 = 0;
-
-              // Score 2: Collection Rate
-              let score2 = 0;
-              if (collRate >= 0.8) score2 = 2;
-              else if (collRate >= 0.5) score2 = 1;
-              else score2 = 0;
-
-              // Score 3: Last Payment
-              let score3 = 0;
-              if (lastPay) {
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const lp = new Date(lastPay);
-                lp.setHours(0, 0, 0, 0);
-                const days = Math.floor((today.getTime() - lp.getTime()) / (1000 * 60 * 60 * 24));
-                if (days <= 30) score3 = 2;
-                else if (days <= 90) score3 = 1;
-                else score3 = 0;
-              }
-
-              // Score 4: Payments Count (Frequency)
-              let score4 = 0;
-              if (payCount >= 3) score4 = 2;
-              else if (payCount >= 1) score4 = 1;
-              else score4 = 0;
-
-              // Score 5: Sales (Activity)
-              let score5 = 0;
-              if (sales90d > 0 && salesCount >= 1) score5 = 2; // Active buying
-              else score5 = 0; // Stopped buying
-
-              const totalScore = score1 + score2 + score3 + score4 + score5;
-              let rating = 'Bad';
-              if (totalScore >= 7) rating = 'Good';
-              else if (totalScore >= 4) rating = 'Medium';
-
-              const colorClass = rating === 'Good' ? 'text-green-700 bg-green-100 border-green-200' :
-                rating === 'Medium' ? 'text-yellow-700 bg-yellow-100 border-yellow-200' :
-                  'text-red-700 bg-red-100 border-red-200';
-
-              return (
-                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${colorClass}`}>
-                  {rating}
-                </span>
-              );
-            })()}
           </div>
         </div>
         {currentUserName === 'Mahmoud Shaker' && (
@@ -3118,117 +3044,7 @@ ${debtSectionHtml}
               </div>
             </div>
 
-            {/* Debit Aging Breakdown - Modern Stacked Bar + Pills */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-              <div className="flex items-center justify-between gap-4 flex-wrap">
-                <h3 className="text-lg font-bold text-gray-800">Debit Aging Breakdown</h3>
-                <div className="text-sm text-gray-600">
-                  Total Outstanding:{' '}
-                  <span className="font-semibold text-gray-900">
-                    {agingTotal.toLocaleString('en-US')}
-                  </span>
-                </div>
-              </div>
 
-              <div className="h-44 w-full mt-2">
-                {agingBuckets.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={stackedAgingData}
-                      margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
-                      layout="vertical"
-                      stackOffset="none"
-                    >
-                      <CartesianGrid horizontal={true} vertical={false} stroke="#E5E7EB" />
-                      <XAxis
-                        type="number"
-                        tick={false}
-                        axisLine={false}
-                        tickLine={false}
-                        domain={[0, agingTotal || 'auto']}
-                      />
-                      <YAxis type="category" dataKey="label" hide />
-                      <RechartsTooltip
-                        formatter={(value: number, name: string, props: any) => {
-                          const percent = agingTotal > 0 ? ((value / agingTotal) * 100).toFixed(1) : '0.0';
-                          const label = agingBuckets.find((b) => b.dataKey === name)?.name || 'Bucket';
-                          return [`${value.toLocaleString('en-US')} (${percent}%)`, label];
-                        }}
-                        contentStyle={{
-                          borderRadius: '12px',
-                          border: 'none',
-                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                          padding: '12px',
-                          backgroundColor: 'white',
-                        }}
-                        cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
-                      />
-                      {agingBuckets.map((bucket) => (
-                        <Bar
-                          key={bucket.dataKey}
-                          dataKey={bucket.dataKey}
-                          stackId="aging"
-                          fill={bucket.color}
-                          radius={[0, 0, 0, 0]}
-                        >
-                          <LabelList
-                            dataKey={bucket.dataKey}
-                            position="inside"
-                            formatter={(value: any) => {
-                              const numValue = typeof value === 'number' ? value : 0;
-                              const percent = agingTotal > 0 ? (numValue / agingTotal) * 100 : 0;
-                              return percent >= 1 ? `${percent.toFixed(0)}%` : '';
-                            }}
-                            fill="#fff"
-                            fontSize={15}
-                            fontWeight={800}
-                          />
-                        </Bar>
-                      ))}
-                    </BarChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="text-center text-gray-400 h-full flex flex-col items-center justify-center">
-                    <p className="text-4xl mb-2">👍</p>
-                    <p>No outstanding debit to analyze.</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Pills with value + percent */}
-              {agingBuckets.length > 0 && (
-                <div className="flex flex-wrap justify-center gap-3 sm:gap-4 mt-2 text-center">
-                  {agingBuckets.map((bucket) => (
-                    <div
-                      key={bucket.name}
-                      className="flex items-center gap-3 px-4 py-3 rounded-lg bg-white border border-gray-100 shadow-[0_8px_24px_rgba(0,0,0,0.06)] min-w-[200px]"
-                    >
-                      <div className="flex flex-col items-start flex-1 leading-tight text-left">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-2.5 h-2.5 rounded-full inline-block"
-                            style={{ backgroundColor: bucket.color }}
-                          ></span>
-                          <span className="text-sm font-semibold text-gray-900">{bucket.name}</span>
-                        </div>
-                        <div className="text-sm text-gray-700 font-semibold mt-1">
-                          {bucket.value.toLocaleString('en-US')}
-                        </div>
-                      </div>
-                      <span
-                        className="px-3 py-1.5 rounded-full text-sm font-bold"
-                        style={{
-                          color: bucket.color,
-                          backgroundColor: `${bucket.color}1A`, // ~10% opacity
-                        }}
-                      >
-                        {bucket.percent.toFixed(1)}%
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
 
           </div>

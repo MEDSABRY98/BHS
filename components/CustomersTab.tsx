@@ -353,15 +353,17 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
 // Helper to identify payment transactions consistently
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
   const num = (inv.number?.toString() || '').toUpperCase();
-  if (num.startsWith('BNK') || num.startsWith('PBNK4')) return true;
+  if (num.startsWith('BNK')) return true;
+  // PBNK4 excluded from Payment definition per user request
+  if (num.startsWith('PBNK4')) return false;
+
   if ((inv.credit || 0) <= 0.01) return false;
   return (
     !num.startsWith('SAL') &&
     !num.startsWith('RSAL') &&
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
-    !num.startsWith('OB') &&
-    !num.startsWith('PBNK4')
+    !num.startsWith('OB')
   );
 };
 
@@ -925,7 +927,8 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       if (n.startsWith('BNK')) {
         type = 'Payment';
       } else if (n.startsWith('PBNK4')) {
-        type = 'Payment';
+        // Exclude from Payment stats per user request
+        type = 'Other';
       } else if (n.startsWith('SAL')) {
         type = 'Sales';
       } else if (n.startsWith('RSAL')) {
@@ -933,7 +936,10 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       } else if (n.startsWith('JV') || n.startsWith('BIL')) {
         type = 'Discount';
       } else if (row.credit > 0.01) {
-        type = 'Payment';
+        // Fallback for other credits: ensure PBNK4 didn't slip through if logic changes
+        if (!n.startsWith('PBNK4')) {
+          type = 'Payment';
+        }
       }
 
       if (type === 'Payment') {
