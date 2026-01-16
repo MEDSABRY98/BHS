@@ -34,7 +34,7 @@ interface CustomerDetailsProps {
   customerName: string;
   invoices: InvoiceRow[];
   onBack: () => void;
-  initialTab?: 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue';
+  initialTab?: 'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly';
 }
 
 interface InvoiceWithNetDebt extends InvoiceRow {
@@ -309,7 +309,7 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
   const [invoiceSearchQuery, setInvoiceSearchQuery] = useState('');
@@ -409,6 +409,27 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
     };
     fetchEmail();
   }, [customerName]);
+
+  // Fetch Closed Customers for Rating
+  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
+  useEffect(() => {
+    const fetchClosedCustomers = async () => {
+      try {
+        const response = await fetch('/api/closed-customers');
+        if (response.ok) {
+          const data = await response.json();
+          const normalizedSet = new Set<string>();
+          data.closedCustomers.forEach((name: string) => {
+            normalizedSet.add(normalizeCustomerKey(name));
+          });
+          setClosedCustomers(normalizedSet);
+        }
+      } catch (error) {
+        console.error('Failed to fetch closed customers:', error);
+      }
+    };
+    fetchClosedCustomers();
+  }, []);
 
   // Update activeTab when initialTab prop changes
   useEffect(() => {
@@ -2050,6 +2071,29 @@ ${debtSectionHtml}
       { name: '> 90 Days', value: agingData.ninetyOneToOneTwenty + agingData.older, color: '#EF4444' }, // Red
     ].filter(d => d.value > 0.01);
 
+    // 90 Days Stats for Rating
+    const now = new Date();
+    const since90 = new Date();
+    since90.setDate(now.getDate() - 90);
+    const isInLast90 = (dateStr?: string | null) => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return d >= since90 && d <= now;
+    };
+
+    const salesInvoices90 = filteredInvoices.filter(inv => inv.number?.toUpperCase().startsWith('SAL') && isInLast90(inv.date));
+    const sales3m = salesInvoices90.reduce((sum, inv) => sum + inv.debit, 0);
+    const salesCount3m = salesInvoices90.length;
+
+    const paymentInvoices90 = filteredInvoices.filter(inv => isPaymentTxn(inv) && isInLast90(inv.date));
+    const payments3m = paymentInvoices90.reduce((s, inv) => s + getPaymentAmount(inv), 0);
+
+    const paymentsCount3m = (() => {
+      const creditCount = paymentInvoices90.filter(inv => (inv.credit || 0) > 0.01).length;
+      const debitCount = paymentInvoices90.filter(inv => (inv.debit || 0) > 0.01).length;
+      return creditCount - debitCount;
+    })();
+
     return {
       totalSales,
       totalPaid,
@@ -2076,7 +2120,11 @@ ${debtSectionHtml}
       totalReturnsSum: totalReturnsAmount,
       netSalesSum: netSales,
       netBase,
-      pieData
+      pieData,
+      sales3m,
+      salesCount3m,
+      payments3m,
+      paymentsCount3m
     };
   }, [filteredInvoices, filteredOverdueInvoices, totalNetDebt, agingData]);
 
@@ -2263,8 +2311,10 @@ ${debtSectionHtml}
           )}
         </div>
         <div>
-          <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
-          <p className="text-gray-600">
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-gray-600">
             {(() => {
               const salesReps = new Set<string>();
               invoices.forEach(inv => {
@@ -2273,9 +2323,88 @@ ${debtSectionHtml}
                 }
               });
               const salesRepsArray = Array.from(salesReps).sort();
-              return salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep';
+              return <span>{salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep'}</span>;
             })()}
-          </p>
+
+            {/* Rating Badge */}
+            {(() => {
+              // Calculate Rating Locally
+              const isClosed = closedCustomers.has(normalizeCustomerKey(customerName));
+              if (isClosed) {
+                return (
+                  <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-700 border border-red-200">
+                    Bad
+                  </span>
+                );
+              }
+
+              const netDebt = dashboardMetrics.overdueAmount; // Use overdueAmount or totalNetDebt? netDebt is usually totalDebit - totalCredit. 
+              // In this component, totalSales - totalPaid is closer to netDebit for the filtered view, but we generally want Global Net Debt for rating.
+              // However, this component receives 'invoices' which might be all invoices.
+              // Let's use the total calculated in the metrics: salesDebit (Total Debit) - (returnsAmount + discountsAmount + paymentsAmount... wait. 
+              // metrics.totalSales = totalDebit, metrics.totalPaid = totalCredit.
+              const calculatedNetDebt = dashboardMetrics.totalSales - dashboardMetrics.totalPaid;
+
+              const collRate = dashboardMetrics.totalSales > 0 ? (dashboardMetrics.totalPaid / dashboardMetrics.totalSales) : 0;
+              const lastPay = dashboardMetrics.lastPaymentDate;
+              // We just added these:
+              const payCount = dashboardMetrics.paymentsCount3m || 0;
+              const sales90d = dashboardMetrics.sales3m || 0;
+              const salesCount = dashboardMetrics.salesCount3m || 0;
+
+              // Score 1: Net Debt
+              let score1 = 0;
+              if (calculatedNetDebt < 0) score1 = 2;
+              else if (calculatedNetDebt <= 5000) score1 = 2;
+              else if (calculatedNetDebt <= 20000) score1 = 1;
+              else score1 = 0;
+
+              // Score 2: Collection Rate
+              let score2 = 0;
+              if (collRate >= 0.8) score2 = 2;
+              else if (collRate >= 0.5) score2 = 1;
+              else score2 = 0;
+
+              // Score 3: Last Payment
+              let score3 = 0;
+              if (lastPay) {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const lp = new Date(lastPay);
+                lp.setHours(0, 0, 0, 0);
+                const days = Math.floor((today.getTime() - lp.getTime()) / (1000 * 60 * 60 * 24));
+                if (days <= 30) score3 = 2;
+                else if (days <= 90) score3 = 1;
+                else score3 = 0;
+              }
+
+              // Score 4: Payments Count (Frequency)
+              let score4 = 0;
+              if (payCount >= 3) score4 = 2;
+              else if (payCount >= 1) score4 = 1;
+              else score4 = 0;
+
+              // Score 5: Sales (Activity)
+              let score5 = 0;
+              if (sales90d > 0 && salesCount >= 1) score5 = 2; // Active buying
+              else score5 = 0; // Stopped buying
+
+              const totalScore = score1 + score2 + score3 + score4 + score5;
+              let rating = 'Bad';
+              if (totalScore >= 7) rating = 'Good';
+              else if (totalScore >= 4) rating = 'Medium';
+
+              const colorClass = rating === 'Good' ? 'text-green-700 bg-green-100 border-green-200' :
+                rating === 'Medium' ? 'text-yellow-700 bg-yellow-100 border-yellow-200' :
+                  'text-red-700 bg-red-100 border-red-200';
+
+              return (
+                <span className={`px-2 py-0.5 rounded text-xs font-bold border ${colorClass}`}>
+                  {rating}
+                </span>
+              );
+            })()}
+          </div>
         </div>
         {currentUserName === 'Mahmoud Shaker' && (
           <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse ml-auto">
@@ -2926,6 +3055,15 @@ ${debtSectionHtml}
           Ages
         </button>
         <button
+          onClick={() => setActiveTab('monthly')}
+          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'monthly'
+            ? 'text-blue-600 border-blue-600'
+            : 'text-gray-500 border-transparent hover:text-gray-700'
+            }`}
+        >
+          Monthly
+        </button>
+        <button
           onClick={() => setActiveTab('notes')}
           className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'notes'
             ? 'text-blue-600 border-blue-600'
@@ -2943,9 +3081,9 @@ ${debtSectionHtml}
           {/* Section 1: Debit Overview */}
           <div>
             <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex flex-wrap justify-center gap-4">
               {/* Net Debt Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden w-full md:w-1/3 lg:w-1/4">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <span className="text-6xl">💰</span>
                 </div>
@@ -2956,48 +3094,11 @@ ${debtSectionHtml}
                 <p className="text-sm text-gray-400 mt-1">Current Balance</p>
               </div>
 
-              {/* Total Payments Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">💰</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
-                <p className="text-3xl font-bold mt-2 text-green-600">
-                  {dashboardMetrics.totalPayments.toLocaleString('en-US')}
-                </p>
-                <p className="text-sm text-gray-400 mt-1">All Time Payments</p>
-              </div>
 
-              {/* Last Payment Card */}
-              <div
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200 group"
-                onClick={() => dashboardMetrics.lastPaymentDate && setShowPaymentModal(true)}
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <span className="text-6xl">💸</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider group-hover:text-blue-600 transition-colors">Last Payment</h3>
-                {dashboardMetrics.lastPaymentDate ? (
-                  <>
-                    <p className="text-3xl font-bold mt-2 text-green-600">
-                      {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
-                    </p>
-                    <p className="text-sm text-gray-400 mt-1 flex items-center gap-1">
-                      {dashboardMetrics.lastPaymentDate.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      <span className="text-xs bg-gray-100 px-1.5 py-0.5 rounded text-gray-500 group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">info</span>
-                    </p>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-3xl font-bold mt-2 text-gray-400">-</p>
-                    <p className="text-sm text-gray-400 mt-1">No payment history</p>
-                  </>
-                )}
-              </div>
 
               {/* Collection Rate Card */}
               <div
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200"
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200 w-full md:w-1/3 lg:w-1/4"
                 onClick={() => setShowCollectionModal(true)}
                 title="Click to view detailed collection breakdown"
               >
@@ -3129,63 +3230,7 @@ ${debtSectionHtml}
               )}
             </div>
 
-            {/* Monthly Payments Trend - Moved here */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Payments Trend</h3>
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart
-                    data={monthlyPaymentsTrendData}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                  >
-                    <defs>
-                      <linearGradient id="colorPayments" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset={paymentGradientOffset} stopColor="#10B981" stopOpacity={0.3} />
-                        <stop offset={paymentGradientOffset} stopColor="#EF4444" stopOpacity={0.3} />
-                      </linearGradient>
-                      <linearGradient id="colorPaymentsStroke" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset={paymentGradientOffset} stopColor="#10B981" stopOpacity={1} />
-                        <stop offset={paymentGradientOffset} stopColor="#EF4444" stopOpacity={1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis
-                      dataKey="monthLabel"
-                      tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#6B7280' }}
-                      tickFormatter={(value) => `${value / 1000}k`}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <RechartsTooltip
-                      formatter={(value: number) => value.toLocaleString('en-US')}
-                      contentStyle={{
-                        borderRadius: '12px',
-                        border: 'none',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                        padding: '12px'
-                      }}
-                      cursor={{ stroke: '#9CA3AF', strokeWidth: 1, strokeDasharray: '5 5' }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="credit"
-                      name=""
-                      stroke="url(#colorPaymentsStroke)"
-                      strokeWidth={3}
-                      fillOpacity={1}
-                      fill="url(#colorPayments)"
-                      activeDot={{ r: 6, strokeWidth: 0 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+
           </div>
 
           {/* Section 2: Sales & Performance */}
@@ -3706,9 +3751,64 @@ ${debtSectionHtml}
       )}
 
       {/* Tab Content: Monthly Debt */}
-
-
-      {/* Tab Content: Ages */}
+      {activeTab === 'monthly' && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Month</th>
+                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Debit (Sales)</th>
+                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Credit (Paid)</th>
+                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Net Debt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {monthlyDebt.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                      No monthly data available.
+                    </td>
+                  </tr>
+                ) : (
+                  monthlyDebt.map((row, index) => (
+                    <tr key={`${row.year}-${row.month}`} className="border-b hover:bg-gray-50">
+                      <td className="px-4 py-3 text-center text-lg font-medium">
+                        {row.month} {row.year}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg text-blue-600">
+                        {row.debit.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg text-green-600">
+                        {row.credit.toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg font-bold">
+                        <span className={row.netDebt > 0 ? 'text-red-600' : row.netDebt < 0 ? 'text-green-600' : 'text-gray-600'}>
+                          {row.netDebt.toLocaleString('en-US')}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+                {monthlyDebt.length > 0 && (
+                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                    <td className="px-4 py-3 text-center text-lg">Total</td>
+                    <td className="px-4 py-3 text-center text-lg">
+                      {monthlyDebt.reduce((sum, r) => sum + r.debit, 0).toLocaleString('en-US')}
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg">
+                      {monthlyDebt.reduce((sum, r) => sum + r.credit, 0).toLocaleString('en-US')}
+                    </td>
+                    <td className="px-4 py-3 text-center text-lg">
+                      {monthlyDebt.reduce((sum, r) => sum + r.netDebt, 0).toLocaleString('en-US')}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}      {/* Tab Content: Ages */}
       {activeTab === 'ages' && (
         <div>
           {agingData.total <= 0 ? (

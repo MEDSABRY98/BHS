@@ -51,7 +51,7 @@ export default function CustomersLanding({ data }: CustomersLandingProps) {
                             <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mb-6 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
                                 <Wallet className="w-7 h-7" />
                             </div>
-                            <h3 className="text-2xl font-bold text-slate-800 mb-2 group-hover:text-emerald-600 transition-colors">Credit Balances</h3>
+                            <h3 className="text-2xl font-bold text-slate-800 mb-2 group-hover:text-emerald-600 transition-colors">Customers Credit</h3>
 
                         </div>
                     </button>
@@ -99,26 +99,26 @@ export default function CustomersLanding({ data }: CustomersLandingProps) {
     return (
         <div className="relative min-h-screen bg-slate-50">
             {/* Sticky Sub-Header for Back Navigation */}
-            <div className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm px-6 py-3 flex items-center gap-4 transition-all">
+            <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-sm px-4 py-1 flex items-center gap-4 transition-all">
                 <button
                     onClick={handleBack}
-                    className="group flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold px-4 py-2 rounded-xl hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100"
+                    className="group flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold px-3 py-1.5 rounded-xl hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100"
                 >
                     <div className="bg-slate-100 group-hover:bg-blue-200 group-hover:text-blue-700 rounded-lg p-1 transition-colors">
                         <ArrowLeft className="w-4 h-4" />
                     </div>
                     Back to Selection
                 </button>
-                <div className="h-6 w-px bg-slate-300 mx-2"></div>
+
                 <span className="font-bold text-lg text-slate-800 flex items-center gap-2">
                     {view === 'normal' && <><Users className="w-5 h-5 text-blue-600" /> Customers Debit Analysis</>}
-                    {view === 'credit' && <><Wallet className="w-5 h-5 text-emerald-600" /> Credit Balances Analysis</>}
+                    {view === 'credit' && <><Wallet className="w-5 h-5 text-emerald-600" /> Customers Credit Analysis</>}
                     {view === 'ob_pos' && <><TrendingUp className="w-5 h-5 text-amber-600" /> Open OB (Debit)</>}
                     {view === 'ob_neg' && <><TrendingDown className="w-5 h-5 text-purple-600" /> Open OB (Credit)</>}
                 </span>
             </div>
 
-            <div className="p-4 sm:p-6">
+            <div>
                 {view === 'normal' && <CustomersTab data={data} mode="DEBIT" />}
                 {view === 'credit' && <CustomersMinsTab data={data} />}
                 {view === 'ob_pos' && <CustomersTab data={data} mode="OB_POS" />}

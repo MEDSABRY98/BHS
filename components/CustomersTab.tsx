@@ -918,39 +918,31 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
 
-      // Classification of Credits (Matches CustomerDetails.tsx getInvoiceTypeFromRow logic)
-      if (row.credit > 0.01) {
-        const n = (row.number || '').toUpperCase();
-        let type = '';
+      // Classification of Credits/Collections (Matches Payment Tracker logic)
+      const n = (row.number || '').toUpperCase();
+      let type = '';
 
-        if (n.startsWith('OB')) {
-          type = 'OB';
-        } else if (n.startsWith('BNK')) {
-          type = 'Payment';
-        } else if (n.startsWith('PBNK4')) {
-          type = 'Our-Paid';
-        } else if (n.startsWith('SAL')) {
-          type = 'Sales';
-        } else if (n.startsWith('RSAL')) {
-          type = 'Return';
-        } else if (n.startsWith('JV') || n.startsWith('BIL')) {
-          type = 'Discount';
-        } else {
-          type = 'Payment';
-        }
+      if (n.startsWith('BNK')) {
+        type = 'Payment';
+      } else if (n.startsWith('PBNK4')) {
+        type = 'Payment';
+      } else if (n.startsWith('SAL')) {
+        type = 'Sales';
+      } else if (n.startsWith('RSAL')) {
+        type = 'Return';
+      } else if (n.startsWith('JV') || n.startsWith('BIL')) {
+        type = 'Discount';
+      } else if (row.credit > 0.01) {
+        type = 'Payment';
+      }
 
-        if (type === 'Payment' || type === 'Our-Paid') {
-          existing.creditPayments += row.credit;
-        } else if (type === 'Return') {
-          existing.creditReturns += row.credit;
-        } else if (type === 'Discount') {
-          if (n.startsWith('BIL')) {
-            existing.creditDiscounts += row.credit;
-          } else {
-            // JV is classified as Discount type but treated as Payment for Rate stats
-            existing.creditPayments += row.credit;
-          }
-        }
+      if (type === 'Payment') {
+        // Payment Tracker Logic: Collections = Credit - Debit
+        existing.creditPayments += (row.credit - row.debit);
+      } else if (type === 'Return') {
+        existing.creditReturns += row.credit;
+      } else if (type === 'Discount') {
+        existing.creditDiscounts += row.credit;
       }
 
       // Calculate Net Sales (SAL debit - RSAL credit) - matching Dashboard logic
@@ -1409,6 +1401,9 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         paymentsCount3m,
         sales3m,
         lastTransactionDate: c.lastTransactionDate,
+        creditPayments: c.creditPayments,
+        creditReturns: c.creditReturns,
+        creditDiscounts: c.creditDiscounts,
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter]);
