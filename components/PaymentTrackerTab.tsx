@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/lib/invoiceType';
+import { generatePaymentAnalysisPDF } from '@/lib/analysisPdf';
 import {
   BarChart,
   Bar,
@@ -1308,7 +1309,10 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       return key === selectedPeriod.periodKey;
     });
 
-    return base;
+    return base.sort((a, b) => {
+      if (!a.parsedDate || !b.parsedDate) return 0;
+      return b.parsedDate.getTime() - a.parsedDate.getTime();
+    });
   }, [visiblePayments, selectedPeriod, periodType]);
 
   // Calculate statistics by Area (Sales Rep)
@@ -1618,6 +1622,18 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               </svg>
             </button>
           )}
+          <button
+            onClick={() => generatePaymentAnalysisPDF(data, {
+              startDate: dateFrom ? new Date(dateFrom) : undefined,
+              endDate: dateTo ? new Date(dateTo) : undefined,
+              salesRep: selectedSalesRep,
+              searchQuery: search
+            })}
+            className="flex items-center justify-center p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-colors ml-2"
+            title="Generate Collections Analysis PDF"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+          </button>
         </div>
       </div>
 
@@ -2643,12 +2659,60 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                       })}
                     </td>
                     <td className="px-4 py-2 text-gray-500 text-center">
-                      {payment.matching || '—'}
-                      {payment.matchedOpeningBalance && (
-                        <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-700 border border-emerald-200">
-                          OB Closed
-                        </span>
-                      )}
+                      {(() => {
+                        const matchIdRaw = payment.matching ? payment.matching.toString().trim() : '';
+                        if (!matchIdRaw) return '—';
+
+                        const matchIdKey = matchIdRaw.toLowerCase();
+                        const isOB = obMatchingIds.has(matchIdKey);
+                        const dates = matchIdToDateMap.has(matchIdKey) ? matchIdToDateMap.get(matchIdKey)! : [];
+
+                        const badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[] = [];
+
+                        if (isOB) {
+                          badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
+                        }
+
+                        dates.forEach((d) => {
+                          const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                          if (!badges.some((b) => b.label === label)) {
+                            badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
+                          }
+                        });
+
+                        if (!isOB && dates.length === 0) {
+                          badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
+                        }
+
+                        badges.sort((a, b) => {
+                          if (a.type === 'OB' && b.type !== 'OB') return -1;
+                          if (a.type !== 'OB' && b.type === 'OB') return 1;
+                          return a.dateIdx - b.dateIdx;
+                        });
+
+                        return (
+                          <div className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full max-w-[200px] mx-auto overflow-hidden transition-all hover:shadow-md">
+                            <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
+                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
+                              <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{matchIdRaw}</span>
+                            </div>
+                            <div className="flex flex-wrap justify-center gap-2 p-2.5">
+                              {badges.map((b, bIdx) => {
+                                let colors = '';
+                                if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
+                                else colors = 'bg-red-50 text-red-500 border-red-200';
+
+                                return (
+                                  <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
+                                    {b.label}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
                   </tr>
                 ))}

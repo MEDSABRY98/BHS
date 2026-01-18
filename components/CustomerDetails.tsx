@@ -29,6 +29,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare } from 'lucide-react';
+import { getInvoiceType } from '@/lib/invoiceType';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -78,28 +79,8 @@ const overdueColumnHelper = createColumnHelper<OverdueInvoice>();
 const normalizeCustomerKey = (name: string): string =>
   name.toString().toLowerCase().trim().replace(/\s+/g, ' ');
 
-// Helper function to determine invoice type - matches logic from CustomersOpenMatchesTab
-const getInvoiceTypeFromRow = (inv: { number?: string | null; credit?: number | null }): string => {
-  const num = (inv.number || '').toUpperCase();
-  const credit = inv.credit ?? 0;
-
-  if (num.startsWith('OB')) {
-    return 'OB';
-  } else if (num.startsWith('BNK')) {
-    return 'Payment';
-  } else if (num.startsWith('PBNK4')) {
-    return 'Our-Paid';
-  } else if (num.startsWith('SAL')) {
-    return 'Sales';
-  } else if (num.startsWith('RSAL')) {
-    return 'Return';
-  } else if (num.startsWith('JV') || num.startsWith('BIL')) {
-    return 'Discount';
-  } else if (credit > 0.01) {
-    return 'Payment';
-  }
-  return 'Invoice/Txn';
-};
+// Helper to determine invoice type - matches logic from CustomersOpenMatchesTab
+// Usage: getInvoiceType(inv)
 
 // Helper to identify payment transactions consistently
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
@@ -1010,7 +991,7 @@ ${debtSectionHtml}
     filtered.forEach((inv) => {
       const num = inv.number ? inv.number.toUpperCase() : '';
       const netDebt = inv.netDebt;
-      const type = getInvoiceTypeFromRow(inv);
+      const type = getInvoiceType(inv);
 
       if (num.startsWith('OB')) {
         obTotal += netDebt;
@@ -1467,7 +1448,7 @@ ${debtSectionHtml}
         header: 'Type',
         cell: (info) => {
           const inv = info.row.original;
-          const type = getInvoiceTypeFromRow(inv);
+          const type = getInvoiceType(inv);
           const color =
             type === 'Sales' ? 'bg-blue-100 text-blue-700' :
               type === 'Return' ? 'bg-orange-100 text-orange-700' :
@@ -1608,7 +1589,7 @@ ${debtSectionHtml}
         header: 'Type',
         cell: (info) => {
           const inv = info.row.original;
-          const type = getInvoiceTypeFromRow(inv);
+          const type = getInvoiceType(inv);
           const color =
             type === 'Sales' ? 'bg-blue-100 text-blue-700' :
               type === 'Return' ? 'bg-orange-100 text-orange-700' :
@@ -1794,18 +1775,13 @@ ${debtSectionHtml}
         const year = d.getFullYear();
         return `${day}/${month}/${year}`;
       })() : '';
-      let type = getInvoiceTypeFromRow(inv);
-      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'Our-Paid')) {
+      let type = getInvoiceType(inv);
+      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
         const d = new Date(inv.date);
         if (!isNaN(d.getTime())) {
           const yy = d.getFullYear().toString().slice(-2);
           // Convert "Sales" to "Sale" to match preference
           let base = type === 'Sales' ? 'Sale' : type;
-
-          // Special case: Payment in Debit column -> "Return - Payment"
-          if ((type === 'Payment' || type === 'Our-Paid') && (inv.debit || 0) > 0.01) {
-            base = 'Return - Payment';
-          }
 
           type = `${base} ${yy}`;
         }
@@ -3024,9 +3000,7 @@ ${debtSectionHtml}
 
               {/* Collection Rate Card */}
               <div
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden cursor-pointer transition-all hover:shadow-md hover:border-blue-200 w-full md:w-1/3 lg:w-1/4"
-                onClick={() => setShowCollectionModal(true)}
-                title="Click to view detailed collection breakdown"
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden w-full md:w-1/3 lg:w-1/4"
               >
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <span className="text-6xl">📈</span>

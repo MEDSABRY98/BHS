@@ -7,11 +7,13 @@ const TYPE_BADGE_COLORS: Record<
   string,
   { fillColor: [number, number, number]; textColor: [number, number, number] }
 > = {
-  Sale: { fillColor: [220, 252, 231], textColor: [21, 128, 61] }, // bg-green-100 / text-green-700
-  Return: { fillColor: [254, 249, 195], textColor: [161, 98, 7] }, // bg-yellow-100 / text-yellow-700
-  Payment: { fillColor: [219, 234, 254], textColor: [29, 78, 216] }, // bg-blue-100 / text-blue-700
-  Discount: { fillColor: [243, 232, 255], textColor: [126, 34, 206] }, // bg-purple-100 / text-purple-700
-  'Opening Balance': { fillColor: [229, 231, 235], textColor: [55, 65, 81] }, // bg-gray-200 / text-gray-700
+  Sales: { fillColor: [219, 234, 254], textColor: [29, 78, 216] }, // bg-blue-100 / text-blue-700
+  Return: { fillColor: [255, 237, 213], textColor: [194, 65, 12] }, // bg-orange-100 / text-orange-700
+  Payment: { fillColor: [220, 252, 231], textColor: [21, 128, 61] }, // bg-green-100 / text-green-700
+  'R-Payment': { fillColor: [254, 226, 226], textColor: [185, 28, 28] }, // bg-red-100 / text-red-700
+  Discount: { fillColor: [254, 249, 195], textColor: [161, 98, 7] }, // bg-yellow-100 / text-yellow-700
+  OB: { fillColor: [243, 232, 255], textColor: [126, 34, 206] }, // bg-purple-100 / text-purple-700
+  'Our-Paid': { fillColor: [209, 250, 229], textColor: [6, 95, 70] }, // bg-emerald-100 / text-emerald-800
   'Invoice/Txn': { fillColor: [241, 245, 249], textColor: [51, 65, 85] }, // bg-slate-100 / text-slate-700
 };
 
@@ -128,16 +130,14 @@ export async function generateAccountStatementPDF(
       }
     }
     let type = getInvoiceType(inv);
-    if (inv.date && (type === 'Sale' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
+    if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
       const d = new Date(inv.date);
       if (!isNaN(d.getTime())) {
         const yy = d.getFullYear().toString().slice(-2);
 
         let base = type;
-        if (type === 'Payment' && (inv.debit || 0) > 0.01) {
-          base = 'Return - Payment';
-        }
-
+        // Logic for R-Payment is now handled by check in helper, so returns 'R-Payment'
+        // Just append YY
         type = `${base} ${yy}`;
       }
     }
@@ -165,7 +165,8 @@ export async function generateAccountStatementPDF(
     theme: 'striped' as const,
     styles: {
       font: 'helvetica', // Default to Helvetica for most cells
-      fontStyle: 'normal'
+      fontStyle: 'normal',
+      valign: 'middle'
     },
     headStyles: {
       fillColor: [0, 0, 0], // Black background
@@ -201,19 +202,17 @@ export async function generateAccountStatementPDF(
       }
 
       const inv = invoices[data.row.index];
-      const isReturnPayment = inv && getInvoiceType(inv) === 'Payment' && (inv.debit || 0) > 0.01;
+      const isReturnPayment = inv && getInvoiceType(inv) === 'R-Payment';
 
       if (isReturnPayment && data.column.index !== 1) {
         data.cell.styles.fillColor = [255, 235, 235]; // Light red highlight
       }
 
-      // Style Type column (fill entire cell) to mirror UI (Overdue tab)
+      // Style Type column
       if (data.column.index === 1 && data.row.index < tableData.length) {
-        const type = getInvoiceType(invoices[data.row.index]);
-        const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
-        data.cell.styles.fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor; // Force light red badge bg if return payment, else default
-        data.cell.styles.textColor = isReturnPayment ? [185, 28, 28] : colors.textColor; // Force dark red text if return payment
-        data.cell.styles.fontStyle = 'bold';
+        // No longer full cell fill. Badge drawn in didDrawCell.
+        // Make default text transparent/white so it doesn't show behind our custom drawn text
+        data.cell.styles.textColor = [255, 255, 255];
       }
 
       // Color Net Debt column
@@ -224,6 +223,41 @@ export async function generateAccountStatementPDF(
         } else if (netDebt < 0) {
           data.cell.styles.textColor = [0, 153, 0]; // Green
         }
+      }
+    },
+    didDrawCell: function (data: any) {
+      // Draw condensed badge for Type column
+      if (data.section === 'body' && data.column.index === 1 && data.row.index < tableData.length) {
+        const inv = invoices[data.row.index];
+        if (!inv) return;
+
+        const text = Array.isArray(data.cell.text) ? data.cell.text.join('') : data.cell.text;
+        const type = getInvoiceType(inv);
+
+        const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
+        const isReturnPayment = inv && type === 'R-Payment';
+        const fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor;
+        const textColor = isReturnPayment ? [185, 28, 28] : colors.textColor;
+
+        const { x, y, width, height } = data.cell;
+
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+
+        const textWidth = doc.getTextWidth(text);
+        const badgeWidth = textWidth + 6;
+        const badgeHeight = 5;
+
+        const badgeX = x + (width - badgeWidth) / 2;
+        const badgeY = y + (height - badgeHeight) / 2;
+
+        // Draw Badge
+        doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+        doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.5, 1.5, 'F');
+
+        // Draw Text
+        doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+        doc.text(text, x + width / 2, y + height / 2, { align: 'center', baseline: 'middle' });
       }
     }
   };
@@ -566,7 +600,7 @@ export async function generateMonthlySeparatedPDF(
         }
       }
       let type = getInvoiceType(inv);
-      if (inv.date && (type === 'Sale' || type === 'Return' || type === 'Discount' || type === 'Payment')) {
+      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
         const d = new Date(inv.date);
         if (!isNaN(d.getTime())) {
           const yy = d.getFullYear().toString().slice(-2);
@@ -598,6 +632,7 @@ export async function generateMonthlySeparatedPDF(
     ]);
 
     // --- TABLE OPTIONS ---
+    // --- TABLE OPTIONS ---
     const tableOptions = {
       startY: yPosition,
       margin: { left: tableLeftMargin, right: tableLeftMargin },
@@ -606,11 +641,12 @@ export async function generateMonthlySeparatedPDF(
       theme: 'striped' as const,
       styles: {
         font: 'helvetica',
-        fontStyle: 'normal'
+        fontStyle: 'normal',
+        valign: 'middle'
       },
       headStyles: {
-        fillColor: [66, 139, 202],
-        textColor: 255,
+        fillColor: [0, 0, 0], // Black background to match total statement
+        textColor: 255, // White text
         fontStyle: 'bold',
         fontSize: 10,
         halign: 'center',
@@ -640,20 +676,21 @@ export async function generateMonthlySeparatedPDF(
           return;
         }
         if (data.row.index === tableData.length - 1) {
-          data.cell.styles.fillColor = [255, 245, 200];
+          // Style for TOTAL row in table
+          data.cell.styles.fillColor = [240, 240, 240];
           data.cell.styles.fontStyle = 'bold';
           data.cell.styles.textColor = 0;
-          return; // Skip further processing for total row
+          return;
         }
 
         const inv = monthInvoices[data.row.index];
-        const isReturnPayment = inv && getInvoiceType(inv) === 'Payment' && (inv.debit || 0) > 0.01;
+        const isReturnPayment = inv && getInvoiceType(inv) === 'R-Payment';
 
         if (isReturnPayment && data.column.index !== 1) {
           data.cell.styles.fillColor = [255, 235, 235];
         }
 
-        // Style Type column (fill entire cell) to mirror UI (Overdue tab)
+        // Style Type column
         if (data.column.index === 1 && data.row.index < tableData.length - 1) {
           const type = getInvoiceType(monthInvoices[data.row.index]);
           const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
@@ -679,6 +716,59 @@ export async function generateMonthlySeparatedPDF(
     } else if (typeof autoTable === 'function') {
       autoTable(doc, tableOptions as any);
     }
+
+    // --- TOTAL DUE BOX (Per Month) ---
+    // Get final Y position after table
+    const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 50;
+
+    const totalBoxWidth = 50;
+    const totalBoxHeight = 15;
+    const totalBoxX = tableLeftMargin + tableWidth - totalBoxWidth;
+
+    // Check if we need a new page for the total box
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const bottomMargin = 20;
+    let totalBoxY = finalY + 5;
+
+    if (totalBoxY + totalBoxHeight > pageHeight - bottomMargin) {
+      doc.addPage();
+      totalBoxY = 20;
+    }
+
+    // Draw light gray box
+    doc.setFillColor(240, 240, 240);
+    doc.rect(totalBoxX, totalBoxY, totalBoxWidth, totalBoxHeight, 'F');
+
+    // Add "TOTAL DUE" text (using label appropriate for monthly total)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('MONTH TOTAL', totalBoxX + totalBoxWidth / 2, totalBoxY + 6, { align: 'center' });
+
+    // Add total amount
+    doc.setFontSize(14);
+    doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
+
+    // Add Page Numbers relative to document but might be good to keep simple
+    const totalPages = doc.internal.getNumberOfPages();
+    doc.setPage(doc.internal.getCurrentPageInfo().pageNumber);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    // Note: This adds page number to current page being processed in loop. 
+    // Ideally page numbers are added at the end for whole doc, but here we do it per page if needed, 
+    // or rely on a final pass. For simplicity, we'll skip complex page numbering logic inside the loop 
+    // or just add it at the very end of the function if we want global numbering.
+  }
+
+  // Add Global Page Numbers
+  const totalPages = doc.internal.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Page ${i} of ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
   }
 
   doc.save(`${customerName}_Detailed_Statement.pdf`);

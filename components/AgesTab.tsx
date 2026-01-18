@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import {
   useReactTable,
   getCoreRowModel,
@@ -33,6 +33,36 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
+
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'semi-closed' | 'closed'>('active');
+  const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
+  const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Fetch Closed and Semi-Closed lists
+    const fetchLists = async () => {
+      try {
+        const [closedRes, semiRes] = await Promise.all([
+          fetch('/api/closed-customers'),
+          fetch('/api/semi-closed-customers')
+        ]);
+
+        if (closedRes.ok) {
+          const data = await closedRes.json();
+          setClosedCustomers(new Set(data.closedCustomers.map((n: string) => n.toLowerCase().trim())));
+        }
+
+        if (semiRes.ok) {
+          const data = await semiRes.json();
+          setSemiClosedCustomers(new Set(data.semiClosedCustomers.map((n: string) => n.toLowerCase().trim())));
+        }
+      } catch (error) {
+        console.error('Error fetching status lists:', error);
+      }
+    };
+
+    fetchLists();
+  }, []);
 
   const agingData = useMemo(() => {
     // Group by customer first
@@ -78,18 +108,18 @@ export default function AgesTab({ data }: AgesTabProps) {
       // Pass 1: Analyze Matchings
       customerInvoices.forEach((inv, idx) => {
         if (inv.matching) {
-             const net = inv.debit - inv.credit;
-             matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
-             
-             const currentMax = maxDebits.get(inv.matching) ?? -1;
-             // Logic to pick main invoice (largest debit)
-             if (inv.debit > currentMax) {
-                 maxDebits.set(inv.matching, inv.debit);
-                 mainInvoiceIndices.set(inv.matching, idx);
-             } else if (!mainInvoiceIndices.has(inv.matching)) {
-                 maxDebits.set(inv.matching, inv.debit);
-                 mainInvoiceIndices.set(inv.matching, idx);
-             }
+          const net = inv.debit - inv.credit;
+          matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+
+          const currentMax = maxDebits.get(inv.matching) ?? -1;
+          // Logic to pick main invoice (largest debit)
+          if (inv.debit > currentMax) {
+            maxDebits.set(inv.matching, inv.debit);
+            mainInvoiceIndices.set(inv.matching, idx);
+          } else if (!mainInvoiceIndices.has(inv.matching)) {
+            maxDebits.set(inv.matching, inv.debit);
+            mainInvoiceIndices.set(inv.matching, idx);
+          }
         }
       });
 
@@ -98,67 +128,67 @@ export default function AgesTab({ data }: AgesTabProps) {
       today.setHours(0, 0, 0, 0);
 
       customerInvoices.forEach((inv, idx) => {
-          let amountToAge = 0;
-          let shouldAge = false;
+        let amountToAge = 0;
+        let shouldAge = false;
 
-          if (!inv.matching) {
-              const net = inv.debit - inv.credit;
-              if (Math.abs(net) > 0.01) {
-                  amountToAge = net;
-                  shouldAge = true;
-              }
+        if (!inv.matching) {
+          const net = inv.debit - inv.credit;
+          if (Math.abs(net) > 0.01) {
+            amountToAge = net;
+            shouldAge = true;
+          }
+        } else {
+          // It is matched. Check if it is main invoice
+          if (mainInvoiceIndices.get(inv.matching) === idx) {
+            const residual = matchingTotals.get(inv.matching) || 0;
+            if (Math.abs(residual) > 0.01) {
+              amountToAge = residual;
+              shouldAge = true;
+            }
+          }
+        }
+
+        if (shouldAge) {
+          // Calculate days overdue
+          let daysOverdue = 0;
+          let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
+
+          if (!targetDate || isNaN(targetDate.getTime())) {
+            if (inv.date) {
+              targetDate = new Date(inv.date);
+            }
+          }
+
+          if (targetDate && !isNaN(targetDate.getTime())) {
+            targetDate.setHours(0, 0, 0, 0);
+            const diffTime = today.getTime() - targetDate.getTime();
+            daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          }
+
+          if (daysOverdue <= 0) {
+            summary.atDate += amountToAge;
+          } else if (daysOverdue <= 30) {
+            summary.oneToThirty += amountToAge;
+          } else if (daysOverdue <= 60) {
+            summary.thirtyOneToSixty += amountToAge;
+          } else if (daysOverdue <= 90) {
+            summary.sixtyOneToNinety += amountToAge;
+          } else if (daysOverdue <= 120) {
+            summary.ninetyOneToOneTwenty += amountToAge;
           } else {
-              // It is matched. Check if it is main invoice
-              if (mainInvoiceIndices.get(inv.matching) === idx) {
-                  const residual = matchingTotals.get(inv.matching) || 0;
-                  if (Math.abs(residual) > 0.01) {
-                      amountToAge = residual;
-                      shouldAge = true;
-                  }
-              }
+            summary.older += amountToAge;
           }
-
-          if (shouldAge) {
-              // Calculate days overdue
-              let daysOverdue = 0;
-              let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
-              
-              if (!targetDate || isNaN(targetDate.getTime())) {
-                 if (inv.date) {
-                   targetDate = new Date(inv.date);
-                 }
-              }
-
-              if (targetDate && !isNaN(targetDate.getTime())) {
-                 targetDate.setHours(0, 0, 0, 0);
-                 const diffTime = today.getTime() - targetDate.getTime();
-                 daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-              }
-
-              if (daysOverdue <= 0) {
-                summary.atDate += amountToAge;
-              } else if (daysOverdue <= 30) {
-                summary.oneToThirty += amountToAge;
-              } else if (daysOverdue <= 60) {
-                summary.thirtyOneToSixty += amountToAge;
-              } else if (daysOverdue <= 90) {
-                summary.sixtyOneToNinety += amountToAge;
-              } else if (daysOverdue <= 120) {
-                summary.ninetyOneToOneTwenty += amountToAge;
-              } else {
-                summary.older += amountToAge;
-              }
-          }
+        }
       });
 
       // Include in summary if there is significant debt or open items
-      const hasValues = Math.abs(summary.total) > 0.01 || 
-                        Math.abs(summary.atDate) > 0.01 || 
-                        Math.abs(summary.older) > 0.01 ||
-                        Math.abs(summary.oneToThirty) > 0.01 ||
-                        Math.abs(summary.thirtyOneToSixty) > 0.01 ||
-                        Math.abs(summary.sixtyOneToNinety) > 0.01 ||
-                        Math.abs(summary.ninetyOneToOneTwenty) > 0.01;
+      const hasValues = Math.abs(summary.total) > 0.01 ||
+        Math.abs(summary.atDate) > 0.01 ||
+        Math.abs(summary.older) > 0.01 ||
+        Math.abs(summary.oneToThirty) > 0.01 ||
+        Math.abs(summary.thirtyOneToSixty) > 0.01 ||
+        Math.abs(summary.sixtyOneToNinety) > 0.01 ||
+        Math.abs(summary.ninetyOneToOneTwenty) > 0.01;
 
       if (hasValues) {
         summaries.push(summary);
@@ -191,6 +221,26 @@ export default function AgesTab({ data }: AgesTabProps) {
       );
     }
 
+    // Filter by status (Shop Status)
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(customer => {
+        const normalizedName = customer.customerName.toLowerCase().trim();
+        const isClosed = closedCustomers.has(normalizedName);
+        const isSemiClosed = semiClosedCustomers.has(normalizedName);
+
+        if (statusFilter === 'active') {
+          return !isClosed && !isSemiClosed;
+        }
+        if (statusFilter === 'closed') {
+          return isClosed;
+        }
+        if (statusFilter === 'semi-closed') {
+          return isSemiClosed;
+        }
+        return true;
+      });
+    }
+
     // Filter by search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
@@ -200,7 +250,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     }
 
     return filtered;
-  }, [agingData, searchQuery, selectedSalesRep]);
+  }, [agingData, searchQuery, selectedSalesRep, statusFilter, closedCustomers, semiClosedCustomers]);
 
   const exportToExcel = () => {
     const headers = ['Customer Name', 'Sales Rep', 'AT DATE', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
@@ -233,67 +283,67 @@ export default function AgesTab({ data }: AgesTabProps) {
       columnHelper.accessor('customerName', {
         header: 'Customer Name',
         cell: (info) => (
-            <div className="font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={info.getValue()}>
-                {info.getValue()}
-            </div>
+          <div className="font-medium text-gray-900 whitespace-nowrap overflow-hidden text-ellipsis" title={info.getValue()}>
+            {info.getValue()}
+          </div>
         ),
       }),
       columnHelper.accessor('atDate', {
         header: 'AT DATE',
         cell: (info) => (
-            <span className="text-green-600 font-semibold whitespace-nowrap">
-                {info.getValue().toLocaleString('en-US')}
-            </span>
+          <span className="text-green-600 font-semibold whitespace-nowrap">
+            {info.getValue().toLocaleString('en-US')}
+          </span>
         ),
       }),
       columnHelper.accessor('oneToThirty', {
         header: '1 - 30',
         cell: (info) => (
-            <span className="whitespace-nowrap">
-                {info.getValue().toLocaleString('en-US')}
-            </span>
+          <span className="whitespace-nowrap">
+            {info.getValue().toLocaleString('en-US')}
+          </span>
         ),
       }),
       columnHelper.accessor('thirtyOneToSixty', {
         header: '31 - 60',
         cell: (info) => (
-            <span className="whitespace-nowrap">
-                {info.getValue().toLocaleString('en-US')}
-            </span>
+          <span className="whitespace-nowrap">
+            {info.getValue().toLocaleString('en-US')}
+          </span>
         ),
       }),
       columnHelper.accessor('sixtyOneToNinety', {
         header: '61 - 90',
         cell: (info) => (
-            <span className="whitespace-nowrap">
-                {info.getValue().toLocaleString('en-US')}
-            </span>
+          <span className="whitespace-nowrap">
+            {info.getValue().toLocaleString('en-US')}
+          </span>
         ),
       }),
       columnHelper.accessor('ninetyOneToOneTwenty', {
         header: '91 - 120',
         cell: (info) => (
-            <span className="whitespace-nowrap">
-                {info.getValue().toLocaleString('en-US')}
-            </span>
+          <span className="whitespace-nowrap">
+            {info.getValue().toLocaleString('en-US')}
+          </span>
         ),
       }),
       columnHelper.accessor('older', {
         header: 'OLDER',
         cell: (info) => (
-            <span className="text-red-600 font-semibold whitespace-nowrap">
-                {info.getValue().toLocaleString('en-US')}
-            </span>
+          <span className="text-red-600 font-semibold whitespace-nowrap">
+            {info.getValue().toLocaleString('en-US')}
+          </span>
         ),
       }),
       columnHelper.accessor('total', {
         header: 'TOTAL',
         cell: (info) => {
-            const value = info.getValue();
-             return (
-             <span className={`font-bold whitespace-nowrap ${value > 0 ? 'text-gray-900' : 'text-green-600'}`}>
-               {value.toLocaleString('en-US')}
-             </span>
+          const value = info.getValue();
+          return (
+            <span className={`font-bold whitespace-nowrap ${value > 0 ? 'text-gray-900' : 'text-green-600'}`}>
+              {value.toLocaleString('en-US')}
+            </span>
           );
         },
       }),
@@ -329,7 +379,7 @@ export default function AgesTab({ data }: AgesTabProps) {
         <select
           value={selectedSalesRep}
           onChange={(e) => setSelectedSalesRep(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
+          className="w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
         >
           <option value="all">All Sales Reps</option>
           {salesReps.map((rep) => (
@@ -338,6 +388,19 @@ export default function AgesTab({ data }: AgesTabProps) {
             </option>
           ))}
         </select>
+
+        {/* Status Filter */}
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as any)}
+          className="w-56 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Active Only</option>
+          <option value="semi-closed">Semi-Closed</option>
+          <option value="closed">Closed</option>
+        </select>
+
         <input
           type="text"
           placeholder="Search by customer name..."
@@ -360,84 +423,84 @@ export default function AgesTab({ data }: AgesTabProps) {
         </button>
       </div>
 
-       <div className="bg-white rounded-lg shadow overflow-hidden">
-         <div className="overflow-x-auto">
-           <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
-             <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-               {table.getHeaderGroups().map((headerGroup) => (
-                 <tr key={headerGroup.id}>
-                   {headerGroup.headers.map((header) => {
-                     const getWidth = () => {
-                         const columnId = header.column.id;
-                         if (columnId === 'customerName') return '25%';
-                         // 7 numeric columns remaining = 75% / 7 ~ 10.7%
-                         return '10.7%';
-                     };
-                     return (
-                     <th
-                       key={header.id}
-                       className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider cursor-pointer hover:bg-blue-700 transition-colors whitespace-nowrap"
-                       style={{ width: getWidth() }}
-                       onClick={header.column.getToggleSortingHandler()}
-                     >
-                       {flexRender(header.column.columnDef.header, header.getContext())}
-                       {{
-                         asc: ' ↑',
-                         desc: ' ↓',
-                       }[header.column.getIsSorted() as string] ?? null}
-                     </th>
-                     );
-                   })}
-                 </tr>
-               ))}
-             </thead>
-             <tbody className="divide-y divide-gray-200">
-               {table.getRowModel().rows.map((row, idx) => (
-                 <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                   {row.getVisibleCells().map((cell) => {
-                      const getWidth = () => {
-                         const columnId = cell.column.id;
-                         if (columnId === 'customerName') return '25%';
-                         return '10.7%';
-                     };
-                     return (
-                       <td 
-                         key={cell.id} 
-                         className="px-6 py-4 text-center text-sm whitespace-nowrap"
-                         style={{ width: getWidth() }}
-                       >
-                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                       </td>
-                     );
-                   })}
-                 </tr>
-               ))}
-               <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
-                 <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '25%' }}>
-                   TOTAL
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg text-green-700 whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {totalAtDate.toLocaleString('en-US')}
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {total1To30.toLocaleString('en-US')}
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {total31To60.toLocaleString('en-US')}
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {total61To90.toLocaleString('en-US')}
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {total91To120.toLocaleString('en-US')}
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {totalOlder.toLocaleString('en-US')}
-                 </td>
-                 <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
-                   {grandTotal.toLocaleString('en-US')}
-                 </td>
-               </tr>
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
+            <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => {
+                    const getWidth = () => {
+                      const columnId = header.column.id;
+                      if (columnId === 'customerName') return '25%';
+                      // 7 numeric columns remaining = 75% / 7 ~ 10.7%
+                      return '10.7%';
+                    };
+                    return (
+                      <th
+                        key={header.id}
+                        className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider cursor-pointer hover:bg-blue-700 transition-colors whitespace-nowrap"
+                        style={{ width: getWidth() }}
+                        onClick={header.column.getToggleSortingHandler()}
+                      >
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {{
+                          asc: ' ↑',
+                          desc: ' ↓',
+                        }[header.column.getIsSorted() as string] ?? null}
+                      </th>
+                    );
+                  })}
+                </tr>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {table.getRowModel().rows.map((row, idx) => (
+                <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
+                  {row.getVisibleCells().map((cell) => {
+                    const getWidth = () => {
+                      const columnId = cell.column.id;
+                      if (columnId === 'customerName') return '25%';
+                      return '10.7%';
+                    };
+                    return (
+                      <td
+                        key={cell.id}
+                        className="px-6 py-4 text-center text-sm whitespace-nowrap"
+                        style={{ width: getWidth() }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+              <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
+                <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '25%' }}>
+                  TOTAL
+                </td>
+                <td className="px-6 py-4 text-center text-lg text-green-700 whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {totalAtDate.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {total1To30.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {total31To60.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {total61To90.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {total91To120.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {totalOlder.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                  {grandTotal.toLocaleString('en-US')}
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>
