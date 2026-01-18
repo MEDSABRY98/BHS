@@ -331,6 +331,40 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         mIter.setMonth(mIter.getMonth() + 1);
     }
 
+    // --- FILTERING (If User Search is Active) ---
+    // If searching for a customer (or anything), hide days/weeks/months with zero value
+    if (filters.searchQuery && filters.searchQuery.trim().length > 0) {
+        // Filter in place? No, just re-assign.
+        // We really want to show moments where the customer paid.
+        // Usually filtering by customer means baseData is filtered.
+        // If we sum 0 for a day, it means that customer didn't pay that day.
+        // User wants to see only rows/bars with payments.
+
+        // Note: Filter based on 'current' value being non-zero
+        // We might also check 'previous' or 'lastYear' if we want to show comparison?
+        // User request: "appear rows that have payments only". Implies current > 0.
+        // Let's be safe and show if ANY value > 0? No, usually "payments only" means active.
+        // But let's stick to current > 0 to be precise.
+
+        const hasValue = (m: PeriodMetric) => m.current !== 0;
+
+        let i = days.length;
+        while (i--) {
+            if (!hasValue(days[i])) days.splice(i, 1);
+        }
+
+        i = weeks.length;
+        while (i--) {
+            if (!hasValue(weeks[i])) weeks.splice(i, 1);
+        }
+
+        i = months.length;
+        while (i--) {
+            if (!hasValue(months[i])) months.splice(i, 1);
+        }
+    }
+
+
     // --- METRICS CALCULATION (Current vs Previous Period) ---
     const durationMs = endDate!.getTime() - startDate.getTime();
     const prevEndDate = new Date(startDate.getTime() - 86400000); // 1 day before start
@@ -429,29 +463,29 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
         // Accent Bar
         doc.setFillColor(...accentColor);
-        doc.rect(x, y + 10, 1.5, 12, 'F'); // Left accent mark
+        doc.rect(x, y + 5, 1.5, 12, 'F'); // Left accent mark
 
         // Title
         doc.setFontSize(9);
         doc.setTextColor(100, 116, 139); // Slate 500
         doc.setFont('helvetica', 'normal');
-        doc.text(title, x + 8, y + 15);
+        doc.text(title, x + 8, y + 10);
 
         // Value
         doc.setFontSize(14);
         doc.setTextColor(15, 23, 42); // Slate 900
         doc.setFont('helvetica', 'bold');
-        doc.text(value, x + 8, y + 25);
+        doc.text(value, x + 8, y + 20);
 
         // Subtext (Trend or Info)
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
 
         if (subText.includes('+') || subText.includes('▲')) doc.setTextColor(22, 163, 74); // Green
         else if (subText.includes('-') || subText.includes('▼')) doc.setTextColor(220, 38, 38); // Red
         else doc.setTextColor(148, 163, 184); // Slate 400
 
-        doc.text(subText, x + 8, y + 33);
+        doc.text(subText, x + 8, y + 29);
     };
 
     const drawHorizontalBarChart = (x: number, y: number, w: number, h: number, data: { label: string, value: number }[], title: string) => {
@@ -836,10 +870,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     // --- ALL CUSTOMERS PAGE ---
     // If user filtered by date, show list of customers who paid IN THAT DATE RANGE
-    doc.addPage();
+    doc.addPage('a4', 'landscape');
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
-    doc.text('Customer Payment List', 105, 20, { align: 'center' });
+    const pageW = doc.internal.pageSize.width;
+    doc.text('Customer Payment List', pageW / 2, 20, { align: 'center' });
 
     // Removed specific period text as requested
 
@@ -962,12 +997,12 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         bodyStyles: { halign: 'center', valign: 'middle' },
         margin: { left: 8, right: 8 },
         columnStyles: {
-            1: { halign: 'left' } // Customer Name alignment
+            1: { halign: 'center', cellWidth: 70 } // Customer Name fixed width
         }
     });
 
     // --- COLLECTION QUALITY ANALYSIS (Debt Age) ---
-    doc.addPage();
+    doc.addPage('a4', 'portrait');
     y = 20;
 
     doc.setFontSize(16);
@@ -1235,7 +1270,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     });
 
     // --- SALES REPRESENTATIVE ANALYSIS ---
-    doc.addPage();
+    doc.addPage('a4', 'portrait'); // Ensure portrait
     y = 20;
 
     doc.setFontSize(16);
@@ -1348,9 +1383,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     const pageCount = (doc as any).internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
+        const pWidth = doc.internal.pageSize.width;
+        const pHeight = doc.internal.pageSize.height;
         doc.setFontSize(8);
         doc.setTextColor(150);
-        doc.text(`Page ${i} of ${pageCount}`, 195, 290, { align: 'right' });
+        doc.text(`Page ${i} of ${pageCount}`, pWidth - 15, pHeight - 7, { align: 'right' });
     }
 
     doc.save(`Collections_Analysis_${new Date().toISOString().split('T')[0]}.pdf`);
