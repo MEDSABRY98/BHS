@@ -488,14 +488,26 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       } else if (type === 'Discount') {
         stats.discounts += credit;
         if (debit < 0) stats.discounts += Math.abs(debit);
-      } else if (type === 'Payment') {
+      } else if (type === 'Payment' || type === 'R-Payment') {
         const netAmount = credit - debit;
         stats.collections += netAmount;
         // Count payments with positive net (credit - debit > 0)
+        // R-Payments will be negative, decreasing the collection total correctly.
         if (netAmount > 0) {
           netPaymentCount++;
           stats.paymentCount += 1;
-          if (row.customerName) stats.customerSet.add(row.customerName.trim());
+        } else if (type === 'R-Payment') {
+          // Should we count negative R-Payment as a "payment transaction"? 
+          // Typically yes, it's a transaction affecting balance.
+          // But maybe not "successful payment count".
+          // Let's count it in paymentCount if user wants to track activity?
+          // Existing logic only increments if netAmount > 0.
+          // So R-Payment (netAmount < 0) won't increment paymentCount.
+          // This is likely correct for "Positive" payment count.
+        }
+
+        if (row.customerName && (netAmount > 0 || type === 'R-Payment')) {
+          stats.customerSet.add(row.customerName.trim());
         }
       }
     });
@@ -538,7 +550,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     // Apply filters
     const searchLower = search.toLowerCase().trim();
     let filteredPayments = data.filter((row) => {
-      if (getInvoiceType(row) !== 'Payment') return false;
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
 
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
@@ -707,7 +720,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       // Default: last 12 months from latest payment date
       let maxDate = new Date(0);
       data.forEach(row => {
-        if (getInvoiceType(row) !== 'Payment') return;
+        const t = getInvoiceType(row);
+        if (t !== 'Payment' && t !== 'R-Payment') return;
         const d = parseDate(row.date);
         if (d && d > maxDate) maxDate = d;
       });
@@ -718,7 +732,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
     // Apply filters within date range
     let filteredPayments = data.filter((row) => {
-      if (getInvoiceType(row) !== 'Payment') return false;
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
 
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
@@ -786,7 +801,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     // Apply filters
     const searchLower = search.toLowerCase().trim();
     let filteredPayments = data.filter((row) => {
-      if (getInvoiceType(row) !== 'Payment') return false;
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
 
       // Apply sales rep filter
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
@@ -935,7 +951,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     return data
       .filter((row) => {
         // Filter by type
-        if (getInvoiceType(row) !== 'Payment') return false;
+        if (getInvoiceType(row) !== 'Payment' && getInvoiceType(row) !== 'R-Payment') return false;
         // Filter by sales rep if selected
         if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
         return true;
@@ -1389,7 +1405,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     }
 
     let filteredPayments = data.filter((row) => {
-      if (getInvoiceType(row) !== 'Payment') return false;
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
 
       // Apply sales rep filter (if specific rep selected, only show that rep in table)
       if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
@@ -2401,7 +2418,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                         <tr
                           key={`${group.number}-${idx}`}
                           className={`hover:bg-gray-50 text-center ${group.hasNegative
-                            ? 'bg-red-50/60'
+                            ? 'bg-red-100 border-l-4 border-red-500' // Highlight R-Payment/Negative rows
                             : group.hasOB
                               ? 'bg-emerald-50/60'
                               : ''

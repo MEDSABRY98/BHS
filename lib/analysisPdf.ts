@@ -154,10 +154,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     const doc = new jsPDF();
     const today = new Date();
 
-    // 1. Base Filter (Strictly align with PaymentTrackerTab)
+    // 1. Base Filter (Strictly align with PaymentTrackerTab logic + R-Payment fix)
     const baseData = allData.filter(inv => {
-        // Strict Type Check as per PaymentTrackerTab
-        if (getInvoiceType(inv) !== 'Payment') return false;
+        const t = getInvoiceType(inv);
+        // User Logic: Include R-Payment (Returns) to reduce total collections
+        if (t !== 'Payment' && t !== 'R-Payment') return false;
 
         // Filters
         if (filters.salesRep && filters.salesRep !== 'All Sales Reps' && inv.salesRep?.trim() !== filters.salesRep) return false;
@@ -722,13 +723,19 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
         autoTable(doc, {
             startY: y,
-            head: [['Date', 'Current', 'Prev Month', 'MoM %', 'Last Year', 'YoY %']],
+            margin: { left: 22 },
+            head: [['Date', 'Current', 'Same Date Previous Month', 'MoM %', 'Last Year', 'YoY %']],
             body: tableData,
             theme: 'grid',
             headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
             bodyStyles: { halign: 'center', valign: 'middle' },
             columnStyles: {
-                0: { halign: 'center' }
+                0: { halign: 'center', cellWidth: 25 },
+                1: { halign: 'center', cellWidth: 30 },
+                2: { halign: 'center', cellWidth: 30 },
+                3: { halign: 'center', cellWidth: 25 },
+                4: { halign: 'center', cellWidth: 30 },
+                5: { halign: 'center', cellWidth: 25 }
             },
             didParseCell: (data) => {
                 if (data.section === 'body') {
