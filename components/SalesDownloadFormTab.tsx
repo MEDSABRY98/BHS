@@ -36,11 +36,11 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
       if (!customerMap.has(item.customerName)) {
         customerMap.set(item.customerName, new Map());
       }
-      
+
       const productsMap = customerMap.get(item.customerName)!;
       // Use productId || barcode || product as key to group by product
       const productKey = item.productId || item.barcode || item.product;
-      
+
       if (!productsMap.has(productKey)) {
         productsMap.set(productKey, {
           barcode: item.barcode || '-',
@@ -50,7 +50,7 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
     });
 
     const result: Array<{ customer: string; products: Array<{ barcode: string; product: string }> }> = [];
-    
+
     customerMap.forEach((productsMap, customerName) => {
       const products = Array.from(productsMap.values());
       result.push({
@@ -65,9 +65,9 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
   // Filter customers based on search
   const filteredCustomers = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return customersData;
-    
+
     const query = debouncedSearchQuery.toLowerCase().trim();
-    return customersData.filter(customer => 
+    return customersData.filter(customer =>
       customer.customer.toLowerCase().includes(query)
     );
   }, [customersData, debouncedSearchQuery]);
@@ -129,7 +129,7 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
 
   return (
     <div className="p-6 bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-8 flex items-center justify-between bg-white rounded-xl shadow-lg p-6 border border-gray-200">
           <div className="flex items-center gap-3">
@@ -202,8 +202,8 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
                   </tr>
                 ) : (
                   paginatedCustomers.map((customer, index) => (
-                    <tr 
-                      key={index} 
+                    <tr
+                      key={index}
                       className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50 hover:to-green-50/50 transition-colors duration-150"
                     >
                       <td className="py-4 px-6 text-sm font-semibold text-gray-800 truncate" style={{ width: '50%' }}>
@@ -264,11 +264,10 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                          currentPage === pageNum
+                        className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${currentPage === pageNum
                             ? 'bg-gradient-to-r from-green-600 to-green-700 text-white shadow-md'
                             : 'bg-white text-gray-700 hover:bg-green-50 hover:text-green-600 border-2 border-gray-200 hover:border-green-500'
-                        }`}
+                          }`}
                       >
                         {pageNum}
                       </button>

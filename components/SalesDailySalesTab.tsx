@@ -605,7 +605,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Daily Sales</h1>

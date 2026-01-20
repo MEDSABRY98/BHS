@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers } from 'lucide-react';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -74,9 +74,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             currentUser?.name === 'Mr. Ali Farouk' ? 'grid-cols-1 md:grid-cols-2' :
               currentUser?.name === 'Mahmoud Shaker' ? 'grid-cols-1' :
                 currentUser?.name === 'Overtime Export' ? 'grid-cols-1' :
-                  currentUser?.name === 'Ramadan Gomaa' ? 'grid-cols-1 md:grid-cols-2' :
-                    currentUser?.name === 'Mr. Sadiq Akandi' ? 'grid-cols-1 md:grid-cols-2' :
-                      'grid-cols-1 md:grid-cols-2'
+                  currentUser?.name === 'ABO Iyad' ? 'grid-cols-1' :
+                    currentUser?.name === 'Ramadan Gomaa' ? 'grid-cols-1 md:grid-cols-2' :
+                      currentUser?.name === 'Mr. Sadiq Akandi' ? 'grid-cols-1 md:grid-cols-2' :
+                        'grid-cols-1 md:grid-cols-2'
           }`}>
           {/* Cash Receipt Card - Only visible for MED Sabry - First */}
           {currentUser?.name === 'MED Sabry' && (
@@ -110,8 +111,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Debit Analysis Card - Hidden for Overtime Export and Mr. Sadiq Akandi, visible for others */}
-          {currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && (
+          {/* Debit Analysis Card - Hidden for Overtime Export, Mr. Sadiq Akandi, and ABO Iyad */}
+          {currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && currentUser?.name !== 'ABO Iyad' && (
             <div
               onClick={handleSelectDebit}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-red-300 flex flex-col min-h-[180px]"
@@ -142,8 +143,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Sales Analysis Card - Hidden for Mahmoud Shaker, Overtime Export and Mr. Sadiq Akandi */}
-          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && (
+          {/* Sales Analysis Card - Hidden for Mahmoud Shaker, Overtime Export, Mr. Sadiq Akandi, and ABO Iyad */}
+          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && currentUser?.name !== 'ABO Iyad' && (
             <div
               onClick={handleSelectSales}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-green-300 flex flex-col min-h-[180px]"
@@ -157,6 +158,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               <h2 className="text-xl font-bold text-gray-800 leading-tight">Sales Analysis</h2>
             </div>
           )}
+
+          {/* Inventory Analyze Card - Only visible for MED Sabry, Monai, and Mr. Sadiq Akandi */}
 
           {/* Inventory Analyze Card - Only visible for MED Sabry, Monai, and Mr. Sadiq Akandi */}
           {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Mr. Sadiq Akandi') && (
@@ -173,6 +176,23 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               <h2 className="text-xl font-bold text-gray-800 leading-tight">Inventory</h2>
             </div>
           )}
+
+          {/* Chipsy Inventory Card - Visible for MED Sabry, Monai, and ABO Iyad */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'ABO Iyad') && (
+            <div
+              onClick={() => window.location.href = '/chipsy-inventory'}
+              className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-orange-300 flex flex-col min-h-[180px]"
+            >
+              <div className="flex items-start justify-between mb-4">
+                <div className="w-14 h-14 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Layers className="w-7 h-7 text-orange-600" />
+                </div>
+                <ArrowRight className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-800 leading-tight">Chipsy Inventory</h2>
+            </div>
+          )}
+
 
 
 

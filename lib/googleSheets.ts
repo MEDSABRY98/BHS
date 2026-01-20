@@ -2479,3 +2479,148 @@ export async function getNextPONumber(): Promise<string> {
     return `PO-${year}-001`;
   }
 }
+
+// --- CHIPSY INVENTORY SYSTEM ---
+
+export interface ChipsyProduct {
+  rowIndex: number;
+  barcode: string;
+  productName: string;
+  qtyPcs: number;     // Current Stock in Pieces
+  pcsInCtn: number;   // Pieces per Carton
+}
+
+export interface ChipsyTransfer {
+  user: string;
+  date: string;
+  type: 'IN' | 'OUT';
+  personName: string;
+  customerName: string;
+  barcode: string;
+  productName: string;
+  qtyPcs: number;
+}
+
+export async function getChipsyInventory(): Promise<ChipsyProduct[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - Chipsy'!A:D`, // BARCODE, PRODUCT, PCS QTY, PCS IN CTN
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header (Row 1) -> Start from Row 2 (index 1)
+    return rows.slice(1).map((row, index) => {
+      return {
+        rowIndex: index + 2, // 1-based index for updates
+        barcode: row[0]?.toString() || '',
+        productName: row[1]?.toString() || '',
+        qtyPcs: parseInt(row[2]?.toString().replace(/,/g, '') || '0'),
+        pcsInCtn: parseInt(row[3]?.toString().replace(/,/g, '') || '1'), // Default to 1 if missing
+      };
+    }).filter(p => p.productName); // Filter empty rows
+  } catch (error) {
+    console.error('Error fetching Chipsy inventory:', error);
+    return [];
+  }
+}
+
+export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - Chipsy'!A:H`, // USER, DATE, TYPE, PERSON, CUSTOMER, BARCODE, PRODUCT, PCS QTY
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header
+    return rows.slice(1).map(row => ({
+      user: row[0]?.toString() || '',
+      date: row[1]?.toString() || '',
+      type: (row[2]?.toString() || 'IN') as 'IN' | 'OUT',
+      personName: row[3]?.toString() || '',
+      customerName: row[4]?.toString() || '',
+      barcode: row[5]?.toString() || '',
+      productName: row[6]?.toString() || '',
+      qtyPcs: parseInt(row[7]?.toString().replace(/,/g, '') || '0'),
+    })).reverse(); // Show newest first
+  } catch (error) {
+    console.error('Error fetching Chipsy transfers:', error);
+    return [];
+  }
+}
+
+export async function addChipsyTransfer(transfer: ChipsyTransfer) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - Chipsy'!A:H`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          transfer.user,
+          transfer.date,
+          transfer.type,
+          transfer.personName,
+          transfer.customerName,
+          transfer.barcode,
+          transfer.productName,
+          transfer.qtyPcs
+        ]],
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding Chipsy transfer:', error);
+    throw error;
+  }
+}
+
+export async function updateChipsyInventoryQty(rowIndex: number, newQtyPcs: number) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - Chipsy'!C${rowIndex}`, // Column C is PCS QTY
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[newQtyPcs]],
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating Chipsy inventory:', error);
+    throw error;
+  }
+}

@@ -450,7 +450,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-800">Sales Overview</h1>
@@ -543,8 +543,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
                   className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
-                      ? 'border-green-500 ring-2 ring-green-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
                     }`}
                 >
                   <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
@@ -563,8 +563,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         setOpenDropdown(null);
                       }}
                       className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       All Areas
@@ -577,8 +577,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           setOpenDropdown(null);
                         }}
                         className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
-                            ? 'bg-green-50 text-green-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
                           }`}
                       >
                         {area}
@@ -600,8 +600,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
                   className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
-                      ? 'border-green-500 ring-2 ring-green-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
                     }`}
                 >
                   <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
@@ -620,8 +620,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         setOpenDropdown(null);
                       }}
                       className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       All Merchandisers
@@ -634,8 +634,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           setOpenDropdown(null);
                         }}
                         className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
-                            ? 'bg-green-50 text-green-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
                           }`}
                       >
                         {merchandiser}
@@ -657,8 +657,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
                   className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
-                      ? 'border-green-500 ring-2 ring-green-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
                     }`}
                 >
                   <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
@@ -677,8 +677,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                         setOpenDropdown(null);
                       }}
                       className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
                         }`}
                     >
                       All Sales Reps
@@ -691,8 +691,8 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           setOpenDropdown(null);
                         }}
                         className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
-                            ? 'bg-green-50 text-green-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
                           }`}
                       >
                         {salesRep}
@@ -1189,10 +1189,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                       })}
                     </td>
                     <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
-                        ? 'text-green-600'
-                        : item.amountDiff < 0
-                          ? 'text-red-600'
-                          : 'text-gray-600'
+                      ? 'text-green-600'
+                      : item.amountDiff < 0
+                        ? 'text-red-600'
+                        : 'text-gray-600'
                       }`}>
                       {item.amountDiff !== 0 ? (
                         <>
@@ -1213,10 +1213,10 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                       })}
                     </td>
                     <td className={`py-3 px-4 text-base text-center font-semibold ${item.qtyDiff > 0
-                        ? 'text-green-600'
-                        : item.qtyDiff < 0
-                          ? 'text-red-600'
-                          : 'text-gray-600'
+                      ? 'text-green-600'
+                      : item.qtyDiff < 0
+                        ? 'text-red-600'
+                        : 'text-gray-600'
                       }`}>
                       {item.qtyDiff !== 0 ? (
                         <>

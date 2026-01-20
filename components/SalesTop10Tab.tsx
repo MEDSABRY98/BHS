@@ -22,7 +22,7 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
-  
+
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
@@ -46,11 +46,11 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
-  
+
   // Sorting states for products
   const [productSortBy, setProductSortBy] = useState<'amount' | 'qty'>('amount');
   const [productSortDirection, setProductSortDirection] = useState<SortDirection>('desc');
-  
+
   // Sorting states for customers
   const [customerSortBy, setCustomerSortBy] = useState<'amount' | 'qty'>('amount');
   const [customerSortDirection, setCustomerSortDirection] = useState<SortDirection>('desc');
@@ -98,19 +98,19 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
         try {
           const itemDate = new Date(item.invoiceDate);
           if (isNaN(itemDate.getTime())) return false;
-          
+
           if (dateFrom) {
             const fromDate = new Date(dateFrom);
             fromDate.setHours(0, 0, 0, 0);
             if (itemDate < fromDate) return false;
           }
-          
+
           if (dateTo) {
             const toDate = new Date(dateTo);
             toDate.setHours(23, 59, 59, 999);
             if (itemDate > toDate) return false;
           }
-          
+
           return true;
         } catch (e) {
           return false;
@@ -139,45 +139,45 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
   // Products data - grouped by PRODUCT ID
   const productsData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
-    
-    const productMap = new Map<string, { 
+
+    const productMap = new Map<string, {
       productId: string;
-      barcodes: Set<string>; 
-      products: string[]; 
-      totalAmount: number; 
+      barcodes: Set<string>;
+      products: string[];
+      totalAmount: number;
       totalQty: number;
       invoiceNumbers: Set<string>;
     }>();
-    
+
     filteredData.forEach(item => {
       const key = item.productId || item.barcode || item.product;
-      const existing = productMap.get(key) || { 
+      const existing = productMap.get(key) || {
         productId: item.productId || '',
         barcodes: new Set<string>(),
-        products: [], 
-        totalAmount: 0, 
+        products: [],
+        totalAmount: 0,
         totalQty: 0,
         invoiceNumbers: new Set<string>()
       };
-      
+
       // Add barcode if it exists
       if (item.barcode) {
         existing.barcodes.add(item.barcode);
       }
-      
+
       // Add product name if not already in the list
       if (!existing.products.includes(item.product)) {
         existing.products.push(item.product);
       }
-      
+
       existing.totalAmount += item.amount;
       existing.totalQty += item.qty;
-      
+
       // Add invoice number for transaction count
       if (item.invoiceNumber) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
-      
+
       productMap.set(key, existing);
     });
 
@@ -194,33 +194,33 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
   // Customers data - grouped by customerId, display customerName
   const customersData = useMemo(() => {
     if (!filteredData || filteredData.length === 0) return [];
-    
-    const customerMap = new Map<string, { 
+
+    const customerMap = new Map<string, {
       customerId: string;
-      customerName: string; 
-      totalAmount: number; 
+      customerName: string;
+      totalAmount: number;
       totalQty: number;
       invoiceNumbers: Set<string>;
     }>();
-    
+
     filteredData.forEach(item => {
       const key = item.customerId || item.customerName; // Fallback to customerName if customerId is missing
       const existing = customerMap.get(key);
-      
+
       if (!existing) {
-        customerMap.set(key, { 
+        customerMap.set(key, {
           customerId: key,
-          customerName: item.customerName, 
-          totalAmount: 0, 
+          customerName: item.customerName,
+          totalAmount: 0,
           totalQty: 0,
           invoiceNumbers: new Set<string>()
         });
       }
-      
+
       const customer = customerMap.get(key)!;
       customer.totalAmount += item.amount;
       customer.totalQty += item.qty;
-      
+
       // Add invoice number for transaction count
       if (item.invoiceNumber) {
         customer.invoiceNumbers.add(item.invoiceNumber);
@@ -269,42 +269,42 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
   // Sorted and limited products
   const sortedProducts = useMemo(() => {
     let sorted = [...productsData];
-    
+
     if (productSortBy === 'amount') {
-      sorted.sort((a, b) => 
-        productSortDirection === 'asc' 
-          ? a.totalAmount - b.totalAmount 
+      sorted.sort((a, b) =>
+        productSortDirection === 'asc'
+          ? a.totalAmount - b.totalAmount
           : b.totalAmount - a.totalAmount
       );
     } else {
-      sorted.sort((a, b) => 
-        productSortDirection === 'asc' 
-          ? a.totalQty - b.totalQty 
+      sorted.sort((a, b) =>
+        productSortDirection === 'asc'
+          ? a.totalQty - b.totalQty
           : b.totalQty - a.totalQty
       );
     }
-    
+
     return sorted.slice(0, topCount);
   }, [productsData, productSortBy, productSortDirection, topCount]);
 
   // Sorted and limited customers
   const sortedCustomers = useMemo(() => {
     let sorted = [...customersData];
-    
+
     if (customerSortBy === 'amount') {
-      sorted.sort((a, b) => 
-        customerSortDirection === 'asc' 
-          ? a.totalAmount - b.totalAmount 
+      sorted.sort((a, b) =>
+        customerSortDirection === 'asc'
+          ? a.totalAmount - b.totalAmount
           : b.totalAmount - a.totalAmount
       );
     } else {
-      sorted.sort((a, b) => 
-        customerSortDirection === 'asc' 
-          ? a.totalQty - b.totalQty 
+      sorted.sort((a, b) =>
+        customerSortDirection === 'asc'
+          ? a.totalQty - b.totalQty
           : b.totalQty - a.totalQty
       );
     }
-    
+
     return sorted.slice(0, topCount);
   }, [customersData, customerSortBy, customerSortDirection, topCount]);
 
@@ -352,7 +352,7 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
       item.totalQty.toFixed(0),
       item.transactions
     ]);
-    
+
     // Add total row
     if (sortedCustomers.length > 0) {
       customerRows.push([
@@ -378,7 +378,7 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
       item.totalQty.toFixed(0),
       item.transactions
     ]);
-    
+
     // Add total row
     if (sortedProducts.length > 0) {
       productRows.push([
@@ -413,7 +413,7 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-8 flex items-center gap-3">
           <h1 className="text-3xl font-bold text-gray-800">TOP10</h1>
@@ -512,19 +512,17 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'area'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
                     {filterArea || 'All Areas'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'area' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'area' && (
@@ -534,11 +532,10 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                         setFilterArea('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterArea === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Areas
                     </div>
@@ -549,11 +546,10 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                           setFilterArea(area);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterArea === area
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {area}
                       </div>
@@ -573,19 +569,17 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'merchandiser'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
                     {filterMerchandiser || 'All Merchandisers'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'merchandiser' && (
@@ -595,11 +589,10 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                         setFilterMerchandiser('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterMerchandiser === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Merchandisers
                     </div>
@@ -610,11 +603,10 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                           setFilterMerchandiser(merchandiser);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterMerchandiser === merchandiser
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {merchandiser}
                       </div>
@@ -634,19 +626,17 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                 <button
                   type="button"
                   onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openDropdown === 'salesrep'
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
                       ? 'border-green-500 ring-2 ring-green-500/20'
                       : 'border-gray-200 hover:border-gray-300'
-                  }`}
+                    }`}
                 >
                   <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
                     {filterSalesRep || 'All Sales Reps'}
                   </span>
                   <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                    }`}
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
+                      }`}
                   />
                 </button>
                 {openDropdown === 'salesrep' && (
@@ -656,11 +646,10 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                         setFilterSalesRep('');
                         setOpenDropdown(null);
                       }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        filterSalesRep === ''
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
                           ? 'bg-green-50 text-green-700 font-semibold'
                           : 'text-gray-700 hover:bg-gray-50'
-                      }`}
+                        }`}
                     >
                       All Sales Reps
                     </div>
@@ -671,11 +660,10 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                           setFilterSalesRep(salesRep);
                           setOpenDropdown(null);
                         }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          filterSalesRep === salesRep
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
                             ? 'bg-green-50 text-green-700 font-semibold'
                             : 'text-gray-700 hover:bg-gray-50'
-                        }`}
+                          }`}
                       >
                         {salesRep}
                       </div>
@@ -773,15 +761,15 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                       <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{index + 1}</td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">{item.customer}</td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-                        {item.totalAmount.toLocaleString('en-US', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
+                        {item.totalAmount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-                        {item.totalQty.toLocaleString('en-US', { 
-                          minimumFractionDigits: 0, 
-                          maximumFractionDigits: 0 
+                        {item.totalQty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
@@ -798,15 +786,15 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                     <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
                       <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
                       <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                        {customerTotals.totalAmount.toLocaleString('en-US', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
+                        {customerTotals.totalAmount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                        {customerTotals.totalQty.toLocaleString('en-US', { 
-                          minimumFractionDigits: 0, 
-                          maximumFractionDigits: 0 
+                        {customerTotals.totalQty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 text-center">
@@ -873,15 +861,15 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-                        {item.totalAmount.toLocaleString('en-US', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
+                        {item.totalAmount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-                        {item.totalQty.toLocaleString('en-US', { 
-                          minimumFractionDigits: 0, 
-                          maximumFractionDigits: 0 
+                        {item.totalQty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
@@ -898,15 +886,15 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
                     <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
                       <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={3}>Total</td>
                       <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                        {productTotals.totalAmount.toLocaleString('en-US', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
+                        {productTotals.totalAmount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                        {productTotals.totalQty.toLocaleString('en-US', { 
-                          minimumFractionDigits: 0, 
-                          maximumFractionDigits: 0 
+                        {productTotals.totalQty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
                         })}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-800 text-center">
