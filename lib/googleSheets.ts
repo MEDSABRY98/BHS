@@ -1738,46 +1738,55 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
       // Calculate hours
       let hours = '0.00';
       if (timeFrom && timeTo) {
-        // Handle different time formats: "4", "4.30", "4:30"
-        const parseTime = (timeStr: string, amPm: string): { hours: number; minutes: number } => {
-          if (!timeStr) return { hours: 0, minutes: 0 };
+        // Special Case: If both times are "0", treat as 0 hours regardless of AM/PM
+        // This handles the user's workflow for "Day Off" where they enter 0 for both times
+        const isTimeFromZero = timeFrom === '0' || timeFrom === '0.0' || timeFrom === '0:00';
+        const isTimeToZero = timeTo === '0' || timeTo === '0.0' || timeTo === '0:00';
 
-          let h: number, m: number;
-          if (timeStr.includes(':')) {
-            const [hour, min] = timeStr.split(':').map(Number);
-            h = hour || 0;
-            m = min || 0;
-          } else if (timeStr.includes('.')) {
-            const [hour, min] = timeStr.split('.').map(Number);
-            h = hour || 0;
-            m = min || 0;
-          } else {
-            h = parseInt(timeStr) || 0;
-            m = 0;
-          }
+        if (isTimeFromZero && isTimeToZero) {
+          hours = '0.00';
+        } else {
+          // Handle different time formats: "4", "4.30", "4:30"
+          const parseTime = (timeStr: string, amPm: string): { hours: number; minutes: number } => {
+            if (!timeStr) return { hours: 0, minutes: 0 };
 
-          // Convert to 24-hour format based on AM/PM
-          if (amPm === 'AM') {
-            if (h === 12) h = 0; // 12 AM = 0 hours
-          } else { // PM
-            if (h !== 12) h += 12; // Add 12 for PM (except 12 PM)
-          }
+            let h: number, m: number;
+            if (timeStr.includes(':')) {
+              const [hour, min] = timeStr.split(':').map(Number);
+              h = hour || 0;
+              m = min || 0;
+            } else if (timeStr.includes('.')) {
+              const [hour, min] = timeStr.split('.').map(Number);
+              h = hour || 0;
+              m = min || 0;
+            } else {
+              h = parseInt(timeStr) || 0;
+              m = 0;
+            }
 
-          return { hours: h, minutes: m };
-        };
+            // Convert to 24-hour format based on AM/PM
+            if (amPm === 'AM') {
+              if (h === 12) h = 0; // 12 AM = 0 hours
+            } else { // PM
+              if (h !== 12) h += 12; // Add 12 for PM (except 12 PM)
+            }
 
-        const fromTime = parseTime(timeFrom, fromAmPm);
-        const toTime = parseTime(timeTo, toAmPm);
+            return { hours: h, minutes: m };
+          };
 
-        const fromMins = fromTime.hours * 60 + fromTime.minutes;
-        let toMins = toTime.hours * 60 + toTime.minutes;
-        if (toMins < fromMins) toMins += 24 * 60;
-        const calculatedHours = (toMins - fromMins) / 60;
+          const fromTime = parseTime(timeFrom, fromAmPm);
+          const toTime = parseTime(timeTo, toAmPm);
 
-        // Convert to base-60 format (4.30 instead of 4.5)
-        const wholeHours = Math.floor(calculatedHours);
-        const minutes = Math.round((calculatedHours - wholeHours) * 60);
-        hours = isNaN(calculatedHours) ? '0' : `${wholeHours}.${minutes}`;
+          const fromMins = fromTime.hours * 60 + fromTime.minutes;
+          let toMins = toTime.hours * 60 + toTime.minutes;
+          if (toMins < fromMins) toMins += 24 * 60;
+          const calculatedHours = (toMins - fromMins) / 60;
+
+          // Convert to base-60 format (4.30 instead of 4.5)
+          const wholeHours = Math.floor(calculatedHours);
+          const minutes = Math.round((calculatedHours - wholeHours) * 60);
+          hours = isNaN(calculatedHours) ? '0' : `${wholeHours}.${minutes}`;
+        }
       }
 
       return {
@@ -2659,5 +2668,62 @@ export async function updateChipsyInventoryQty(rowIndex: number, newQtyPcs: numb
   } catch (error) {
     console.error('Error updating Chipsy inventory:', error);
     throw error;
+  }
+}
+
+export async function getEmployeeSalaries(): Promise<Record<string, number>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Fetch header and data from Employee DataBase
+    // Fetching A:Z to ensure we cover enough columns to find "Salary"
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Employee DataBase'!A:Z`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return {};
+    }
+
+    // Find "Salary" column index from header (row 0)
+    const header = rows[0].map(h => h.toString().toLowerCase().trim());
+    // Look for 'salary' or 'basic salary'
+    const salaryIndex = header.findIndex(h => h === 'salary' || h === 'basic salary' || h.includes('salary'));
+
+    // Employee Name (En) is in column C (index 2) based on getEmployeeNames function
+    const nameIndex = 2; // Column C
+
+    if (salaryIndex === -1) {
+      console.warn('Salary column not found in Employee DataBase headers:', header);
+      return {};
+    }
+
+    const salaries: Record<string, number> = {};
+
+    // Skip header and process rows
+    rows.slice(1).forEach(row => {
+      const name = row[nameIndex]?.toString().trim();
+      // Clean salary string (remove commas, currency symbols if any)
+      const salaryStr = row[salaryIndex]?.toString().replace(/[^0-9.]/g, '').trim();
+
+      if (name) {
+        const salary = parseFloat(salaryStr);
+        if (!isNaN(salary) && salary > 0) {
+          salaries[name] = salary;
+        }
+      }
+    });
+
+    return salaries;
+  } catch (error) {
+    console.error('Error fetching employee salaries:', error);
+    return {};
   }
 }

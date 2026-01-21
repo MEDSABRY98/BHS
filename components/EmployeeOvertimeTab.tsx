@@ -35,6 +35,7 @@ export default function EmployeeOvertimeTab() {
   });
   const [overtimeRecords, setOvertimeRecords] = useState<any[]>([]);
   const [employeeNames, setEmployeeNames] = useState<string[]>([]);
+  const [employeeSalaries, setEmployeeSalaries] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
   const [loadingRecords, setLoadingRecords] = useState(false);
   const [loadingNames, setLoadingNames] = useState(false);
@@ -93,6 +94,9 @@ export default function EmployeeOvertimeTab() {
       const data = await response.json();
       if (response.ok) {
         setEmployeeNames(data.names || []);
+        if (data.salaries) {
+          setEmployeeSalaries(data.salaries);
+        }
       } else {
         console.error('Error fetching employee names:', data.error);
       }
@@ -536,14 +540,45 @@ export default function EmployeeOvertimeTab() {
       }
 
       // Parse hours (format: "4.30" means 4 hours and 30 minutes)
+      let recordTotalHours = 0;
       if (record.hours) {
         const hoursStr = record.hours.toString();
         const parts = hoursStr.split('.');
         const hours = parseInt(parts[0]) || 0;
         const minutes = parseInt(parts[1]) || 0;
-        const totalHours = hours + (minutes / 60);
-        stats[name].totalHours += totalHours;
+        recordTotalHours = hours + (minutes / 60);
+        stats[name].totalHours += recordTotalHours;
       }
+
+      // Calculate Amount based on Type and Day
+      let amount = 0;
+      let isSunday = false;
+      if (record.date) {
+        const dateObj = new Date(record.date);
+        if (!isNaN(dateObj.getTime()) && dateObj.getDay() === 0) {
+          isSunday = true;
+        }
+      }
+
+      const description = (record.description || '').toLowerCase();
+      const isHoliday = description.includes('holiday');
+      const type = (record.type || 'Overtime').trim();
+
+      // If Sunday OR Holiday description, and Type is Overtime, calculate as 1 day salary (Salary / 30)
+      if ((isSunday || isHoliday) && type === 'Overtime') {
+        const salary = employeeSalaries[name];
+        if (salary) {
+          amount = salary / 30;
+        } else {
+          // If no salary found, default to 0
+          amount = 0;
+        }
+      } else {
+        // Standard rate: 10 AED per hour
+        amount = recordTotalHours * 10;
+      }
+
+      stats[name].totalAmount += amount;
     });
 
     // Convert to array and calculate final values
@@ -551,9 +586,9 @@ export default function EmployeeOvertimeTab() {
       employeeName: name,
       days: data.dates.size,
       totalHours: data.totalHours,
-      totalAmount: data.totalHours * 10 // 10 AED per hour
+      totalAmount: data.totalAmount
     })).sort((a, b) => b.totalAmount - a.totalAmount); // Sort by amount descending
-  }, [overtimeRecords]);
+  }, [overtimeRecords, employeeSalaries]);
 
   // Apply filters to employee stats
   const filteredEmployeeStats = useMemo(() => {
@@ -652,14 +687,47 @@ export default function EmployeeOvertimeTab() {
       }
 
       // Parse hours (format: "4.30" means 4 hours and 30 minutes)
+      let recordTotalHours = 0;
       if (record.hours) {
         const hoursStr = record.hours.toString();
         const parts = hoursStr.split('.');
         const hours = parseInt(parts[0]) || 0;
         const minutes = parseInt(parts[1]) || 0;
-        const totalHours = hours + (minutes / 60);
-        stats[name].totalHours += totalHours;
+        recordTotalHours = hours + (minutes / 60);
+        stats[name].totalHours += recordTotalHours;
       }
+
+      // Calculate Amount based on Type and Day
+      let amount = 0;
+      let isSunday = false;
+      if (record.date) {
+        const dateObj = new Date(record.date);
+        if (!isNaN(dateObj.getTime()) && dateObj.getDay() === 0) {
+          isSunday = true;
+        }
+      }
+
+      const description = (record.description || '').toLowerCase();
+      const isHoliday = description.includes('holiday');
+      const type = (record.type || 'Overtime').trim();
+
+      // If Sunday OR Holiday description, and Type is Overtime, calculate as 1 day salary (Salary / 30)
+      if ((isSunday || isHoliday) && type === 'Overtime') {
+        const salary = employeeSalaries[name];
+        if (salary) {
+          amount = salary / 30;
+        } else {
+          amount = 0;
+        }
+      } else if (type === 'Overtime') {
+        // Standard rate: 10 AED per hour
+        amount = recordTotalHours * 10;
+      } else {
+        // Other types (Absent etc) - currently 10 AED/hr as per previous logic, unless changed
+        amount = recordTotalHours * 10;
+      }
+
+      stats[name].totalAmount += amount;
     });
 
     // Convert to array and calculate final values
@@ -667,9 +735,9 @@ export default function EmployeeOvertimeTab() {
       employeeName: name,
       days: data.dates.size,
       totalHours: data.totalHours,
-      totalAmount: data.totalHours * 10 // 10 AED per hour
+      totalAmount: data.totalAmount
     })).sort((a, b) => showAbsentStats ? b.days - a.days : b.totalAmount - a.totalAmount); // Sort by amount or days descending
-  }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo, statsSearchQuery, showAbsentStats]);
+  }, [overtimeRecords, filterYear, filterMonth, filterDateFrom, filterDateTo, statsSearchQuery, showAbsentStats, employeeSalaries]);
 
   // Export to Excel
   const exportToExcel = () => {
@@ -1136,7 +1204,19 @@ export default function EmployeeOvertimeTab() {
                       <tbody className="divide-y divide-gray-100">
                         {groupedRecords.map((group) => {
                           const isExpanded = expandedDates.has(group.date);
-                          const totalHours = group.records.reduce((sum, r) => sum + (parseFloat(r.hours) || 0), 0);
+                          // Calculate total hours in base 60 (hours and minutes)
+                          const totalMinutes = group.records.reduce((sum, r) => {
+                            const hStr = (r.hours || '0.00').toString();
+                            const parts = hStr.split('.');
+                            const h = parseInt(parts[0]) || 0;
+                            const m = parseInt(parts[1]) || 0;
+                            return sum + (h * 60) + m;
+                          }, 0);
+
+                          const hours = Math.floor(totalMinutes / 60);
+                          const minutes = Math.round(totalMinutes % 60);
+                          // Format as H.MM (pad minutes)
+                          const totalHoursFormatted = `${hours}.${minutes.toString().padStart(2, '0')}`;
 
                           const isGroupSunday = group.date ? new Date(group.date).getDay() === 0 : false;
 
@@ -1157,7 +1237,7 @@ export default function EmployeeOvertimeTab() {
                                       </span>
                                     </div>
                                     <span className="text-sm font-bold text-gray-700 bg-white px-3 py-1 rounded-full shadow-sm w-36 text-center inline-block">
-                                      Total: {totalHours.toFixed(2)}h
+                                      Total: {totalHoursFormatted}h
                                     </span>
                                   </div>
                                 </td>

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getEmployeeNames, saveEmployeeOvertime, getEmployeeOvertimeRecords, updateEmployeeOvertime, deleteEmployeeOvertime } from '@/lib/googleSheets';
+import { getEmployeeNames, getEmployeeSalaries, saveEmployeeOvertime, getEmployeeOvertimeRecords, updateEmployeeOvertime, deleteEmployeeOvertime } from '@/lib/googleSheets';
 
 // GET: Fetch employee names or all records
 export async function GET(request: Request) {
@@ -8,9 +8,12 @@ export async function GET(request: Request) {
     const type = searchParams.get('type');
 
     if (type === 'names') {
-      // Get employee names for dropdown
-      const names = await getEmployeeNames();
-      return NextResponse.json({ names });
+      // Get employee names for dropdown and salaries for calculation
+      const [names, salaries] = await Promise.all([
+        getEmployeeNames(),
+        getEmployeeSalaries()
+      ]);
+      return NextResponse.json({ names, salaries });
     } else {
       // Get all overtime records
       const records = await getEmployeeOvertimeRecords();
