@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Loading from './Loading';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 
 // --- Types ---
 interface ChipsyProduct {
@@ -16,6 +19,7 @@ interface ChipsyProduct {
     productName: string;
     qtyPcs: number;
     pcsInCtn: number;
+    price: number;
 }
 
 interface ChipsyTransfer {
@@ -28,9 +32,10 @@ interface ChipsyTransfer {
     productName: string;
     qtyPcs: number;
     description?: string;
+    number?: string;
 }
 
-type TabView = 'inventory' | 'transfers' | 'new_transaction' | 'people_inventory' | 'person_details';
+type TabView = 'inventory' | 'transfers' | 'new_transaction' | 'people_inventory' | 'person_details' | 'transaction_details';
 
 // --- Component ---
 export default function ChipsyInventoryTab() {
@@ -53,15 +58,23 @@ export default function ChipsyInventoryTab() {
     // Person Inventory State
     const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
 
+    // Transaction Details State
+    const [selectedTransactionNumber, setSelectedTransactionNumber] = useState<string>('');
+    const [selectedTransactionItems, setSelectedTransactionItems] = useState<ChipsyTransfer[]>([]);
+
+    // Print State
+    const [printTransaction, setPrintTransaction] = useState<any>(null);
+
     // Cart now holds all row data including search state for each row
     const [cart, setCart] = useState<{
         product: ChipsyProduct | null,
         qty: number | string,
         unit: 'CTN' | 'PCS',
+        price: number,
         searchTerm: string,
         showDropdown: boolean
     }[]>([
-        { product: null, qty: '', unit: 'CTN', searchTerm: '', showDropdown: false }
+        { product: null, qty: '', unit: 'CTN', price: 0, searchTerm: '', showDropdown: false }
     ]);
 
     useEffect(() => {
@@ -94,19 +107,32 @@ export default function ChipsyInventoryTab() {
         }
     };
 
+    // Auto-populate cart with all products when opening New Transaction tab
+    useEffect(() => {
+        if (activeTab === 'new_transaction' && products.length > 0) {
+            const sortedProducts = [...products].sort((a, b) => a.productName.localeCompare(b.productName));
+            console.log('Populating cart with', sortedProducts.length, 'products');
+
+            const allRows = sortedProducts.map(p => ({
+                product: p,
+                searchTerm: `${p.productName} - ${p.barcode}`,
+                qty: '',
+                unit: 'CTN' as 'CTN' | 'PCS',
+                price: p.price || 0,
+                showDropdown: false
+            }));
+            setCart(allRows);
+        }
+    }, [activeTab]);
+
     const activeUser = typeof window !== 'undefined' ? localStorage.getItem('currentUser') : 'Unknown';
 
     // Row Management
     const addRow = () => {
-        setCart([...cart, { product: null, qty: '', unit: 'CTN', searchTerm: '', showDropdown: false }]);
+        setCart([...cart, { product: null, qty: '', unit: 'CTN', price: 0, searchTerm: '', showDropdown: false }]);
     };
 
     const removeRow = (index: number) => {
-        if (cart.length === 1) {
-            // If it's the last row, just reset it
-            setCart([{ product: null, qty: '', unit: 'CTN', searchTerm: '', showDropdown: false }]);
-            return;
-        }
         const newCart = [...cart];
         newCart.splice(index, 1);
         setCart(newCart);
@@ -124,7 +150,8 @@ export default function ChipsyInventoryTab() {
         if (field === 'product') {
             // If selecting product, set product, set name to search term, hide dropdown
             newCart[index].product = value;
-            newCart[index].searchTerm = value.productName;
+            newCart[index].searchTerm = `${value.productName} - ${value.barcode}`;
+            newCart[index].price = value.price || 0;
             newCart[index].showDropdown = false;
             // Auto focus next qty input could be added here if we had refs
         }
@@ -141,41 +168,85 @@ export default function ChipsyInventoryTab() {
 
         setSubmitting(true);
         try {
-            const promises = validRows.map(row => {
-                // Determine actual Qty
-                const finalQty = parseFloat(row.qty as string);
-
-                const payload = {
-                    barcode: row.product!.barcode,
+            // New Batch Transaction Payload
+            const payload = {
+                transaction: {
                     type: transactionType,
-                    qty: finalQty,
-                    unit: row.unit,
+                    user: activeUser ? JSON.parse(activeUser).name : 'Unknown',
                     personName,
                     customerName,
-                    user: activeUser ? JSON.parse(activeUser).name : 'Unknown',
-                    description: description
-                };
+                    description
+                },
+                items: validRows.map(row => ({
+                    barcode: row.product!.barcode,
+                    qty: parseFloat(row.qty as string),
+                    unit: row.unit
+                }))
+            };
 
-                return fetch('/api/chipsy/transaction', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            const res = await fetch('/api/chipsy/transaction', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
             });
 
-            await Promise.all(promises);
+            const data = await res.json();
+
+            if (data.success && data.transactionNumber) {
+                // Set print data to trigger hidden invoice render
+                const now = new Date();
+                setPrintTransaction({
+                    number: data.transactionNumber,
+                    date: `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours()}:${now.getMinutes()}`,
+                    person: personName,
+                    customer: customerName,
+                    items: validRows.map(row => ({
+                        barcode: row.product!.barcode,
+                        name: row.product!.productName,
+                        qtyPcs: parseFloat(row.qty as string) * (row.unit === 'CTN' ? row.product!.pcsInCtn : 1),
+                        qtyCtns: (parseFloat(row.qty as string) * (row.unit === 'CTN' ? row.product!.pcsInCtn : 1)) / (row.product!.pcsInCtn || 1),
+                        price: row.price || 0
+                    }))
+                });
+
+                // Wait for render then print
+                setTimeout(async () => {
+                    const element = document.getElementById('transaction-invoice');
+                    if (element) {
+                        try {
+                            const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+                            const imgData = canvas.toDataURL('image/jpeg', 0.7);
+                            const pdf = new jsPDF('p', 'mm', 'a4');
+                            const pdfWidth = pdf.internal.pageSize.getWidth();
+                            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+                            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+                            pdf.save(`${data.transactionNumber}.pdf`);
+                        } catch (e) {
+                            console.error('PDF Generation Failed', e);
+                            alert('PDF Generation Failed');
+                        } finally {
+                            setPrintTransaction(null);
+                        }
+                    } else {
+                        console.error('Invoice element not found');
+                        setPrintTransaction(null);
+                    }
+                }, 1000);
+            }
 
             // Refresh Data
             await fetchData();
             setActiveTab('inventory');
 
-            // Reset Form (Single Empty Row)
-            setCart([{ product: null, qty: '', unit: 'CTN', searchTerm: '', showDropdown: false }]);
+            // Reset Form (Wait for fetch to finish to avoid UI jump?)
+            setCart([{ product: null, qty: '', unit: 'CTN', price: 0, searchTerm: '', showDropdown: false }]);
             setPersonName('');
             setCustomerName('');
             setDescription('');
 
         } catch (error) {
+            console.error(error);
             alert('Transaction Failed. Please try again.');
         } finally {
             setSubmitting(false);
@@ -377,37 +448,158 @@ export default function ChipsyInventoryTab() {
                     <table className="w-full text-center">
                         <thead className="bg-white text-gray-500 text-sm uppercase border-b border-gray-200">
                             <tr>
+                                <th className="p-4 font-semibold text-center">Trx #</th>
                                 <th className="p-4 font-semibold text-center">Date</th>
                                 <th className="p-4 font-semibold text-center">User</th>
                                 <th className="p-4 font-semibold text-center">Type</th>
-                                <th className="p-4 font-semibold text-center">Person Name</th>
-                                <th className="p-4 font-semibold text-center">Customer Name</th>
-
-                                <th className="p-4 font-semibold text-center">Product</th>
-                                <th className="p-4 font-semibold text-center">Qty (Pcs)</th>
+                                <th className="p-4 font-semibold text-center">Person / Customer</th>
+                                <th className="p-4 font-semibold text-center">Items</th>
+                                <th className="p-4 font-semibold text-center">Total Qty (Pcs)</th>
+                                <th className="p-4 font-semibold text-center">Total Qty (Ctns)</th>
                                 <th className="p-4 font-semibold text-center">Description</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {transfers.map((t, idx) => (
-                                <tr key={idx} className="hover:bg-gray-50">
-                                    <td className="p-4 text-sm text-gray-500 text-center">{t.date}</td>
-                                    <td className="p-4 text-sm font-medium text-gray-700 text-center">{t.user}</td>
-                                    <td className="p-4 text-center">
-                                        <span className={`px-2 py-1 rounded text-xs font-bold ${t.type === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                            {t.type}
-                                        </span>
-                                    </td>
-                                    <td className="p-4 text-sm text-gray-600 text-center">{t.personName || '-'}</td>
-                                    <td className="p-4 text-sm text-gray-600 text-center">{t.customerName || '-'}</td>
+                            {(() => {
+                                const grouped = new Map<string, typeof transfers>();
+                                transfers.forEach(t => {
+                                    const key = t.number || `LEGACY-${t.date}-${t.personName}`;
+                                    if (!grouped.has(key)) grouped.set(key, []);
+                                    grouped.get(key)!.push(t);
+                                });
 
-                                    <td className="p-4 text-sm text-gray-800 text-center">{t.productName}</td>
-                                    <td className="p-4 font-mono font-medium text-center">{t.qtyPcs > 0 ? '+' : ''}{t.type === 'OUT' ? '-' : ''}{t.qtyPcs}</td>
-                                    <td className="p-4 text-sm text-gray-500 text-center italic">{t.description || '-'}</td>
-                                </tr>
-                            ))}
+                                return Array.from(grouped.entries()).map(([trxNum, items], idx) => {
+                                    const first = items[0];
+                                    const count = items.length;
+                                    const totalQty = items.reduce((acc, i) => acc + i.qtyPcs, 0);
+
+                                    const totalCartons = items.reduce((acc, i) => {
+                                        const p = products.find(prod => prod.barcode === i.barcode);
+                                        return acc + (i.qtyPcs / (p?.pcsInCtn || 1));
+                                    }, 0).toFixed(1);
+
+                                    return (
+                                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                            <td className="p-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectedTransactionNumber(trxNum);
+                                                        setSelectedTransactionItems(items);
+                                                        setActiveTab('transaction_details');
+                                                    }}
+                                                    className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                                                >
+                                                    {trxNum.startsWith('LEGACY') ? 'Old Log' : trxNum}
+                                                </button>
+                                            </td>
+                                            <td className="p-4 text-sm text-gray-500">{first.date}</td>
+                                            <td className="p-4 text-sm font-medium text-gray-700">{first.user}</td>
+                                            <td className="p-4">
+                                                <span className={`px-2 py-1 rounded text-xs font-bold ${first.type === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                                    {first.type}
+                                                </span>
+                                            </td>
+                                            <td className="p-4 text-sm text-gray-600">
+                                                <div className="flex flex-col items-center">
+                                                    <span className="font-bold">{first.personName || '-'}</span>
+                                                    {first.customerName && <span className="text-xs text-gray-400">{first.customerName}</span>}
+                                                </div>
+                                            </td>
+                                            <td className="p-4 text-sm font-bold text-gray-700">{count}</td>
+                                            <td className="p-4 font-mono font-medium text-gray-800">{totalQty}</td>
+                                            <td className="p-4 font-mono font-medium text-green-700">{totalCartons}</td>
+                                            <td className="p-4 text-sm text-gray-500 italic">{first.description || '-'}</td>
+                                        </tr>
+                                    );
+                                });
+                            })()}
                         </tbody>
                     </table>
+                </div>
+            )}
+
+            {/* Transaction Details Tab */}
+            {activeTab === 'transaction_details' && (
+                <div className="space-y-6 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => setActiveTab('transfers')}
+                                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                >
+                                    <ArrowLeft className="w-6 h-6 text-gray-600" />
+                                </button>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800">
+                                        Transaction {selectedTransactionNumber.startsWith('LEGACY') ? 'Details' : selectedTransactionNumber}
+                                    </h2>
+                                    <p className="text-gray-500 text-sm">{selectedTransactionItems[0]?.date}</p>
+                                </div>
+                            </div>
+                            <span className={`px-4 py-2 rounded-lg text-sm font-bold ${selectedTransactionItems[0]?.type === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                                {selectedTransactionItems[0]?.type === 'IN' ? 'RECEIVED' : 'ISSUED'}
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8 p-4 bg-gray-50 rounded-xl">
+                            <div className="text-center">
+                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">User</p>
+                                <p className="font-semibold text-gray-800">{selectedTransactionItems[0]?.user}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Person Name</p>
+                                <p className="font-semibold text-gray-800">{selectedTransactionItems[0]?.personName || '-'}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Customer</p>
+                                <p className="font-semibold text-gray-800">{selectedTransactionItems[0]?.customerName || '-'}</p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Qty</p>
+                                <p className="font-semibold text-blue-600">
+                                    {selectedTransactionItems.reduce((acc, i) => acc + i.qtyPcs, 0)} Pcs
+                                </p>
+                            </div>
+                            <div className="text-center">
+                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Cartons</p>
+                                <p className="font-semibold text-green-600">
+                                    {selectedTransactionItems.reduce((acc, i) => {
+                                        const p = products.find(prod => prod.barcode === i.barcode);
+                                        return acc + (i.qtyPcs / (p?.pcsInCtn || 1));
+                                    }, 0).toFixed(1)} Ctns
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="overflow-hidden rounded-xl border border-gray-200">
+                            <table className="w-full text-center">
+                                <thead className="bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase">Barcode</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase">Product Name</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase">Qty (Pieces)</th>
+                                        <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase">Qty (Ctns)</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100 bg-white">
+                                    {[...selectedTransactionItems].sort((a, b) => a.productName.localeCompare(b.productName)).map((item, idx) => {
+                                        const product = products.find(p => p.barcode === item.barcode);
+                                        const pcsInCtn = product?.pcsInCtn || 1;
+                                        const cartons = (item.qtyPcs / pcsInCtn).toFixed(1);
+                                        return (
+                                            <tr key={idx} className="hover:bg-gray-50">
+                                                <td className="px-6 py-4 font-mono text-sm text-gray-500 text-center">{item.barcode}</td>
+                                                <td className="px-6 py-4 font-medium text-gray-900 text-center">{item.productName}</td>
+                                                <td className="px-6 py-4 text-center font-bold text-blue-600">{item.qtyPcs}</td>
+                                                <td className="px-6 py-4 text-center font-medium text-gray-600">{cartons}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             )}
 
@@ -490,25 +682,31 @@ export default function ChipsyInventoryTab() {
                             <table className="w-full">
                                 <thead className="bg-white border-b border-gray-200">
                                     <tr>
-                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[50%]">Product</th>
-                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[20%]">Quantity</th>
-                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[20%]">Unit</th>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 w-[10%]">Action</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 w-[5%]">#</th>
+                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[30%]">Product</th>
+                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[15%]">Quantity</th>
+                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[15%]">Unit</th>
+                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[15%]">Price / Pcs</th>
+                                        <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 w-[15%]">Total</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 w-[5%]">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {cart.map((row, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50/50">
+                                            {/* Index */}
+                                            <td className="px-6 py-4 align-top text-center font-bold text-gray-400 pt-7">
+                                                {idx + 1}
+                                            </td>
+
                                             {/* Product Search Input */}
                                             <td className="px-6 py-4 align-top">
                                                 <div className="relative">
-                                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
                                                     <input
                                                         type="text"
                                                         value={row.searchTerm}
                                                         onChange={e => updateRow(idx, 'searchTerm', e.target.value)}
                                                         onFocus={() => {
-                                                            if (row.product) updateRow(idx, 'searchTerm', ''); // Clear name on fix to allow search
                                                             updateRow(idx, 'showDropdown', true);
                                                         }}
                                                         onBlur={() => {
@@ -516,7 +714,7 @@ export default function ChipsyInventoryTab() {
                                                             setTimeout(() => updateRow(idx, 'showDropdown', false), 200);
                                                         }}
                                                         placeholder="Search Name / Barcode..."
-                                                        className={`w-full h-[50px] pl-9 pr-4 border-2 rounded-xl text-sm font-medium outline-none transition-all flex items-center ${row.product ? 'border-blue-100 bg-blue-50 text-blue-800' : 'border-gray-200 focus:border-orange-400'}`}
+                                                        className={`w-full h-[50px] px-4 border-2 rounded-xl text-sm font-medium outline-none transition-all flex items-center ${row.product ? 'border-blue-100 bg-blue-50 text-blue-800' : 'border-gray-200 focus:border-orange-400'}`}
                                                     />
 
                                                     {/* Row Dropdown */}
@@ -548,7 +746,7 @@ export default function ChipsyInventoryTab() {
 
                                                     {row.product && row.product.pcsInCtn > 1 && (
                                                         <div className="mt-2 text-xs text-blue-400 pl-2">
-                                                            Pcs/Ctn: {row.product.pcsInCtn} | Stock: {row.product.qtyPcs}
+                                                            Pcs/Ctn: {row.product.pcsInCtn} | Stock: {row.product.qtyPcs} Pcs / {(row.product.qtyPcs / row.product.pcsInCtn).toFixed(1)} Ctns
                                                         </div>
                                                     )}
                                                 </div>
@@ -583,6 +781,29 @@ export default function ChipsyInventoryTab() {
                                                 </div>
                                             </td>
 
+                                            {/* Price Input */}
+                                            <td className="px-6 py-4 align-top">
+                                                <input
+                                                    type="number"
+                                                    value={row.price}
+                                                    onChange={e => updateRow(idx, 'price', parseFloat(e.target.value))}
+                                                    className="w-full h-[50px] border-2 border-gray-200 rounded-xl text-center font-bold focus:border-orange-400 outline-none"
+                                                />
+                                            </td>
+
+                                            {/* Total Display */}
+                                            <td className="px-6 py-4 align-top">
+                                                <div className="h-[50px] flex items-center justify-center font-mono font-bold text-gray-700 bg-gray-50 rounded-xl border border-gray-200">
+                                                    {(() => {
+                                                        const qty = parseFloat(row.qty as string) || 0;
+                                                        const pcsInCtn = row.product?.pcsInCtn || 1;
+                                                        const multiplier = row.unit === 'CTN' ? pcsInCtn : 1;
+                                                        const total = qty * multiplier * (row.price || 0);
+                                                        return total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                                    })()}
+                                                </div>
+                                            </td>
+
                                             {/* Delete Action */}
                                             <td className="px-6 py-4 align-top text-center">
                                                 <div className="h-[50px] flex items-center justify-center">
@@ -602,11 +823,43 @@ export default function ChipsyInventoryTab() {
                             </table>
                         </div>
 
+                        {/* Totals Footer */}
+                        <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                            {(() => {
+                                const subTotal = cart.reduce((acc, row) => {
+                                    const qty = parseFloat(row.qty as string) || 0;
+                                    const pcsInCtn = row.product?.pcsInCtn || 1;
+                                    const multiplier = row.unit === 'CTN' ? pcsInCtn : 1;
+                                    return acc + (qty * multiplier * (row.price || 0));
+                                }, 0);
+                                const vat = subTotal * 0.05;
+                                const grandTotal = subTotal + vat;
+
+                                return (
+                                    <div className="flex justify-end gap-8">
+                                        <div className="text-right">
+                                            <p className="text-xs font-bold text-gray-400 uppercase">Subtotal</p>
+                                            <p className="font-mono font-bold text-gray-800">{subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-bold text-gray-400 uppercase">VAT (5%)</p>
+                                            <p className="font-mono font-bold text-red-600">{vat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className="text-xs font-bold text-gray-400 uppercase">Grand Total</p>
+                                            <p className="font-mono font-bold text-xl text-blue-600">{grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+
                         {/* Footer Actions */}
                         <div className="bg-white px-6 py-4 border-t border-gray-200 flex justify-between items-center">
                             <button
                                 onClick={addRow}
-                                className="flex items-center gap-2 text-orange-600 font-bold hover:bg-orange-100 px-4 py-2 rounded-lg transition-colors"
+                                disabled={submitting}
+                                className="flex items-center gap-2 text-orange-600 font-bold hover:bg-orange-100 px-4 py-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 <Plus className="w-5 h-5" /> Add New Row
                             </button>
@@ -614,7 +867,8 @@ export default function ChipsyInventoryTab() {
                             <div className="flex gap-4">
                                 <button
                                     onClick={() => setActiveTab('inventory')}
-                                    className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-200 rounded-xl transition-colors"
+                                    disabled={submitting}
+                                    className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-200 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                                 >
                                     Cancel
                                 </button>
@@ -744,6 +998,80 @@ export default function ChipsyInventoryTab() {
                 )
             }
 
+            {/* Hidden Invoice Template */}
+            {printTransaction && (
+                <div style={{ position: 'fixed', top: '-9999px', left: '-9999px' }}>
+                    <div id="transaction-invoice" style={{ width: '210mm', minHeight: '297mm', padding: '15mm', backgroundColor: 'white', color: 'black', fontFamily: 'Arial, sans-serif' }}>
+                        {/* Header */}
+                        <div style={{ textAlign: 'center', marginBottom: '5mm' }}>
+                            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0' }}>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
+                        </div>
+
+                        {/* Info Section */}
+                        <div style={{ textAlign: 'center', marginBottom: '10mm', borderBottom: '1px solid #ddd', paddingBottom: '5mm' }}>
+                            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '5mm', fontSize: '14px', fontWeight: 'bold' }}>
+                                <span>{printTransaction.date}</span>
+                                <span>|</span>
+                                <span>{printTransaction.number}</span>
+                                <span>|</span>
+                                <span>{printTransaction.person}</span>
+                            </div>
+
+                            {printTransaction.customer && (
+                                <div style={{ fontSize: '16px', color: '#000', fontWeight: 'bold' }}>
+                                    {printTransaction.customer}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Table */}
+                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10mm' }}>
+                            <thead>
+                                <tr style={{ backgroundColor: '#16a34a', color: 'white' }}>
+                                    <th style={{ width: '40%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Barcode / Product</th>
+                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Qty (Pcs)</th>
+                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Qty (Ctns)</th>
+                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Price</th>
+                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {printTransaction.items.map((item: any, idx: number) => {
+                                    const total = item.qtyPcs * item.price;
+                                    return (
+                                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
+                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>
+                                                <span style={{ fontWeight: 'bold', marginRight: '5px' }}>{item.barcode}</span>
+                                                <span>{item.name}</span>
+                                            </td>
+                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{item.qtyPcs}</td>
+                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{item.qtyCtns.toFixed(2)}</td>
+                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{item.price.toFixed(2)}</td>
+                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{total.toFixed(2)}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+
+                        {/* Footer Totals */}
+                        <div style={{ float: 'right', width: '60mm', textAlign: 'right', fontSize: '12px' }}>
+                            {(() => {
+                                const subTotal = printTransaction.items.reduce((acc: number, item: any) => acc + (item.qtyPcs * item.price), 0);
+                                const vat = subTotal * 0.05;
+                                const grandTotal = subTotal + vat;
+                                return (
+                                    <>
+                                        <div style={{ marginBottom: '2mm', display: 'flex', justifyContent: 'space-between' }}><span>Subtotal:</span> <span style={{ fontWeight: 'bold' }}>{subTotal.toFixed(2)}</span></div>
+                                        <div style={{ marginBottom: '2mm', display: 'flex', justifyContent: 'space-between' }}><span>VAT (5%):</span> <span style={{ fontWeight: 'bold' }}>{vat.toFixed(2)}</span></div>
+                                        <div style={{ borderTop: '1px solid #000', paddingTop: '2mm', fontSize: '14px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}><span>Grand Total:</span> <span>{grandTotal.toFixed(2)}</span></div>
+                                    </>
+                                );
+                            })()}
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 }

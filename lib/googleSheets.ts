@@ -2488,9 +2488,11 @@ export interface ChipsyProduct {
   productName: string;
   qtyPcs: number;     // Current Stock in Pieces
   pcsInCtn: number;   // Pieces per Carton
+  price: number;      // Price per Piece
 }
 
 export interface ChipsyTransfer {
+  number: string; // New Transaction Number (e.g., TRX-001)
   user: string;
   date: string;
   type: 'IN' | 'OUT';
@@ -2513,7 +2515,7 @@ export async function getChipsyInventory(): Promise<ChipsyProduct[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - Chipsy'!A:D`, // BARCODE, PRODUCT, PCS QTY, PCS IN CTN
+      range: `'Inventory - Chipsy'!A:E`, // BARCODE, PRODUCT, PCS QTY, PCS IN CTN, PRICE
     });
 
     const rows = response.data.values;
@@ -2527,6 +2529,7 @@ export async function getChipsyInventory(): Promise<ChipsyProduct[]> {
         productName: row[1]?.toString() || '',
         qtyPcs: parseInt(row[2]?.toString().replace(/,/g, '') || '0'),
         pcsInCtn: parseInt(row[3]?.toString().replace(/,/g, '') || '1'), // Default to 1 if missing
+        price: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
       };
     }).filter(p => p.productName); // Filter empty rows
   } catch (error) {
@@ -2544,9 +2547,10 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
+    // A: User, B: Number, C: Date, D: Type, E: Person, F: Customer, G: Barcode, H: Product, I: Qty, J: Description
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:I`, // USER, DATE, TYPE, PERSON, CUSTOMER, BARCODE, PRODUCT, PCS QTY, DESCRIPTION
+      range: `'TRANSFERS - Chipsy'!A:J`,
     });
 
     const rows = response.data.values;
@@ -2555,14 +2559,15 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
     // Skip header
     return rows.slice(1).map(row => ({
       user: row[0]?.toString() || '',
-      date: row[1]?.toString() || '',
-      type: (row[2]?.toString() || 'IN') as 'IN' | 'OUT',
-      personName: row[3]?.toString() || '',
-      customerName: row[4]?.toString() || '',
-      barcode: row[5]?.toString() || '',
-      productName: row[6]?.toString() || '',
-      qtyPcs: parseInt(row[7]?.toString().replace(/,/g, '') || '0'),
-      description: row[8]?.toString() || '',
+      number: row[1]?.toString() || '', // New Number Column
+      date: row[2]?.toString() || '',
+      type: (row[3]?.toString() || 'IN') as 'IN' | 'OUT',
+      personName: row[4]?.toString() || '',
+      customerName: row[5]?.toString() || '',
+      barcode: row[6]?.toString() || '',
+      productName: row[7]?.toString() || '',
+      qtyPcs: parseInt(row[8]?.toString().replace(/,/g, '') || '0'),
+      description: row[9]?.toString() || '',
     })).reverse(); // Show newest first
   } catch (error) {
     console.error('Error fetching Chipsy transfers:', error);
@@ -2570,7 +2575,29 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
   }
 }
 
-export async function addChipsyTransfer(transfer: ChipsyTransfer) {
+export async function getNextChipsyTransactionNumber(): Promise<string> {
+  try {
+    const transfers = await getChipsyTransfers();
+    // transfers are already reversed (newest first). 
+    // Find the max number. Format: TRX-0001
+    let max = 0;
+    const pattern = /^TRX-(\d+)$/;
+
+    for (const t of transfers) {
+      const match = t.number.match(pattern);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (num > max) max = num;
+      }
+    }
+    const next = max + 1;
+    return `TRX-${next.toString().padStart(4, '0')}`;
+  } catch (error) {
+    return 'TRX-0001';
+  }
+}
+
+export async function addChipsyBulkTransfers(transfers: ChipsyTransfer[]) {
   try {
     const credentials = getServiceAccountCredentials();
     const auth = new google.auth.GoogleAuth({
@@ -2579,29 +2606,36 @@ export async function addChipsyTransfer(transfer: ChipsyTransfer) {
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
+    const values = transfers.map(t => [
+      t.user,
+      t.number,
+      t.date,
+      t.type,
+      t.personName,
+      t.customerName,
+      t.barcode,
+      t.productName,
+      t.qtyPcs,
+      t.description || ''
+    ]);
+
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:I`,
+      range: `'TRANSFERS - Chipsy'!A:J`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[
-          transfer.user,
-          transfer.date,
-          transfer.type,
-          transfer.personName,
-          transfer.customerName,
-          transfer.barcode,
-          transfer.productName,
-          transfer.qtyPcs,
-          transfer.description || ''
-        ]],
-      },
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values },
     });
     return { success: true };
   } catch (error) {
-    console.error('Error adding Chipsy transfer:', error);
+    console.error('Error adding Chipsy bulk transfers:', error);
     throw error;
   }
+}
+
+// Keep single add for backward compatibility if needed, but updated for new structure
+export async function addChipsyTransfer(transfer: ChipsyTransfer) {
+  return addChipsyBulkTransfers([transfer]);
 }
 
 export async function updateChipsyInventoryQty(rowIndex: number, newQtyPcs: number) {

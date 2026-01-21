@@ -154,7 +154,8 @@ export async function generateAccountStatementPDF(
   // Calculate totals
   const totalDebit = invoices.reduce((sum, inv) => sum + inv.debit, 0);
   const totalCredit = invoices.reduce((sum, inv) => sum + inv.credit, 0);
-  const totalNetDebt = invoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+  // Calculate total net debt as difference between total debit and total credit to ensure consistency
+  const totalNetDebt = totalDebit - totalCredit;
 
   // Define Table Options
   const tableOptions = {
@@ -620,7 +621,8 @@ export async function generateMonthlySeparatedPDF(
     // Calculate totals for this month
     const totalDebit = monthInvoices.reduce((sum, inv) => sum + inv.debit, 0);
     const totalCredit = monthInvoices.reduce((sum, inv) => sum + inv.credit, 0);
-    const totalNetDebt = monthInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
+    // Calculate total net debt as difference between total debit and total credit
+    const totalNetDebt = totalDebit - totalCredit;
 
     tableData.push([
       '',
