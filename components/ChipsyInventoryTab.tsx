@@ -10,7 +10,8 @@ import { useRouter } from 'next/navigation';
 import Loading from './Loading';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import html2canvas from 'html2canvas';
+import { addArabicFont } from '@/lib/pdfUtils';
+
 
 // --- Types ---
 interface ChipsyProduct {
@@ -25,20 +26,25 @@ interface ChipsyProduct {
 interface ChipsyTransfer {
     user: string;
     date: string;
-    type: 'IN' | 'OUT';
-    personName?: string;
+    locFrom: string;
+    locTo: string;
     customerName?: string;
     barcode: string;
     productName: string;
     qtyPcs: number;
     description?: string;
     number?: string;
+    // Legacy support for type if data still has it
+    type?: 'IN' | 'OUT';
+    personName?: string;
+    receiverName?: string;
 }
 
 type TabView = 'inventory' | 'transfers' | 'new_transaction' | 'people_inventory' | 'person_details' | 'transaction_details';
 
 // --- Component ---
 export default function ChipsyInventoryTab() {
+
     const [activeTab, setActiveTab] = useState<TabView>('inventory');
     const [products, setProducts] = useState<ChipsyProduct[]>([]);
     const [transfers, setTransfers] = useState<ChipsyTransfer[]>([]);
@@ -48,7 +54,12 @@ export default function ChipsyInventoryTab() {
     // Transaction Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<ChipsyProduct | null>(null);
-    const [transactionType, setTransactionType] = useState<'IN' | 'OUT'>('OUT');
+
+    // UI State for Selection
+    const [sourceType, setSourceType] = useState<'Main Inventory' | 'Person'>('Main Inventory');
+    const [destType, setDestType] = useState<'Main Inventory' | 'Person' | 'Customer'>('Person');
+
+    // Data Inputs
     const [personName, setPersonName] = useState('');
     const [customerName, setCustomerName] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -57,13 +68,14 @@ export default function ChipsyInventoryTab() {
 
     // Person Inventory State
     const [selectedPerson, setSelectedPerson] = useState<string | null>(null);
+    const [personSubTab, setPersonSubTab] = useState<'summary' | 'transactions'>('summary');
 
     // Transaction Details State
     const [selectedTransactionNumber, setSelectedTransactionNumber] = useState<string>('');
     const [selectedTransactionItems, setSelectedTransactionItems] = useState<ChipsyTransfer[]>([]);
 
     // Print State
-    const [printTransaction, setPrintTransaction] = useState<any>(null);
+
 
     // Cart now holds all row data including search state for each row
     const [cart, setCart] = useState<{
@@ -164,23 +176,50 @@ export default function ChipsyInventoryTab() {
         // Filter out incomplete rows
         const validRows = cart.filter(row => row.product && row.qty && parseFloat(row.qty as string) > 0);
 
-        if (validRows.length === 0 || !personName) return;
+        if (validRows.length === 0) return;
+
+        // Derive Locations
+        let finalLocFrom = sourceType === 'Main Inventory' ? 'Main Inventory' : personName;
+        let finalLocTo = destType === 'Main Inventory' ? 'Main Inventory' : (destType === 'Customer' ? 'Customer' : personName);
+
+        // Validation
+        if (!finalLocFrom || !finalLocTo) {
+            alert('Please specify Locations and Names.');
+            return;
+        }
+        if (finalLocFrom === finalLocTo) {
+            alert('Source and Destination cannot be the same.');
+            return;
+        }
+        if ((sourceType === 'Person' || destType === 'Person') && !personName) {
+            alert('Please enter a Person Name.');
+            return;
+        }
+
+        if (destType === 'Customer' && !customerName) {
+            alert('Please enter a Customer Name.');
+            return;
+        }
+
+        const receiverName = (destType === 'Customer' && sourceType !== 'Person' && personName) ? personName : '';
 
         setSubmitting(true);
         try {
             // New Batch Transaction Payload
             const payload = {
                 transaction: {
-                    type: transactionType,
                     user: activeUser ? JSON.parse(activeUser).name : 'Unknown',
-                    personName,
-                    customerName,
+                    locFrom: finalLocFrom,
+                    locTo: finalLocTo,
+                    customerName: destType === 'Customer' ? customerName : '',
+                    receiverName,
                     description
                 },
                 items: validRows.map(row => ({
                     barcode: row.product!.barcode,
                     qty: parseFloat(row.qty as string),
-                    unit: row.unit
+                    unit: row.unit,
+                    price: row.price || 0
                 }))
             };
 
@@ -193,46 +232,201 @@ export default function ChipsyInventoryTab() {
             const data = await res.json();
 
             if (data.success && data.transactionNumber) {
-                // Set print data to trigger hidden invoice render
+                // Generate Real PDF
+                const doc = new jsPDF();
+
+                // Load Arabic Font
+                try {
+                    await addArabicFont(doc);
+                    doc.setFont("Amiri", "normal");
+                } catch (e) {
+                    console.error("Could not load Arabic font, falling back", e);
+                }
+
+                // Header
+                doc.setFontSize(16);
+                // doc.setFont("helvetica", "bold"); // Replaced with Amiri
+                doc.text("Al Marai Al Arabia Trading Sole Proprietorship L.L.C", 105, 15, { align: "center" });
+
+                // Info Line
+                doc.setFontSize(10);
+                // doc.setFont("helvetica", "normal");
                 const now = new Date();
-                setPrintTransaction({
-                    number: data.transactionNumber,
-                    date: `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours()}:${now.getMinutes()}`,
-                    person: personName,
-                    customer: customerName,
-                    items: validRows.map(row => ({
-                        barcode: row.product!.barcode,
-                        name: row.product!.productName,
-                        qtyPcs: parseFloat(row.qty as string) * (row.unit === 'CTN' ? row.product!.pcsInCtn : 1),
-                        qtyCtns: (parseFloat(row.qty as string) * (row.unit === 'CTN' ? row.product!.pcsInCtn : 1)) / (row.product!.pcsInCtn || 1),
-                        price: row.price || 0
-                    }))
+                const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours()}:${now.getMinutes()}`;
+
+                // Transaction Info
+                const infoText = `${dateStr}  |  ${data.transactionNumber}`;
+                doc.text(infoText, 105, 25, { align: "center" });
+
+                // Movement Info
+                // Movement Info
+                doc.setFontSize(11);
+                // doc.setFont("helvetica", "bold");
+
+                let movementText = '';
+
+                // Simplified Format for Issues (Main -> Person/Customer)
+                if (finalLocFrom === 'Main Inventory') {
+                    if (finalLocTo === 'Customer' && customerName) {
+                        movementText = `Customer: ${customerName}`;
+                    } else {
+                        movementText = `Person: ${finalLocTo}`;
+                    }
+                } else {
+                    // Standard Format for Transfers/returns
+                    let toText = finalLocTo;
+                    if (finalLocTo === 'Customer' && customerName) {
+                        toText = `Customer: ${customerName}`;
+                    }
+                    movementText = `From: ${finalLocFrom}   >>   To: ${toText}`;
+                }
+
+                doc.text(movementText, 105, 33, { align: "center" });
+
+                let yPos = 40;
+
+                // Table Data
+                // Table Data
+                const tableHead = [["Barcode", "Product", "Qty (Pcs)", "Qty (Ctns)", "Price", "Total"]];
+                const tableBody = validRows.map(row => {
+                    const qty = parseFloat(row.qty as string);
+                    const pcsInCtn = row.product!.pcsInCtn || 1;
+                    const totalPcs = row.unit === 'CTN' ? qty * pcsInCtn : qty;
+                    const totalCtns = totalPcs / pcsInCtn;
+                    const price = row.price || 0;
+                    const total = totalPcs * price;
+
+                    return [
+                        row.product!.barcode,
+                        row.product!.productName,
+                        totalPcs.toLocaleString(),
+                        totalCtns.toFixed(2),
+                        price.toFixed(2),
+                        total.toFixed(2)
+                    ];
                 });
 
-                // Wait for render then print
-                setTimeout(async () => {
-                    const element = document.getElementById('transaction-invoice');
-                    if (element) {
-                        try {
-                            const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
-                            const imgData = canvas.toDataURL('image/jpeg', 0.7);
-                            const pdf = new jsPDF('p', 'mm', 'a4');
-                            const pdfWidth = pdf.internal.pageSize.getWidth();
-                            const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-                            pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
-                            pdf.save(`${data.transactionNumber}.pdf`);
-                        } catch (e) {
-                            console.error('PDF Generation Failed', e);
-                            alert('PDF Generation Failed');
-                        } finally {
-                            setPrintTransaction(null);
-                        }
-                    } else {
-                        console.error('Invoice element not found');
-                        setPrintTransaction(null);
+                autoTable(doc, {
+                    head: tableHead,
+                    body: tableBody,
+                    startY: yPos,
+                    theme: 'grid',
+                    headStyles: { fillColor: [22, 163, 74], font: 'Amiri', halign: 'center' },
+                    styles: {
+                        fontSize: 10,
+                        cellPadding: 2,
+                        halign: 'center',
+                        valign: 'middle',
+                        font: 'Amiri' // Use Arabic font in body
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 'auto', halign: 'center' }, // Barcode Center
+                        1: { cellWidth: 'auto', halign: 'center' }  // Product Name Center
                     }
-                }, 1000);
+                });
+
+                // Totals
+                // @ts-ignore
+                const finalY = (doc as any).lastAutoTable.finalY + 10;
+
+                const subTotal = validRows.reduce((acc, row) => {
+                    const qty = parseFloat(row.qty as string);
+                    const pcsInCtn = row.product!.pcsInCtn || 1;
+                    const totalPcs = row.unit === 'CTN' ? qty * pcsInCtn : qty;
+                    return acc + (totalPcs * (row.price || 0));
+                }, 0);
+                const vat = subTotal * 0.05;
+                const grandTotal = subTotal + vat;
+
+                // Better Totals Design using autoTable
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const tableWidth = 80;
+                const rightMargin = 14; // Default autoTable margin
+                const marginLeft = pageWidth - tableWidth - rightMargin;
+
+                autoTable(doc, {
+                    startY: finalY,
+                    margin: { left: marginLeft },
+                    tableWidth: tableWidth,
+                    theme: 'plain',        // No stripes
+                    body: [
+                        ['Subtotal', subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })],
+                        ['VAT (5%)', vat.toLocaleString('en-US', { minimumFractionDigits: 2 })],
+                        ['Grand Total', grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })]
+                    ],
+                    styles: {
+                        font: 'Amiri',
+                        fontStyle: 'normal',
+                        fontSize: 10,
+                        cellPadding: 2,
+                        halign: 'right',
+                        lineColor: [200, 200, 200], // light gray
+                        lineWidth: 0.1
+                    },
+                    columnStyles: {
+                        0: { fontStyle: 'bold', halign: 'left', cellWidth: 40 }, // Label
+                        1: { fontStyle: 'bold', halign: 'right', cellWidth: 40 } // Value
+                    },
+                    didParseCell: (data) => {
+                        // Add border to bottom of rows for cleaner look
+                        if (data.section === 'body') {
+                            data.cell.styles.lineWidth = 0.1;
+                            data.cell.styles.lineColor = [230, 230, 230];
+                        }
+
+                        // Style Grand Total Row
+                        if (data.row.index === 2) {
+                            data.cell.styles.fontSize = 12;
+                            data.cell.styles.textColor = [22, 163, 74]; // Green color
+                            data.cell.styles.fontStyle = 'bold';
+                        }
+                    }
+                });
+
+                // Footer: Description & Signatures
+                // @ts-ignore
+                let currentY = (doc as any).lastAutoTable.finalY + 15;
+
+                // Description
+                if (description) {
+                    doc.setFontSize(10);
+                    // doc.setFont("helvetica", "italic");
+                    doc.setTextColor(100);
+                    doc.text(description, 105, currentY, { align: "center", maxWidth: 150 });
+                    currentY += 20;
+                } else {
+                    currentY += 10;
+                }
+
+                // Signatures
+                doc.setTextColor(50);
+                doc.setFontSize(11);
+
+                // Store Keeper
+                doc.text("Store Keeper", 40, currentY, { align: "center" });
+                doc.setFontSize(12);
+                doc.text("Abo Iyad", 40, currentY + 7, { align: "center" });
+                doc.setDrawColor(200);
+                doc.line(20, currentY + 10, 60, currentY + 10);
+
+                // Receiver
+                let receiverName = finalLocTo;
+                if (finalLocTo === 'Customer') {
+                    // If Person Name is provided for a Customer destination (and not being used as Source), use it as Receiver
+                    if (destType === 'Customer' && sourceType !== 'Person' && personName) {
+                        receiverName = personName;
+                    } else {
+                        receiverName = customerName || 'Customer';
+                    }
+                }
+
+                doc.setFontSize(11);
+                doc.text("Receiver", 170, currentY, { align: "center" });
+                doc.setFontSize(12);
+                doc.text(receiverName, 170, currentY + 7, { align: "center" });
+                doc.line(150, currentY + 10, 190, currentY + 10);
+
+                doc.save(`${data.transactionNumber}.pdf`);
             }
 
             // Refresh Data
@@ -275,15 +469,35 @@ export default function ChipsyInventoryTab() {
         const persons: Record<string, Record<string, number>> = {}; // name -> { barcode: qty }
 
         transfers.forEach(t => {
-            if (!t.personName) return;
-            const name = t.personName.trim();
-            if (!persons[name]) persons[name] = {};
+            // Normalization for Legacy Data
+            let finalFrom = t.locFrom;
+            let finalTo = t.locTo;
 
-            if (!persons[name][t.barcode]) persons[name][t.barcode] = 0;
+            if (t.locFrom === 'IN') {
+                finalFrom = 'Main Inventory';
+                finalTo = t.locTo;
+            } else if (t.locFrom === 'OUT') {
+                finalFrom = t.locTo;
+                finalTo = 'Customer'; // Approx behavior
+            }
+            // Handle legacy 'MAIN' / 'CUSTOMER' DB values if any exist from interim testing
+            if (finalFrom === 'MAIN') finalFrom = 'Main Inventory';
+            if (finalTo === 'MAIN') finalTo = 'Main Inventory';
+            if (finalTo === 'CUSTOMER') finalTo = 'Customer';
 
-            if (t.type === 'OUT') {
+            // Debit logic (Target receives stock)
+            if (finalTo && finalTo !== 'Main Inventory' && finalTo !== 'Customer') {
+                const name = finalTo.trim();
+                if (!persons[name]) persons[name] = {};
+                if (!persons[name][t.barcode]) persons[name][t.barcode] = 0;
                 persons[name][t.barcode] += t.qtyPcs;
-            } else {
+            }
+
+            // Credit logic (Source loses stock)
+            if (finalFrom && finalFrom !== 'Main Inventory' && finalFrom !== 'Customer') {
+                const name = finalFrom.trim();
+                if (!persons[name]) persons[name] = {};
+                if (!persons[name][t.barcode]) persons[name][t.barcode] = 0;
                 persons[name][t.barcode] -= t.qtyPcs;
             }
         });
@@ -322,7 +536,7 @@ export default function ChipsyInventoryTab() {
         );
     };
 
-    if (loading && products.length === 0) return <Loading message="Loading Chipsy System..." />;
+
 
     return (
         <div className="space-y-6 max-w-[95%] mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
@@ -381,7 +595,13 @@ export default function ChipsyInventoryTab() {
             )}
 
             {/* Content */}
-            {activeTab === 'inventory' && (
+            {loading && (
+                <div className="py-20 flex justify-center">
+                    <Loading message="Loading Chipsy System..." />
+                </div>
+            )}
+
+            {!loading && activeTab === 'inventory' && (
                 <div className="space-y-4">
                     {/* Stats Bar */}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -451,8 +671,10 @@ export default function ChipsyInventoryTab() {
                                 <th className="p-4 font-semibold text-center">Trx #</th>
                                 <th className="p-4 font-semibold text-center">Date</th>
                                 <th className="p-4 font-semibold text-center">User</th>
-                                <th className="p-4 font-semibold text-center">Type</th>
-                                <th className="p-4 font-semibold text-center">Person / Customer</th>
+                                <th className="p-4 font-semibold text-center">From (Source)</th>
+                                <th className="p-4 font-semibold text-center">To (Destination)</th>
+                                <th className="p-4 font-semibold text-center text-blue-600">Customer Name</th>
+                                <th className="p-4 font-semibold text-center text-gray-600">Receiver Name</th>
                                 <th className="p-4 font-semibold text-center">Items</th>
                                 <th className="p-4 font-semibold text-center">Total Qty (Pcs)</th>
                                 <th className="p-4 font-semibold text-center">Total Qty (Ctns)</th>
@@ -463,7 +685,7 @@ export default function ChipsyInventoryTab() {
                             {(() => {
                                 const grouped = new Map<string, typeof transfers>();
                                 transfers.forEach(t => {
-                                    const key = t.number || `LEGACY-${t.date}-${t.personName}`;
+                                    const key = t.number || `LEGACY-${t.date}-${t.locTo}`; // Updated key logic
                                     if (!grouped.has(key)) grouped.set(key, []);
                                     grouped.get(key)!.push(t);
                                 });
@@ -477,6 +699,28 @@ export default function ChipsyInventoryTab() {
                                         const p = products.find(prod => prod.barcode === i.barcode);
                                         return acc + (i.qtyPcs / (p?.pcsInCtn || 1));
                                     }, 0).toFixed(1);
+
+                                    // Display Logic
+                                    let displayFrom = first.locFrom;
+                                    let displayTo = first.locTo;
+
+                                    // Legacy Normalization for Display
+                                    if (first.locFrom === 'IN') {
+                                        displayFrom = 'Main Inventory';
+                                        displayTo = first.locTo;
+                                    } else if (first.locFrom === 'OUT') {
+                                        displayFrom = first.locTo;
+                                        displayTo = 'Customer';
+                                    }
+
+                                    if (first.locFrom === 'MAIN') displayFrom = 'Main Inventory';
+                                    if (first.locTo === 'MAIN') displayTo = 'Main Inventory';
+                                    if (first.locTo === 'CUSTOMER') displayTo = 'Customer';
+
+                                    // Check if Customer Name exists
+                                    const customerNameDisplay = (displayTo === 'Customer' || first.locTo === 'Customer' || first.locTo === 'CUSTOMER') && first.customerName
+                                        ? first.customerName
+                                        : '-';
 
                                     return (
                                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
@@ -494,19 +738,22 @@ export default function ChipsyInventoryTab() {
                                             </td>
                                             <td className="p-4 text-sm text-gray-500">{first.date}</td>
                                             <td className="p-4 text-sm font-medium text-gray-700">{first.user}</td>
-                                            <td className="p-4">
-                                                <span className={`px-2 py-1 rounded text-xs font-bold ${first.type === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                                    {first.type}
-                                                </span>
+
+                                            <td className="p-4 text-sm text-gray-600 font-bold">
+                                                {displayFrom}
                                             </td>
-                                            <td className="p-4 text-sm text-gray-600">
-                                                <div className="flex flex-col items-center">
-                                                    <span className="font-bold">{first.personName || '-'}</span>
-                                                    {first.customerName && <span className="text-xs text-gray-400">{first.customerName}</span>}
-                                                </div>
+                                            <td className="p-4 text-sm text-gray-600 font-bold">
+                                                {displayTo}
                                             </td>
+                                            <td className="p-4 text-sm text-blue-600 font-bold">
+                                                {customerNameDisplay}
+                                            </td>
+                                            <td className="p-4 text-sm text-gray-600 font-bold">
+                                                {first.receiverName || '-'}
+                                            </td>
+
                                             <td className="p-4 text-sm font-bold text-gray-700">{count}</td>
-                                            <td className="p-4 font-mono font-medium text-gray-800">{totalQty}</td>
+                                            <td className="p-4 font-mono font-medium text-gray-800">{totalQty.toLocaleString()}</td>
                                             <td className="p-4 font-mono font-medium text-green-700">{totalCartons}</td>
                                             <td className="p-4 text-sm text-gray-500 italic">{first.description || '-'}</td>
                                         </tr>
@@ -537,39 +784,67 @@ export default function ChipsyInventoryTab() {
                                     <p className="text-gray-500 text-sm">{selectedTransactionItems[0]?.date}</p>
                                 </div>
                             </div>
-                            <span className={`px-4 py-2 rounded-lg text-sm font-bold ${selectedTransactionItems[0]?.type === 'IN' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                                {selectedTransactionItems[0]?.type === 'IN' ? 'RECEIVED' : 'ISSUED'}
-                            </span>
+                            <div className="flex gap-2">
+                                <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded text-xs font-mono">
+                                    {/* Helper Logic for display */}
+                                    {(() => {
+                                        const i = selectedTransactionItems[0];
+                                        if (!i) return '';
+                                        if (i.locFrom === 'IN') return 'RECEIVED';
+                                        if (i.locFrom === 'OUT') return 'ISSUED';
+                                        return 'TRANSFER';
+                                    })()}
+                                </span>
+                            </div>
                         </div>
 
                         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8 p-4 bg-gray-50 rounded-xl">
-                            <div className="text-center">
-                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">User</p>
-                                <p className="font-semibold text-gray-800">{selectedTransactionItems[0]?.user}</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Person Name</p>
-                                <p className="font-semibold text-gray-800">{selectedTransactionItems[0]?.personName || '-'}</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Customer</p>
-                                <p className="font-semibold text-gray-800">{selectedTransactionItems[0]?.customerName || '-'}</p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Qty</p>
-                                <p className="font-semibold text-blue-600">
-                                    {selectedTransactionItems.reduce((acc, i) => acc + i.qtyPcs, 0)} Pcs
-                                </p>
-                            </div>
-                            <div className="text-center">
-                                <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Cartons</p>
-                                <p className="font-semibold text-green-600">
-                                    {selectedTransactionItems.reduce((acc, i) => {
-                                        const p = products.find(prod => prod.barcode === i.barcode);
-                                        return acc + (i.qtyPcs / (p?.pcsInCtn || 1));
-                                    }, 0).toFixed(1)} Ctns
-                                </p>
-                            </div>
+                            {(() => {
+                                const i = selectedTransactionItems[0];
+                                if (!i) return null;
+
+                                let from = i.locFrom;
+                                let to = i.locTo;
+
+                                if (from === 'IN') { from = 'MAIN'; to = i.locTo; }
+                                else if (from === 'OUT') { from = i.locTo; to = 'CUSTOMER'; }
+
+                                if (i.locTo === 'CUSTOMER' && i.customerName) {
+                                    to = `CUSTOMER (${i.customerName})`;
+                                }
+
+                                return (
+                                    <>
+                                        <div className="text-center">
+                                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">User</p>
+                                            <p className="font-semibold text-gray-800">{i.user}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">From (Source)</p>
+                                            <p className="font-semibold text-gray-800">{from}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">To (Destination)</p>
+                                            <p className="font-semibold text-blue-600">{to}</p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Qty</p>
+                                            <p className="font-semibold text-gray-800">
+                                                {selectedTransactionItems.reduce((acc, item) => acc + item.qtyPcs, 0)} Pcs
+                                            </p>
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-xs font-bold text-gray-400 uppercase mb-1">Total Cartons</p>
+                                            <p className="font-semibold text-green-600">
+                                                {selectedTransactionItems.reduce((acc, item) => {
+                                                    const p = products.find(prod => prod.barcode === item.barcode);
+                                                    return acc + (item.qtyPcs / (p?.pcsInCtn || 1));
+                                                }, 0).toFixed(1)} Ctns
+                                            </p>
+                                        </div>
+                                    </>
+                                );
+                            })()}
                         </div>
 
                         <div className="overflow-hidden rounded-xl border border-gray-200">
@@ -617,50 +892,66 @@ export default function ChipsyInventoryTab() {
                             </button>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            {/* Type */}
-                            <div className="md:col-span-1">
-                                <label className="block text-sm font-bold text-gray-700 mb-2">Transaction Type</label>
-                                <div className="grid grid-cols-2 gap-4 h-[50px]">
-                                    <button
-                                        onClick={() => setTransactionType('IN')}
-                                        className={`rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${transactionType === 'IN' ? 'border-green-500 bg-green-50 text-green-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300 bg-white'}`}
-                                    >
-                                        <ArrowLeftRight className="w-4 h-4" /> RECEIVE (IN)
-                                    </button>
-                                    <button
-                                        onClick={() => setTransactionType('OUT')}
-                                        className={`rounded-xl font-bold border-2 transition-all flex items-center justify-center gap-2 ${transactionType === 'OUT' ? 'border-red-500 bg-red-50 text-red-700 shadow-sm' : 'border-gray-200 text-gray-400 hover:border-gray-300 bg-white'}`}
-                                    >
-                                        <LogOut className="w-4 h-4" /> ISSUE (OUT)
-                                    </button>
-                                </div>
+                        <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.5fr_1.5fr] gap-4 items-end">
+                            {/* Source Type */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">From (Source)</label>
+                                <select
+                                    className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all bg-white font-medium text-gray-700"
+                                    value={sourceType}
+                                    onChange={(e) => setSourceType(e.target.value as any)}
+                                >
+                                    <option value="Main Inventory">Main Inventory</option>
+                                    <option value="Person">Person</option>
+                                </select>
                             </div>
 
-                            {/* Names */}
-                            <div className="md:col-span-2">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Person Name</label>
-                                        <input
-                                            type="text"
-                                            value={personName}
-                                            onChange={e => setPersonName(e.target.value)}
-                                            className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all"
-                                            placeholder="Name for log reference..."
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-2 ml-1">Customer Name</label>
-                                        <input
-                                            type="text"
-                                            value={customerName}
-                                            onChange={e => setCustomerName(e.target.value)}
-                                            className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all"
-                                            placeholder="Optional customer name..."
-                                        />
-                                    </div>
-                                </div>
+                            {/* Destination Type */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">To (Destination)</label>
+                                <select
+                                    className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all bg-white font-medium text-gray-700"
+                                    value={destType}
+                                    onChange={(e) => setDestType(e.target.value as any)}
+                                >
+                                    <option value="Main Inventory">Main Inventory</option>
+                                    <option value="Person">Person</option>
+                                    <option value="Customer">Customer</option>
+                                </select>
+                            </div>
+
+                            {/* Person Name Input */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Person Name</label>
+                                <input
+                                    list="person-options"
+                                    type="text"
+                                    className={`w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all bg-white font-medium text-gray-700 ${(sourceType === 'Person' || destType === 'Person' || destType === 'Customer') ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'
+                                        }`}
+                                    value={personName}
+                                    onChange={(e) => setPersonName(e.target.value)}
+                                    placeholder="Enter Person Name..."
+                                    disabled={sourceType !== 'Person' && destType !== 'Person' && destType !== 'Customer'}
+                                />
+                                <datalist id="person-options">
+                                    {peopleStats.map((p, idx) => (
+                                        <option key={idx} value={p.name} />
+                                    ))}
+                                </datalist>
+                            </div>
+
+                            {/* Customer Name Input */}
+                            <div>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">Customer Name</label>
+                                <input
+                                    type="text"
+                                    className={`w-full h-[50px] px-4 border-2 border-blue-200 rounded-xl text-sm focus:border-blue-500 outline-none transition-all bg-white font-medium text-gray-700 ${destType === 'Customer' ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'
+                                        }`}
+                                    value={customerName}
+                                    onChange={(e) => setCustomerName(e.target.value)}
+                                    placeholder="Enter Customer Name..."
+                                    disabled={destType !== 'Customer'}
+                                />
                             </div>
                         </div>
                         {/* Description Field - Full Width Row */}
@@ -908,6 +1199,7 @@ export default function ChipsyInventoryTab() {
                                                 className="hover:bg-gray-50 cursor-pointer transition-colors"
                                                 onClick={() => {
                                                     setSelectedPerson(person.name);
+                                                    setPersonSubTab('summary');
                                                     setActiveTab('person_details');
                                                 }}
                                             >
@@ -940,138 +1232,211 @@ export default function ChipsyInventoryTab() {
             {
                 activeTab === 'person_details' && selectedPerson && (
                     <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
-                        <div className="flex items-center gap-4">
+                        {/* Header */}
+                        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-4">
+                                <button
+                                    onClick={() => setActiveTab('people_inventory')}
+                                    className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                                >
+                                    <ArrowRight className="w-6 h-6 rotate-180" />
+                                </button>
+                                <div>
+                                    <h2 className="text-2xl font-bold text-gray-800">{selectedPerson}</h2>
+                                    <p className="text-sm text-gray-500">Inventory Details</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Sub Tabs */}
+                        <div className="flex w-fit mx-auto bg-gray-100 p-1 rounded-xl mb-6 shadow-inner">
                             <button
-                                onClick={() => setActiveTab('people_inventory')}
-                                className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                                onClick={() => setPersonSubTab('summary')}
+                                className={`px-6 py-2 min-w-[160px] text-sm font-bold rounded-lg transition-all text-center ${personSubTab === 'summary' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                             >
-                                <ArrowRight className="w-6 h-6 rotate-180" />
+                                Inventory Summary
                             </button>
-                            <div>
-                                <h2 className="text-2xl font-bold text-gray-800">{selectedPerson}</h2>
-                                <p className="text-sm text-gray-500">Inventory Details</p>
-                            </div>
+                            <button
+                                onClick={() => setPersonSubTab('transactions')}
+                                className={`px-6 py-2 min-w-[160px] text-sm font-bold rounded-lg transition-all text-center ${personSubTab === 'transactions' ? 'bg-white text-orange-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                                Transaction History
+                            </button>
                         </div>
 
-                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full">
-                                    <thead className="bg-white border-b border-gray-200">
-                                        <tr>
-                                            <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Product Name</th>
-                                            <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Cartons</th>
-                                            <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Pieces</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-gray-100">
-                                        {Object.entries(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {})
-                                            .filter(([_, qty]) => qty !== 0)
-                                            .map(([barcode, qty]) => {
-                                                const product = products.find(p => p.barcode === barcode);
-                                                const productName = product ? product.productName : barcode;
-                                                const pcsInCtn = product ? (product.pcsInCtn || 1) : 1;
-                                                const ctns = qty / pcsInCtn;
+                        {/* Summary View */}
+                        {personSubTab === 'summary' && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-white border-b border-gray-200">
+                                            <tr>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Product Name</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Cartons</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Pieces</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {Object.entries(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {})
+                                                .filter(([_, qty]) => qty !== 0)
+                                                .map(([barcode, qty]) => {
+                                                    const product = products.find(p => p.barcode === barcode);
+                                                    const productName = product ? product.productName : barcode;
+                                                    const pcsInCtn = product ? (product.pcsInCtn || 1) : 1;
+                                                    const ctns = qty / pcsInCtn;
 
-                                                return (
-                                                    <tr key={barcode} className="hover:bg-gray-50">
-                                                        <td className="px-6 py-4 text-sm font-medium text-gray-800 text-center">{productName}</td>
-                                                        <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
-                                                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{ctns.toFixed(1)}</span>
+                                                    return (
+                                                        <tr key={barcode} className="hover:bg-gray-50">
+                                                            <td className="px-6 py-4 text-sm font-medium text-gray-800 text-center">{productName}</td>
+                                                            <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
+                                                                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{ctns.toFixed(1)}</span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{qty}</td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            {(!peopleStats.find(p => p.name === selectedPerson)?.prodMap ||
+                                                Object.values(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {}).every(q => q === 0)) && (
+                                                    <tr>
+                                                        <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
+                                                            No active inventory items.
                                                         </td>
-                                                        <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{qty}</td>
                                                     </tr>
-                                                );
-                                            })}
-                                        {(!peopleStats.find(p => p.name === selectedPerson)?.prodMap ||
-                                            Object.values(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {}).every(q => q === 0)) && (
-                                                <tr>
-                                                    <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
-                                                        No active inventory items.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                    </tbody>
-                                </table>
+                                                )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
-                        </div>
+                        )}
+
+                        {/* Transactions View */}
+                        {personSubTab === 'transactions' && (
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead className="bg-white border-b border-gray-200">
+                                            <tr>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Trx #</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Type</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Items</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Pcs</th>
+                                                <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Ctns</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {(() => {
+                                                // Filter transfers for this person
+                                                const personTransfers = transfers.filter(t => {
+                                                    // Check logic: Person can be Source or Dest (normalized)
+                                                    // We must handle normalization here too or check raw values cautiously
+                                                    // Raw values: locFrom, locTo
+                                                    // Normalization matching `peopleStats` logic:
+                                                    let finalFrom = t.locFrom;
+                                                    let finalTo = t.locTo;
+
+                                                    if (t.locFrom === 'IN') { finalFrom = 'Main Inventory'; finalTo = t.locTo; }
+                                                    else if (t.locFrom === 'OUT') { finalFrom = t.locTo; finalTo = 'Customer'; }
+                                                    if (finalFrom === 'MAIN') finalFrom = 'Main Inventory';
+                                                    if (finalTo === 'MAIN') finalTo = 'Main Inventory';
+                                                    if (finalTo === 'CUSTOMER') finalTo = 'Customer';
+
+                                                    return finalFrom === selectedPerson || finalTo === selectedPerson;
+                                                });
+
+                                                const grouped = new Map<string, typeof transfers>();
+                                                personTransfers.forEach(t => {
+                                                    const key = t.number || `LEGACY-${t.date}-${t.locTo}`;
+                                                    if (!grouped.has(key)) grouped.set(key, []);
+                                                    grouped.get(key)!.push(t);
+                                                });
+
+                                                if (grouped.size === 0) {
+                                                    return (
+                                                        <tr>
+                                                            <td colSpan={6} className="px-6 py-8 text-center text-gray-400">
+                                                                No transactions found for this person.
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+
+                                                return Array.from(grouped.entries()).map(([trxNum, items], idx) => {
+                                                    const first = items[0];
+                                                    const count = items.length;
+                                                    const totalPcs = items.reduce((acc, i) => acc + i.qtyPcs, 0);
+                                                    const totalCtns = items.reduce((acc, i) => {
+                                                        const p = products.find(prod => prod.barcode === i.barcode);
+                                                        return acc + (i.qtyPcs / (p?.pcsInCtn || 1));
+                                                    }, 0).toFixed(1);
+
+                                                    // Determine Type relative to Person
+                                                    // If Person is Dest -> IN (Received)
+                                                    // If Person is Source -> OUT (Issued)
+                                                    let relation = 'TRANSFER';
+                                                    let finalFrom = first.locFrom;
+                                                    let finalTo = first.locTo;
+
+                                                    // Normalize for check
+                                                    if (finalFrom === 'IN') { finalFrom = 'Main Inventory'; finalTo = first.locTo; }
+                                                    else if (finalFrom === 'OUT') { finalFrom = first.locTo; finalTo = 'Customer'; }
+                                                    if (finalFrom === 'MAIN') finalFrom = 'Main Inventory';
+                                                    if (finalTo === 'MAIN') finalTo = 'Main Inventory';
+                                                    if (finalTo === 'CUSTOMER') finalTo = 'Customer';
+
+                                                    if (finalTo === selectedPerson) relation = 'RECEIVED';
+                                                    else if (finalFrom === selectedPerson) relation = 'ISSUED';
+
+                                                    return (
+                                                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                                            <td className="px-6 py-4 text-center">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedTransactionNumber(trxNum);
+                                                                        setSelectedTransactionItems(items);
+                                                                        setActiveTab('transaction_details');
+                                                                    }}
+                                                                    className="font-mono font-bold text-blue-600 hover:text-blue-800 hover:underline text-sm"
+                                                                >
+                                                                    {trxNum.startsWith('LEGACY') ? 'Old Log' : trxNum}
+                                                                </button>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-sm text-gray-500 text-center">{first.date}</td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                <span className={`px-2 py-1 rounded text-xs font-bold ${relation === 'RECEIVED' ? 'bg-green-100 text-green-700' :
+                                                                    relation === 'ISSUED' ? 'bg-red-100 text-red-700' :
+                                                                        'bg-gray-100 text-gray-700'
+                                                                    }`}>
+                                                                    {relation}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-4 text-sm font-bold text-gray-700 text-center">{count}</td>
+                                                            <td className="px-6 py-4 font-mono font-medium text-gray-800 text-center">{totalPcs.toLocaleString()}</td>
+                                                            <td className="px-6 py-4 font-mono font-medium text-gray-600 text-center">{totalCtns}</td>
+                                                        </tr>
+                                                    );
+                                                });
+                                            })()}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )
             }
 
-            {/* Hidden Invoice Template */}
-            {printTransaction && (
-                <div style={{ position: 'fixed', top: '-9999px', left: '-9999px' }}>
-                    <div id="transaction-invoice" style={{ width: '210mm', minHeight: '297mm', padding: '15mm', backgroundColor: 'white', color: 'black', fontFamily: 'Arial, sans-serif' }}>
-                        {/* Header */}
-                        <div style={{ textAlign: 'center', marginBottom: '5mm' }}>
-                            <h1 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0' }}>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
-                        </div>
 
-                        {/* Info Section */}
-                        <div style={{ textAlign: 'center', marginBottom: '10mm', borderBottom: '1px solid #ddd', paddingBottom: '5mm' }}>
-                            <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '5mm', fontSize: '14px', fontWeight: 'bold' }}>
-                                <span>{printTransaction.date}</span>
-                                <span>|</span>
-                                <span>{printTransaction.number}</span>
-                                <span>|</span>
-                                <span>{printTransaction.person}</span>
-                            </div>
 
-                            {printTransaction.customer && (
-                                <div style={{ fontSize: '16px', color: '#000', fontWeight: 'bold' }}>
-                                    {printTransaction.customer}
-                                </div>
-                            )}
-                        </div>
-
-                        {/* Table */}
-                        <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '10mm' }}>
-                            <thead>
-                                <tr style={{ backgroundColor: '#16a34a', color: 'white' }}>
-                                    <th style={{ width: '40%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Barcode / Product</th>
-                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Qty (Pcs)</th>
-                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Qty (Ctns)</th>
-                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Price</th>
-                                    <th style={{ width: '15%', paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #16a34a' }}>Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {printTransaction.items.map((item: any, idx: number) => {
-                                    const total = item.qtyPcs * item.price;
-                                    return (
-                                        <tr key={idx} style={{ borderBottom: '1px solid #eee' }}>
-                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>
-                                                <span style={{ fontWeight: 'bold', marginRight: '5px' }}>{item.barcode}</span>
-                                                <span>{item.name}</span>
-                                            </td>
-                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{item.qtyPcs}</td>
-                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{item.qtyCtns.toFixed(2)}</td>
-                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{item.price.toFixed(2)}</td>
-                                            <td style={{ paddingTop: '1mm', paddingBottom: '3mm', paddingLeft: '2mm', paddingRight: '2mm', textAlign: 'center', verticalAlign: 'middle', fontSize: '12px', border: '1px solid #eee' }}>{total.toFixed(2)}</td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-
-                        {/* Footer Totals */}
-                        <div style={{ float: 'right', width: '60mm', textAlign: 'right', fontSize: '12px' }}>
-                            {(() => {
-                                const subTotal = printTransaction.items.reduce((acc: number, item: any) => acc + (item.qtyPcs * item.price), 0);
-                                const vat = subTotal * 0.05;
-                                const grandTotal = subTotal + vat;
-                                return (
-                                    <>
-                                        <div style={{ marginBottom: '2mm', display: 'flex', justifyContent: 'space-between' }}><span>Subtotal:</span> <span style={{ fontWeight: 'bold' }}>{subTotal.toFixed(2)}</span></div>
-                                        <div style={{ marginBottom: '2mm', display: 'flex', justifyContent: 'space-between' }}><span>VAT (5%):</span> <span style={{ fontWeight: 'bold' }}>{vat.toFixed(2)}</span></div>
-                                        <div style={{ borderTop: '1px solid #000', paddingTop: '2mm', fontSize: '14px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between' }}><span>Grand Total:</span> <span>{grandTotal.toFixed(2)}</span></div>
-                                    </>
-                                );
-                            })()}
-                        </div>
+            {/* Loading Overlay */}
+            {submitting && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center">
+                    <div className="bg-white p-8 rounded-3xl shadow-2xl flex flex-col items-center gap-6 animate-in zoom-in duration-300">
+                        <div className="w-16 h-16 border-4 border-orange-100 border-t-orange-600 rounded-full animate-spin"></div>
+                        <p className="text-xl font-bold text-gray-800 animate-pulse">Be Patient 😌</p>
                     </div>
                 </div>
             )}
-        </div >
+        </div>
     );
 }

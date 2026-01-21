@@ -29,9 +29,9 @@ export async function POST(request: Request) {
             items = [{ barcode: body.barcode, qty: body.qty, unit: body.unit }];
         }
 
-        const { user, type, personName, customerName, description } = transactionMeta;
+        const { user, locFrom, locTo, customerName, receiverName, description } = transactionMeta;
 
-        if (!items || items.length === 0 || !type) {
+        if (!items || items.length === 0 || !locFrom || !locTo) {
             return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
         }
 
@@ -52,17 +52,22 @@ export async function POST(request: Request) {
             if (!product) continue; // Skip invalid products
 
             const qtyPcs = item.unit === 'CTN' ? item.qty * product.pcsInCtn : item.qty;
+            const price = item.price || 0;
+            const total = qtyPcs * price;
 
             transfers.push({
                 number: transactionNumber,
                 user: user || 'Unknown',
                 date: dateStr,
-                type,
-                personName: personName || '',
+                locFrom: locFrom || 'MAIN',
+                locTo: locTo || 'MAIN',
                 customerName: customerName || '',
+                receiverName: receiverName || '',
                 barcode: item.barcode,
                 productName: product.productName,
                 qtyPcs,
+                price,
+                total,
                 description: description || ''
             });
         }

@@ -2504,12 +2504,15 @@ export interface ChipsyTransfer {
   number: string; // New Transaction Number (e.g., TRX-001)
   user: string;
   date: string;
-  type: 'IN' | 'OUT';
-  personName: string;
+  locFrom: string; // Was Type
+  locTo: string;   // Was PersonName
   customerName: string;
+  receiverName?: string;
   barcode: string;
   productName: string;
   qtyPcs: number;
+  price?: number;
+  total?: number;
   description?: string;
 }
 
@@ -2556,10 +2559,10 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // A: User, B: Number, C: Date, D: Type, E: Person, F: Customer, G: Barcode, H: Product, I: Qty, J: Description
+    // A: User, B: Number, C: Date, D: Loc From, E: Loc To, F: Customer, G: Receiver, H: Barcode, I: Product, J: Qty, K: Price, L: Total, M: Description
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:J`,
+      range: `'TRANSFERS - Chipsy'!A:M`,
     });
 
     const rows = response.data.values;
@@ -2568,15 +2571,18 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
     // Skip header
     return rows.slice(1).map(row => ({
       user: row[0]?.toString() || '',
-      number: row[1]?.toString() || '', // New Number Column
+      number: row[1]?.toString() || '',
       date: row[2]?.toString() || '',
-      type: (row[3]?.toString() || 'IN') as 'IN' | 'OUT',
-      personName: row[4]?.toString() || '',
+      locFrom: row[3]?.toString() || 'MAIN', // Default to MAIN if empty
+      locTo: row[4]?.toString() || 'MAIN',   // Default to MAIN if empty
       customerName: row[5]?.toString() || '',
-      barcode: row[6]?.toString() || '',
-      productName: row[7]?.toString() || '',
-      qtyPcs: parseInt(row[8]?.toString().replace(/,/g, '') || '0'),
-      description: row[9]?.toString() || '',
+      receiverName: row[6]?.toString() || '',
+      barcode: row[7]?.toString() || '',
+      productName: row[8]?.toString() || '',
+      qtyPcs: parseInt(row[9]?.toString().replace(/,/g, '') || '0'),
+      price: parseFloat(row[10]?.toString().replace(/,/g, '') || '0'),
+      total: parseFloat(row[11]?.toString().replace(/,/g, '') || '0'),
+      description: row[12]?.toString() || '',
     })).reverse(); // Show newest first
   } catch (error) {
     console.error('Error fetching Chipsy transfers:', error);
@@ -2619,18 +2625,21 @@ export async function addChipsyBulkTransfers(transfers: ChipsyTransfer[]) {
       t.user,
       t.number,
       t.date,
-      t.type,
-      t.personName,
+      t.locFrom,
+      t.locTo,
       t.customerName,
+      t.receiverName || '',
       t.barcode,
       t.productName,
       t.qtyPcs,
+      t.price || 0,
+      t.total || 0,
       t.description || ''
     ]);
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:J`,
+      range: `'TRANSFERS - Chipsy'!A:M`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'INSERT_ROWS',
       requestBody: { values },

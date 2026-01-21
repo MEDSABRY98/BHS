@@ -17,7 +17,7 @@ const TYPE_BADGE_COLORS: Record<
   'Invoice/Txn': { fillColor: [241, 245, 249], textColor: [51, 65, 85] }, // bg-slate-100 / text-slate-700
 };
 
-async function addArabicFont(doc: any): Promise<void> {
+export async function addArabicFont(doc: any): Promise<void> {
   try {
     // Load Amiri Arabic font from GitHub raw content (reliable CORS-wise usually)
     const fontUrl = 'https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf';
