@@ -2499,6 +2499,7 @@ export interface ChipsyTransfer {
   barcode: string;
   productName: string;
   qtyPcs: number;
+  description?: string;
 }
 
 export async function getChipsyInventory(): Promise<ChipsyProduct[]> {
@@ -2545,7 +2546,7 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:H`, // USER, DATE, TYPE, PERSON, CUSTOMER, BARCODE, PRODUCT, PCS QTY
+      range: `'TRANSFERS - Chipsy'!A:I`, // USER, DATE, TYPE, PERSON, CUSTOMER, BARCODE, PRODUCT, PCS QTY, DESCRIPTION
     });
 
     const rows = response.data.values;
@@ -2561,6 +2562,7 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
       barcode: row[5]?.toString() || '',
       productName: row[6]?.toString() || '',
       qtyPcs: parseInt(row[7]?.toString().replace(/,/g, '') || '0'),
+      description: row[8]?.toString() || '',
     })).reverse(); // Show newest first
   } catch (error) {
     console.error('Error fetching Chipsy transfers:', error);
@@ -2579,7 +2581,7 @@ export async function addChipsyTransfer(transfer: ChipsyTransfer) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:H`,
+      range: `'TRANSFERS - Chipsy'!A:I`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
@@ -2590,7 +2592,8 @@ export async function addChipsyTransfer(transfer: ChipsyTransfer) {
           transfer.customerName,
           transfer.barcode,
           transfer.productName,
-          transfer.qtyPcs
+          transfer.qtyPcs,
+          transfer.description || ''
         ]],
       },
     });

@@ -10,7 +10,7 @@ import {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
-        const { barcode, type, qty, unit, user, personName, customerName } = body;
+        const { barcode, type, qty, unit, user, personName, customerName, description } = body;
         // type: 'IN' | 'OUT'
         // unit: 'PCS' | 'CTN'
         // qty: number
@@ -50,7 +50,8 @@ export async function POST(request: Request) {
             customerName: customerName || '',
             barcode,
             productName: product.productName,
-            qtyPcs // Always record in Pieces
+            qtyPcs, // Always record in Pieces
+            description: description || ''
         };
 
         await addChipsyTransfer(transfer);

@@ -27,6 +27,7 @@ interface ChipsyTransfer {
     barcode: string;
     productName: string;
     qtyPcs: number;
+    description?: string;
 }
 
 type TabView = 'inventory' | 'transfers' | 'new_transaction' | 'people_inventory' | 'person_details';
@@ -42,10 +43,11 @@ export default function ChipsyInventoryTab() {
     // Transaction Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<ChipsyProduct | null>(null);
-    const [transactionType, setTransactionType] = useState<'IN' | 'OUT'>('IN');
+    const [transactionType, setTransactionType] = useState<'IN' | 'OUT'>('OUT');
     const [personName, setPersonName] = useState('');
     const [customerName, setCustomerName] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [description, setDescription] = useState('');
     const router = useRouter();
 
     // Person Inventory State
@@ -150,7 +152,8 @@ export default function ChipsyInventoryTab() {
                     unit: row.unit,
                     personName,
                     customerName,
-                    user: activeUser ? JSON.parse(activeUser).name : 'Unknown'
+                    user: activeUser ? JSON.parse(activeUser).name : 'Unknown',
+                    description: description
                 };
 
                 return fetch('/api/chipsy/transaction', {
@@ -170,6 +173,7 @@ export default function ChipsyInventoryTab() {
             setCart([{ product: null, qty: '', unit: 'CTN', searchTerm: '', showDropdown: false }]);
             setPersonName('');
             setCustomerName('');
+            setDescription('');
 
         } catch (error) {
             alert('Transaction Failed. Please try again.');
@@ -250,7 +254,7 @@ export default function ChipsyInventoryTab() {
     if (loading && products.length === 0) return <Loading message="Loading Chipsy System..." />;
 
     return (
-        <div className="space-y-6 max-w-7xl mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
+        <div className="space-y-6 max-w-[95%] mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
 
             {/* Header */}
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
@@ -258,7 +262,8 @@ export default function ChipsyInventoryTab() {
                     <div className="flex items-center gap-4 mb-2">
                         <button
                             onClick={() => router.push('/')}
-                            className="p-2 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors shadow-sm text-gray-600"
+                            disabled={activeTab === 'new_transaction'}
+                            className={`p-2 border border-gray-200 rounded-xl transition-colors shadow-sm text-gray-600 ${activeTab === 'new_transaction' ? 'bg-gray-100 opacity-50 cursor-not-allowed' : 'bg-white hover:bg-gray-50'}`}
                         >
                             <ArrowLeft className="w-5 h-5" />
                         </button>
@@ -377,8 +382,10 @@ export default function ChipsyInventoryTab() {
                                 <th className="p-4 font-semibold text-center">Type</th>
                                 <th className="p-4 font-semibold text-center">Person Name</th>
                                 <th className="p-4 font-semibold text-center">Customer Name</th>
+
                                 <th className="p-4 font-semibold text-center">Product</th>
                                 <th className="p-4 font-semibold text-center">Qty (Pcs)</th>
+                                <th className="p-4 font-semibold text-center">Description</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -393,8 +400,10 @@ export default function ChipsyInventoryTab() {
                                     </td>
                                     <td className="p-4 text-sm text-gray-600 text-center">{t.personName || '-'}</td>
                                     <td className="p-4 text-sm text-gray-600 text-center">{t.customerName || '-'}</td>
+
                                     <td className="p-4 text-sm text-gray-800 text-center">{t.productName}</td>
                                     <td className="p-4 font-mono font-medium text-center">{t.qtyPcs > 0 ? '+' : ''}{t.type === 'OUT' ? '-' : ''}{t.qtyPcs}</td>
+                                    <td className="p-4 text-sm text-gray-500 text-center italic">{t.description || '-'}</td>
                                 </tr>
                             ))}
                         </tbody>
@@ -461,6 +470,17 @@ export default function ChipsyInventoryTab() {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                        {/* Description Field - Full Width Row */}
+                        <div className="mt-4">
+                            <label className="block text-sm font-bold text-gray-700 mb-2">Description</label>
+                            <input
+                                type="text"
+                                value={description}
+                                onChange={e => setDescription(e.target.value)}
+                                className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all"
+                                placeholder="Enter transaction details..."
+                            />
                         </div>
                     </div>
 
@@ -609,120 +629,121 @@ export default function ChipsyInventoryTab() {
                         </div>
                     </div>
                 </div>
-            )}
+            )
+            }
 
             {/* People Inventory Tab */}
-            {activeTab === 'people_inventory' && (
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-white border-b border-gray-200">
-                                <tr>
-                                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Person Name</th>
-                                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Unique Products</th>
-                                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Cartons</th>
-                                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Pieces</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {peopleStats.length > 0 ? (
-                                    peopleStats.map((person, idx) => (
-                                        <tr
-                                            key={idx}
-                                            className="hover:bg-gray-50 cursor-pointer transition-colors"
-                                            onClick={() => {
-                                                setSelectedPerson(person.name);
-                                                setActiveTab('person_details');
-                                            }}
-                                        >
-                                            <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{person.name}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-600 text-center">{person.productCount}</td>
-                                            <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
-                                                <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{person.totalCtns.toFixed(1)}</span>
-                                            </td>
-                                            <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{person.totalPcs}</td>
-                                        </tr>
-                                    ))
-                                ) : (
-                                    <tr>
-                                        <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                            <div className="flex flex-col items-center gap-2">
-                                                <AlertCircle className="w-8 h-8 opacity-50" />
-                                                <p>No inventory records found for any person.</p>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            )}
-
-            {/* Person Details Tab (Drill Down) */}
-            {activeTab === 'person_details' && selectedPerson && (
-                <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => setActiveTab('people_inventory')}
-                            className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
-                        >
-                            <ArrowRight className="w-6 h-6 rotate-180" />
-                        </button>
-                        <div>
-                            <h2 className="text-2xl font-bold text-gray-800">{selectedPerson}</h2>
-                            <p className="text-sm text-gray-500">Inventory Details</p>
-                        </div>
-                    </div>
-
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            {
+                activeTab === 'people_inventory' && (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                         <div className="overflow-x-auto">
                             <table className="w-full">
                                 <thead className="bg-white border-b border-gray-200">
                                     <tr>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Product Name</th>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Cartons</th>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Pieces</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Person Name</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Unique Products</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Cartons</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Pieces</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
-                                    {Object.entries(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {})
-                                        .filter(([_, qty]) => qty !== 0)
-                                        .map(([barcode, qty]) => {
-                                            const product = products.find(p => p.barcode === barcode);
-                                            const productName = product ? product.productName : barcode;
-                                            const pcsInCtn = product ? (product.pcsInCtn || 1) : 1;
-                                            const ctns = qty / pcsInCtn;
-
-                                            // Optional: Hide negative inventory if treating as stock held? 
-                                            // Assuming Person Inventory can be negative if they owe stock? 
-                                            // Or strictly positive? Code shows raw value.
-
-                                            return (
-                                                <tr key={barcode} className="hover:bg-gray-50">
-                                                    <td className="px-6 py-4 text-sm font-medium text-gray-800 text-center">{productName}</td>
-                                                    <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
-                                                        <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{ctns.toFixed(1)}</span>
-                                                    </td>
-                                                    <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{qty}</td>
-                                                </tr>
-                                            );
-                                        })}
-                                    {(!peopleStats.find(p => p.name === selectedPerson)?.prodMap ||
-                                        Object.values(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {}).every(q => q === 0)) && (
-                                            <tr>
-                                                <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
-                                                    No active inventory items.
+                                    {peopleStats.length > 0 ? (
+                                        peopleStats.map((person, idx) => (
+                                            <tr
+                                                key={idx}
+                                                className="hover:bg-gray-50 cursor-pointer transition-colors"
+                                                onClick={() => {
+                                                    setSelectedPerson(person.name);
+                                                    setActiveTab('person_details');
+                                                }}
+                                            >
+                                                <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{person.name}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-600 text-center">{person.productCount}</td>
+                                                <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
+                                                    <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{person.totalCtns.toFixed(1)}</span>
                                                 </td>
+                                                <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{person.totalPcs}</td>
                                             </tr>
-                                        )}
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                                                <div className="flex flex-col items-center gap-2">
+                                                    <AlertCircle className="w-8 h-8 opacity-50" />
+                                                    <p>No inventory records found for any person.</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    )}
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
-        </div>
+            {/* Person Details Tab (Drill Down) */}
+            {
+                activeTab === 'person_details' && selectedPerson && (
+                    <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-300">
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => setActiveTab('people_inventory')}
+                                className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-600"
+                            >
+                                <ArrowRight className="w-6 h-6 rotate-180" />
+                            </button>
+                            <div>
+                                <h2 className="text-2xl font-bold text-gray-800">{selectedPerson}</h2>
+                                <p className="text-sm text-gray-500">Inventory Details</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full">
+                                    <thead className="bg-white border-b border-gray-200">
+                                        <tr>
+                                            <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Product Name</th>
+                                            <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Cartons</th>
+                                            <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Pieces</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {Object.entries(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {})
+                                            .filter(([_, qty]) => qty !== 0)
+                                            .map(([barcode, qty]) => {
+                                                const product = products.find(p => p.barcode === barcode);
+                                                const productName = product ? product.productName : barcode;
+                                                const pcsInCtn = product ? (product.pcsInCtn || 1) : 1;
+                                                const ctns = qty / pcsInCtn;
+
+                                                return (
+                                                    <tr key={barcode} className="hover:bg-gray-50">
+                                                        <td className="px-6 py-4 text-sm font-medium text-gray-800 text-center">{productName}</td>
+                                                        <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
+                                                            <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{ctns.toFixed(1)}</span>
+                                                        </td>
+                                                        <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{qty}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        {(!peopleStats.find(p => p.name === selectedPerson)?.prodMap ||
+                                            Object.values(peopleStats.find(p => p.name === selectedPerson)?.prodMap || {}).every(q => q === 0)) && (
+                                                <tr>
+                                                    <td colSpan={3} className="px-6 py-8 text-center text-gray-400">
+                                                        No active inventory items.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+
+        </div >
     );
 }
