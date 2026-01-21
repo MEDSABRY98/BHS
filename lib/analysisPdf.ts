@@ -409,6 +409,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     const prevAvg = prevMet.count > 0 ? prevMet.total / prevMet.count : 0;
     const avgTrend = prevAvg > 0 ? ((curAvg - prevAvg) / prevAvg) * 100 : 0;
 
+    // Last Year Trends
+    const revenueTrendLY = lyMet.total > 0 ? ((curMet.total - lyMet.total) / lyMet.total) * 100 : 0;
+    const countTrendLY = lyMet.count > 0 ? ((curMet.count - lyMet.count) / lyMet.count) * 100 : 0;
+    const custTrendLY = lyMet.uniqueCustomers > 0 ? ((curMet.uniqueCustomers - lyMet.uniqueCustomers) / lyMet.uniqueCustomers) * 100 : 0;
+
 
     // ================= PDF RENDERING =================
 
@@ -451,7 +456,16 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     // --- MODERN UI HELPERS ---
 
-    const drawModernCard = (x: number, y: number, w: number, h: number, title: string, value: string, subText: string, accentColor: [number, number, number]) => {
+    const drawModernCard = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        title: string,
+        value: string,
+        trendInfo: { prev: number, ly: number } | null,
+        accentColor: [number, number, number]
+    ) => {
         // Shadow effect (subtle)
         doc.setFillColor(241, 245, 249); // Slate 100
         doc.roundedRect(x + 1, y + 1, w, h, 2, 2, 'F');
@@ -478,15 +492,44 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.setFont('helvetica', 'bold');
         doc.text(value, x + 8, y + 20);
 
-        // Subtext (Trend or Info)
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
+        if (trendInfo) {
+            // Draw Line separator
+            doc.setDrawColor(226, 232, 240); // Slate 200
+            doc.setLineWidth(0.1);
+            doc.line(x + 5, y + 23, x + w - 5, y + 23);
 
-        if (subText.includes('+') || subText.includes('▲')) doc.setTextColor(22, 163, 74); // Green
-        else if (subText.includes('-') || subText.includes('▼')) doc.setTextColor(220, 38, 38); // Red
-        else doc.setTextColor(148, 163, 184); // Slate 400
+            // --- LEFT: PREV ---
+            doc.setFontSize(8); // Increased from 7
+            doc.setTextColor(100, 116, 139); // Slate 500 (Darker for clarity)
+            doc.setFont('helvetica', 'normal');
+            doc.text('Vs Prev', x + 5, y + 27); // Moved left slightly
 
-        doc.text(subText, x + 8, y + 29);
+            const prevText = `${trendInfo.prev > 0 ? '+' : ''}${trendInfo.prev.toFixed(1)}%`;
+            if (trendInfo.prev > 0) doc.setTextColor(22, 163, 74);
+            else if (trendInfo.prev < 0) doc.setTextColor(220, 38, 38);
+            else doc.setTextColor(148, 163, 184);
+
+            doc.setFontSize(10); // Increased from default/implicit small
+            doc.setFont('helvetica', 'bold');
+            doc.text(prevText, x + 5, y + 32);
+
+            // --- RIGHT: LAST YEAR ---
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8); // Increased from 7
+            doc.setTextColor(100, 116, 139); // Slate 500
+            // Position roughly at 55% of width
+            const rightX = x + (w * 0.55);
+            doc.text('Vs Last Year', rightX, y + 27);
+
+            const lyText = `${trendInfo.ly > 0 ? '+' : ''}${trendInfo.ly.toFixed(1)}%`;
+            if (trendInfo.ly > 0) doc.setTextColor(22, 163, 74);
+            else if (trendInfo.ly < 0) doc.setTextColor(220, 38, 38);
+            else doc.setTextColor(148, 163, 184);
+
+            doc.setFontSize(10); // Increased
+            doc.setFont('helvetica', 'bold');
+            doc.text(lyText, rightX, y + 32);
+        }
     };
 
     const drawHorizontalBarChart = (x: number, y: number, w: number, h: number, data: { label: string, value: number }[], title: string) => {
@@ -619,7 +662,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         rowY: number,
         title: string,
         metrics: { total: number, count: number, uniqueCustomers: number },
-        trends: { rev?: number, count?: number, cust?: number } | null
+        trends: {
+            rev?: number, count?: number, cust?: number,
+            revLY?: number, countLY?: number, custLY?: number
+        } | null,
+        periodType: 'Current' | 'Previous' | 'LastYear'
     ) => {
         // Row Title
         doc.setFontSize(11);
@@ -628,39 +675,44 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.text(title, 14, rowY - 5);
 
         // 1. Collections (Blue)
-        let revText = 'No Change';
-        if (trends && trends.rev !== undefined) revText = `${trends.rev > 0 ? '+' : ''}${trends.rev.toFixed(1)}% vs prev`;
-        else revText = '';
+        let revTrend = null;
+        if (periodType === 'Current' && trends && trends.rev !== undefined && trends.revLY !== undefined) {
+            revTrend = { prev: trends.rev, ly: trends.revLY };
+        }
 
         drawModernCard(
             14, rowY, cardW, cardH,
             'Total Collections',
             `${metrics.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            revText,
+            revTrend,
             [59, 130, 246]
         );
 
         // 2. Customers (Green)
-        let custText = '';
-        if (trends && trends.cust !== undefined) custText = `${trends.cust > 0 ? '+' : ''}${trends.cust.toFixed(1)}% vs prev`;
+        let custTrend = null;
+        if (periodType === 'Current' && trends && trends.cust !== undefined && trends.custLY !== undefined) {
+            custTrend = { prev: trends.cust, ly: trends.custLY };
+        }
 
         drawModernCard(
             14 + cardW + gap, rowY, cardW, cardH,
             'Active Customers',
             `${metrics.uniqueCustomers}`,
-            custText,
+            custTrend,
             [16, 185, 129]
         );
 
         // 3. Transactions (Orange)
-        let payText = '';
-        if (trends && trends.count !== undefined) payText = `${trends.count > 0 ? '+' : ''}${trends.count.toFixed(1)}% vs prev`;
+        let payTrend = null;
+        if (periodType === 'Current' && trends && trends.count !== undefined && trends.countLY !== undefined) {
+            payTrend = { prev: trends.count, ly: trends.countLY };
+        }
 
         drawModernCard(
             14 + (cardW + gap) * 2, rowY, cardW, cardH,
             'Payment Count',
             `${metrics.count}`,
-            payText,
+            payTrend,
             [249, 115, 22]
         );
     };
@@ -670,7 +722,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         y,
         `Current Period (${formatDate(startDate!)} - ${formatDate(endDate!)})`,
         curMet,
-        { rev: revenueTrend, cust: custTrend, count: countTrend }
+        {
+            rev: revenueTrend, cust: custTrend, count: countTrend,
+            revLY: revenueTrendLY, custLY: custTrendLY, countLY: countTrendLY
+        },
+        'Current'
     );
 
     // Row 2: Previous
@@ -679,7 +735,8 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         y,
         `Previous Period (${formatDate(prevStartDate)} - ${formatDate(prevEndDate)})`,
         prevMet,
-        null
+        null,
+        'Previous'
     );
 
     // Row 3: Last Year
@@ -688,7 +745,8 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         y,
         `Same Period Last Year (${formatDate(lyStartDate)} - ${formatDate(lyEndDate)})`,
         lyMet,
-        null
+        null,
+        'LastYear'
     );
 
 
@@ -780,12 +838,16 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     if (weeks.length > 0) {
         // 1. Chart
+        // Show latest 8 weeks if period is long
+        const weeksForChart = weeks.length > 8 ? weeks.slice(-8) : weeks;
+        const chartTitleW = weeks.length > 8 ? 'Collections Trend (Last 8 Weeks)' : 'Collections Trend (Weekly)';
+
         // Clone and format labels for Chart (Year under Week)
-        const chartWeeks = weeks.slice(0, 10).map(w => ({
+        const chartWeeks = weeksForChart.map(w => ({
             ...w,
             label: w.label.replace(' / ', '\n')
         }));
-        drawBarChart(doc, 15, y, 180, 80, chartWeeks, 'Collections Trend (Weekly)');
+        drawBarChart(doc, 15, y, 180, 80, chartWeeks, chartTitleW);
         y += 110; // Increased spacing to avoid overlap with x-axis labels
 
         // 2. Table
@@ -837,7 +899,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.text('Monthly Analysis', 105, 20, { align: 'center' });
 
         // 1. Chart
-        drawBarChart(doc, 15, 28, 180, 80, months.slice(0, 12), 'Collections Trend (Monthly)');
+        // Show latest 8 months if period is long
+        const monthsForChart = months.length > 8 ? months.slice(-8) : months;
+        const chartTitleM = months.length > 8 ? 'Collections Trend (Last 8 Months)' : 'Collections Trend (Monthly)';
+
+        drawBarChart(doc, 15, 28, 180, 80, monthsForChart, chartTitleM);
 
         // 2. Table
         const tableDataM = months.map(m => {
