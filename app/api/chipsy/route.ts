@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getChipsyInventory, getChipsyTransfers } from '@/lib/googleSheets';
+import { getChipsyInventory, getChipsyTransfers, getSheetData } from '@/lib/googleSheets';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
     try {
-        const [inventory, transfers] = await Promise.all([
+        const [inventory, transfers, mainSheetData] = await Promise.all([
             getChipsyInventory(),
-            getChipsyTransfers()
+            getChipsyTransfers(),
+            getSheetData()
         ]);
 
         // Create a map of mutable products
@@ -34,8 +35,11 @@ export async function GET() {
             }
         });
 
+        // Extract unique customers from main app data
+        const allCustomers = Array.from(new Set(mainSheetData.map(d => d.customerName))).sort();
+
         const data = Array.from(inventoryMap.values());
-        return NextResponse.json({ data });
+        return NextResponse.json({ data, transfers, allCustomers });
     } catch (error) {
         console.error('API Error:', error);
         return NextResponse.json({ error: 'Failed to fetch chipsy inventory' }, { status: 500 });

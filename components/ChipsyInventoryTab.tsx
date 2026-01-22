@@ -4,7 +4,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, RotateCw, AlertCircle, Plus,
-    ArrowLeftRight, History, Layers, LogOut, ArrowRight, ArrowLeft
+    ArrowLeftRight, History, Layers, LogOut, ArrowRight, ArrowLeft, ChevronDown
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Loading from './Loading';
@@ -48,6 +48,7 @@ export default function ChipsyInventoryTab() {
     const [activeTab, setActiveTab] = useState<TabView>('inventory');
     const [products, setProducts] = useState<ChipsyProduct[]>([]);
     const [transfers, setTransfers] = useState<ChipsyTransfer[]>([]);
+    const [mainCustomers, setMainCustomers] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');
 
@@ -88,6 +89,10 @@ export default function ChipsyInventoryTab() {
     }[]>([
         { product: null, qty: '', unit: 'CTN', price: 0, searchTerm: '', showDropdown: false }
     ]);
+    const [showPersonSuggestions, setShowPersonSuggestions] = useState(false);
+    const [showCustomerSuggestions, setShowCustomerSuggestions] = useState(false);
+    const [openSourceDropdown, setOpenSourceDropdown] = useState(false);
+    const [openDestDropdown, setOpenDestDropdown] = useState(false);
 
     useEffect(() => {
         fetchData();
@@ -95,7 +100,7 @@ export default function ChipsyInventoryTab() {
 
     const fetchData = async () => {
         setLoading(true);
-        await Promise.all([fetchInventory(), fetchTransfers()]);
+        await fetchInventory();
         setLoading(false);
     };
 
@@ -104,20 +109,14 @@ export default function ChipsyInventoryTab() {
             const res = await fetch('/api/chipsy');
             const json = await res.json();
             if (json.data) setProducts(json.data);
+            if (json.transfers) setTransfers(json.transfers);
+            if (json.allCustomers) setMainCustomers(json.allCustomers);
         } catch (e) {
             console.error('Failed to load chipsy inventory', e);
         }
     };
 
-    const fetchTransfers = async () => {
-        try {
-            const res = await fetch('/api/chipsy/transfers');
-            const json = await res.json();
-            if (json.data) setTransfers(json.data);
-        } catch (e) {
-            console.error('Failed to load chipsy transfers', e);
-        }
-    };
+
 
     // Auto-populate cart with all products when opening New Transaction tab
     useEffect(() => {
@@ -252,7 +251,12 @@ export default function ChipsyInventoryTab() {
                 doc.setFontSize(10);
                 // doc.setFont("helvetica", "normal");
                 const now = new Date();
-                const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours()}:${now.getMinutes()}`;
+                const day = now.getDate().toString().padStart(2, '0');
+                const month = (now.getMonth() + 1).toString().padStart(2, '0');
+                const year = now.getFullYear();
+                const hours = now.getHours().toString().padStart(2, '0');
+                const minutes = now.getMinutes().toString().padStart(2, '0');
+                const dateStr = `${day}/${month}/${year} ${hours}:${minutes}`;
 
                 // Transaction Info
                 const infoText = `${dateStr}  |  ${data.transactionNumber}`;
@@ -287,8 +291,22 @@ export default function ChipsyInventoryTab() {
 
                 // Table Data
                 // Table Data
-                const tableHead = [["Barcode", "Product", "Qty (Pcs)", "Qty (Ctns)", "Price", "Total"]];
-                const tableBody = validRows.map(row => {
+                // Calculate Totals for Footer
+                const sumTotalPcs = validRows.reduce((acc, row) => {
+                    const qty = parseFloat(row.qty as string);
+                    const pcsInCtn = row.product!.pcsInCtn || 1;
+                    return acc + (row.unit === 'CTN' ? qty * pcsInCtn : qty);
+                }, 0);
+
+                const sumTotalCtns = validRows.reduce((acc, row) => {
+                    const qty = parseFloat(row.qty as string);
+                    const pcsInCtn = row.product!.pcsInCtn || 1;
+                    return acc + (row.unit === 'CTN' ? qty : qty / pcsInCtn);
+                }, 0);
+
+                // Table Data
+                const tableHead = [["#", "Barcode", "Product", "Qty (Pcs)", "Qty (Ctns)", "Price", "Total"]];
+                const tableBody = validRows.map((row, idx) => {
                     const qty = parseFloat(row.qty as string);
                     const pcsInCtn = row.product!.pcsInCtn || 1;
                     const totalPcs = row.unit === 'CTN' ? qty * pcsInCtn : qty;
@@ -297,6 +315,7 @@ export default function ChipsyInventoryTab() {
                     const total = totalPcs * price;
 
                     return [
+                        (idx + 1).toString(),
                         row.product!.barcode,
                         row.product!.productName,
                         totalPcs.toLocaleString(),
@@ -309,9 +328,13 @@ export default function ChipsyInventoryTab() {
                 autoTable(doc, {
                     head: tableHead,
                     body: tableBody,
+                    foot: [
+                        ['', '', 'Total', sumTotalPcs.toLocaleString(), sumTotalCtns.toFixed(2), '', '']
+                    ],
                     startY: yPos,
                     theme: 'grid',
                     headStyles: { fillColor: [22, 163, 74], font: 'Amiri', halign: 'center' },
+                    footStyles: { fillColor: [240, 240, 240], textColor: 50, font: 'Amiri', halign: 'center', fontStyle: 'bold' },
                     styles: {
                         fontSize: 10,
                         cellPadding: 2,
@@ -389,9 +412,9 @@ export default function ChipsyInventoryTab() {
 
                 // Description
                 if (description) {
-                    doc.setFontSize(10);
+                    doc.setFontSize(12);
                     // doc.setFont("helvetica", "italic");
-                    doc.setTextColor(100);
+                    doc.setTextColor(0);
                     doc.text(description, 105, currentY, { align: "center", maxWidth: 150 });
                     currentY += 20;
                 } else {
@@ -425,6 +448,16 @@ export default function ChipsyInventoryTab() {
                 doc.setFontSize(12);
                 doc.text(receiverName, 170, currentY + 7, { align: "center" });
                 doc.line(150, currentY + 10, 190, currentY + 10);
+
+                // Add Page Numbers
+                // @ts-ignore
+                const pageCount = doc.internal.getNumberOfPages();
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setPage(i);
+                    doc.setFontSize(9);
+                    doc.setTextColor(150);
+                    doc.text(`Page ${i} of ${pageCount}`, 200, 290, { align: 'right' });
+                }
 
                 doc.save(`${data.transactionNumber}.pdf`);
             }
@@ -525,6 +558,19 @@ export default function ChipsyInventoryTab() {
 
         return result.sort((a, b) => b.totalPcs - a.totalPcs);
     }, [transfers, products]);
+
+    // Helper to get previous customer names
+    const previousCustomers = useMemo(() => {
+        const customers = new Set<string>();
+        transfers.forEach(t => {
+            if (t.customerName) customers.add(t.customerName);
+            if (t.locTo === 'Customer' && t.customerName) customers.add(t.customerName);
+        });
+        if (mainCustomers && mainCustomers.length > 0) {
+            mainCustomers.forEach(c => customers.add(c));
+        }
+        return Array.from(customers).sort();
+    }, [transfers, mainCustomers]);
 
     // Helper to get suggestions for a specific row
     const getRowSuggestions = (searchTerm: string) => {
@@ -894,64 +940,181 @@ export default function ChipsyInventoryTab() {
 
                         <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_1.5fr_1.5fr] gap-4 items-end">
                             {/* Source Type */}
-                            <div>
+                            <div className="relative">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">From (Source)</label>
-                                <select
-                                    className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all bg-white font-medium text-gray-700"
-                                    value={sourceType}
-                                    onChange={(e) => setSourceType(e.target.value as any)}
+                                <div
+                                    onClick={() => setOpenSourceDropdown(!openSourceDropdown)}
+                                    className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl bg-white flex items-center justify-between cursor-pointer hover:border-orange-500 transition-all font-medium text-gray-700"
                                 >
-                                    <option value="Main Inventory">Main Inventory</option>
-                                    <option value="Person">Person</option>
-                                </select>
+                                    <span>{sourceType}</span>
+                                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${openSourceDropdown ? 'rotate-180' : ''}`} />
+                                </div>
+
+                                {openSourceDropdown && (
+                                    <>
+                                        <div className="fixed inset-0 z-30 bg-transparent cursor-default" onClick={() => setOpenSourceDropdown(false)} />
+                                        <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                            {['Main Inventory', 'Person'].map((option) => (
+                                                <div
+                                                    key={option}
+                                                    onClick={() => {
+                                                        const newSource = option as any;
+                                                        setSourceType(newSource);
+                                                        if (newSource === destType) {
+                                                            const validDest = ['Main Inventory', 'Person', 'Customer'].find(d => d !== newSource);
+                                                            if (validDest) setDestType(validDest as any);
+                                                        }
+                                                        setOpenSourceDropdown(false);
+                                                    }}
+                                                    className={`px-4 py-3 cursor-pointer transition-colors flex items-center justify-between ${sourceType === option ? 'bg-orange-50 text-orange-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
+                                                        }`}
+                                                >
+                                                    {option}
+                                                    {sourceType === option && <div className="w-2 h-2 rounded-full bg-orange-500" />}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Destination Type */}
-                            <div>
+                            <div className="relative">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">To (Destination)</label>
-                                <select
-                                    className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all bg-white font-medium text-gray-700"
-                                    value={destType}
-                                    onChange={(e) => setDestType(e.target.value as any)}
+                                <div
+                                    onClick={() => setOpenDestDropdown(!openDestDropdown)}
+                                    className="w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl bg-white flex items-center justify-between cursor-pointer hover:border-orange-500 transition-all font-medium text-gray-700"
                                 >
-                                    <option value="Main Inventory">Main Inventory</option>
-                                    <option value="Person">Person</option>
-                                    <option value="Customer">Customer</option>
-                                </select>
+                                    <span>{destType}</span>
+                                    <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${openDestDropdown ? 'rotate-180' : ''}`} />
+                                </div>
+
+                                {openDestDropdown && (
+                                    <>
+                                        <div className="fixed inset-0 z-30 bg-transparent cursor-default" onClick={() => setOpenDestDropdown(false)} />
+                                        <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg z-40 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                            {['Main Inventory', 'Person', 'Customer'].map((option) => (
+                                                <div
+                                                    key={option}
+                                                    onClick={() => {
+                                                        const newDest = option as any;
+                                                        setDestType(newDest);
+                                                        if (newDest === sourceType) {
+                                                            const validSource = ['Main Inventory', 'Person'].find(s => s !== newDest);
+                                                            if (validSource) setSourceType(validSource as any);
+                                                        }
+                                                        setOpenDestDropdown(false);
+                                                    }}
+                                                    className={`px-4 py-3 cursor-pointer transition-colors flex items-center justify-between ${destType === option ? 'bg-orange-50 text-orange-700 font-bold' : 'hover:bg-gray-50 text-gray-700'
+                                                        }`}
+                                                >
+                                                    {option}
+                                                    {destType === option && <div className="w-2 h-2 rounded-full bg-orange-500" />}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* Person Name Input */}
-                            <div>
+                            <div className="relative">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">Person Name</label>
                                 <input
-                                    list="person-options"
                                     type="text"
                                     className={`w-full h-[50px] px-4 border-2 border-gray-200 rounded-xl text-sm focus:border-orange-500 outline-none transition-all bg-white font-medium text-gray-700 ${(sourceType === 'Person' || destType === 'Person' || destType === 'Customer') ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'
                                         }`}
                                     value={personName}
-                                    onChange={(e) => setPersonName(e.target.value)}
+                                    onChange={(e) => {
+                                        setPersonName(e.target.value);
+                                        setShowPersonSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowPersonSuggestions(true)}
+                                    // Delay blur to allow click registration
+                                    onBlur={() => setTimeout(() => setShowPersonSuggestions(false), 200)}
                                     placeholder="Enter Person Name..."
                                     disabled={sourceType !== 'Person' && destType !== 'Person' && destType !== 'Customer'}
                                 />
-                                <datalist id="person-options">
-                                    {peopleStats.map((p, idx) => (
-                                        <option key={idx} value={p.name} />
-                                    ))}
-                                </datalist>
+                                {/* Custom Suggestions Dropdown */}
+                                {showPersonSuggestions && (sourceType === 'Person' || destType === 'Person' || destType === 'Customer') && (
+                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50">
+                                        {peopleStats
+                                            .filter(p => !personName || p.name.toLowerCase().includes(personName.toLowerCase()))
+                                            .map((p, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onMouseDown={() => {
+                                                        setPersonName(p.name);
+                                                        setShowPersonSuggestions(false);
+                                                    }}
+                                                    className="px-4 py-3 hover:bg-orange-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0 flex items-center gap-3"
+                                                >
+                                                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold text-xs">
+                                                        {p.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-gray-700">{p.name}</p>
+                                                        <p className="text-xs text-gray-400">Previous Transactions</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        {peopleStats.filter(p => !personName || p.name.toLowerCase().includes(personName.toLowerCase())).length === 0 && personName && (
+                                            <div className="px-4 py-3 text-sm text-gray-400 italic">
+                                                No matches found. New person will be created.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
 
                             {/* Customer Name Input */}
-                            <div>
+                            <div className="relative">
                                 <label className="block text-sm font-bold text-gray-700 mb-2">Customer Name</label>
                                 <input
                                     type="text"
                                     className={`w-full h-[50px] px-4 border-2 border-blue-200 rounded-xl text-sm focus:border-blue-500 outline-none transition-all bg-white font-medium text-gray-700 ${destType === 'Customer' ? 'opacity-100' : 'opacity-50 grayscale pointer-events-none'
                                         }`}
                                     value={customerName}
-                                    onChange={(e) => setCustomerName(e.target.value)}
+                                    onChange={(e) => {
+                                        setCustomerName(e.target.value);
+                                        setShowCustomerSuggestions(true);
+                                    }}
+                                    onFocus={() => setShowCustomerSuggestions(true)}
+                                    // Delay blur to allow click registration
+                                    onBlur={() => setTimeout(() => setShowCustomerSuggestions(false), 200)}
                                     placeholder="Enter Customer Name..."
                                     disabled={destType !== 'Customer'}
                                 />
+                                {/* Custom Suggestions Dropdown */}
+                                {showCustomerSuggestions && destType === 'Customer' && (
+                                    <div className="absolute top-full left-0 w-full mt-1 bg-white border border-gray-100 rounded-xl shadow-lg max-h-60 overflow-y-auto z-50">
+                                        {previousCustomers
+                                            .filter(c => !customerName || c.toLowerCase().includes(customerName.toLowerCase()))
+                                            .map((c, idx) => (
+                                                <div
+                                                    key={idx}
+                                                    onMouseDown={() => {
+                                                        setCustomerName(c);
+                                                        setShowCustomerSuggestions(false);
+                                                    }}
+                                                    className="px-4 py-3 hover:bg-blue-50 cursor-pointer transition-colors border-b border-gray-50 last:border-0 flex items-center gap-3"
+                                                >
+                                                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
+                                                        {c.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-sm font-bold text-gray-700">{c}</p>
+                                                        <p className="text-xs text-gray-400">Previous Customer</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        {previousCustomers.filter(c => !customerName || c.toLowerCase().includes(customerName.toLowerCase())).length === 0 && customerName && (
+                                            <div className="px-4 py-3 text-sm text-gray-400 italic">
+                                                No matches found.
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                         {/* Description Field - Full Width Row */}
@@ -1117,6 +1280,20 @@ export default function ChipsyInventoryTab() {
                         {/* Totals Footer */}
                         <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
                             {(() => {
+                                const activeItems = cart.filter(row => (parseFloat(row.qty as string) || 0) > 0).length;
+
+                                const totalPcs = cart.reduce((acc, row) => {
+                                    const qty = parseFloat(row.qty as string) || 0;
+                                    const pcsInCtn = row.product?.pcsInCtn || 1;
+                                    return acc + (row.unit === 'CTN' ? qty * pcsInCtn : qty);
+                                }, 0);
+
+                                const totalCtns = cart.reduce((acc, row) => {
+                                    const qty = parseFloat(row.qty as string) || 0;
+                                    const pcsInCtn = row.product?.pcsInCtn || 1;
+                                    return acc + (row.unit === 'CTN' ? qty : qty / pcsInCtn);
+                                }, 0);
+
                                 const subTotal = cart.reduce((acc, row) => {
                                     const qty = parseFloat(row.qty as string) || 0;
                                     const pcsInCtn = row.product?.pcsInCtn || 1;
@@ -1127,18 +1304,37 @@ export default function ChipsyInventoryTab() {
                                 const grandTotal = subTotal + vat;
 
                                 return (
-                                    <div className="flex justify-end gap-8">
-                                        <div className="text-right">
-                                            <p className="text-xs font-bold text-gray-400 uppercase">Subtotal</p>
-                                            <p className="font-mono font-bold text-gray-800">{subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                    <div className="flex flex-col md:flex-row justify-between gap-8">
+                                        {/* Qty Stats */}
+                                        <div className="flex gap-8 border-r border-gray-200 pr-8">
+                                            <div className="text-left">
+                                                <p className="text-xs font-bold text-gray-400 uppercase">Items With Qty</p>
+                                                <p className="font-mono font-bold text-gray-800">{activeItems}</p>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-xs font-bold text-gray-400 uppercase">Total Ctns</p>
+                                                <p className="font-mono font-bold text-blue-600">{totalCtns.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</p>
+                                            </div>
+                                            <div className="text-left">
+                                                <p className="text-xs font-bold text-gray-400 uppercase">Total Pcs</p>
+                                                <p className="font-mono font-bold text-green-600">{totalPcs.toLocaleString()}</p>
+                                            </div>
                                         </div>
-                                        <div className="text-right">
-                                            <p className="text-xs font-bold text-gray-400 uppercase">VAT (5%)</p>
-                                            <p className="font-mono font-bold text-red-600">{vat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-xs font-bold text-gray-400 uppercase">Grand Total</p>
-                                            <p className="font-mono font-bold text-xl text-blue-600">{grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+
+                                        {/* Financials */}
+                                        <div className="flex justify-end gap-8">
+                                            <div className="text-right">
+                                                <p className="text-xs font-bold text-gray-400 uppercase">Subtotal</p>
+                                                <p className="font-mono font-bold text-gray-800">{subTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs font-bold text-gray-400 uppercase">VAT (5%)</p>
+                                                <p className="font-mono font-bold text-red-600">{vat.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs font-bold text-gray-400 uppercase">Grand Total</p>
+                                                <p className="font-mono font-bold text-xl text-blue-600">{grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 );
