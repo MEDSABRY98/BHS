@@ -2641,7 +2641,7 @@ export async function addChipsyBulkTransfers(transfers: ChipsyTransfer[]) {
       spreadsheetId: SPREADSHEET_ID,
       range: `'TRANSFERS - Chipsy'!A:M`,
       valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'INSERT_ROWS',
+      insertDataOption: 'OVERWRITE',
       requestBody: { values },
     });
     return { success: true };

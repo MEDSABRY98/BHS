@@ -14,24 +14,55 @@ export async function GET() {
         // Create a map of mutable products
         const inventoryMap = new Map(inventory.map(item => [item.barcode, { ...item }]));
 
-        // Apply all transfers to calculate dynamic stock
-        // Note: transfers are returned newest-first by getChipsyTransfers, but order doesn't matter for sum
-        transfers.forEach(transfer => {
+        // Process transfers chronologically (Oldest First)
+        // getChipsyTransfers returns Newest First, so we reverse it
+        const chronologicalTransfers = [...transfers].reverse();
+        const personSalesBuffer = new Map<string, number>(); // barcode -> qty
+
+        chronologicalTransfers.forEach(transfer => {
             const product = inventoryMap.get(transfer.barcode);
-            if (product) {
-                // Stock In (Increase Main Inventory)
-                // New: Destination is Main Inventory (e.g. Return from Person)
-                // Legacy: Type was 'IN' (mapped to locFrom)
-                if (transfer.locTo === 'Main Inventory' || transfer.locTo === 'MAIN' || transfer.locFrom === 'IN') {
-                    product.qtyPcs += transfer.qtyPcs;
+            if (!product) return;
+
+            const isMain = (t: string) => t === 'Main Inventory' || t === 'MAIN';
+            const isCustomer = (t: string) => t === 'Customer' || t === 'CUSTOMER';
+            const isLegacyIn = (t: string) => t === 'IN';
+            const isLegacyOut = (t: string) => t === 'OUT';
+
+            // Track Person -> Customer Sales (Buffer against future reconciliation)
+            // A person sale means the item left physical stock (via person) previously.
+            // When we later reconcile with Odoo (Main -> Customer), we shouldn't deduct this item again.
+            if (!isMain(transfer.locFrom) && !isCustomer(transfer.locFrom) && !isLegacyIn(transfer.locFrom) && !isLegacyOut(transfer.locFrom) &&
+                isCustomer(transfer.locTo)) {
+
+                const currentBuffer = personSalesBuffer.get(transfer.barcode) || 0;
+                personSalesBuffer.set(transfer.barcode, currentBuffer + transfer.qtyPcs);
+            }
+
+            // Check for Reconciliation (Odoo Invoice Adjustment)
+            const isReconciliation = transfer.description && transfer.description.includes('تسوية مخزون (فواتير عملاء)');
+
+            // Stock In (Increase Main Inventory)
+            if (isMain(transfer.locTo) || isLegacyIn(transfer.locFrom)) {
+                product.qtyPcs += transfer.qtyPcs;
+            }
+
+            // Stock Out (Decrease Main Inventory)
+            else if (isMain(transfer.locFrom) || isLegacyOut(transfer.locFrom)) {
+                let qtyToDeduct = transfer.qtyPcs;
+
+                if (isReconciliation) {
+                    const buffer = personSalesBuffer.get(transfer.barcode) || 0;
+                    // If buffer exists, we've already "spent" this stock via Person->Customer.
+                    // So we ignore that amount from this deduction.
+                    const amountToIgnore = Math.min(qtyToDeduct, buffer);
+
+                    qtyToDeduct -= amountToIgnore;
+
+                    // Consume the buffer
+                    personSalesBuffer.set(transfer.barcode, buffer - amountToIgnore);
                 }
 
-                // Stock Out (Decrease Main Inventory)
-                // New: Source is Main Inventory (e.g. Issue to Person)
-                // Legacy: Type was 'OUT' (mapped to locFrom)
-                else if (transfer.locFrom === 'Main Inventory' || transfer.locFrom === 'MAIN' || transfer.locFrom === 'OUT') {
-                    product.qtyPcs -= transfer.qtyPcs;
-                }
+                product.qtyPcs -= qtyToDeduct;
             }
         });
 
