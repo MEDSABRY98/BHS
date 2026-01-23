@@ -719,7 +719,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto">
+      <div className="w-full">
         {/* Header */}
         <div className="mb-6 flex items-center gap-4">
           <button

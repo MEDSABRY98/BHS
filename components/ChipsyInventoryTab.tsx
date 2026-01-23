@@ -4,13 +4,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, RotateCw, AlertCircle, Plus,
-    ArrowLeftRight, History, Layers, LogOut, ArrowRight, ArrowLeft, ChevronDown
+    ArrowLeftRight, History, Layers, LogOut, ArrowRight, ArrowLeft, ChevronDown, Download
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Loading from './Loading';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/lib/pdfUtils';
+import * as XLSX from 'xlsx';
 
 
 // --- Types ---
@@ -585,25 +586,34 @@ export default function ChipsyInventoryTab() {
         const result = Object.entries(persons).map(([name, prodMap]) => {
             let totalPcs = 0;
             let totalCtns = 0;
+            let totalReceivedPcs = 0;
+            let totalReceivedCtns = 0;
+            let totalDistributedPcs = 0;
+            let totalDistributedCtns = 0;
             let productCount = 0;
 
             Object.entries(prodMap).forEach(([barcode, stats]) => {
                 if (stats.balance !== 0 || stats.received !== 0 || stats.distributed !== 0) {
+                    const prod = products.find(p => p.barcode === barcode);
+                    const pcsInCtn = prod ? (prod.pcsInCtn || 1) : 1;
 
                     if (stats.balance !== 0) {
                         productCount++;
-                        totalPcs += stats.balance;
-
-                        // Find product for CTN calc
-                        const prod = products.find(p => p.barcode === barcode);
-                        const pcsInCtn = prod ? prod.pcsInCtn : 1;
-                        totalCtns += stats.balance / pcsInCtn;
                     }
+
+                    totalPcs += stats.balance;
+                    totalCtns += stats.balance / pcsInCtn;
+
+                    totalReceivedPcs += stats.received;
+                    totalReceivedCtns += stats.received / pcsInCtn;
+
+                    totalDistributedPcs += stats.distributed;
+                    totalDistributedCtns += stats.distributed / pcsInCtn;
                 }
             });
 
-            return { name, prodMap, totalPcs, totalCtns, productCount };
-        }).filter(p => p.totalPcs !== 0 || p.productCount !== 0); // Hide empty
+            return { name, prodMap, totalPcs, totalCtns, totalReceivedPcs, totalReceivedCtns, totalDistributedPcs, totalDistributedCtns, productCount };
+        }).filter(p => p.totalPcs !== 0 || p.productCount !== 0 || p.totalReceivedPcs !== 0); // Hide empty
 
         return result.sort((a, b) => b.totalPcs - a.totalPcs);
     }, [transfers, products]);
@@ -633,6 +643,281 @@ export default function ChipsyInventoryTab() {
 
 
 
+    // Export Inventory to Excel
+    const exportInventoryToExcel = () => {
+        const workbook = XLSX.utils.book_new();
+
+        const headers = ['Barcode', 'Product Name', 'Pcs/Ctn', 'Stock (Pieces)', 'Stock (Cartons)'];
+
+        const rows = filteredProducts.map(p => [
+            p.barcode,
+            p.productName,
+            p.pcsInCtn,
+            p.qtyPcs,
+            (p.qtyPcs / (p.pcsInCtn || 1)).toFixed(1)
+        ]);
+
+        // Add Totals Row
+        const totalPcs = filteredProducts.reduce((acc, p) => acc + p.qtyPcs, 0);
+        const totalCtns = filteredProducts.reduce((acc, p) => acc + (p.qtyPcs / (p.pcsInCtn || 1)), 0);
+
+        rows.push(['', 'TOTAL', '', totalPcs, totalCtns.toFixed(1)]);
+
+        const sheetData = [headers, ...rows];
+        const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Auto-width columns
+        const colWidths = [
+            { wch: 15 }, // Barcode
+            { wch: 40 }, // Product Name
+            { wch: 10 }, // Pcs/Ctn
+            { wch: 15 }, // Stock Pieces
+            { wch: 15 }  // Stock Cartons
+        ];
+        sheet['!cols'] = colWidths;
+
+        XLSX.utils.book_append_sheet(workbook, sheet, 'Inventory');
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `Chipsy_Inventory_${dateStr}.xlsx`);
+    };
+
+    // Generic Export Handler
+    const handleExport = () => {
+        if (activeTab === 'inventory') {
+            exportInventoryToExcel();
+        } else if (activeTab === 'people_inventory') {
+            exportPeopleInventoryToExcel();
+        } else if (activeTab === 'transfers') {
+            exportTransfersToExcel();
+        } else if (activeTab === 'person_details') {
+            exportPersonDetailsToExcel();
+        } else if (activeTab === 'transaction_details') {
+            exportTransactionDetailsToExcel();
+        }
+    };
+
+    const exportPersonDetailsToExcel = () => {
+        if (!selectedPerson) return;
+        const workbook = XLSX.utils.book_new();
+
+        if (personSubTab === 'summary') {
+            const headers = ['Barcode', 'Product Name', 'Taken (Pcs)', 'Remaining (Pcs)', 'Distributed (Pcs)'];
+            const inventoryMap = peopleStats.find(p => p.name === selectedPerson)?.prodMap || {};
+            const rows = Object.entries(inventoryMap)
+                .filter(([_, stats]) => stats.balance !== 0 || stats.received !== 0 || stats.distributed !== 0)
+                .map(([barcode, stats]) => {
+                    const product = products.find(p => p.barcode === barcode);
+                    return [
+                        barcode,
+                        product ? product.productName : barcode,
+                        stats.received,
+                        stats.balance,
+                        stats.distributed
+                    ];
+                });
+
+            const sheetData = [headers, ...rows];
+            const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+            // Auto-width
+            const wscols = [{ wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 15 }];
+            sheet['!cols'] = wscols;
+
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Summary');
+
+        } else if (personSubTab === 'transactions') {
+            // Filter transactions for this person (received/issued)
+            const personTransfers = transfers.filter(t => t.locTo === selectedPerson || t.locFrom === selectedPerson);
+            const sorted = [...personTransfers].reverse();
+
+            const headers = ['Date', 'Type (In/Out)', 'Product', 'Qty (Pcs)', 'Other Party', 'Description'];
+            const rows = sorted.map(t => {
+                const type = t.locTo === selectedPerson ? 'RECEIVED' : 'ISSUED';
+                const otherParty = t.locTo === selectedPerson ? t.locFrom : t.locTo;
+                return [
+                    t.date,
+                    type,
+                    t.productName,
+                    t.qtyPcs,
+                    otherParty,
+                    t.description || '-'
+                ];
+            });
+            const sheetData = [headers, ...rows];
+            const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+            const wscols = [{ wch: 12 }, { wch: 10 }, { wch: 30 }, { wch: 10 }, { wch: 20 }, { wch: 30 }];
+            sheet['!cols'] = wscols;
+
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Transactions');
+        } else if (personSubTab === 'distribution') {
+            // Simplified Distribution - Just raw list or summary? 
+            // Matching the UI: "Distributions" usually means what they gave out.
+            // Let's filter transfers where locFrom === selectedPerson
+            const distributions = transfers.filter(t => t.locFrom === selectedPerson);
+
+            const headers = ['Date', 'Product', 'Qty (Pcs)', 'To', 'Description'];
+            const rows = distributions.map(t => [
+                t.date,
+                t.productName,
+                t.qtyPcs,
+                t.locTo,
+                t.description || '-'
+            ]);
+
+            const sheetData = [headers, ...rows];
+            const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+            const wscols = [{ wch: 12 }, { wch: 30 }, { wch: 10 }, { wch: 20 }, { wch: 30 }];
+            sheet['!cols'] = wscols;
+
+            XLSX.utils.book_append_sheet(workbook, sheet, 'Distributions');
+        }
+
+        const dateStr = new Date().toISOString().split('T')[0];
+        const safeName = selectedPerson.replace(/[^a-z0-9]/gi, '_');
+        XLSX.writeFile(workbook, `Chipsy_${safeName}_${personSubTab}_${dateStr}.xlsx`);
+    };
+
+    const exportTransactionDetailsToExcel = () => {
+        if (!selectedTransactionItems || selectedTransactionItems.length === 0) return;
+        const workbook = XLSX.utils.book_new();
+
+        // Info Header in first few rows? Or just flat table? Flat table is better for Excel.
+        // Let's do Header info then empty row then Items.
+        const first = selectedTransactionItems[0];
+        const infoRows = [
+            ['Transaction Number', selectedTransactionNumber],
+            ['Date', first.date],
+            ['User', first.user],
+            ['From', first.locFrom === 'IN' ? 'Main Inventory' : first.locFrom],
+            ['To', first.locTo === 'CUSTOMER' ? `Customer (${first.customerName})` : first.locTo],
+            ['Description', first.description || '-'],
+            [] // Empty row
+        ];
+
+        const itemHeaders = ['Barcode', 'Product Name', 'Qty (Pcs)', 'Qty (Ctns)'];
+        const itemRows = selectedTransactionItems.map(item => {
+            const product = products.find(p => p.barcode === item.barcode);
+            const pcsInCtn = product?.pcsInCtn || 1;
+            return [
+                item.barcode,
+                item.productName,
+                item.qtyPcs,
+                (item.qtyPcs / pcsInCtn).toFixed(1)
+            ];
+        });
+
+        const sheetData = [...infoRows, itemHeaders, ...itemRows];
+        const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Auto-width
+        const wscols = [{ wch: 20 }, { wch: 30 }, { wch: 12 }, { wch: 12 }];
+        // Set col widths starting from items? Excel is global. 
+        sheet['!cols'] = wscols;
+
+        XLSX.utils.book_append_sheet(workbook, sheet, 'Transaction Details');
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `Trx_${selectedTransactionNumber}_${dateStr}.xlsx`);
+    };
+
+    const exportPeopleInventoryToExcel = () => {
+        const workbook = XLSX.utils.book_new();
+        const headers = ['Distributor', 'Taken (Ctns)', 'Taken (Pcs)', 'Current (Ctns)', 'Current (Pcs)', 'Distributed (Ctns)', 'Distributed (Pcs)'];
+
+        const rows = peopleStats.map(p => [
+            p.name,
+            p.totalReceivedCtns.toFixed(1),
+            p.totalReceivedPcs,
+            p.totalCtns.toFixed(1),
+            p.totalPcs,
+            p.totalDistributedCtns.toFixed(1),
+            p.totalDistributedPcs
+        ]);
+
+        // Totals
+        const totalReceivedCtns = peopleStats.reduce((acc, p) => acc + p.totalReceivedCtns, 0);
+        const totalReceivedPcs = peopleStats.reduce((acc, p) => acc + p.totalReceivedPcs, 0);
+        const totalCtns = peopleStats.reduce((acc, p) => acc + p.totalCtns, 0);
+        const totalPcs = peopleStats.reduce((acc, p) => acc + p.totalPcs, 0);
+        const totalDistributedCtns = peopleStats.reduce((acc, p) => acc + p.totalDistributedCtns, 0);
+        const totalDistributedPcs = peopleStats.reduce((acc, p) => acc + p.totalDistributedPcs, 0);
+
+        rows.push([
+            'TOTAL',
+            totalReceivedCtns.toFixed(1),
+            totalReceivedPcs,
+            totalCtns.toFixed(1),
+            totalPcs,
+            totalDistributedCtns.toFixed(1),
+            totalDistributedPcs
+        ]);
+
+        const sheetData = [headers, ...rows];
+        const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+        // Auto-width
+        const wscols = [
+            { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+        ];
+        sheet['!cols'] = wscols;
+
+        XLSX.utils.book_append_sheet(workbook, sheet, 'People Inventory');
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `Chipsy_People_Dist_${dateStr}.xlsx`);
+    };
+
+    const exportTransfersToExcel = () => {
+        const workbook = XLSX.utils.book_new();
+        const headers = ['Trx #', 'Date', 'User', 'From', 'To', 'Customer', 'Receiver', 'Items Count', 'Total Pcs', 'Total Ctns', 'Description'];
+
+        // Existing logic for grouping transfers
+        const grouped = new Map<string, typeof transfers>();
+        transfers.forEach(t => {
+            const key = t.number || `LEGACY-${t.date}-${t.locTo}`;
+            if (!grouped.has(key)) grouped.set(key, []);
+            grouped.get(key)!.push(t);
+        });
+
+        const rows: any[][] = [];
+
+        Array.from(grouped.entries()).forEach(([trxNum, items]) => {
+            const first = items[0];
+            const count = items.length;
+            const totalQty = items.reduce((acc, i) => acc + i.qtyPcs, 0);
+            const totalCartons = items.reduce((acc, i) => {
+                const p = products.find(prod => prod.barcode === i.barcode);
+                return acc + (i.qtyPcs / (p?.pcsInCtn || 1));
+            }, 0).toFixed(1);
+
+            let displayFrom = first.locFrom;
+            let displayTo = first.locTo;
+            if (first.locFrom === 'IN') { displayFrom = 'Main Inventory'; displayTo = first.locTo; }
+            else if (first.locFrom === 'OUT') { displayFrom = first.locTo; displayTo = 'Customer'; }
+            if (first.locFrom === 'MAIN') displayFrom = 'Main Inventory';
+            if (first.locTo === 'MAIN') displayTo = 'Main Inventory';
+            if (first.locTo === 'CUSTOMER') displayTo = 'Customer';
+
+            rows.push([
+                trxNum,
+                first.date,
+                first.user,
+                displayFrom,
+                displayTo,
+                first.customerName || '-',
+                first.receiverName || '-',
+                count,
+                totalQty,
+                totalCartons,
+                first.description || '-'
+            ]);
+        });
+
+        const sheetData = [headers, ...rows];
+        const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+        XLSX.utils.book_append_sheet(workbook, sheet, 'History Logs');
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(workbook, `Chipsy_History_${dateStr}.xlsx`);
+    };
+
     return (
         <div className="space-y-6 max-w-[95%] mx-auto p-4 md:p-6 bg-gray-50 min-h-screen">
 
@@ -655,6 +940,17 @@ export default function ChipsyInventoryTab() {
                 </div>
                 {activeTab !== 'new_transaction' && (
                     <div className="flex gap-2">
+                        {/* Export Button moved here */}
+                        {(activeTab === 'inventory' || activeTab === 'people_inventory' || activeTab === 'transfers' || activeTab === 'person_details' || activeTab === 'transaction_details') && (
+                            <button
+                                onClick={handleExport}
+                                className="p-3 bg-white border border-gray-200 text-green-600 rounded-lg hover:bg-green-50 shadow-sm transition-all flex items-center justify-center"
+                                title="Export Current Tab to Excel"
+                            >
+                                <Download className="w-5 h-5" />
+                            </button>
+                        )}
+
                         <button
                             onClick={() => { setActiveTab('new_transaction'); }}
                             className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 shadow-sm transition-all font-medium"
@@ -664,6 +960,7 @@ export default function ChipsyInventoryTab() {
                     </div>
                 )}
             </div>
+
 
             {/* Tabs (Hide when in transaction mode) */}
             {activeTab !== 'new_transaction' && activeTab !== 'person_details' && (
@@ -714,6 +1011,7 @@ export default function ChipsyInventoryTab() {
                         </div>
                     </div>
 
+                    {/* Search */}
                     {/* Search */}
                     <div className="relative">
                         <Search className="absolute left-3 top-3 text-gray-400 w-5 h-5" />
@@ -1436,10 +1734,13 @@ export default function ChipsyInventoryTab() {
                             <table className="w-full">
                                 <thead className="bg-white border-b border-gray-200">
                                     <tr>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Person Name</th>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Unique Products</th>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Cartons</th>
-                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider">Total Pieces</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider min-w-[200px]">Distributor</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Taken (Ctns)</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-blue-600 uppercase tracking-wider">Taken (Pcs)</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-green-600 uppercase tracking-wider">Current (Ctns)</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-green-600 uppercase tracking-wider">Current (Pcs)</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-orange-600 uppercase tracking-wider">Distributed (Ctns)</th>
+                                        <th className="px-6 py-4 text-center text-sm font-bold text-orange-600 uppercase tracking-wider">Distributed (Pcs)</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-gray-100">
@@ -1455,19 +1756,32 @@ export default function ChipsyInventoryTab() {
                                                 }}
                                             >
                                                 <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{person.name}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-600 text-center">{person.productCount}</td>
-                                                <td className="px-6 py-4 text-sm text-gray-600 font-mono text-center">
-                                                    <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded-lg">{person.totalCtns.toFixed(1)}</span>
+                                                <td className="px-6 py-4 text-sm text-blue-600 font-mono text-center font-bold">
+                                                    {person.totalReceivedCtns.toFixed(1)}
                                                 </td>
-                                                <td className="px-6 py-4 text-sm font-bold text-gray-800 text-center">{person.totalPcs}</td>
+                                                <td className="px-6 py-4 text-sm text-blue-600 font-bold text-center">
+                                                    {person.totalReceivedPcs.toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-green-600 font-mono text-center font-bold">
+                                                    {person.totalCtns.toFixed(1)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm font-bold text-green-600 text-center">
+                                                    {person.totalPcs.toLocaleString()}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm text-orange-600 font-mono text-center font-bold">
+                                                    {person.totalDistributedCtns.toFixed(1)}
+                                                </td>
+                                                <td className="px-6 py-4 text-sm font-bold text-orange-600 text-center">
+                                                    {person.totalDistributedPcs.toLocaleString()}
+                                                </td>
                                             </tr>
                                         ))
                                     ) : (
                                         <tr>
-                                            <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
+                                            <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
                                                 <div className="flex flex-col items-center gap-2">
                                                     <AlertCircle className="w-8 h-8 opacity-50" />
-                                                    <p>No inventory records found for any person.</p>
+                                                    <p>No inventory records found.</p>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1476,14 +1790,23 @@ export default function ChipsyInventoryTab() {
                                 <tfoot className="bg-gray-100 border-t-2 border-gray-200">
                                     <tr>
                                         <td className="px-6 py-4 text-sm font-black text-gray-900 text-center uppercase">Total</td>
-                                        <td className="px-6 py-4 text-sm font-bold text-gray-900 text-center">
-                                            {peopleStats.reduce((sum, p) => sum + p.productCount, 0)}
-                                        </td>
                                         <td className="px-6 py-4 text-sm font-bold text-blue-700 font-mono text-center">
+                                            {peopleStats.reduce((sum, p) => sum + p.totalReceivedCtns, 0).toFixed(1)}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-bold text-blue-700 text-center">
+                                            {peopleStats.reduce((sum, p) => sum + p.totalReceivedPcs, 0).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-bold text-green-700 font-mono text-center">
                                             {peopleStats.reduce((sum, p) => sum + p.totalCtns, 0).toFixed(1)}
                                         </td>
-                                        <td className="px-6 py-4 text-sm font-bold text-gray-900 text-center">
+                                        <td className="px-6 py-4 text-sm font-bold text-green-700 text-center">
                                             {peopleStats.reduce((sum, p) => sum + p.totalPcs, 0).toLocaleString()}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-bold text-orange-700 font-mono text-center">
+                                            {peopleStats.reduce((sum, p) => sum + p.totalDistributedCtns, 0).toFixed(1)}
+                                        </td>
+                                        <td className="px-6 py-4 text-sm font-bold text-orange-700 text-center">
+                                            {peopleStats.reduce((sum, p) => sum + p.totalDistributedPcs, 0).toLocaleString()}
                                         </td>
                                     </tr>
                                 </tfoot>
