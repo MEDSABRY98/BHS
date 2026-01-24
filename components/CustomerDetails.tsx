@@ -51,6 +51,7 @@ interface MonthlyDebt {
   debit: number;
   credit: number;
   netDebt: number;
+  discounts: number;
 }
 
 
@@ -1117,6 +1118,7 @@ ${debtSectionHtml}
         debit: 0,
         credit: 0,
         netDebt: 0,
+        discounts: 0,
       };
 
       const num = invoice.number ? invoice.number.toUpperCase() : '';
@@ -1142,6 +1144,13 @@ ${debtSectionHtml}
         if (!isNotPayment) {
           existing.credit += invoice.credit;
         }
+      }
+
+      // 3. Calculate Discounts (BIL - Bill/Credit Note)
+      if (num.startsWith('BIL')) {
+        // Typically discounts are credits, so credit - debit.
+        // Assuming positive result for discount amount.
+        existing.discounts += (invoice.credit - invoice.debit);
       }
 
       existing.netDebt = existing.debit - existing.credit;
@@ -1185,6 +1194,7 @@ ${debtSectionHtml}
           debit: 0,
           credit: 0,
           netDebt: 0,
+          discounts: 0,
         });
       }
     }
@@ -2627,75 +2637,87 @@ ${debtSectionHtml}
       )}
 
       {/* Global Filters & Search */}
-      <div className="mb-6 flex flex-col gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-        <div className="flex justify-center gap-6">
-          {/* Month Filter - Multi-Select Dropdown */}
-          <div className="w-64 relative">
-            <label htmlFor="monthFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-              Filter by Month
-            </label>
-            <div className="relative">
+      <div className="mb-6 flex flex-col gap-4">
+        <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 sticky top-0 z-20 backdrop-blur-xl bg-white/90 supports-[backdrop-filter]:bg-white/60">
+
+          {/* Search Input */}
+          <div className="relative w-full md:w-96">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              placeholder="Search..."
+              value={invoiceSearchQuery}
+              onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+              className="block w-full pl-11 pr-4 py-2.5 bg-gray-50 border-transparent focus:bg-white border focus:border-blue-500 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-500/10 transition-all font-medium"
+            />
+          </div>
+
+          <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
+
+          {/* Filters Group */}
+          <div className="flex items-center gap-4 w-full md:w-auto justify-center">
+
+            {/* Month Filter */}
+            <div className="relative w-full md:w-56">
               <button
                 type="button"
                 onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isMonthDropdownOpen || selectedMonthFilter.length > 0
+                  ? 'bg-blue-50 border-blue-200 text-blue-700 ring-2 ring-blue-100'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                  }`}
               >
-                <span className="truncate">
-                  {selectedMonthFilter.length === 0
-                    ? 'All Months'
-                    : selectedMonthFilter.length === 1
-                      ? selectedMonthFilter[0]
-                      : `${selectedMonthFilter.length} months selected`}
-                </span>
-                <svg
-                  className={`w-5 h-5 text-gray-400 transition-transform ${isMonthDropdownOpen ? 'transform rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <div className="flex items-center gap-2 truncate">
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  <span className="truncate">
+                    {selectedMonthFilter.length === 0
+                      ? 'All Months'
+                      : selectedMonthFilter.length === 1
+                        ? selectedMonthFilter[0]
+                        : `${selectedMonthFilter.length} Selected`}
+                  </span>
+                </div>
+                <svg className={`w-4 h-4 shrink-0 transition-transform ${isMonthDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
+
               {isMonthDropdownOpen && (
                 <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setIsMonthDropdownOpen(false)}
-                  ></div>
-                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                    <div className="p-2 border-b border-gray-200">
-                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                        <input
-                          type="checkbox"
-                          checked={selectedMonthFilter.length === availableMonths.length && availableMonths.length > 0}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedMonthFilter([...availableMonths]);
-                            } else {
-                              setSelectedMonthFilter([]);
-                            }
-                          }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-medium text-gray-700">Select All</span>
+                  <div className="fixed inset-0 z-20" onClick={() => setIsMonthDropdownOpen(false)}></div>
+                  <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
+                    <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
+                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
+                        <div className="relative flex items-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedMonthFilter.length === availableMonths.length && availableMonths.length > 0}
+                            onChange={(e) => {
+                              e.target.checked ? setSelectedMonthFilter([...availableMonths]) : setSelectedMonthFilter([]);
+                            }}
+                            className="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">Select All</span>
                       </label>
                     </div>
-                    <div className="p-2">
+                    <div className="p-2 space-y-1">
                       {availableMonths.map((month) => (
-                        <label key={month} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <label key={month} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
                           <input
                             type="checkbox"
                             checked={selectedMonthFilter.includes(month)}
                             onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedMonthFilter([...selectedMonthFilter, month]);
-                              } else {
-                                setSelectedMonthFilter(selectedMonthFilter.filter(m => m !== month));
-                              }
+                              if (e.target.checked) setSelectedMonthFilter([...selectedMonthFilter, month]);
+                              else setSelectedMonthFilter(selectedMonthFilter.filter(m => m !== month));
                             }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-gray-700">{month}</span>
+                          <span className="text-sm text-gray-600">{month}</span>
                         </label>
                       ))}
                     </div>
@@ -2703,118 +2725,88 @@ ${debtSectionHtml}
                 </>
               )}
             </div>
-          </div>
 
-          {/* Matching Filter - Multi-Select Dropdown */}
-          <div className="w-64 relative">
-            <label htmlFor="matchingFilter" className="block text-sm font-semibold text-gray-700 mb-2 text-center">
-              Filter by Matching
-            </label>
-            <div className="relative">
+            {/* Matching Filter */}
+            <div className="relative w-full md:w-56">
               <button
                 type="button"
                 onClick={() => setIsMatchingDropdownOpen(!isMatchingDropdownOpen)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-left flex items-center justify-between"
+                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isMatchingDropdownOpen || selectedMatchingFilter.length > 0
+                  ? 'bg-purple-50 border-purple-200 text-purple-700 ring-2 ring-purple-100'
+                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                  }`}
               >
-                <span className="truncate">
-                  {selectedMatchingFilter.length === 0
-                    ? 'All Matchings'
-                    : selectedMatchingFilter.length === 1
-                      ? selectedMatchingFilter[0]
-                      : `${selectedMatchingFilter.length} matchings selected`}
-                </span>
-                <svg
-                  className={`w-5 h-5 text-gray-400 transition-transform ${isMatchingDropdownOpen ? 'transform rotate-180' : ''}`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
+                <div className="flex items-center gap-2 truncate">
+                  <ListFilter className="w-4 h-4 shrink-0" />
+                  <span className="truncate">
+                    {selectedMatchingFilter.length === 0
+                      ? 'All Matchings'
+                      : selectedMatchingFilter.length === 1
+                        ? selectedMatchingFilter[0]
+                        : `${selectedMatchingFilter.length} Selected`}
+                  </span>
+                </div>
+                <svg className={`w-4 h-4 shrink-0 transition-transform ${isMatchingDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
+
               {isMatchingDropdownOpen && (
                 <>
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setIsMatchingDropdownOpen(false)}
-                  ></div>
-                  <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-64 overflow-y-auto">
-                    <div className="p-2 border-b border-gray-200">
-                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                  <div className="fixed inset-0 z-20" onClick={() => setIsMatchingDropdownOpen(false)}></div>
+                  <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
+                    <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
+                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
                         <input
                           type="checkbox"
-                          checked={
-                            selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) &&
-                            availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m)) &&
-                            (
-                              selectedMatchingFilter.length === availableMatchingsWithResidual.length + 1 ||
-                              (selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED) &&
-                                selectedMatchingFilter.length === availableMatchingsWithResidual.length + 2)
-                            )
-                          }
+                          checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) && availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m))}
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              // Preserve All Unmatched if it was already selected
-                              if (selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED)) {
-                                setSelectedMatchingFilter([MATCHING_FILTER_ALL_UNMATCHED, MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
-                              } else {
-                                setSelectedMatchingFilter([MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
-                              }
-                            } else {
-                              setSelectedMatchingFilter([]);
-                            }
+                            if (e.target.checked) setSelectedMatchingFilter([MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
+                            else setSelectedMatchingFilter([]);
                           }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                         />
-                        <span className="text-sm font-medium text-gray-700">Select All</span>
+                        <span className="text-sm font-semibold text-gray-700">Select All</span>
                       </label>
                     </div>
-                    <div className="p-2">
-                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                    <div className="p-2 space-y-1">
+                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors bg-purple-50/50">
                         <input
                           type="checkbox"
                           checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED)}
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_UNMATCHED]);
-                            } else {
-                              setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_UNMATCHED));
-                            }
+                            if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_UNMATCHED]);
+                            else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_UNMATCHED));
                           }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                         />
-                        <span className="text-sm text-gray-700">All Unmatched</span>
+                        <span className="text-sm font-medium text-gray-900">All Unmatched</span>
                       </label>
-                      <label className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors bg-blue-50/50">
                         <input
                           type="checkbox"
                           checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN)}
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_OPEN]);
-                            } else {
-                              setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_OPEN));
-                            }
+                            if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_OPEN]);
+                            else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_OPEN));
                           }}
-                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
-                        <span className="text-sm text-gray-700">All Open Matchings</span>
+                        <span className="text-sm font-medium text-gray-900">All Open Matchings</span>
                       </label>
+                      <div className="h-px bg-gray-100 my-2"></div>
                       {availableMatchingsWithResidual.map((matching) => (
-                        <label key={matching} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 p-2 rounded">
+                        <label key={matching} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
                           <input
                             type="checkbox"
                             checked={selectedMatchingFilter.includes(matching)}
                             onChange={(e) => {
-                              if (e.target.checked) {
-                                setSelectedMatchingFilter([...selectedMatchingFilter, matching]);
-                              } else {
-                                setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== matching));
-                              }
+                              if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, matching]);
+                              else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== matching));
                             }}
-                            className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            className="rounded border-gray-300 text-gray-600 focus:ring-gray-500"
                           />
-                          <span className="text-sm text-gray-700">{matching}</span>
+                          <span className="text-sm text-gray-600 font-mono">{matching}</span>
                         </label>
                       ))}
                     </div>
@@ -2825,90 +2817,77 @@ ${debtSectionHtml}
           </div>
         </div>
 
-        {/* Search Box */}
-        <div className="flex justify-center">
-          <div className="w-full max-w-2xl">
-            <input
-              type="text"
-              placeholder="Search across all data..."
-              value={invoiceSearchQuery}
-              onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
-            />
-          </div>
-        </div>
-
         {/* Invoice Type Filters */}
-        <div className="flex justify-center mt-4">
-          <div className="w-full max-w-6xl">
-            <div className="flex flex-nowrap gap-2 justify-center items-center bg-gray-50 p-2.5 rounded-lg border border-gray-200">
-              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-purple-200 hover:border-purple-400 hover:bg-purple-50 transition-all">
-                <input
-                  type="checkbox"
-                  checked={showOB}
-                  onChange={(e) => setShowOB(e.target.checked)}
-                  className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-1 focus:ring-purple-500 cursor-pointer"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  OB
-                </span>
-                <span className="text-sm font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded">
+        <div className="flex justify-center mt-4 px-4 pb-4">
+          <div className="w-full">
+            <div className="flex flex-nowrap gap-2 justify-center items-stretch bg-white p-2 border border-gray-100 rounded-xl shadow-sm">
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-purple-50 rounded-lg border border-purple-100 hover:bg-purple-100 transition-all text-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showOB}
+                    onChange={(e) => setShowOB(e.target.checked)}
+                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">OB</span>
+                </div>
+                <span className="text-sm font-bold text-purple-700">
                   {invoiceTypeTotals.ob.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-blue-200 hover:border-blue-400 hover:bg-blue-50 transition-all">
-                <input
-                  type="checkbox"
-                  checked={showSales}
-                  onChange={(e) => setShowSales(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  المبيعات (SAL)
-                </span>
-                <span className="text-sm font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded">
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all text-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showSales}
+                    onChange={(e) => setShowSales(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">المبيعات (SAL)</span>
+                </div>
+                <span className="text-sm font-bold text-blue-700">
                   {invoiceTypeTotals.sales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-orange-200 hover:border-orange-400 hover:bg-orange-50 transition-all">
-                <input
-                  type="checkbox"
-                  checked={showReturns}
-                  onChange={(e) => setShowReturns(e.target.checked)}
-                  className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-1 focus:ring-orange-500 cursor-pointer"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  مرتجعات المبيعات (RSAL)
-                </span>
-                <span className="text-sm font-semibold text-orange-700 bg-orange-50 px-1.5 py-0.5 rounded">
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-orange-50 rounded-lg border border-orange-100 hover:bg-orange-100 transition-all text-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showReturns}
+                    onChange={(e) => setShowReturns(e.target.checked)}
+                    className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-1 focus:ring-orange-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">مرتجعات (RSAL)</span>
+                </div>
+                <span className="text-sm font-bold text-orange-700">
                   {invoiceTypeTotals.returns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-green-200 hover:border-green-400 hover:bg-green-50 transition-all">
-                <input
-                  type="checkbox"
-                  checked={showPayments}
-                  onChange={(e) => setShowPayments(e.target.checked)}
-                  className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-1 focus:ring-green-500 cursor-pointer"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  الدفعات
-                </span>
-                <span className="text-sm font-semibold text-green-700 bg-green-50 px-1.5 py-0.5 rounded">
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-green-50 rounded-lg border border-green-100 hover:bg-green-100 transition-all text-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showPayments}
+                    onChange={(e) => setShowPayments(e.target.checked)}
+                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-1 focus:ring-green-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">الدفعات</span>
+                </div>
+                <span className="text-sm font-bold text-green-700">
                   {invoiceTypeTotals.payments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </label>
-              <label className="flex items-center gap-2 cursor-pointer px-3 py-1.5 bg-white rounded-md border border-yellow-200 hover:border-yellow-400 hover:bg-yellow-50 transition-all">
-                <input
-                  type="checkbox"
-                  checked={showDiscounts}
-                  onChange={(e) => setShowDiscounts(e.target.checked)}
-                  className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-1 focus:ring-yellow-500 cursor-pointer"
-                />
-                <span className="text-sm font-medium text-gray-700">
-                  الخصومات (BIL)
-                </span>
-                <span className="text-sm font-semibold text-yellow-700 bg-yellow-50 px-1.5 py-0.5 rounded">
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-yellow-50 rounded-lg border border-yellow-100 hover:bg-yellow-100 transition-all text-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showDiscounts}
+                    onChange={(e) => setShowDiscounts(e.target.checked)}
+                    className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-1 focus:ring-yellow-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">الخصومات (BIL)</span>
+                </div>
+                <span className="text-sm font-bold text-yellow-700">
                   {invoiceTypeTotals.discounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </label>
@@ -2918,30 +2897,31 @@ ${debtSectionHtml}
       </div>
 
       {/* Tabs Navigation */}_
-      <div className="mb-6 flex justify-center gap-2 border-b border-gray-200">
+      {/* Tabs Navigation */}
+      <div className="mb-6 flex w-full border-b border-gray-200 bg-white shadow-sm rounded-t-xl overflow-hidden">
         <button
           onClick={() => setActiveTab('dashboard')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'dashboard'
-            ? 'text-purple-600 border-purple-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
+          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'dashboard'
+            ? 'text-purple-700 border-purple-600 bg-purple-50'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
             }`}
         >
           📊 Dashboard
         </button>
         <button
           onClick={() => setActiveTab('invoices')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'invoices'
-            ? 'text-blue-600 border-blue-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
+          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'invoices'
+            ? 'text-blue-700 border-blue-600 bg-blue-50'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
             }`}
         >
           Invoices
         </button>
         <button
           onClick={() => setActiveTab('overdue')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'overdue'
-            ? 'text-blue-600 border-blue-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
+          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'overdue'
+            ? 'text-blue-700 border-blue-600 bg-blue-50'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
             }`}
         >
           Overdue
@@ -2949,27 +2929,27 @@ ${debtSectionHtml}
 
         <button
           onClick={() => setActiveTab('ages')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'ages'
-            ? 'text-blue-600 border-blue-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
+          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'ages'
+            ? 'text-blue-700 border-blue-600 bg-blue-50'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
             }`}
         >
           Ages
         </button>
         <button
           onClick={() => setActiveTab('monthly')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'monthly'
-            ? 'text-blue-600 border-blue-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
+          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'monthly'
+            ? 'text-blue-700 border-blue-600 bg-blue-50'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
             }`}
         >
           Monthly
         </button>
         <button
           onClick={() => setActiveTab('notes')}
-          className={`px-6 py-3 font-semibold transition-colors border-b-2 ${activeTab === 'notes'
-            ? 'text-blue-600 border-blue-600'
-            : 'text-gray-500 border-transparent hover:text-gray-700'
+          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'notes'
+            ? 'text-blue-700 border-blue-600 bg-blue-50'
+            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
             }`}
         >
           Notes <span className="text-red-600">({notes.length})</span>
@@ -3078,7 +3058,7 @@ ${debtSectionHtml}
 
             {/* Monthly Sales Trend - Moved here */}
             <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Monthly Sales Trend</h3>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Net Sales (Last 12 Months)</h3>
               <div className="h-80 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
@@ -3168,40 +3148,17 @@ ${debtSectionHtml}
             </div>
           </div>
 
-          {/* Quick Actions & Recent Notes */}
-          <div className="grid grid-cols-1 gap-6">
-            {/* Recent Notes Preview */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-              <h3 className="text-lg font-bold text-gray-800 mb-4 flex justify-between items-center">
-                Recent Notes
-                <button onClick={() => setActiveTab('notes')} className="text-sm text-blue-600 hover:underline">View All</button>
-              </h3>
-              <div className="space-y-4">
-                {notes.slice(0, 3).map((note, i) => (
-                  <div key={i} className="border-l-4 border-blue-500 pl-4 py-1">
-                    <p className="text-sm text-gray-500 mb-1 flex justify-between">
-                      <span className="font-bold text-gray-700">{note.user}</span>
-                      <span>{new Date(note.timestamp || '').toLocaleDateString()}</span>
-                    </p>
-                    <div className="text-gray-800 line-clamp-2">
-                      {renderNoteWithLinks(note.content)}
-                    </div>
-                  </div>
-                ))}
-                {notes.length === 0 && <p className="text-gray-400 italic">No notes available.</p>}
-              </div>
-            </div>
-          </div>
+
         </div>
       )}
 
       {/* Tab Content: Invoices */}
       {activeTab === 'invoices' && (
         <div>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100">
+                <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
                   {invoiceTable.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header) => {
@@ -3221,24 +3178,26 @@ ${debtSectionHtml}
                         return (
                           <th
                             key={header.id}
-                            className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
+                            className="px-6 py-4 text-center text-xs font-extrabold text-gray-800 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
                             style={{ width: getWidth() }}
                             onClick={header.column.getToggleSortingHandler()}
                           >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: ' ↑',
-                              desc: ' ↓',
-                            }[header.column.getIsSorted() as string] ?? null}
+                            <div className="flex items-center justify-center gap-1">
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {{
+                                asc: ' ↑',
+                                desc: ' ↓',
+                              }[header.column.getIsSorted() as string] ?? null}
+                            </div>
                           </th>
                         );
                       })}
                     </tr>
                   ))}
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 bg-white">
                   {invoiceTable.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="border-b hover:bg-gray-50">
+                    <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
                       {row.getVisibleCells().map((cell) => {
                         const getWidth = () => {
                           const columnId = cell.column.id;
@@ -3254,31 +3213,31 @@ ${debtSectionHtml}
                           return '13%';
                         };
                         return (
-                          <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                          <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
                           </td>
                         );
                       })}
                     </tr>
                   ))}
-                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '5%' }}></td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>Total</td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                  <tr className="bg-gray-50 border-t-2 border-gray-200">
+                    <td className="px-6 py-4" style={{ width: '5%' }}></td>
+                    <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
+                    <td className="px-6 py-4" style={{ width: '10%' }}></td>
+                    <td className="px-6 py-4" style={{ width: '13%' }}></td>
+                    <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
                       {totalDebit.toLocaleString('en-US')}
                     </td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                    <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
                       {totalCredit.toLocaleString('en-US')}
                     </td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
-                      <span className={totalNetDebt > 0 ? 'text-red-600' : totalNetDebt < 0 ? 'text-green-600' : ''}>
+                    <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '13%' }}>
+                      <span className={`px-3 py-1 rounded-full ${totalNetDebt > 0 ? 'bg-red-100 text-red-700' : totalNetDebt < 0 ? 'bg-green-100 text-green-700' : 'text-gray-600'}`}>
                         {totalNetDebt.toLocaleString('en-US')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
-                    <td className="px-4 py-3 text-center text-lg" style={{ width: '9%' }}></td>
+                    <td className="px-6 py-4" style={{ width: '13%' }}></td>
+                    <td className="px-6 py-4" style={{ width: '9%' }}></td>
                   </tr>
                 </tbody>
               </table>
@@ -3367,10 +3326,10 @@ ${debtSectionHtml}
       {/* Tab Content: Overdue */}
       {activeTab === 'overdue' && (
         <div>
-          <div className="bg-white rounded-lg shadow overflow-hidden">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100">
+                <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
                   {overdueTable.getHeaderGroups().map((headerGroup) => (
                     <tr key={headerGroup.id}>
                       {headerGroup.headers.map((header) => {
@@ -3389,31 +3348,36 @@ ${debtSectionHtml}
                         return (
                           <th
                             key={header.id}
-                            className="px-4 py-3 text-center font-semibold cursor-pointer hover:bg-gray-200"
+                            className="px-6 py-4 text-center text-xs font-extrabold text-gray-800 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
                             style={{ width: getWidth() }}
                             onClick={header.column.getToggleSortingHandler()}
                           >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            {{
-                              asc: ' ↑',
-                              desc: ' ↓',
-                            }[header.column.getIsSorted() as string] ?? null}
+                            <div className="flex items-center justify-center gap-1">
+                              {flexRender(header.column.columnDef.header, header.getContext())}
+                              {{
+                                asc: ' ↑',
+                                desc: ' ↓',
+                              }[header.column.getIsSorted() as string] ?? null}
+                            </div>
                           </th>
                         );
                       })}
                     </tr>
                   ))}
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-gray-100 bg-white">
                   {overdueTable.getRowModel().rows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                        No overdue or open invoices found matching criteria.
+                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500 italic">
+                        <div className="flex flex-col items-center gap-2">
+                          <span className="text-2xl">🎉</span>
+                          <p>No overdue invoices found! </p>
+                        </div>
                       </td>
                     </tr>
                   ) : (
                     overdueTable.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="border-b hover:bg-gray-50">
+                      <tr key={row.id} className="hover:bg-red-50/20 transition-colors group">
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
                             const columnId = cell.column.id;
@@ -3428,7 +3392,7 @@ ${debtSectionHtml}
                             return '13%';
                           };
                           return (
-                            <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                            <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </td>
                           );
@@ -3437,23 +3401,23 @@ ${debtSectionHtml}
                     ))
                   )}
                   {overdueTable.getRowModel().rows.length > 0 && (
-                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '5%' }}></td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>Total</td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '10%' }}></td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}></td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                    <tr className="bg-gray-50 border-t-2 border-gray-200">
+                      <td className="px-6 py-4" style={{ width: '5%' }}></td>
+                      <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
+                      <td className="px-6 py-4" style={{ width: '10%' }}></td>
+                      <td className="px-6 py-4" style={{ width: '13%' }}></td>
+                      <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
                         {overdueTotalDebit.toLocaleString('en-US')}
                       </td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '13%' }}>
+                      <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
                         {overdueTotalCredit.toLocaleString('en-US')}
                       </td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}>
-                        <span className={overdueTotalDifference > 0 ? 'text-red-600' : 'text-green-600'}>
+                      <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '16%' }}>
+                        <span className={`px-3 py-1 rounded-full ${overdueTotalDifference > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                           {overdueTotalDifference.toLocaleString('en-US')}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-center text-lg" style={{ width: '16%' }}></td>
+                      <td className="px-6 py-4" style={{ width: '16%' }}></td>
                     </tr>
                   )}
                 </tbody>
@@ -3550,7 +3514,7 @@ ${debtSectionHtml}
                   <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Month</th>
                   <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Debit (Sales)</th>
                   <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Credit (Paid)</th>
-                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Net Debt</th>
+                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Discounts (BIL)</th>
                 </tr>
               </thead>
               <tbody>
@@ -3572,10 +3536,8 @@ ${debtSectionHtml}
                       <td className="px-4 py-3 text-center text-lg text-green-600">
                         {row.credit.toLocaleString('en-US')}
                       </td>
-                      <td className="px-4 py-3 text-center text-lg font-bold">
-                        <span className={row.netDebt > 0 ? 'text-red-600' : row.netDebt < 0 ? 'text-green-600' : 'text-gray-600'}>
-                          {row.netDebt.toLocaleString('en-US')}
-                        </span>
+                      <td className="px-4 py-3 text-center text-lg text-yellow-600 font-bold">
+                        {row.discounts.toLocaleString('en-US')}
                       </td>
                     </tr>
                   ))
@@ -3589,8 +3551,8 @@ ${debtSectionHtml}
                     <td className="px-4 py-3 text-center text-lg">
                       {monthlyDebt.reduce((sum, r) => sum + r.credit, 0).toLocaleString('en-US')}
                     </td>
-                    <td className="px-4 py-3 text-center text-lg">
-                      {monthlyDebt.reduce((sum, r) => sum + r.netDebt, 0).toLocaleString('en-US')}
+                    <td className="px-4 py-3 text-center text-lg text-yellow-700">
+                      {monthlyDebt.reduce((sum, r) => sum + r.discounts, 0).toLocaleString('en-US')}
                     </td>
                   </tr>
                 )}

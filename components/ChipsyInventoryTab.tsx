@@ -702,25 +702,51 @@ export default function ChipsyInventoryTab() {
         const workbook = XLSX.utils.book_new();
 
         if (personSubTab === 'summary') {
-            const headers = ['Barcode', 'Product Name', 'Taken (Pcs)', 'Remaining (Pcs)', 'Distributed (Pcs)'];
+            const headers = [
+                'Barcode',
+                'Product Name',
+                'Pcs/Ctn',
+                'Taken (Pcs)',
+                'Taken (Ctns)',
+                'Remaining (Pcs)',
+                'Remaining (Ctns)',
+                'Distributed (Pcs)',
+                'Distributed (Ctns)'
+            ];
             const inventoryMap = peopleStats.find(p => p.name === selectedPerson)?.prodMap || {};
             const rows = Object.entries(inventoryMap)
                 .filter(([_, stats]) => stats.balance !== 0 || stats.received !== 0 || stats.distributed !== 0)
                 .map(([barcode, stats]) => {
                     const product = products.find(p => p.barcode === barcode);
+                    const pcsInCtn = product?.pcsInCtn || 1;
+
                     return [
                         barcode,
                         product ? product.productName : barcode,
+                        pcsInCtn,
                         stats.received,
+                        parseFloat((stats.received / pcsInCtn).toFixed(2)),
                         stats.balance,
-                        stats.distributed
+                        parseFloat((stats.balance / pcsInCtn).toFixed(2)),
+                        stats.distributed,
+                        parseFloat((stats.distributed / pcsInCtn).toFixed(2))
                     ];
                 });
 
             const sheetData = [headers, ...rows];
             const sheet = XLSX.utils.aoa_to_sheet(sheetData);
             // Auto-width
-            const wscols = [{ wch: 15 }, { wch: 30 }, { wch: 12 }, { wch: 15 }, { wch: 15 }];
+            const wscols = [
+                { wch: 15 }, // Barcode
+                { wch: 30 }, // Name
+                { wch: 10 }, // Pcs/Ctn
+                { wch: 12 }, // Taken Pcs
+                { wch: 12 }, // Taken Ctns
+                { wch: 15 }, // Rem Pcs
+                { wch: 15 }, // Rem Ctns
+                { wch: 15 }, // Dist Pcs
+                { wch: 15 }  // Dist Ctns
+            ];
             sheet['!cols'] = wscols;
 
             XLSX.utils.book_append_sheet(workbook, sheet, 'Summary');
