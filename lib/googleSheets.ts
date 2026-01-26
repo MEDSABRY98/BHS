@@ -2594,21 +2594,36 @@ export async function getNextChipsyTransactionNumber(): Promise<string> {
   try {
     const transfers = await getChipsyTransfers();
     // transfers are already reversed (newest first). 
-    // Find the max number. Format: TRX-0001
+    // Find the max number. Format: OP-0001
     let max = 0;
-    const pattern = /^TRX-(\d+)$/;
+    // Check for OP (new) and TRX (legacy) to continue sequence if needed? 
+    // User asked to switch TO OP. Let's start OP series or continue max of both?
+    // Safer to just track OP if they want "different" to avoid confusion.
+    // If we want to avoid duplicate numbers totally (e.g. 0001 exists in TRX), we should check both.
+    // Let's assume we want a unique number.
+    const patternOp = /^OP-(\d+)$/;
+    const patternTrx = /^TRX-(\d+)$/;
 
     for (const t of transfers) {
-      const match = t.number.match(pattern);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (num > max) max = num;
+      let num = 0;
+      const matchOp = t.number.match(patternOp);
+      const matchTrx = t.number.match(patternTrx);
+
+      if (matchOp) {
+        num = parseInt(matchOp[1], 10);
+      } else if (matchTrx) {
+        // Optionally continue from TRX sequence to insure uniqueness across 'Chipsy' system?
+        // User said "Change to OP instead of TRX". 
+        // Often better to continue sequence if it's the same logical entity.
+        num = parseInt(matchTrx[1], 10);
       }
+
+      if (num > max) max = num;
     }
     const next = max + 1;
-    return `TRX-${next.toString().padStart(4, '0')}`;
+    return `OP-${next.toString().padStart(4, '0')}`;
   } catch (error) {
-    return 'TRX-0001';
+    return 'OP-0001';
   }
 }
 
