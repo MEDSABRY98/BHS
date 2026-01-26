@@ -1694,7 +1694,7 @@ export default function ChipsyInventoryTab() {
                                 // Extract unique transactions (First 6)
                                 const uniqueTrx = new Map<string, any>();
                                 transfers.forEach(t => {
-                                    if (!uniqueTrx.has(t.number)) uniqueTrx.set(t.number, t);
+                                    if (t.number && !uniqueTrx.has(t.number)) uniqueTrx.set(t.number, t);
                                 });
                                 // Convert map to array and take first 6
                                 const recent = Array.from(uniqueTrx.values()).slice(0, 6);
