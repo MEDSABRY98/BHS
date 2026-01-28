@@ -36,9 +36,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
+    const { date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo, shiftStart, shiftEnd, shiftHours, overtimeHours, deductionHours } = body;
 
-    if (!date || !employeeName || !description || !timeFrom || !timeTo) {
+    // Validation relaxed to allow new workflow (shiftStart/End etc instead of timeFrom/To)
+    // But we still need Date and EmployeeName
+    if (!date || !employeeName) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -54,6 +56,11 @@ export async function POST(request: Request) {
       timeFrom,
       toAmPm,
       timeTo,
+      shiftStart,
+      shiftEnd,
+      shiftHours,
+      overtimeHours,
+      deductionHours
     });
 
     return NextResponse.json({ success: true });
@@ -74,9 +81,9 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { rowIndex, date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo } = body;
+    const { rowIndex, date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo, shiftStart, shiftEnd, shiftHours, overtimeHours, deductionHours } = body;
 
-    if (!rowIndex || !date || !employeeName || !description || !timeFrom || !timeTo) {
+    if (!rowIndex || !date || !employeeName) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -92,6 +99,11 @@ export async function PUT(request: Request) {
       timeFrom,
       toAmPm,
       timeTo,
+      shiftStart,
+      shiftEnd,
+      shiftHours,
+      overtimeHours,
+      deductionHours
     });
 
     return NextResponse.json({ success: true });

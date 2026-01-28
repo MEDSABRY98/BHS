@@ -514,6 +514,8 @@ ${debtByCustomer
 ${debtSectionHtml}
 <p style="margin: 0 0 10px 0; line-height: 1.5;">Kindly provide us with your statement of account and any discount invoices for reconciliation.</p>
 <p style="margin: 0; line-height: 1.5;">Best regards,</p>
+<p style="margin: 0; line-height: 1.5;">Accounts</p>
+<p style="margin: 0; line-height: 1.5;">Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
 </body>
 </html>`;
       const emlLines: string[] = [];
@@ -664,6 +666,20 @@ ${debtSectionHtml}
     }
   };
 
+  // SPI Data State
+  const [spiData, setSpiData] = useState<{ number: string, matching: string }[]>([]);
+
+  useEffect(() => {
+    const fetchSpi = async () => {
+      try {
+        const res = await fetch('/api/spi');
+        const json = await res.json();
+        if (json.data) setSpiData(json.data);
+      } catch (e) { console.error('Failed to fetch SPI', e); }
+    };
+    fetchSpi();
+  }, []);
+
   // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
     // 1. Calculate totals for each matching group
@@ -677,11 +693,41 @@ ${debtSectionHtml}
     });
 
     // 2. Find the index of the row with the largest DEBIT for each matching code
+    //    OR use SPI override if available
     const targetResidualIndices = new Map<string, number>();
     const maxDebits = new Map<string, number>();
+    const overrideIndices = new Map<string, number>();
+
+    // Pre-scan for SPI Overrides
+    if (spiData.length > 0) {
+      invoices.forEach((inv, index) => {
+        if (inv.matching && inv.number) {
+          // Check if this invoice is flagged in SPI for this matching code
+          // Normalize for comparison (Lowercase, Trim)
+          const invNum = inv.number.toString().trim().toLowerCase();
+          const matchCode = inv.matching.toString().trim().toLowerCase();
+
+          const isOverride = spiData.some(s =>
+            s.number.toString().trim().toLowerCase() === invNum &&
+            s.matching.toString().trim().toLowerCase() === matchCode
+          );
+
+          if (isOverride) {
+            overrideIndices.set(inv.matching, index); // Use original Match Code as key
+          }
+        }
+      });
+    }
 
     invoices.forEach((inv, index) => {
       if (inv.matching) {
+        // If there is an override for this matching group, use it
+        if (overrideIndices.has(inv.matching)) {
+          targetResidualIndices.set(inv.matching, overrideIndices.get(inv.matching)!);
+          return;
+        }
+
+        // Normal Logic: Largest Debit
         const currentMax = maxDebits.get(inv.matching) ?? -1;
         // Update if we find a larger debit
         // If debits are equal, we keep the first one found (strict greater than)
@@ -703,7 +749,7 @@ ${debtSectionHtml}
 
       if (invoice.matching) {
         const targetIndex = targetResidualIndices.get(invoice.matching);
-        // Show residual only on the invoice with the largest debit
+        // Show residual only on the invoice with the largest debit (or SPI override)
         if (targetIndex === index) {
           const total = matchingTotals.get(invoice.matching) || 0;
           if (Math.abs(total) > 0.01) {
@@ -720,7 +766,7 @@ ${debtSectionHtml}
         parsedDate
       };
     });
-  }, [invoices]);
+  }, [invoices, spiData]);
 
   // Get matchings with residual for filtering
   const availableMatchingsWithResidual = useMemo(() => {
@@ -1477,8 +1523,9 @@ ${debtSectionHtml}
       invoiceColumnHelper.accessor('number', {
         header: 'Number',
         cell: (info) => {
-          const invoiceNumber = info.getValue();
+          const invoiceNumber = info.getValue() || '';
           const row = info.row.original;
+
           return (
             <button
               onClick={() => setSelectedInvoice(row)}

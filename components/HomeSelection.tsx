@@ -74,7 +74,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             currentUser?.name === 'Mr. Ali Farouk' ? 'grid-cols-1 md:grid-cols-2' :
               currentUser?.name === 'Mahmoud Shaker' ? 'grid-cols-1' :
                 currentUser?.name === 'Overtime Export' ? 'grid-cols-1' :
-                  currentUser?.name === 'ABO Iyad' ? 'grid-cols-1' :
+                  currentUser?.name === 'Salah Gamal' ? 'grid-cols-1' :
                     currentUser?.name === 'Ramadan Gomaa' ? 'grid-cols-1 md:grid-cols-2' :
                       currentUser?.name === 'Mr. Sadiq Akandi' ? 'grid-cols-1 md:grid-cols-2' :
                         'grid-cols-1 md:grid-cols-2'
@@ -111,8 +111,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Debit Analysis Card - Hidden for Overtime Export, Mr. Sadiq Akandi, and ABO Iyad */}
-          {currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && currentUser?.name !== 'ABO Iyad' && (
+          {/* Debit Analysis Card - Hidden for Overtime Export, Mr. Sadiq Akandi, and Salah Gamal */}
+          {currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && currentUser?.name !== 'Salah Gamal' && (
             <div
               onClick={handleSelectDebit}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-red-300 flex flex-col min-h-[180px]"
@@ -143,8 +143,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Sales Analysis Card - Hidden for Mahmoud Shaker, Overtime Export, Mr. Sadiq Akandi, and ABO Iyad */}
-          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && currentUser?.name !== 'ABO Iyad' && (
+          {/* Sales Analysis Card - Hidden for Mahmoud Shaker, Overtime Export, Mr. Sadiq Akandi */}
+          {currentUser?.name !== 'Mahmoud Shaker' && currentUser?.name !== 'Overtime Export' && currentUser?.name !== 'Mr. Sadiq Akandi' && (
             <div
               onClick={handleSelectSales}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-green-300 flex flex-col min-h-[180px]"
@@ -177,8 +177,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             </div>
           )}
 
-          {/* Chipsy Inventory Card - Visible for MED Sabry, Monai, and ABO Iyad */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'ABO Iyad') && (
+          {/* Chipsy Inventory Card - Visible for MED Sabry, Monai, and Salah Gamal */}
+          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai' || currentUser?.name === 'Salah Gamal') && (
             <div
               onClick={() => window.location.href = '/chipsy-inventory'}
               className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer transform hover:-translate-y-2 p-6 border-2 border-gray-200 hover:border-orange-300 flex flex-col min-h-[180px]"

@@ -198,8 +198,23 @@ export default function ChipsyInventoryTab() {
             }
 
         } else {
-            finalLocFrom = sourceType === 'Main Inventory' ? 'Main Inventory' : personName;
-            finalLocTo = destType === 'Main Inventory' ? 'Main Inventory' : (destType === 'Customer' ? 'Customer' : personName);
+            // Determine Locations
+            // Source Logic
+            if (sourceType === 'Main Inventory') {
+                finalLocFrom = 'Main Inventory';
+            } else if (sourceType === 'Person') {
+                finalLocFrom = personName; // Person LOSES stock
+            }
+
+            // Destination Logic
+            if (destType === 'Main Inventory') {
+                finalLocTo = 'Main Inventory';
+            } else if (destType === 'Person') {
+                finalLocTo = personName; // Person GAINS stock
+            } else if (destType === 'Customer') {
+                finalLocTo = 'Customer';
+                // Note: If personName is filled here, it's just 'Receiver', NOT 'LocTo'
+            }
 
             // Validation
             if (!finalLocFrom || !finalLocTo) {
@@ -210,8 +225,12 @@ export default function ChipsyInventoryTab() {
                 alert('Source and Destination cannot be the same.');
                 return;
             }
-            if ((sourceType === 'Person' || destType === 'Person') && !personName) {
-                alert('Please enter a Person Name.');
+            if (sourceType === 'Person' && !personName) {
+                alert('Please enter the Person Name (Source).');
+                return;
+            }
+            if (destType === 'Person' && !personName) {
+                alert('Please enter the Person Name (Destination).');
                 return;
             }
 
@@ -1653,7 +1672,7 @@ export default function ChipsyInventoryTab() {
                                         type="text"
                                         value={reprintQuery}
                                         onChange={(e) => setReprintQuery(e.target.value)}
-                                        placeholder="Enter Transaction Number (e.g. OP-0030)"
+                                        placeholder="Enter Transaction Number (e.g. TRX-0030 or OT-0030)"
                                         className="w-full h-[60px] pl-14 pr-4 border-2 border-gray-200 rounded-2xl text-lg focus:border-orange-500 focus:shadow-lg outline-none transition-all font-bold text-gray-700 uppercase tracking-wider placeholder:normal-case placeholder:font-normal"
                                         onKeyDown={(e) => {
                                             if (e.key === 'Enter') handleReprint();
@@ -2512,8 +2531,8 @@ export default function ChipsyInventoryTab() {
                                                             if (finalTo === 'MAIN') finalTo = 'Main Inventory';
                                                             if (finalTo === 'CUSTOMER') finalTo = 'Customer';
 
-                                                            if (finalTo === selectedPerson || first.receiverName === selectedPerson) relation = 'RECEIVED';
-                                                            else if (finalFrom === selectedPerson) relation = 'ISSUED';
+                                                            if (finalTo === selectedPerson) relation = 'RECEIVED';
+                                                            else if (finalFrom === selectedPerson || first.receiverName === selectedPerson) relation = 'ISSUED';
 
                                                             return (
                                                                 <tr key={idx} className="hover:bg-gray-50 transition-colors">

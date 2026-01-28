@@ -1216,7 +1216,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Sales - Invoices!A:P`, // INVOICE DATE, INVOICE NUMBER, CUSTOMER ID, CUSTOMER MAIN NAME, CUSTOMER SUB NAME, AREA, MERCHANDISER, SALESREP, PRODUCT ID, BARCODE, PRODUCT, PRODUCT TAG, PRODUCT COST, PRODUCT PRICE, AMOUNT, QTY
+      range: `Sales - Invoices!A:Q`, // Adjusted range for new column 'MARKETS'
     });
 
     const rows = response.data.values;
@@ -1231,12 +1231,13 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
       const customerMainName = row[3]?.toString().trim() || '';
       const customerName = row[4]?.toString().trim() || '';
       const area = row[5]?.toString().trim() || '';
+      // const markets = row[6] ... (New 'Markets' column at index 6, ignoring for now unless needed)
 
-      // Use amount and qty values as they are from Google Sheets (can be positive or negative)
-      const amount = row[14] ? parseFloat(row[14].toString().replace(/,/g, '')) || 0 : 0;
-      const qty = row[15] ? parseFloat(row[15].toString().replace(/,/g, '')) || 0 : 0;
-      const productCost = row[12] ? parseFloat(row[12].toString().replace(/,/g, '')) || 0 : 0;
-      const productPrice = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
+      // Shifted indices due to new 'MARKETS' column at index 6
+      const amount = row[15] ? parseFloat(row[15].toString().replace(/,/g, '')) || 0 : 0;
+      const qty = row[16] ? parseFloat(row[16].toString().replace(/,/g, '')) || 0 : 0;
+      const productCost = row[13] ? parseFloat(row[13].toString().replace(/,/g, '')) || 0 : 0;
+      const productPrice = row[14] ? parseFloat(row[14].toString().replace(/,/g, '')) || 0 : 0;
 
       return {
         invoiceDate: row[0]?.toString().trim() || '',
@@ -1245,12 +1246,12 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
         customerMainName: customerMainName,
         customerName: customerName,
         area: area,
-        merchandiser: row[6]?.toString().trim() || '',
-        salesRep: row[7]?.toString().trim() || '',
-        productId: row[8]?.toString().trim() || '',
-        barcode: row[9]?.toString().trim() || '',
-        product: row[10]?.toString().trim() || '',
-        productTag: row[11]?.toString().trim() || '',
+        merchandiser: row[7]?.toString().trim() || '', // Shifted from 6 to 7
+        salesRep: row[8]?.toString().trim() || '',     // Shifted from 7 to 8
+        productId: row[9]?.toString().trim() || '',    // Shifted from 8 to 9
+        barcode: row[10]?.toString().trim() || '',     // Shifted from 9 to 10
+        product: row[11]?.toString().trim() || '',     // Shifted from 10 to 11
+        productTag: row[12]?.toString().trim() || '',  // Shifted from 11 to 12
         productCost: productCost,
         productPrice: productPrice,
         amount: amount,
@@ -1620,67 +1621,170 @@ export async function getEmployeeNames(): Promise<string[]> {
     throw error;
   }
 }
+// Helper to parse "4:30" or "4.30" to {h, m}
+const parseTimeStr = (t: string): { h: number, m: number } => {
+  if (!t) return { h: 0, m: 0 };
+  let h = 0, m = 0;
+  if (t.includes(':')) {
+    const parts = t.split(':');
+    h = parseInt(parts[0]) || 0;
+    m = parseInt(parts[1]) || 0;
+  } else {
+    // try float "4.30" -> 4h 30m? Or 4.5h? User code used 4.3 -> 4:30.
+    // Let's stick to the user's previous convention: "4.30" means 4h 30m
+    const parts = t.split('.');
+    h = parseInt(parts[0]) || 0;
+    m = parseInt(parts[1]) || 0; // "30" -> 30 mins
+  }
+  return { h, m };
+};
+
+// Helper to add hours to a time (considering AM/PM)
+const splitShiftData = (
+  startStr: string,
+  startAmPm: string,
+  endStr: string,
+  endAmPm: string,
+  standardHours: number
+) => {
+  // Normalize start to minutes from midnight
+  const s = parseTimeStr(startStr);
+  let sH = s.h;
+  if (startAmPm === 'PM' && sH < 12) sH += 12;
+  if (startAmPm === 'AM' && sH === 12) sH = 0;
+  const startMins = sH * 60 + s.m;
+
+  // Normalize end
+  const e = parseTimeStr(endStr);
+  let eH = e.h;
+  if (endAmPm === 'PM' && eH < 12) eH += 12;
+  if (endAmPm === 'AM' && eH === 12) eH = 0;
+  let endMins = eH * 60 + e.m;
+
+  // Handle overnight
+  if (endMins < startMins) endMins += 24 * 60;
+
+  const totalDurationMins = endMins - startMins;
+  const standardMins = standardHours * 60;
+
+  let sdEndMins = endMins;
+  let hasOvertime = false;
+
+  if (totalDurationMins > standardMins && standardMins > 0) {
+    hasOvertime = true;
+    sdEndMins = startMins + standardMins;
+  }
+
+  // Format Mins back to "HH:MM" and "AM/PM"
+  const formatMins = (mins: number) => {
+    // Normalize to 0-24h (wrapping days not needed for display usually, but let's handle modulo)
+    let m = mins % (24 * 60);
+    // If wrapping caused negative (not here) needed.
+    const h24 = Math.floor(m / 60);
+    const min = m % 60;
+
+    let amPm = 'AM';
+    let h12 = h24;
+
+    if (h24 >= 12) {
+      amPm = 'PM';
+      if (h24 > 12) h12 = h24 - 12;
+    }
+    if (h24 === 0) h12 = 12; // Midnight
+
+    const timeStr = `${h12}:${min.toString().padStart(2, '0')}`;
+    return { timeStr, amPm };
+  };
+
+  const sdStartFmt = formatMins(startMins);
+  const sdEndFmt = formatMins(sdEndMins);
+
+  let ovStartFmt = { timeStr: '', amPm: '' };
+  let ovEndFmt = { timeStr: '', amPm: '' };
+
+  if (hasOvertime) {
+    ovStartFmt = sdEndFmt; // Overtime starts when SD ends
+    ovEndFmt = formatMins(endMins);
+  }
+
+  return {
+    sdStart: sdStartFmt,
+    sdEnd: sdEndFmt,
+    ovStart: ovStartFmt,
+    ovEnd: ovEndFmt,
+    hasOvertime
+  };
+};
+
 // Save Employee Overtime record to "Employee Overtime" sheet
-// Columns: A (Date), B (Type), C (Employee ID), D (Employee Name Ar), 
-//          E (Employee Name En), F (Particulars), G (FROM AM/PM), H (FTime), I (TO AM/PM), J (TTime)
+// New Columns (A-M):
+// A: Date, B: ID, C: Name(Ar), D: Name(En), E: Particulars
+// F: SD-AMPM, G: SD-FROM, H: ED-AMPM, I: ED-TIME
+// J: OVS-AMPM, K: OVS-TIME, L: OVE-AMPM, M: OVE-TIME
 export async function saveEmployeeOvertime(data: {
   date: string;
   employeeName: string;
   type: string;
   description: string;
-  fromAmPm?: string;
-  timeFrom: string;
-  toAmPm?: string;
-  timeTo: string;
+  shiftStart: string; // "4.30 AM" or split? Incoming is combined "4.30 AM" from frontend
+  shiftEnd: string;   // "8.30 PM"
+  shiftHours?: string;
+  // Legacy fields ignored
+  [key: string]: any;
 }): Promise<{ success: boolean }> {
   try {
-    // Validate required fields
-    if (!data.date || !data.employeeName || !data.type || !data.description || !data.timeFrom || !data.timeTo) {
-      throw new Error('Missing required fields: date, employeeName, type, description, timeFrom, or timeTo');
+    if (!data.date || !data.employeeName) {
+      throw new Error('Missing required fields: date, employeeName');
     }
 
     const credentials = getServiceAccountCredentials();
-
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Prepare row data according to sheet structure:
-    // A: Date
-    // B: Type (Overtime/Absent)
-    // C: Employee ID (empty)
-    // D: Employee Name (Ar) (empty)
-    // E: Employee Name (En)
-    // F: Particulars
-    // G: FROM AM/PM (always PM)
-    // H: FTime (timeFrom)
-    // I: TO AM/PM (always PM)
-    // J: TTime (timeTo)
+    // Parse Shift Start/End from combined string "HH:MM AM" or seperate fields if passed
+    // Frontend sends "4:30 AM"
+    const parseCombined = (val: string) => {
+      const parts = val.trim().split(' ');
+      const time = parts[0] || '';
+      const amPm = parts[1] || 'AM'; // Default to AM or maybe infer?
+      return { time, amPm };
+    };
+
+    const s = parseCombined(data.shiftStart || '');
+    const e = parseCombined(data.shiftEnd || '');
+    const stdHours = parseFloat(data.shiftHours || '9');
+
+    const split = splitShiftData(s.time, s.amPm, e.time, e.amPm, stdHours);
+
+    // Prepare row data (Columns A-M)
     const rowValues = [
-      data.date.trim(),           // A: Date
-      data.type || 'Overtime',    // B: Type
-      '',                         // C: Employee ID (empty)
-      '',                         // D: Employee Name (Ar) (empty)
-      data.employeeName.trim(),   // E: Employee Name (En)
-      data.description.trim(),    // F: Particulars
-      data.fromAmPm || 'PM',      // G: FROM AM/PM
-      data.timeFrom.trim(),       // H: FTime
-      data.toAmPm || 'PM',        // I: TO AM/PM
-      data.timeTo.trim()          // J: TTime
+      data.date.trim(),              // A: Date
+      '',                            // B: Employee ID (Placeholder)
+      '',                            // C: Employee Name (Ar)
+      data.employeeName.trim(),      // D: Employee Name (En)
+      data.description?.trim() || '', // E: Particulars
+
+      // Standard Duty
+      split.sdStart.amPm,            // F: SD - AM/PM
+      split.sdStart.timeStr,         // G: SD - FROM
+      split.sdEnd.amPm,              // H: ED - AM/PM
+      split.sdEnd.timeStr,           // I: ED - TIME
+
+      // Overtime
+      split.hasOvertime ? split.ovStart.amPm : '', // J: OVS - AM/PM
+      split.hasOvertime ? split.ovStart.timeStr : '', // K: OVS - TIME
+      split.hasOvertime ? split.ovEnd.amPm : '',   // L: OVE - AM/PM
+      split.hasOvertime ? split.ovEnd.timeStr : '',   // M: OVE - TIME
     ];
 
-    // Use append to add new row at the end
-    // Use A:J range
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Employee Overtime'!A:J`,
+      range: `'Employee Overtime'!A:M`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [rowValues],
-      },
+      requestBody: { values: [rowValues] },
     });
 
     return { success: true };
@@ -1690,123 +1794,120 @@ export async function saveEmployeeOvertime(data: {
   }
 }
 
-// Get all Employee Overtime records from "Employee Overtime" sheet
+// Get all Employee Overtime records
 export async function getEmployeeOvertimeRecords(): Promise<Array<{
   id: string;
   date: string;
-  type: string;
   employeeName: string;
   description: string;
-  timeFrom: string;
-  timeTo: string;
-  hours: string;
+  shiftHours: string;
+  shiftStart: string;
+  shiftEnd: string;
+  overtimeHours: string;
+  deductionHours: string;
   rowIndex: number;
 }>> {
   try {
     const credentials = getServiceAccountCredentials();
-
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
     });
-
     const sheets = google.sheets({ version: 'v4', auth });
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A:J`, // All columns (up to J)
+      range: `Employee Overtime!A:M`, // Read up to M
     });
 
     const rows = response.data.values;
-    if (!rows || rows.length === 0) {
-      return [];
-    }
+    if (!rows || rows.length === 0) return [];
 
     // Skip header row
     const records = rows.slice(1).map((row, index) => {
-      const date = row[0]?.toString().trim() || '';
-      const type = row[1]?.toString().trim() || 'Overtime'; // B: Type
-      const employeeId = row[2]?.toString().trim() || ''; // C: Employee ID
-      const employeeNameAr = row[3]?.toString().trim() || ''; // D: Employee Name (Ar)
-      const employeeName = row[4]?.toString().trim() || ''; // E: Employee Name (En)
-      const description = row[5]?.toString().trim() || ''; // F: Particulars
-      const fromAmPm = row[6]?.toString().trim() || 'PM'; // G: FROM AM/PM
-      const timeFrom = row[7]?.toString().trim() || ''; // H: FTime
-      const toAmPm = row[8]?.toString().trim() || 'PM'; // I: TO AM/PM
-      const timeTo = row[9]?.toString().trim() || ''; // J: TTime
+      // Map Columns
+      const date = row[0] || '';
+      // ID (1), NameAr (2) skipped
+      const employeeName = row[3] || ''; // Name En
+      const description = row[4] || ''; // Particulars
 
-      // Calculate hours
-      let hours = '0.00';
-      if (timeFrom && timeTo) {
-        // Special Case: If both times are "0", treat as 0 hours regardless of AM/PM
-        // This handles the user's workflow for "Day Off" where they enter 0 for both times
-        const isTimeFromZero = timeFrom === '0' || timeFrom === '0.0' || timeFrom === '0:00';
-        const isTimeToZero = timeTo === '0' || timeTo === '0.0' || timeTo === '0:00';
+      const sdAmPm = row[5] || '';
+      const sdStart = row[6] || '';
+      const edAmPm = row[7] || '';
+      const edEnd = row[8] || '';
 
-        if (isTimeFromZero && isTimeToZero) {
-          hours = '0.00';
-        } else {
-          // Handle different time formats: "4", "4.30", "4:30"
-          const parseTime = (timeStr: string, amPm: string): { hours: number; minutes: number } => {
-            if (!timeStr) return { hours: 0, minutes: 0 };
+      const ovsAmPm = row[9] || '';
+      const ovsStart = row[10] || '';
+      const oveAmPm = row[11] || '';
+      const oveEnd = row[12] || '';
 
-            let h: number, m: number;
-            if (timeStr.includes(':')) {
-              const [hour, min] = timeStr.split(':').map(Number);
-              h = hour || 0;
-              m = min || 0;
-            } else if (timeStr.includes('.')) {
-              const [hour, min] = timeStr.split('.').map(Number);
-              h = hour || 0;
-              m = min || 0;
-            } else {
-              h = parseInt(timeStr) || 0;
-              m = 0;
-            }
+      // Reconstruct for Frontend
+      // Shift Start = SD Start
+      // Shift End = OVE End (if exists) else ED End
 
-            // Convert to 24-hour format based on AM/PM
-            if (amPm === 'AM') {
-              if (h === 12) h = 0; // 12 AM = 0 hours
-            } else { // PM
-              if (h !== 12) h += 12; // Add 12 for PM (except 12 PM)
-            }
+      let finalStart = `${sdStart} ${sdAmPm}`.trim();
+      let finalEnd = oveEnd ? `${oveEnd} ${oveAmPm}`.trim() : `${edEnd} ${edAmPm}`.trim();
 
-            return { hours: h, minutes: m };
-          };
+      // Calculate Hours
+      // We need to re-calculate "Overtime Hours" from OVS/OVE
+      // And "Deduction" from SD vs Standard? 
+      // Problem: We don't store Standard Hours anymore.
+      // Assumption: If OVE exists, Overtime = OVE - OVS.
+      // If OVE doesn't exist, Overtime = 0.
+      // Deduction: We can't know for sure without Standard. 
+      // We will assume 0 deduction for now unless we enforce 9h standard in calculation?
+      // Or maybe we calculate duration of SD. If < 9 -> Deduction?
+      // Let's assume standard is 9 for calculation purposes if we must, 
+      // OR just report Overtime based on OV columns.
 
-          const fromTime = parseTime(timeFrom, fromAmPm);
-          const toTime = parseTime(timeTo, toAmPm);
+      let otHours = '0';
 
-          const fromMins = fromTime.hours * 60 + fromTime.minutes;
-          let toMins = toTime.hours * 60 + toTime.minutes;
-          if (toMins < fromMins) toMins += 24 * 60;
-          const calculatedHours = (toMins - fromMins) / 60;
+      if (ovsStart && oveEnd) {
+        // Calculate duration between OVS and OVE
+        // Reuse calculation logic? We need simple duration.
+        const parse = (t: string, ap: string) => {
+          const p = parseTimeStr(t);
+          let h = p.h;
+          if (ap === 'PM' && h < 12) h += 12;
+          if (ap === 'AM' && h === 12) h = 0;
+          return h * 60 + p.m;
+        };
 
-          // Convert to base-60 format (4.30 instead of 4.5)
-          const wholeHours = Math.floor(calculatedHours);
-          const minutes = Math.round((calculatedHours - wholeHours) * 60);
-          hours = isNaN(calculatedHours) ? '0' : `${wholeHours}.${minutes}`;
-        }
+        const sMins = parse(ovsStart, ovsAmPm);
+        let eMins = parse(oveEnd, oveAmPm);
+        if (eMins < sMins) eMins += 24 * 60;
+
+        const diff = (eMins - sMins) / 60;
+        otHours = diff > 0 ? diff.toFixed(2) : '0';
       }
 
+      // Deduction: hard to know without context. Set 0.
+      // Users can see details in description if needed.
+
       return {
-        id: `row_${index + 2}`, // Unique ID based on row index
+        id: `row_${index + 2}`,
         date,
-        type,
-        employeeId,
-        employeeNameAr,
         employeeName,
         description,
-        fromAmPm,
-        timeFrom,
-        toAmPm,
-        timeTo,
-        hours,
-        rowIndex: index + 2, // 1-based index (header is 1, so first data row is 2)
-      };
-    }).filter(record => record.employeeName && record.date); // Filter out empty rows
+        shiftHours: '9', // Default/Placeholder
+        shiftStart: sdStart, // Just time
+        shiftStartAmPm: sdAmPm, // Extra field for frontend state if needed, but we pass combined above usually? 
+        // Actually frontend expects "shiftStart" as time? Or combined?
+        // Frontend in previous turn splits logic: `row.shiftStart` (text) and `shiftStartAmPm` (select).
+        // So we should return them separate if possible or frontend adapts?
+        // Let's return raw `sdStart` as `shiftStart` so it fits the input box.
+        shiftEnd: oveEnd || edEnd,
+        overtimeHours: otHours,
+        deductionHours: '0',
+        rowIndex: index + 2,
 
-    return records;
+        // Pass these too if flexible
+        _sdAmPm: sdAmPm,
+        _edAmPm: oveEnd ? oveAmPm : edAmPm
+      };
+    }).filter(r => r.date && r.employeeName);
+
+    return records as any;
   } catch (error) {
     console.error('Error fetching employee overtime records:', error);
     throw error;
@@ -1814,50 +1915,59 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
 }
 
 // Update Employee Overtime record
-// Columns: A (Date), B (Type), C (Employee ID), D (Employee Name Ar), 
-//          E (Employee Name En), F (Particulars), G (FROM AM/PM), H (FTime), I (TO AM/PM), J (TTime)
 export async function updateEmployeeOvertime(rowIndex: number, data: {
   date: string;
   employeeName: string;
-  type: string;
   description: string;
-  fromAmPm?: string;
-  timeFrom: string;
-  toAmPm?: string;
-  timeTo: string;
+  shiftStart: string;
+  shiftEnd: string;
+  shiftHours?: string;
+  [key: string]: any;
 }): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
-
     const auth = new google.auth.GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/spreadsheets'],
     });
-
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Prepare row data based on the column order
+    const parseCombined = (val: string) => {
+      const parts = val.trim().split(' ');
+      const time = parts[0] || '';
+      const amPm = parts[1] || 'AM';
+      return { time, amPm };
+    };
+
+    const s = parseCombined(data.shiftStart || '');
+    const e = parseCombined(data.shiftEnd || '');
+    const stdHours = parseFloat(data.shiftHours || '9');
+
+    const split = splitShiftData(s.time, s.amPm, e.time, e.amPm, stdHours);
+
     const rowValues = [
-      data.date.trim(),           // A: Date
-      data.type || 'Overtime',    // B: Type
-      '',                         // C: Employee ID (empty)
-      '',                         // D: Employee Name (Ar) (empty)
-      data.employeeName.trim(),   // E: Employee Name (En)
-      data.description.trim(),    // F: Particulars
-      data.fromAmPm || 'PM',      // G: FROM AM/PM
-      data.timeFrom.trim(),       // H: FTime
-      data.toAmPm || 'PM',        // I: TO AM/PM
-      data.timeTo.trim()          // J: TTime
+      data.date.trim(),              // A: Date
+      '',                            // B: ID
+      '',                            // C: Name Ar
+      data.employeeName.trim(),      // D: Name En
+      data.description?.trim() || '', // E: Particulars
+
+      split.sdStart.amPm,            // F
+      split.sdStart.timeStr,         // G
+      split.sdEnd.amPm,              // H
+      split.sdEnd.timeStr,           // I
+
+      split.hasOvertime ? split.ovStart.amPm : '', // J
+      split.hasOvertime ? split.ovStart.timeStr : '', // K
+      split.hasOvertime ? split.ovEnd.amPm : '',   // L
+      split.hasOvertime ? split.ovEnd.timeStr : '',   // M
     ];
 
-    // Update the row at the specified index
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A${rowIndex}:J${rowIndex}`,
+      range: `Employee Overtime!A${rowIndex}:M${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [rowValues],
-      },
+      requestBody: { values: [rowValues] },
     });
 
     return { success: true };
@@ -2590,40 +2700,29 @@ export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
   }
 }
 
-export async function getNextChipsyTransactionNumber(): Promise<string> {
+export async function getNextChipsyTransactionNumber(prefix: string = 'TRX'): Promise<string> {
   try {
     const transfers = await getChipsyTransfers();
-    // transfers are already reversed (newest first). 
-    // Find the max number. Format: OP-0001
     let max = 0;
-    // Check for OP (new) and TRX (legacy) to continue sequence if needed? 
-    // User asked to switch TO OP. Let's start OP series or continue max of both?
-    // Safer to just track OP if they want "different" to avoid confusion.
-    // If we want to avoid duplicate numbers totally (e.g. 0001 exists in TRX), we should check both.
-    // Let's assume we want a unique number.
-    const patternOp = /^OP-(\d+)$/;
-    const patternTrx = /^TRX-(\d+)$/;
+
+    // Create regex based on the requested prefix
+    // e.g., /^TRX-(\d+)$/ or /^OT-(\d+)$/
+    const pattern = new RegExp(`^${prefix}-(\\d+)$`);
 
     for (const t of transfers) {
-      let num = 0;
-      const matchOp = t.number.match(patternOp);
-      const matchTrx = t.number.match(patternTrx);
-
-      if (matchOp) {
-        num = parseInt(matchOp[1], 10);
-      } else if (matchTrx) {
-        // Optionally continue from TRX sequence to insure uniqueness across 'Chipsy' system?
-        // User said "Change to OP instead of TRX". 
-        // Often better to continue sequence if it's the same logical entity.
-        num = parseInt(matchTrx[1], 10);
+      if (!t.number) continue;
+      const match = t.number.match(pattern);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > max) {
+          max = num;
+        }
       }
-
-      if (num > max) max = num;
     }
     const next = max + 1;
-    return `OP-${next.toString().padStart(4, '0')}`;
+    return `${prefix}-${next.toString().padStart(4, '0')}`;
   } catch (error) {
-    return 'OP-0001';
+    return `${prefix}-0001`;
   }
 }
 
@@ -2749,5 +2848,39 @@ export async function getEmployeeSalaries(): Promise<Record<string, number>> {
   } catch (error) {
     console.error('Error fetching employee salaries:', error);
     return {};
+  }
+}
+
+export interface SpiEntry {
+  number: string;
+  matching: string;
+}
+
+export async function getSpiData(): Promise<SpiEntry[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'SPI'!A:B`, // NUMBER, MATCHING
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header
+    return rows.slice(1).map(row => ({
+      number: row[0]?.toString().trim() || '',
+      matching: row[1]?.toString().trim() || ''
+    })).filter(e => e.number);
+
+  } catch (error) {
+    console.error('Error fetching SPI data:', error);
+    return [];
   }
 }

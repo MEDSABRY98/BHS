@@ -40,7 +40,8 @@ export async function POST(request: Request) {
         const productMap = new Map(products.map(p => [p.barcode, p]));
 
         // 2. Generate Transaction Number
-        const transactionNumber = await getNextChipsyTransactionNumber();
+        const prefix = locFrom === 'Only Transfer' ? 'OT' : 'TRX';
+        const transactionNumber = await getNextChipsyTransactionNumber(prefix);
         const now = new Date();
         const dateStr = `${now.getDate()}/${now.getMonth() + 1}/${now.getFullYear()} ${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`;
 

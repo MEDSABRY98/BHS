@@ -40,6 +40,7 @@ export async function GET() {
 
             // Check for Reconciliation (Odoo Invoice Adjustment)
             const isReconciliation = transfer.description && transfer.description.includes('تسوية مخزون (فواتير عملاء)');
+            const isDirectSaleToCustomer = isMain(transfer.locFrom) && isCustomer(transfer.locTo);
 
             // Stock In (Increase Main Inventory)
             if (isMain(transfer.locTo) || isLegacyIn(transfer.locFrom)) {
@@ -50,7 +51,11 @@ export async function GET() {
             else if (isMain(transfer.locFrom) || isLegacyOut(transfer.locFrom)) {
                 let qtyToDeduct = transfer.qtyPcs;
 
-                if (isReconciliation) {
+                // Apply buffer logic for specific reconciliations OR any direct Main->Customer sale
+                // This prevents double deduction if the item was already "issued" to a Person (leaving Main)
+                // and then sold by that Person (buffered). A subsequent Main->Customer txn for the same item
+                // should consume that buffer instead of reducing Main again.
+                if (isReconciliation || isDirectSaleToCustomer) {
                     const buffer = personSalesBuffer.get(transfer.barcode) || 0;
                     // If buffer exists, we've already "spent" this stock via Person->Customer.
                     // So we ignore that amount from this deduction.
