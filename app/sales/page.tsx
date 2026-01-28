@@ -193,7 +193,7 @@ export default function SalesPage() {
     { id: 'sales-statistics', label: 'Statistics' },
     { id: 'sales-daily-sales', label: 'Daily Sales' },
     { id: 'sales-products', label: 'Products' },
-    { id: 'sales-download-form', label: 'Download' },
+    { id: 'sales-download-form', label: 'Order Form' },
   ];
 
   const renderTabContent = () => {

@@ -778,7 +778,8 @@ export async function generateMonthlySeparatedPDF(
 
 export async function generateDownloadFormPDF(
   customerName: string,
-  products: Array<{ barcode: string; product: string }>
+  products: Array<{ barcode: string; product: string }>,
+  returnBlob: boolean = false
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
@@ -886,6 +887,10 @@ export async function generateDownloadFormPDF(
   // File name
   const safeCustomerName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
   const fileName = `Inventory_Form_${safeCustomerName}_${new Date().toISOString().split('T')[0]}.pdf`;
+
+  if (returnBlob) {
+    return doc.output('blob');
+  }
 
   doc.save(fileName);
 }

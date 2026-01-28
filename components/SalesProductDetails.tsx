@@ -28,6 +28,7 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [customerTypeView, setCustomerTypeView] = useState<'main' | 'sub'>('sub');
 
   // Debounce search query
   useEffect(() => {
@@ -225,7 +226,7 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     return [];
   }, [productData]);
 
-  // Customers data - grouped by customerId, display customerName
+  // Customers data - grouped by customerId or customerMainName, display customerName or customerMainName
   const customersData = useMemo(() => {
     const customerMap = new Map<string, {
       customerId: string;
@@ -237,13 +238,20 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     }>();
 
     productData.forEach(item => {
-      const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
+      const key = customerTypeView === 'main'
+        ? (item.customerMainName || item.customerName)
+        : (item.customerId || item.customerName);
+
+      const displayName = customerTypeView === 'main'
+        ? (item.customerMainName || item.customerName)
+        : item.customerName;
+
       const existing = customerMap.get(key);
 
       if (!existing) {
         customerMap.set(key, {
           customerId: key,
-          customer: item.customerName, // Display customerName
+          customer: displayName,
           amount: 0,
           qty: 0,
           invoiceNumbers: new Set<string>(),
@@ -285,7 +293,7 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
       ...customer,
       invoiceCount: customer.invoiceNumbers.size
     })).sort((a, b) => b.amount - a.amount);
-  }, [productData]);
+  }, [productData, customerTypeView]);
 
   // Dashboard metrics
   const dashboardMetrics = useMemo(() => {
@@ -444,8 +452,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'dashboard'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
               }`}
           >
             Dashboard
@@ -453,8 +461,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
           <button
             onClick={() => setActiveTab('monthly')}
             className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'monthly'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
               }`}
           >
             Sales by Month
@@ -462,8 +470,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
           <button
             onClick={() => setActiveTab('products')}
             className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'products'
-                ? 'text-green-600 border-green-600'
-                : 'text-gray-500 border-transparent hover:text-gray-700'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
               }`}
           >
             Customers
@@ -897,11 +905,33 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
         {/* Customers Tab */}
         {activeTab === 'products' && (
           <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Customers Sales</h2>
+            <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-gray-800">Customers Sales</h2>
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setCustomerTypeView('main')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${customerTypeView === 'main'
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Main Customers
+                  </button>
+                  <button
+                    onClick={() => setCustomerTypeView('sub')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${customerTypeView === 'sub'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Sub Customers
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={exportCustomersToExcel}
-                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md active:scale-95"
                 title="Export to Excel"
               >
                 <Download className="w-5 h-5" />
@@ -964,4 +994,3 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     </div>
   );
 }
-

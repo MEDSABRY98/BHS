@@ -34,6 +34,7 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
   const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [showDiscountsModal, setShowDiscountsModal] = useState(false);
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
 
   // Debounce search query
   useEffect(() => {
@@ -445,7 +446,7 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
     });
 
     // Convert to array and calculate averages
-    return Array.from(invoiceMap.values()).map(invoice => {
+    const allInvoices = Array.from(invoiceMap.values()).map(invoice => {
       const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
       const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
 
@@ -456,7 +457,18 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
         avgCost,
         avgPrice
       };
-    }).sort((a, b) => {
+    });
+
+    // Apply type filter
+    const filteredByFilter = allInvoices.filter(inv => {
+      if (invoiceTypeFilter === 'all') return true;
+      const num = inv.invoiceNumber.trim().toUpperCase();
+      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
+      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+      return true;
+    });
+
+    return filteredByFilter.sort((a, b) => {
       // Sort by date descending (newest first)
       const dateA = new Date(a.invoiceDate).getTime();
       const dateB = new Date(b.invoiceDate).getTime();
@@ -466,7 +478,7 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
       // If dates are equal, sort by invoice number
       return b.invoiceNumber.localeCompare(a.invoiceNumber);
     });
-  }, [customerData]);
+  }, [customerData, invoiceTypeFilter]);
 
   // Dashboard metrics
   const dashboardMetrics = useMemo(() => {
@@ -607,7 +619,7 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
 
     const mainCustomerTotalDiscountsWithTax = mainCustomerInvoices.reduce((sum, inv) => {
       const num = (inv.number?.toString() || '').toUpperCase();
-      if (num.startsWith('JV') || num.startsWith('BIL')) {
+      if (num.startsWith('BIL')) {
         // Calculate netDebt (debit - credit) for discounts, same as in invoiceTypeTotals
         const netDebt = (inv.debit || 0) - (inv.credit || 0);
         return sum + netDebt;
@@ -621,7 +633,7 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
     const mainCustomerTotalDiscounts = mainCustomerTotalDiscountsWithTax / 1.05;
 
     // 7. Distribute discount based on sales ratio
-    const distributedDiscount = mainCustomerTotalDiscounts * salesRatio;
+    const distributedDiscount = mainCustomerTotalDiscountsWithTax * salesRatio;
 
     return {
       totalAmount,
@@ -1430,11 +1442,42 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
         {/* Invoices / LPO Tab */}
         {activeTab === 'invoices' && (
           <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800">Invoices / LPO</h2>
+            <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-gray-800">Invoices / LPO</h2>
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setInvoiceTypeFilter('all')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'all'
+                      ? 'bg-white text-gray-800 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setInvoiceTypeFilter('sales')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'sales'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Sales
+                  </button>
+                  <button
+                    onClick={() => setInvoiceTypeFilter('returns')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'returns'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Returns
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={exportInvoicesToExcel}
-                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md active:scale-95"
                 title="Export Invoices to Excel"
               >
                 <Download className="w-5 h-5" />
@@ -1590,7 +1633,7 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
 
                   <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
                     <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 4: Main Customer Discounts (with tax)</h3>
-                    <p className="text-xs text-gray-500 mb-1">Sum of (DEBIT - CREDIT) for JV/BIL from Invoices sheet</p>
+                    <p className="text-xs text-gray-500 mb-1">Sum of (DEBIT - CREDIT) for BIL from Invoices sheet</p>
                     <p className="text-lg font-bold text-gray-800">
                       {((dashboardMetrics as any).mainCustomerTotalDiscountsWithTax || dashboardMetrics.mainCustomerTotalDiscounts * 1.05).toLocaleString('en-US', {
                         minimumFractionDigits: 2,
@@ -1601,29 +1644,10 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
                   </div>
                 </div>
 
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                  <h3 className="text-xs font-semibold text-yellow-900 mb-1">Step 5: Remove Tax</h3>
-                  <p className="text-xs text-gray-600 mb-1">
-                    Discounts in Invoices sheet include 5% tax, but Sales amounts are without tax
-                  </p>
-                  <p className="text-xs text-gray-600 mb-1">
-                    {((dashboardMetrics as any).mainCustomerTotalDiscountsWithTax || dashboardMetrics.mainCustomerTotalDiscounts * 1.05).toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })} ÷ 1.05
-                  </p>
-                  <p className="text-lg font-bold text-yellow-800">
-                    = {dashboardMetrics.mainCustomerTotalDiscounts.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-                  </p>
-                </div>
-
                 <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
-                  <h3 className="text-sm font-semibold text-green-900 mb-2">Final: Distributed Discount</h3>
+                  <h3 className="text-sm font-semibold text-green-900 mb-2">Final: Distributed Discount (Inc. Tax)</h3>
                   <p className="text-xs text-gray-600 mb-2">
-                    {dashboardMetrics.mainCustomerTotalDiscounts.toLocaleString('en-US', {
+                    {dashboardMetrics.mainCustomerTotalDiscountsWithTax.toLocaleString('en-US', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2
                     })} × {(dashboardMetrics.salesRatio * 100).toFixed(2)}%

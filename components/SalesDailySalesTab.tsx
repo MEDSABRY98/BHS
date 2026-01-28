@@ -24,6 +24,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
   const itemsPerPage = 50;
 
   const areaDropdownRef = useRef<HTMLDivElement>(null);
@@ -212,7 +213,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     });
 
     // Convert to array and calculate averages
-    return Array.from(invoiceMap.values()).map(invoice => {
+    const allInvoices = Array.from(invoiceMap.values()).map(invoice => {
       const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
       const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
 
@@ -227,27 +228,31 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         avgPrice
       };
     }).sort((a, b) => {
-      // Sort by date descending (newest first)
       const dateA = new Date(a.invoiceDate).getTime();
       const dateB = new Date(b.invoiceDate).getTime();
-      if (dateA !== dateB) {
-        return dateB - dateA;
-      }
-      // If dates are equal, sort by invoice number
+      if (dateA !== dateB) return dateB - dateA;
       return b.invoiceNumber.localeCompare(a.invoiceNumber);
     });
-  }, [filteredData]);
+
+    // Apply type filter
+    if (invoiceTypeFilter === 'all') return allInvoices;
+    return allInvoices.filter(inv => {
+      const num = inv.invoiceNumber.trim().toUpperCase();
+      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
+      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+      return true;
+    });
+  }, [filteredData, invoiceTypeFilter]);
 
   // Calculate statistics for All Invoices tab
   const allInvoicesStats = useMemo(() => {
-    const salesInvoices = dailySalesData.filter(inv => inv.invoiceNumber.toUpperCase().startsWith('SAL'));
-    const returnInvoices = dailySalesData.filter(inv => inv.invoiceNumber.toUpperCase().startsWith('RSAL'));
+    const salesInvoices = dailySalesData.filter((inv: any) => inv.invoiceNumber.toUpperCase().startsWith('SAL'));
+    const returnInvoices = dailySalesData.filter((inv: any) => inv.invoiceNumber.toUpperCase().startsWith('RSAL'));
 
-    const totalSales = salesInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const totalReturns = returnInvoices.reduce((sum, inv) => sum + Math.abs(inv.amount), 0);
+    const totalSales = salesInvoices.reduce((sum: number, inv: any) => sum + inv.amount, 0);
+    const totalReturns = returnInvoices.reduce((sum: number, inv: any) => sum + Math.abs(inv.amount), 0);
 
-    // Net Sales = SUM of all amounts (positive and negative)
-    const netSales = dailySalesData.reduce((sum, inv) => sum + inv.amount, 0);
+    const netSales = dailySalesData.reduce((sum: number, inv: any) => sum + inv.amount, 0);
 
     return {
       netSales,
@@ -473,7 +478,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     // Apply main search query from filters
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
-      result = result.filter(item => {
+      result = result.filter((item: any) => {
         const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
         if (invoiceDateStr.includes(query)) return true;
         if (item.invoiceNumber.toLowerCase().includes(query)) return true;
@@ -490,7 +495,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     // Apply table quick search
     if (tableSearchQuery.trim()) {
       const query = tableSearchQuery.toLowerCase().trim();
-      result = result.filter(item => {
+      result = result.filter((item: any) => {
         const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
         if (invoiceDateStr.includes(query)) return true;
         if (item.invoiceNumber.toLowerCase().includes(query)) return true;
@@ -521,7 +526,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   // Get unique values for dropdown filters
   const uniqueAreas = useMemo(() => {
     const areas = new Set<string>();
-    data.forEach(item => {
+    data.forEach((item: any) => {
       if (item.area && item.area.trim()) {
         areas.add(item.area.trim());
       }
@@ -561,7 +566,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
   // Export to Excel - All Invoices
   const exportAllInvoicesToExcel = () => {
-    const worksheetData = dailySalesData.map(item => ({
+    const worksheetData = dailySalesData.map((item: any) => ({
       'Invoice Date': formatDate(item.invoiceDate),
       'Invoice Number': item.invoiceNumber,
       'Customer Name': item.customerName,
@@ -1064,11 +1069,42 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         {/* All Invoices /LPO Tab */}
         {activeSubTab === 'all-invoices' && (
           <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
+            <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setInvoiceTypeFilter('all')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'all'
+                      ? 'bg-white text-gray-800 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setInvoiceTypeFilter('sales')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'sales'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Sales
+                  </button>
+                  <button
+                    onClick={() => setInvoiceTypeFilter('returns')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'returns'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Returns
+                  </button>
+                </div>
+              </div>
               <button
                 onClick={exportAllInvoicesToExcel}
-                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md active:scale-95"
                 title="Export to Excel"
               >
                 <Download className="w-5 h-5" />
@@ -1116,7 +1152,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                       </tr>
                     </thead>
                     <tbody>
-                      {paginatedData.map((item, index) => (
+                      {paginatedData.map((item: any, index: number) => (
                         <tr key={`${item.invoiceNumber}-${startIndex + index}`} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
                           <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
                             {formatDate(item.invoiceDate) || '-'}
