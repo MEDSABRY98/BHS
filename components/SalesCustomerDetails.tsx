@@ -17,12 +17,13 @@ import {
 
 interface SalesCustomerDetailsProps {
   customerName: string;
+  customerType?: 'main' | 'sub';
   data: SalesInvoice[];
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
 }
 
-export default function SalesCustomerDetails({ customerName, data, onBack, initialTab = 'dashboard' }: SalesCustomerDetailsProps) {
+export default function SalesCustomerDetails({ customerName, customerType = 'sub', data, onBack, initialTab = 'dashboard' }: SalesCustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products' | 'invoices'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -63,6 +64,10 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
 
   // Get unfiltered customer data (for lastInvoiceDate calculation)
   const unfilteredCustomerData = useMemo(() => {
+    if (customerType === 'main') {
+      return data.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
+    }
+
     // First, find the customerId for this customerName (use first match)
     const firstMatch = data.find(item => item.customerName === customerName);
     const customerId = firstMatch?.customerId;
@@ -71,7 +76,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
     return customerId
       ? data.filter(item => item.customerId === customerId)
       : data.filter(item => item.customerName === customerName);
-  }, [data, customerName]);
+  }, [data, customerName, customerType]);
 
   // Filter data for this customer with search and date filters
   // Note: customerName is used for display, but we need to find by customerId if available
@@ -395,6 +400,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       totalPrice: number;
       costCount: number;
       priceCount: number;
+      subCustomers: Set<string>;
     }>();
 
     customerData.forEach(item => {
@@ -409,7 +415,8 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
         totalCost: 0,
         totalPrice: 0,
         costCount: 0,
-        priceCount: 0
+        priceCount: 0,
+        subCustomers: new Set<string>()
       };
 
       existing.amount += item.amount;
@@ -418,6 +425,11 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       // Add product to set
       const productKey = item.productId || item.barcode || item.product;
       existing.products.add(productKey);
+
+      // Add sub-customer
+      if (item.customerName) {
+        existing.subCustomers.add(item.customerName);
+      }
 
       // Add cost and price
       if (item.productCost) {
@@ -440,6 +452,7 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
       return {
         ...invoice,
         productCount: invoice.products.size,
+        subCustomerNames: Array.from(invoice.subCustomers).join(', '),
         avgCost,
         avgPrice
       };
@@ -692,21 +705,32 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
   const exportInvoicesToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    const headers = ['Invoice Date', 'Invoice Number', 'Amount', 'Quantity', 'Products Count', 'Avg Cost', 'Avg Price'];
+    const headers = customerType === 'main'
+      ? ['Invoice Date', 'Sub Customer', 'Invoice Number', 'Amount', 'Quantity', 'Products Count']
+      : ['Invoice Date', 'Invoice Number', 'Amount', 'Quantity', 'Products Count'];
 
-    const rows = groupedInvoicesData.map((item: any) => [
-      item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      }) : '-',
-      item.invoiceNumber,
-      item.amount.toFixed(2),
-      item.qty.toFixed(0),
-      item.productCount,
-      item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2),
-      item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
-    ]);
+    const rows = groupedInvoicesData.map((item: any) => {
+      const row = [
+        item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }) : '-',
+      ];
+
+      if (customerType === 'main') {
+        row.push(item.subCustomerNames || '');
+      }
+
+      row.push(
+        item.invoiceNumber,
+        item.amount.toFixed(2),
+        item.qty.toFixed(0),
+        item.productCount
+      );
+
+      return row;
+    });
 
     const sheetData = [headers, ...rows];
     const sheet = XLSX.utils.aoa_to_sheet(sheetData);
@@ -1421,12 +1445,13 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoice Date</th>
+                    {customerType === 'main' && (
+                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Sub Customer</th>
+                    )}
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoice Number</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Products Count</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Cost</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Price</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1445,6 +1470,11 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                             day: 'numeric'
                           }) : '-'}
                         </td>
+                        {customerType === 'main' && (
+                          <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center max-w-[200px] truncate" title={item.subCustomerNames}>
+                            {item.subCustomerNames}
+                          </td>
+                        )}
                         <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.invoiceNumber}</td>
                         <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                           {item.amount.toLocaleString('en-US', {
@@ -1459,24 +1489,12 @@ export default function SalesCustomerDetails({ customerName, data, onBack, initi
                           })}
                         </td>
                         <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.productCount}</td>
-                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                          {item.avgCost % 1 === 0
-                            ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                            : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          }
-                        </td>
-                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                          {item.avgPrice % 1 === 0
-                            ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                            : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          }
-                        </td>
                       </tr>
                     );
                   })}
                   {groupedInvoicesData.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-gray-500">
+                      <td colSpan={customerType === 'main' ? 6 : 5} className="py-8 text-center text-gray-500">
                         No invoices data available
                       </td>
                     </tr>

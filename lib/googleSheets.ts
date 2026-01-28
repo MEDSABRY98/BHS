@@ -1147,6 +1147,7 @@ export interface SalesInvoice {
   customerMainName: string;
   customerName: string;
   area: string;
+  market: string;
   merchandiser: string;
   salesRep: string;
   productId: string;
@@ -1246,6 +1247,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
         customerMainName: customerMainName,
         customerName: customerName,
         area: area,
+        market: row[6]?.toString().trim() || '',
         merchandiser: row[7]?.toString().trim() || '', // Shifted from 6 to 7
         salesRep: row[8]?.toString().trim() || '',     // Shifted from 7 to 8
         productId: row[9]?.toString().trim() || '',    // Shifted from 8 to 9

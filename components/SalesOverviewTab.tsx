@@ -27,11 +27,13 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterArea, setFilterArea] = useState('');
+  const [filterMarket, setFilterMarket] = useState('');
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
 
   const areaDropdownRef = useRef<HTMLDivElement>(null);
+  const marketDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -40,6 +42,9 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     const handleClickOutside = (event: MouseEvent) => {
       if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'area' ? null : prev);
+      }
+      if (marketDropdownRef.current && !marketDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'market' ? null : prev);
       }
       if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
@@ -133,8 +138,14 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
       filtered = filtered.filter(item => item.salesRep === filterSalesRep);
     }
 
+    // Market filter
+    if (filterMarket) {
+      filtered = filtered.filter(item => item.market === filterMarket);
+    }
+
     return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep]);
+    return filtered;
+  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
 
   const metrics = useMemo(() => {
     if (!filteredData || filteredData.length === 0) {
@@ -209,6 +220,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     return Array.from(areas).sort();
   }, [data]);
 
+  const uniqueMarkets = useMemo(() => {
+    const markets = new Set<string>();
+    data.forEach(item => {
+      if (item.market && item.market.trim()) {
+        markets.add(item.market.trim());
+      }
+    });
+    return Array.from(markets).sort();
+  }, [data]);
+
   const uniqueMerchandisers = useMemo(() => {
     const merchandisers = new Set<string>();
     data.forEach(item => {
@@ -234,7 +255,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
 
     // Check if any filters are applied
-    const hasFilters = filterYear.trim() || filterMonth.trim() || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep;
+    const hasFilters = filterYear.trim() || filterMonth.trim() || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep;
 
     // Process data to get monthly totals
     const dataToProcess = hasFilters ? filteredData : data;
@@ -531,7 +552,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
           </div>
 
           {/* Dropdown Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Area Filter */}
             <div className="relative" ref={areaDropdownRef}>
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
@@ -582,6 +603,63 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
                           }`}
                       >
                         {area}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Market Filter */}
+            <div className="relative" ref={marketDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-green-600" />
+                Market
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'market'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                >
+                  <span className={filterMarket ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterMarket || 'All Markets'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'market' ? 'transform rotate-180' : ''
+                      }`}
+                  />
+                </button>
+                {openDropdown === 'market' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterMarket('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMarket === ''
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                      All Markets
+                    </div>
+                    {uniqueMarkets.map(market => (
+                      <div
+                        key={market}
+                        onClick={() => {
+                          setFilterMarket(market);
+                          setOpenDropdown(null);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMarket === market
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                      >
+                        {market}
                       </div>
                     ))}
                   </div>

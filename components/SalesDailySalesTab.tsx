@@ -16,16 +16,18 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterArea, setFilterArea] = useState('');
+  const [filterMarket, setFilterMarket] = useState('');
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [tableSearchQuery, setTableSearchQuery] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
   const itemsPerPage = 50;
 
   const areaDropdownRef = useRef<HTMLDivElement>(null);
+  const marketDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -49,6 +51,9 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     const handleClickOutside = (event: MouseEvent) => {
       if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'area' ? null : prev);
+      }
+      if (marketDropdownRef.current && !marketDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'market' ? null : prev);
       }
       if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
@@ -145,8 +150,13 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       filtered = filtered.filter(item => item.salesRep === filterSalesRep);
     }
 
+    // Market filter
+    if (filterMarket) {
+      filtered = filtered.filter(item => item.market === filterMarket);
+    }
+
     return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep]);
+  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
 
   // Group invoices by invoiceNumber
   const dailySalesData = useMemo(() => {
@@ -500,7 +510,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   // Reset to page 1 when filters change or sub-tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep, searchQuery, tableSearchQuery, activeSubTab]);
+  }, [filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep, searchQuery, tableSearchQuery, activeSubTab]);
 
   // Calculate pagination
   const totalPages = Math.ceil(searchedData.length / itemsPerPage);
@@ -517,6 +527,16 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       }
     });
     return Array.from(areas).sort();
+  }, [data]);
+
+  const uniqueMarkets = useMemo(() => {
+    const markets = new Set<string>();
+    data.forEach(item => {
+      if (item.market && item.market.trim()) {
+        markets.add(item.market.trim());
+      }
+    });
+    return Array.from(markets).sort();
   }, [data]);
 
   const uniqueMerchandisers = useMemo(() => {
@@ -703,7 +723,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           </div>
 
           {/* Dropdown Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             {/* Area Filter */}
             <div className="relative" ref={areaDropdownRef}>
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
@@ -754,6 +774,63 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                           }`}
                       >
                         {area}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Market Filter */}
+            <div className="relative" ref={marketDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-green-600" />
+                Market
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'market'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                >
+                  <span className={filterMarket ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterMarket || 'All Markets'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'market' ? 'transform rotate-180' : ''
+                      }`}
+                  />
+                </button>
+                {openDropdown === 'market' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterMarket('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMarket === ''
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                      All Markets
+                    </div>
+                    {uniqueMarkets.map(market => (
+                      <div
+                        key={market}
+                        onClick={() => {
+                          setFilterMarket(market);
+                          setOpenDropdown(null);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMarket === market
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                      >
+                        {market}
                       </div>
                     ))}
                   </div>
@@ -877,7 +954,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           </div>
 
           {/* Clear Filters Button */}
-          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep || searchQuery) && (
+          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep || searchQuery) && (
             <div className="mt-3">
               <button
                 onClick={() => {
@@ -886,6 +963,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                   setDateFrom('');
                   setDateTo('');
                   setFilterArea('');
+                  setFilterMarket('');
                   setFilterMerchandiser('');
                   setFilterSalesRep('');
                   setSearchQuery('');

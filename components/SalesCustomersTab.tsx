@@ -9,6 +9,7 @@ import SalesCustomerDetails from './SalesCustomerDetails';
 interface SalesCustomersTabProps {
   data: SalesInvoice[];
   loading: boolean;
+  onUploadMapping?: (mapping: Record<string, any>) => void;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -44,7 +45,7 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
 
 CustomerRow.displayName = 'CustomerRow';
 
-export default function SalesCustomersTab({ data, loading }: SalesCustomersTabProps) {
+export default function SalesCustomersTab({ data, loading, onUploadMapping }: SalesCustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -56,11 +57,14 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [filterArea, setFilterArea] = useState('');
+  const [filterMarket, setFilterMarket] = useState('');
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'merchandiser' | 'salesrep' | null>(null);
+  const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
+  const [activeTab, setActiveTab] = useState<'main' | 'sub'>('main');
 
   const areaDropdownRef = useRef<HTMLDivElement>(null);
+  const marketDropdownRef = useRef<HTMLDivElement>(null);
   const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
   const salesRepDropdownRef = useRef<HTMLDivElement>(null);
 
@@ -69,6 +73,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     const handleClickOutside = (event: MouseEvent) => {
       if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'area' ? null : prev);
+      }
+      if (marketDropdownRef.current && !marketDropdownRef.current.contains(event.target as Node)) {
+        setOpenDropdown(prev => prev === 'market' ? null : prev);
       }
       if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
         setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
@@ -172,8 +179,13 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       filtered = filtered.filter(item => item.salesRep === filterSalesRep);
     }
 
+    // Market filter
+    if (filterMarket) {
+      filtered = filtered.filter(item => item.market === filterMarket);
+    }
+
     return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep]);
+  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep, filterMarket]);
 
   // Group data by customerId - optimized
   const customersData = useMemo(() => {
@@ -194,13 +206,25 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     // Pre-compile date parsing to avoid repeated try-catch
     for (let i = 0; i < filteredData.length; i++) {
       const item = filteredData[i];
-      const key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
+
+      // Determine key and display name based on activeTab
+      let key: string;
+      let displayName: string;
+
+      if (activeTab === 'main') {
+        key = item.customerMainName || item.customerName || 'Unknown';
+        displayName = item.customerMainName || item.customerName || 'Unknown';
+      } else {
+        key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
+        displayName = item.customerName;
+      }
+
       let existing = customerMap.get(key);
 
       if (!existing) {
         existing = {
           customerId: key,
-          customer: item.customerName, // Display customerName
+          customer: displayName, // Display name based on tab
           merchandiser: item.merchandiser || '',
           salesRep: item.salesRep || '',
           totalAmount: 0,
@@ -277,7 +301,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     });
 
     return result;
-  }, [filteredData]);
+  }, [filteredData, activeTab]);
 
   // Get unique values for dropdown filters
   const uniqueAreas = useMemo(() => {
@@ -288,6 +312,16 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       }
     });
     return Array.from(areas).sort();
+  }, [data]);
+
+  const uniqueMarkets = useMemo(() => {
+    const markets = new Set<string>();
+    data.forEach(item => {
+      if (item.market && item.market.trim()) {
+        markets.add(item.market.trim());
+      }
+    });
+    return Array.from(markets).sort();
   }, [data]);
 
   const uniqueMerchandisers = useMemo(() => {
@@ -346,7 +380,8 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
         totalAverageAmount: 0,
         totalQty: 0,
         totalAverageQty: 0,
-        totalProductsCount: 0
+        totalProductsCount: 0,
+        totalTransactions: 0
       };
     }
 
@@ -357,13 +392,15 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
       acc.totalQty += item.totalQty;
       acc.totalAverageQty += item.averageQty;
       acc.totalProductsCount += item.productsCount;
+      acc.totalTransactions += item.transactions;
       return acc;
     }, {
       totalAmount: 0,
       totalAverageAmount: 0,
       totalQty: 0,
       totalAverageQty: 0,
-      totalProductsCount: 0
+      totalProductsCount: 0,
+      totalTransactions: 0
     });
 
     return result;
@@ -591,6 +628,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     return (
       <SalesCustomerDetails
         customerName={selectedCustomer}
+        customerType={activeTab}
         data={data}
         onBack={() => setSelectedCustomer(null)}
       />
@@ -601,32 +639,56 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="w-full">
         {/* Header */}
-        <div className="mb-8 flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-800">Customers</h1>
-          <div className="relative" ref={exportMenuRef}>
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-              title="Export to Excel"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                <button
-                  onClick={exportToExcel}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors"
-                >
-                  Export Current Table
-                </button>
-                <button
-                  onClick={exportToExcelByMonths}
-                  className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors border-t border-gray-200"
-                >
-                  Export by Months (Amount & Qty)
-                </button>
-              </div>
-            )}
+        <div className="flex flex-wrap items-center justify-between mb-8">
+          <div className="flex items-center gap-4 bg-gray-200/50 p-1 rounded-xl">
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setActiveTab('main')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'main'
+                  ? 'bg-white text-green-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-300/50'
+                  }`}
+              >
+                Main Customers
+              </button>
+              <button
+                onClick={() => setActiveTab('sub')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all ${activeTab === 'sub'
+                  ? 'bg-white text-green-700 shadow-sm'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-300/50'
+                  }`}
+              >
+                Sub Customers
+              </button>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="p-3 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md hover:shadow-lg active:scale-95"
+                title="Export to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
+                  <button
+                    onClick={exportToExcel}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors border-b border-gray-100"
+                  >
+                    Export Current Table
+                  </button>
+                  <button
+                    onClick={exportToExcelByMonths}
+                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors"
+                  >
+                    Export by Months
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -705,7 +767,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
           </div>
 
           {/* Dropdown Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
             {/* Area Filter */}
             <div className="relative" ref={areaDropdownRef}>
               <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
@@ -756,6 +818,63 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                           }`}
                       >
                         {area}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Market Filter */}
+            <div className="relative" ref={marketDropdownRef}>
+              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
+                <ShoppingBag className="w-4 h-4 text-green-600" />
+                Market
+              </label>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')}
+                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'market'
+                    ? 'border-green-500 ring-2 ring-green-500/20'
+                    : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                >
+                  <span className={filterMarket ? 'text-gray-800' : 'text-gray-400'}>
+                    {filterMarket || 'All Markets'}
+                  </span>
+                  <ChevronDown
+                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'market' ? 'transform rotate-180' : ''
+                      }`}
+                  />
+                </button>
+                {openDropdown === 'market' && (
+                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
+                    <div
+                      onClick={() => {
+                        setFilterMarket('');
+                        setOpenDropdown(null);
+                      }}
+                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMarket === ''
+                        ? 'bg-green-50 text-green-700 font-semibold'
+                        : 'text-gray-700 hover:bg-gray-50'
+                        }`}
+                    >
+                      All Markets
+                    </div>
+                    {uniqueMarkets.map(market => (
+                      <div
+                        key={market}
+                        onClick={() => {
+                          setFilterMarket(market);
+                          setOpenDropdown(null);
+                        }}
+                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMarket === market
+                          ? 'bg-green-50 text-green-700 font-semibold'
+                          : 'text-gray-700 hover:bg-gray-50'
+                          }`}
+                      >
+                        {market}
                       </div>
                     ))}
                   </div>
@@ -879,7 +998,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
           </div>
 
           {/* Clear Filters Button */}
-          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep) && (
+          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMerchandiser || filterSalesRep || filterMarket) && (
             <div className="mt-3">
               <button
                 onClick={() => {
@@ -890,6 +1009,7 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                   setFilterArea('');
                   setFilterMerchandiser('');
                   setFilterSalesRep('');
+                  setFilterMarket('');
                 }}
                 className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
               >
@@ -899,106 +1019,97 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
           )}
         </div>
 
-        {/* Search Box */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by customer name..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
+        {/* Search */}
+        <div className="mb-6 relative">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <Search className="w-5 h-5 text-gray-400" />
           </div>
+          <input
+            type="text"
+            placeholder="Search by customer name..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+          />
         </div>
 
-        {/* Customers Table */}
-        <div className="bg-white rounded-xl shadow-md p-6">
+        {/* Table */}
+        <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Customer Name</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Average Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Products Count</th>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">#</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Customer Name</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Total Amount</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Avg Amount / Month</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Total Qty</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Avg Qty / Month</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Transactions</th>
+                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Unique Products</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {paginatedCustomers.map((item, index) => (
                   <CustomerRow
-                    key={`${item.customer}-${startIndex + index}`}
+                    key={item.customer}
                     item={item}
                     rowNumber={startIndex + index + 1}
                     onCustomerClick={setSelectedCustomer}
                   />
                 ))}
-                {filteredCustomers.length === 0 && (
+                {paginatedCustomers.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={8} className="py-8 text-center text-gray-500">
-                      {searchQuery ? 'No customers found matching your search' : 'No data available'}
-                    </td>
-                  </tr>
-                )}
-                {filteredCustomers.length > 0 && (
-                  <tr className="border-t-2 border-gray-300 bg-gray-100 font-bold">
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center" colSpan={2}>Total</td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAverageAmount.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalQty.toLocaleString('en-US', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalAverageQty.toLocaleString('en-US', {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2
-                      })}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">{totals.totalTransactions}</td>
-                    <td className="py-3 px-4 text-sm text-gray-800 text-center">
-                      {totals.totalProductsCount}
+                    <td colSpan={8} className="py-20 text-center">
+                      <div className="flex flex-col items-center justify-center text-gray-400">
+                        <Users className="w-12 h-12 mb-4 opacity-20" />
+                        <p className="text-lg font-medium">No customers found matching your criteria</p>
+                        <p className="text-sm">Try adjusting your filters or search query</p>
+                      </div>
                     </td>
                   </tr>
                 )}
               </tbody>
+              {filteredCustomers.length > 0 && (
+                <tfoot>
+                  <tr className="bg-green-50/50 font-bold border-t-2 border-green-100">
+                    <td className="py-4 px-4 text-center text-green-800" colSpan={2}>Grand Total ({filteredCustomers.length} Customers)</td>
+                    <td className="py-4 px-4 text-center text-green-900">
+                      {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-4 px-4 text-center text-green-900">
+                      {totals.totalAverageAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-4 px-4 text-center text-green-900">
+                      {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="py-4 px-4 text-center text-green-900">
+                      {totals.totalAverageQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="py-4 px-4 text-center text-green-900">{totals.totalTransactions.toLocaleString()}</td>
+                    <td className="py-4 px-4 text-center text-green-900">{totals.totalProductsCount.toLocaleString()}</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
 
-          {/* Pagination Controls */}
-          {filteredCustomers.length > ITEMS_PER_PAGE && (
-            <div className="mt-6 flex items-center justify-between">
-              <div className="text-sm text-gray-600">
-                Showing {startIndex + 1} to {Math.min(endIndex, filteredCustomers.length)} of {filteredCustomers.length} customers
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+              <div className="text-sm text-gray-500">
+                Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium">{Math.min(endIndex, filteredCustomers.length)}</span> of <span className="font-medium">{filteredCustomers.length}</span> customers
               </div>
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                  <ChevronLeft className="w-4 h-4" />
-                  Previous
+                  <ChevronLeft className="w-5 h-5" />
                 </button>
                 <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  {[...Array(Math.min(5, totalPages))].map((_, i) => {
                     let pageNum;
                     if (totalPages <= 5) {
                       pageNum = i + 1;
@@ -1009,13 +1120,14 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                     } else {
                       pageNum = currentPage - 2 + i;
                     }
+
                     return (
                       <button
                         key={pageNum}
                         onClick={() => setCurrentPage(pageNum)}
-                        className={`px-3 py-2 rounded-lg text-sm font-medium ${currentPage === pageNum
-                          ? 'bg-green-600 text-white'
-                          : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        className={`w-10 h-10 rounded-lg text-sm font-semibold transition-all ${currentPage === pageNum
+                          ? 'bg-green-600 text-white shadow-md'
+                          : 'bg-white text-gray-600 border border-gray-200 hover:border-green-500 hover:text-green-600'
                           }`}
                       >
                         {pageNum}
@@ -1026,10 +1138,9 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                  className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 >
-                  Next
-                  <ChevronRight className="w-4 h-4" />
+                  <ChevronRight className="w-5 h-5" />
                 </button>
               </div>
             </div>
@@ -1039,4 +1150,3 @@ export default function SalesCustomersTab({ data, loading }: SalesCustomersTabPr
     </div>
   );
 }
-

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import SalesOverviewTab from '@/components/SalesOverviewTab';
 import SalesTop10Tab from '@/components/SalesTop10Tab';
 import SalesCustomersTab from '@/components/SalesCustomersTab';
@@ -11,7 +11,8 @@ import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import Login from '@/components/Login';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 export default function SalesPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -21,7 +22,21 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});
   const mainContentRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load mapping from localStorage on mount
+  useEffect(() => {
+    const savedMapping = localStorage.getItem('salesCustomerMapping');
+    if (savedMapping) {
+      try {
+        setCustomerMapping(JSON.parse(savedMapping));
+      } catch (e) {
+        console.error('Error parsing customer mapping:', e);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -99,6 +114,77 @@ export default function SalesPage() {
     }
   };
 
+  const handleUploadMapping = (mapping: Record<string, any>) => {
+    setCustomerMapping(mapping);
+    localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
+  };
+
+  // Augmented data based on customer mapping
+  const augmentedData = useMemo(() => {
+    if (Object.keys(customerMapping).length === 0) return data;
+
+    return data.map(item => {
+      const mapping = customerMapping[item.customerId];
+      if (mapping) {
+        return {
+          ...item,
+          customerMainName: mapping.customerMainName || item.customerMainName,
+          customerName: mapping.customerName || item.customerName,
+          area: mapping.area || item.area,
+          market: mapping.market || item.market,
+          merchandiser: mapping.merchandiser || item.merchandiser,
+          salesRep: mapping.salesRep || item.salesRep,
+        };
+      }
+      return item;
+    });
+  }, [data, customerMapping]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const bstr = event.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const dataRows = XLSX.utils.sheet_to_json(ws) as any[];
+
+      const mapping: Record<string, any> = {};
+      dataRows.forEach(row => {
+        const id = row['CUSTOMER ID']?.toString().trim();
+        if (id) {
+          mapping[id] = {
+            customerMainName: row['CUSTOMER MAIN NAME']?.toString().trim() || '',
+            customerName: row['CUSTOMER SUB NAME']?.toString().trim() || '',
+            area: row['AREA']?.toString().trim() || '',
+            market: row['MARKETS']?.toString().trim() || '',
+            merchandiser: row['MERCHANDISER']?.toString().trim() || '',
+            salesRep: row['SALESREP']?.toString().trim() || '',
+          };
+        }
+      });
+
+      handleUploadMapping(mapping);
+      alert('تم رفع بيانات العملاء بنجاح!');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const downloadTemplate = () => {
+    const template = [
+      ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'MERCHANDISER', 'SALESREP'],
+      ['12345', 'Main Company', 'Branch A', 'Cairo', 'Main Market', 'John Doe', 'Jane Smith']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, 'Customer_Mapping_Template.xlsx');
+  };
+
   const allTabs = [
     { id: 'sales-overview', label: 'Overview' },
     { id: 'sales-top10', label: 'Top 10' },
@@ -141,23 +227,23 @@ export default function SalesPage() {
 
     switch (activeTab) {
       case 'sales-overview':
-        return <SalesOverviewTab data={data} loading={loading} />;
+        return <SalesOverviewTab data={augmentedData} loading={loading} />;
       case 'sales-top10':
-        return <SalesTop10Tab data={data} loading={loading} />;
+        return <SalesTop10Tab data={augmentedData} loading={loading} />;
       case 'sales-customers':
-        return <SalesCustomersTab data={data} loading={loading} />;
+        return <SalesCustomersTab data={augmentedData} loading={loading} onUploadMapping={handleUploadMapping} />;
       case 'sales-inactive-customers':
-        return <SalesInactiveCustomersTab data={data} loading={loading} />;
+        return <SalesInactiveCustomersTab data={augmentedData} loading={loading} />;
       case 'sales-statistics':
-        return <SalesStatisticsTab data={data} loading={loading} />;
+        return <SalesStatisticsTab data={augmentedData} loading={loading} />;
       case 'sales-daily-sales':
-        return <SalesDailySalesTab data={data} loading={loading} />;
+        return <SalesDailySalesTab data={augmentedData} loading={loading} />;
       case 'sales-products':
-        return <SalesProductsTab data={data} loading={loading} />;
+        return <SalesProductsTab data={augmentedData} loading={loading} />;
       case 'sales-download-form':
-        return <SalesDownloadFormTab data={data} loading={loading} />;
+        return <SalesDownloadFormTab data={augmentedData} loading={loading} />;
       default:
-        return <SalesOverviewTab data={data} loading={loading} />;
+        return <SalesOverviewTab data={augmentedData} loading={loading} />;
     }
   };
 
@@ -179,11 +265,30 @@ export default function SalesPage() {
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
-              <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-green-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-green-200">
+              <div className="flex items-center gap-3 group relative">
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="bg-gradient-to-br from-green-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-green-200 cursor-pointer active:scale-95 transition-transform hover:rotate-3"
+                  title="Upload Customer Mapping Excel (Click Icon)"
+                >
                   <BarChart3 className="w-6 h-6" />
                 </div>
-                <h1 className="text-xl font-black text-slate-800 tracking-tight hidden md:block">Sales Analysis</h1>
+                <div className="flex flex-col">
+                  <h1 className="text-xl font-black text-slate-800 tracking-tight hidden md:block">Sales Analysis</h1>
+                  <button
+                    onClick={downloadTemplate}
+                    className="text-[10px] text-green-600 font-bold hover:underline text-left -mt-1"
+                  >
+                    Download Excel Template
+                  </button>
+                </div>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".xlsx, .xls"
+                  className="hidden"
+                />
               </div>
             </div>
           </div>

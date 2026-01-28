@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { MapPin, ShoppingBag, UserCircle, DollarSign, Package } from 'lucide-react';
+import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 
 interface SalesStatisticsTabProps {
   data: SalesInvoice[];
@@ -10,11 +10,22 @@ interface SalesStatisticsTabProps {
 }
 
 export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'area' | 'merchandiser' | 'salesrep'>('area');
+  const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
+  const [filterMarket, setFilterMarket] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+
+  const uniqueMarkets = useMemo(() => {
+    const markets = new Set<string>();
+    data.forEach(item => {
+      if (item.market && item.market.trim()) {
+        markets.add(item.market.trim());
+      }
+    });
+    return Array.from(markets).sort();
+  }, [data]);
 
   // Filter data based on filters
   const filteredData = useMemo(() => {
@@ -81,8 +92,13 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
       });
     }
 
+    // Market filter
+    if (filterMarket) {
+      filtered = filtered.filter(item => item.market === filterMarket);
+    }
+
     return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo]);
+  }, [data, filterYear, filterMonth, filterMarket, dateFrom, dateTo]);
 
   // Calculate statistics for Area
   const areaStats = useMemo(() => {
@@ -160,6 +176,94 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
       return {
         name: area,
+        totalAmount: values.amount,
+        totalQty: values.qty,
+        invoiceCount: values.count,
+        averageMonthly: averageMonthly,
+        averageMonthlyGrowth: averageMonthlyGrowth,
+        percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0
+      };
+    }).sort((a, b) => b.totalAmount - a.totalAmount);
+
+    return { stats, monthlyData };
+  }, [filteredData]);
+
+  // Calculate statistics for Market
+  const marketStats = useMemo(() => {
+    const marketMap = new Map<string, { amount: number; qty: number; count: number }>();
+
+    filteredData.forEach(item => {
+      if (!item.market) return;
+      const existing = marketMap.get(item.market) || { amount: 0, qty: 0, count: 0 };
+      marketMap.set(item.market, {
+        amount: existing.amount + (item.amount || 0),
+        qty: existing.qty + (item.qty || 0),
+        count: existing.count + 1
+      });
+    });
+
+    // Calculate unique months for each market
+    const marketMonthsMap = new Map<string, Set<string>>();
+    filteredData.forEach(item => {
+      if (!item.market || !item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!marketMonthsMap.has(item.market)) {
+        marketMonthsMap.set(item.market, new Set());
+      }
+      marketMonthsMap.get(item.market)!.add(monthKey);
+    });
+
+    // Calculate monthly data for each market (needed for growth calculation)
+    const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
+
+    filteredData.forEach(item => {
+      if (!item.market || !item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+
+      if (!monthlyData.has(item.market)) {
+        monthlyData.set(item.market, new Map());
+      }
+      const marketMonths = monthlyData.get(item.market)!;
+
+      if (!marketMonths.has(monthKey)) {
+        marketMonths.set(monthKey, { amount: 0, qty: 0 });
+      }
+      const monthData = marketMonths.get(monthKey)!;
+      monthData.amount += item.amount || 0;
+      monthData.qty += item.qty || 0;
+    });
+
+    // Calculate total amount for percentage calculation
+    const totalAmountAll = Array.from(marketMap.values()).reduce((sum, v) => sum + v.amount, 0);
+
+    const stats = Array.from(marketMap.entries()).map(([market, values]) => {
+      const monthsCount = marketMonthsMap.get(market)?.size || 1;
+      const averageMonthly = values.amount / monthsCount;
+
+      // Calculate monthly growth from monthlyData
+      const marketMonthlyData = monthlyData.get(market);
+      let averageMonthlyGrowth = 0;
+      if (marketMonthlyData && marketMonthlyData.size > 1) {
+        const sortedMonths = Array.from(marketMonthlyData.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]));
+        const growths: number[] = [];
+        for (let i = 1; i < sortedMonths.length; i++) {
+          const prevAmount = sortedMonths[i - 1][1].amount;
+          const currAmount = sortedMonths[i][1].amount;
+          growths.push(currAmount - prevAmount);
+        }
+        if (growths.length > 0) {
+          averageMonthlyGrowth = growths.reduce((sum, g) => sum + g, 0) / growths.length;
+        }
+      }
+
+      return {
+        name: market,
         totalAmount: values.amount,
         totalQty: values.qty,
         invoiceCount: values.count,
@@ -352,6 +456,8 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     switch (activeSubTab) {
       case 'area':
         return areaStats;
+      case 'market':
+        return marketStats;
       case 'merchandiser':
         return merchandiserStats;
       case 'salesrep':
@@ -437,7 +543,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Year</label>
               <input
@@ -485,13 +591,27 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
                 className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
               />
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Market</label>
+              <select
+                value={filterMarket}
+                onChange={(e) => setFilterMarket(e.target.value)}
+                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white"
+              >
+                <option value="">All Markets</option>
+                {uniqueMarkets.map(market => (
+                  <option key={market} value={market}>{market}</option>
+                ))}
+              </select>
+            </div>
           </div>
-          {(filterYear || filterMonth || dateFrom || dateTo) && (
+          {(filterYear || filterMonth || filterMarket || dateFrom || dateTo) && (
             <div className="mt-4">
               <button
                 onClick={() => {
                   setFilterYear('');
                   setFilterMonth('');
+                  setFilterMarket('');
                   setDateFrom('');
                   setDateTo('');
                 }}
@@ -509,18 +629,28 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
             <button
               onClick={() => setActiveSubTab('area')}
               className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'area'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
               <MapPin className="w-5 h-5" />
               Area
             </button>
             <button
+              onClick={() => setActiveSubTab('market')}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'market'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              <Store className="w-5 h-5" />
+              Market
+            </button>
+            <button
               onClick={() => setActiveSubTab('merchandiser')}
               className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'merchandiser'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
               <ShoppingBag className="w-5 h-5" />
@@ -529,8 +659,8 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
             <button
               onClick={() => setActiveSubTab('salesrep')}
               className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'salesrep'
-                  ? 'bg-green-600 text-white shadow-md'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
             >
               <UserCircle className="w-5 h-5" />
