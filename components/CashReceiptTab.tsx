@@ -112,23 +112,36 @@ export default function CashReceiptTab() {
       }
     }
 
-    const receiptElement = document.getElementById('receipt');
-    if (!receiptElement) return;
+    const originalElement = document.getElementById('receipt-original');
+    const copyElement = document.getElementById('receipt-copy');
+    if (!originalElement || !copyElement) return;
 
     try {
-      const canvas = await html2canvas(receiptElement, {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210;
+
+      // Page 1: Original
+      const canvas1 = await html2canvas(originalElement, {
         scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff'
       });
+      const imgHeight1 = (canvas1.height * imgWidth) / canvas1.width;
+      const imgData1 = canvas1.toDataURL('image/png');
+      pdf.addImage(imgData1, 'PNG', 0, 0, imgWidth, imgHeight1);
 
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+      // Page 2: Copy
+      pdf.addPage();
+      const canvas2 = await html2canvas(copyElement, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+      const imgHeight2 = (canvas2.height * imgWidth) / canvas2.width;
+      const imgData2 = canvas2.toDataURL('image/png');
+      pdf.addImage(imgData2, 'PNG', 0, 0, imgWidth, imgHeight2);
 
       const cleanFilename = `${formData.receiptNumber}_${formData.date}`.replace(/[^a-z0-9]/gi, '_');
       pdf.save(`${cleanFilename}.pdf`);
@@ -490,8 +503,13 @@ export default function CashReceiptTab() {
       </div>
 
       {/* Hidden container for global printing */}
-      <div id="receipt" className="hidden-print m-0 p-0" style={{ width: '210mm', fontFamily: 'system-ui, sans-serif' }}>
-        <ReceiptDocument data={formData} />
+      <div className="hidden-print m-0 p-0" style={{ width: '210mm', fontFamily: 'system-ui, sans-serif' }}>
+        <div id="receipt-original">
+          <ReceiptDocument data={formData} isCopy={false} />
+        </div>
+        <div id="receipt-copy">
+          <ReceiptDocument data={formData} isCopy={true} />
+        </div>
       </div>
 
       <style>{`
@@ -515,127 +533,149 @@ export default function CashReceiptTab() {
   );
 }
 
-function ReceiptDocument({ data }: { data: any }) {
+function ReceiptDocument({ data, isCopy = false }: { data: any, isCopy?: boolean }) {
   return (
-    <div className="bg-white" style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}>
-      {/* Original Header */}
-      <div className="bg-gradient-to-r from-gray-900 to-black text-white p-8">
-        <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold tracking-tight">
-            Al Marai Al Arabia Trading Sole Proprietorship L.L.C
-          </h1>
-          <div className="flex items-center gap-4">
-            <div className="text-3xl font-bold">RECEIPT</div>
-            <div className="text-xs tracking-widest opacity-75">CASH PAYMENT</div>
-          </div>
+    <div className="bg-white relative overflow-hidden" style={{ fontFamily: 'system-ui, -apple-system, sans-serif', minHeight: '297mm' }}>
+      {isCopy && (
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.03] pointer-events-none z-0 transform -rotate-45 select-none">
+          <span className="text-[150px] font-black text-gray-900 leading-none" style={{ fontSize: '200px' }}>COPY</span>
         </div>
-      </div>
-
-      {/* Info Bar */}
-      <div className="bg-gray-100 px-8 py-4 flex justify-between items-center border-b-2 border-gray-900">
-        <div className="flex items-center gap-2">
-          <Hash className="w-4 h-4 text-gray-600" />
-          <span className="text-sm font-semibold">Receipt No:</span>
-          <span className="font-mono text-lg font-bold">
-            {data.receiptNumber || '---'}
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <Calendar className="w-4 h-4 text-gray-600" />
-          <span className="text-sm font-semibold">Date:</span>
-          <span className="font-mono font-bold">
-            {data.date || '---'}
-          </span>
-        </div>
-      </div>
-
-      {/* Receipt Body */}
-      <div className="p-8 space-y-6">
-
-        {/* Received From */}
-        <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
-          <div className="flex items-center gap-2 text-gray-700">
-            <User className="w-5 h-5" />
-            <span className="font-semibold">Received From:</span>
-          </div>
-          <div className="col-span-2">
-            <div className="text-xl font-bold text-gray-900 border-b-2 border-black pb-1 min-h-8">
-              {data.receivedFrom}
+      )}
+      <div className="relative z-10">
+        {/* Original Header */}
+        <div className="bg-gradient-to-r from-gray-900 to-black text-white p-8">
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-bold tracking-tight">
+              Al Marai Al Arabia Trading Sole Proprietorship L.L.C
+            </h1>
+            <div className="flex items-center gap-4">
+              <div className="text-3xl font-bold">RECEIPT</div>
+              <div className="text-xs tracking-widest opacity-75">CASH PAYMENT</div>
             </div>
           </div>
         </div>
 
-        {/* Send By */}
-        <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
-          <div className="flex items-center gap-2 text-gray-700">
-            <User className="w-5 h-5" />
-            <span className="font-semibold">Send By:</span>
+        {/* Info Bar */}
+        <div className="bg-gray-100 px-8 py-4 flex justify-between items-center border-b-2 border-gray-900">
+          <div className="flex items-center gap-2">
+            <Hash className="w-4 h-4 text-gray-600" />
+            <span className="text-sm font-semibold">Receipt No:</span>
+            <span className="font-mono text-lg font-bold">
+              {data.receiptNumber || '---'}
+            </span>
           </div>
-          <div className="col-span-2">
-            <div className="text-xl font-bold text-gray-900 border-b-2 border-black pb-1 min-h-8">
-              {data.sendBy}
-            </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-600" />
+            <span className="text-sm font-semibold">Date:</span>
+            <span className="font-mono font-bold">
+              {data.date || '---'}
+            </span>
           </div>
         </div>
 
-        {/* Amount Section */}
-        <div className="bg-gray-50 p-6 rounded-lg border-2 border-gray-900">
-          <div className="grid grid-cols-3 gap-4 items-center mb-4">
+        {/* Receipt Body */}
+        <div className="p-8 space-y-6">
+
+          {/* Received From */}
+          <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
             <div className="flex items-center gap-2 text-gray-700">
-              <DollarSign className="w-5 h-5" />
-              <span className="font-semibold">Amount:</span>
+              <User className="w-5 h-5" />
+              <span className="font-semibold">Received From:</span>
             </div>
             <div className="col-span-2">
-              <div className="text-3xl font-bold text-gray-900">
-                {data.amount ? `AED ${parseFloat(data.amount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '0.00'}
+              <div className="text-xl font-bold text-gray-900 border-b-2 border-black pb-1 min-h-8">
+                {data.receivedFrom}
               </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-4 items-center pt-4 border-t border-gray-300">
-            <div className="text-sm font-semibold text-gray-700">
-              Amount in Words:
+          {/* Send By */}
+          <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
+            <div className="flex items-center gap-2 text-gray-700">
+              <User className="w-5 h-5" />
+              <span className="font-semibold">Send By:</span>
             </div>
             <div className="col-span-2">
-              <div className="text-sm font-medium text-gray-900 italic min-h-6">
-                {data.amountInWords}
+              <div className="text-xl font-bold text-gray-900 border-b-2 border-black pb-1 min-h-8">
+                {data.sendBy}
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Reason */}
-        <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
-          <div className="flex items-center gap-2 text-gray-700">
-            <FileText className="w-5 h-5" />
-            <span className="font-semibold">Payment For:</span>
-          </div>
-          <div className="col-span-2">
-            <div className="text-lg font-medium text-gray-900 border-b-2 border-black pb-1 min-h-8">
-              {data.reason}
+          {/* Amount Section */}
+          <div className="bg-gray-50 p-6 rounded-lg border-2 border-gray-900">
+            <div className="grid grid-cols-3 gap-4 items-center mb-4">
+              <div className="flex items-center gap-2 text-gray-700">
+                <DollarSign className="w-5 h-5" />
+                <span className="font-semibold">Amount:</span>
+              </div>
+              <div className="col-span-2">
+                <div className="text-3xl font-bold text-gray-900">
+                  {data.amount ? `AED ${parseFloat(data.amount.toString()).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '0.00'}
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-4 items-center pt-4 border-t border-gray-300">
+              <div className="text-sm font-semibold text-gray-700">
+                Amount in Words:
+              </div>
+              <div className="col-span-2">
+                <div className="text-sm font-medium text-gray-900 italic min-h-6">
+                  {data.amountInWords}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
 
-        {/* Signature Section */}
-        <div className="mt-12 pt-8 grid grid-cols-3 gap-8">
-          <div className="text-center">
-            <div className="mb-12 text-sm text-gray-600 font-semibold">Payer's Signature</div>
-          </div>
-
-          <div className="text-center">
-            <div className="mb-2 text-sm text-gray-600 font-semibold">Witness</div>
-            <div className="text-2xl font-bold text-gray-900 mb-4">
-              Monai
+          {/* Reason */}
+          <div className="grid grid-cols-3 gap-4 items-center pb-4 border-b border-gray-200">
+            <div className="flex items-center gap-2 text-gray-700">
+              <FileText className="w-5 h-5" />
+              <span className="font-semibold">Payment For:</span>
+            </div>
+            <div className="col-span-2">
+              <div className="text-lg font-medium text-gray-900 border-b-2 border-black pb-1 min-h-8">
+                {data.reason}
+              </div>
             </div>
           </div>
 
-          <div className="text-center">
-            <div className="mb-2 text-sm text-gray-600 font-semibold">Received By</div>
-            <div className="text-2xl font-bold text-gray-900 mb-4">
-              Mohamed Sabry
+          {/* Signature Section */}
+          <div className="mt-12 pt-8 grid grid-cols-3 gap-8">
+            {!isCopy ? (
+              <>
+                <div className="text-center">
+                  <div className="mb-2 text-sm text-gray-600 font-semibold">Payer's Signature</div>
+                  <div className="text-2xl font-bold text-gray-900 mb-4">
+                    {data.receivedFrom}
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <div className="mb-2 text-sm text-gray-600 font-semibold">Witness</div>
+                  <div className="text-2xl font-bold text-gray-900 mb-4">
+                    Monai
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="col-span-2"></div>
+            )}
+
+            <div className="text-center">
+              <div className="mb-2 text-sm text-gray-600 font-semibold">Received By</div>
+              <div className="text-2xl font-bold text-gray-900 mb-4">
+                Mohamed Sabry
+              </div>
             </div>
           </div>
+
+          {isCopy && (
+            <div className="mt-12 pt-4 border-t border-gray-200 text-center">
+              <p className="text-sm font-bold text-gray-500">True Copy of Original</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
