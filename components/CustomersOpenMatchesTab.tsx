@@ -152,7 +152,7 @@ export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTa
         } else if (num.startsWith('BNK')) {
           // Bank transfers with Debit are 'R-Payment' (Bounced/Refund)
           type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
-        } else if (num.startsWith('PBNK4')) {
+        } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
           type = 'Our-Paid';
         } else if (num.startsWith('SAL')) {
           // Only show SAL if it's partially closed (has matching and residual)

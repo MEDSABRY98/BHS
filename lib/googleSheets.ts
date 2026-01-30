@@ -1636,7 +1636,9 @@ const parseTimeStr = (t: string): { h: number, m: number } => {
     // Let's stick to the user's previous convention: "4.30" means 4h 30m
     const parts = t.split('.');
     h = parseInt(parts[0]) || 0;
-    m = parseInt(parts[1]) || 0; // "30" -> 30 mins
+    let mStr = parts[1] || '0';
+    if (mStr.length === 1) mStr += '0';
+    m = parseInt(mStr.substring(0, 2)) || 0;
   }
   return { h, m };
 };
@@ -1899,6 +1901,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
         // So we should return them separate if possible or frontend adapts?
         // Let's return raw `sdStart` as `shiftStart` so it fits the input box.
         shiftEnd: oveEnd || edEnd,
+        shiftEndAmPm: oveEnd ? oveAmPm : edAmPm,
         overtimeHours: otHours,
         deductionHours: '0',
         rowIndex: index + 2,
@@ -2028,6 +2031,126 @@ export async function deleteEmployeeOvertime(rowIndex: number): Promise<{ succes
     return { success: true };
   } catch (error) {
     console.error('Error deleting employee overtime:', error);
+    throw error;
+  }
+}
+
+// --- ABSENCE SYSTEM ---
+
+// Get all Employee Absence records
+export async function getEmployeeAbsenceRecords(): Promise<Array<{
+  date: string;
+  employeeId: string;
+  employeeNameAr: string;
+  employeeNameEn: string;
+  particulars: string;
+  rowIndex: number;
+}>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Employee Absence'!A:E`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header row
+    return rows.slice(1).map((row, index) => ({
+      date: row[0] || '',
+      employeeId: row[1] || '',
+      employeeNameAr: row[2] || '',
+      employeeNameEn: row[3] || '',
+      particulars: row[4] || '',
+      rowIndex: index + 2
+    })).filter(r => r.date && r.employeeNameEn);
+  } catch (error) {
+    console.error('Error fetching employee absence records:', error);
+    return [];
+  }
+}
+
+// Save Employee Absence record
+export async function saveEmployeeAbsence(data: {
+  date: string;
+  employeeId?: string;
+  employeeNameAr?: string;
+  employeeNameEn: string;
+  particulars: string;
+}): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const rowValues = [
+      data.date,
+      data.employeeId || '',
+      data.employeeNameAr || '',
+      data.employeeNameEn,
+      data.particulars || ''
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Employee Absence'!A:E`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [rowValues] },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving employee absence:', error);
+    throw error;
+  }
+}
+
+// Delete Employee Absence record
+export async function deleteEmployeeAbsence(rowIndex: number): Promise<{ success: boolean }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Get sheet ID for 'Employee Absence'
+    const spreadsheet = await sheets.spreadsheets.get({
+      spreadsheetId: SPREADSHEET_ID
+    });
+    const sheet = spreadsheet.data.sheets?.find(s => s.properties?.title === 'Employee Absence');
+    if (!sheet) throw new Error("Sheet 'Employee Absence' not found");
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: sheet.properties?.sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex - 1,
+              endIndex: rowIndex
+            }
+          }
+        }]
+      }
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting employee absence:', error);
     throw error;
   }
 }
@@ -2854,6 +2977,7 @@ export async function getEmployeeSalaries(): Promise<Record<string, number>> {
 }
 
 export interface SpiEntry {
+  customerName?: string;
   number: string;
   matching: string;
 }
@@ -2869,7 +2993,7 @@ export async function getSpiData(): Promise<SpiEntry[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'SPI'!A:B`, // NUMBER, MATCHING
+      range: `'SPI'!A:C`, // CUSTOMER NAME, NUMBER, MATCHING
     });
 
     const rows = response.data.values;
@@ -2877,8 +3001,9 @@ export async function getSpiData(): Promise<SpiEntry[]> {
 
     // Skip header
     return rows.slice(1).map(row => ({
-      number: row[0]?.toString().trim() || '',
-      matching: row[1]?.toString().trim() || ''
+      customerName: row[0]?.toString().trim() || '',
+      number: row[1]?.toString().trim() || '',
+      matching: row[2]?.toString().trim() || ''
     })).filter(e => e.number);
 
   } catch (error) {

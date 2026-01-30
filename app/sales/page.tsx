@@ -9,9 +9,10 @@ import SalesStatisticsTab from '@/components/SalesStatisticsTab';
 import SalesDailySalesTab from '@/components/SalesDailySalesTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
+import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
 import Login from '@/components/Login';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function SalesPage() {
@@ -25,6 +26,7 @@ export default function SalesPage() {
   const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});
   const mainContentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   // Load mapping from localStorage on mount
   useEffect(() => {
@@ -189,6 +191,7 @@ export default function SalesPage() {
     { id: 'sales-overview', label: 'Overview' },
     { id: 'sales-top10', label: 'Top 10' },
     { id: 'sales-customers', label: 'Customers' },
+    { id: 'sales-invoice-details', label: 'Invoice Details' },
     { id: 'sales-inactive-customers', label: 'Inactive' },
     { id: 'sales-statistics', label: 'Statistics' },
     { id: 'sales-daily-sales', label: 'Daily Sales' },
@@ -232,6 +235,8 @@ export default function SalesPage() {
         return <SalesTop10Tab data={augmentedData} loading={loading} />;
       case 'sales-customers':
         return <SalesCustomersTab data={augmentedData} loading={loading} onUploadMapping={handleUploadMapping} />;
+      case 'sales-invoice-details':
+        return <SalesInvoiceDetailsTab data={augmentedData} loading={loading} />;
       case 'sales-inactive-customers':
         return <SalesInactiveCustomersTab data={augmentedData} loading={loading} />;
       case 'sales-statistics':
@@ -294,8 +299,11 @@ export default function SalesPage() {
           </div>
 
           {/* Wrapped Tabs - Center */}
-          <div className="w-full xl:flex-1">
-            <div className="grid grid-cols-8 gap-2 w-fit mx-auto h-[42px] overflow-y-auto no-scrollbar">
+          <div className="w-full xl:flex-1 flex items-center justify-center gap-2">
+            <div
+              ref={tabsRef}
+              className="grid grid-cols-4 md:grid-cols-8 gap-2 w-fit h-[42px] overflow-y-auto no-scrollbar scroll-smooth"
+            >
               {allTabs.map((tab) => (
                 <button
                   key={tab.id}
@@ -308,6 +316,23 @@ export default function SalesPage() {
                   {tab.label}
                 </button>
               ))}
+            </div>
+
+            <div className="flex flex-col gap-1 shrink-0">
+              <button
+                onClick={() => tabsRef.current?.scrollBy({ top: -42, behavior: 'smooth' })}
+                className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
+                title="Scroll Up"
+              >
+                <ChevronUp className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => tabsRef.current?.scrollBy({ top: 42, behavior: 'smooth' })}
+                className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
+                title="Scroll Down"
+              >
+                <ChevronDown className="w-4 h-4" />
+              </button>
             </div>
           </div>
 

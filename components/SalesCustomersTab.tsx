@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
+import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, X, FileSpreadsheet, Layers, LayoutGrid, BarChart3 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 
@@ -50,7 +50,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
-  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
@@ -196,6 +196,8 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       customer: string;
       merchandiser: string;
       salesRep: string;
+      area: string;
+      market: string;
       totalAmount: number;
       totalQty: number;
       barcodes: Set<string>;
@@ -227,6 +229,8 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
           customer: displayName, // Display name based on tab
           merchandiser: item.merchandiser || '',
           salesRep: item.salesRep || '',
+          area: item.area || '',
+          market: item.market || '',
           totalAmount: 0,
           totalQty: 0,
           barcodes: new Set<string>(),
@@ -291,6 +295,10 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
 
       result[index++] = {
         customer: item.customer,
+        area: item.area,
+        market: item.market,
+        merchandiser: item.merchandiser,
+        salesRep: item.salesRep,
         totalAmount: item.totalAmount,
         totalQty: item.totalQty,
         averageAmount: item.totalAmount / totalMonths,
@@ -411,29 +419,15 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
     setCurrentPage(1);
   }, [debouncedSearchQuery]);
 
-  // Close export menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setShowExportMenu(false);
-      }
-    };
-
-    if (showExportMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showExportMenu]);
-
-  const exportToExcel = () => {
+  const exportCategorizedExcel = (category: 'area' | 'market' | 'merchandiser' | 'salesRep') => {
     const workbook = XLSX.utils.book_new();
-
     const headers = [
       '#',
       'Customer Name',
+      'Area',
+      'Market',
+      'Merchandiser',
+      'Sales Rep',
       'Amount',
       'Average Amount',
       'Qty',
@@ -442,9 +436,109 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       'Products Count',
     ];
 
-    const rows = filteredCustomers.map((item, index) => [
+    // Helper to get rows for a list of items
+    const getRowsForItems = (items: typeof filteredCustomers) => {
+      const rows = items.map((item: any, index: number) => [
+        index + 1,
+        item.customer,
+        item.area,
+        item.market,
+        item.merchandiser,
+        item.salesRep,
+        item.totalAmount.toFixed(2),
+        item.averageAmount.toFixed(2),
+        item.totalQty.toFixed(0),
+        item.averageQty.toFixed(2),
+        item.transactions,
+        item.productsCount,
+      ]);
+
+      // Add total row
+      if (items.length > 0) {
+        const catTotals = items.reduce((acc, item: any) => {
+          acc.totalAmount += item.totalAmount;
+          acc.totalAverageAmount += item.averageAmount;
+          acc.totalQty += item.totalQty;
+          acc.totalAverageQty += item.averageQty;
+          acc.totalProductsCount += item.productsCount;
+          acc.totalTransactions += item.transactions;
+          return acc;
+        }, {
+          totalAmount: 0, totalAverageAmount: 0, totalQty: 0, totalAverageQty: 0, totalProductsCount: 0, totalTransactions: 0
+        });
+
+        rows.push([
+          '',
+          'Total',
+          '',
+          '',
+          '',
+          '',
+          catTotals.totalAmount.toFixed(2),
+          catTotals.totalAverageAmount.toFixed(2),
+          catTotals.totalQty.toFixed(0),
+          catTotals.totalAverageQty.toFixed(2),
+          catTotals.totalTransactions,
+          catTotals.totalProductsCount,
+        ]);
+      }
+      return rows;
+    };
+
+    // 1. Total Sheet
+    const totalData = [headers, ...getRowsForItems(filteredCustomers)];
+    const totalSheet = XLSX.utils.aoa_to_sheet(totalData);
+    XLSX.utils.book_append_sheet(workbook, totalSheet, 'Grand Total');
+
+    // 2. Categorized Sheets
+    const grouped = new Map<string, typeof filteredCustomers>();
+    filteredCustomers.forEach(c => {
+      const val = (c as any)[category] || 'Unknown';
+      if (!grouped.has(val)) grouped.set(val, []);
+      grouped.get(val)!.push(c);
+    });
+
+    const sortedLabels = Array.from(grouped.keys()).sort();
+    sortedLabels.forEach(label => {
+      const items = grouped.get(label)!;
+      const sheetData = [headers, ...getRowsForItems(items)];
+      const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+
+      // Sheet names must be <= 31 chars and no special chars
+      const safeLabel = label.substring(0, 31).replace(/[\\:*?\/\[\]]/g, '_');
+      XLSX.utils.book_append_sheet(workbook, sheet, safeLabel || 'Sheet');
+    });
+
+    const filename = `sales_customers_by_${category}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setShowExportModal(false);
+  };
+
+  const exportToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = [
+      '#',
+      'Customer Name',
+      'Area',
+      'Market',
+      'Merchandiser',
+      'Sales Rep',
+      'Amount',
+      'Average Amount',
+      'Qty',
+      'Average Qty',
+      'Transactions',
+      'Products Count',
+    ];
+
+    const rows = filteredCustomers.map((item: any, index: number) => [
       index + 1,
       item.customer,
+      item.area,
+      item.market,
+      item.merchandiser,
+      item.salesRep,
       item.totalAmount.toFixed(2),
       item.averageAmount.toFixed(2),
       item.totalQty.toFixed(0),
@@ -458,6 +552,10 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       rows.push([
         '',
         'Total',
+        '',
+        '',
+        '',
+        '',
         totals.totalAmount.toFixed(2),
         totals.totalAverageAmount.toFixed(2),
         totals.totalQty.toFixed(0),
@@ -473,7 +571,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
 
     const filename = `sales_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
-    setShowExportMenu(false);
+    setShowExportModal(false);
   };
 
   const exportToExcelByMonths = () => {
@@ -481,7 +579,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
 
     // Group data by customerId and month, but keep customerName for display
     const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
-    const customerNameMap = new Map<string, string>(); // Map customerId to customerName
+    const customerInfoMap = new Map<string, { name: string, area: string, market: string, merchandiser: string, salesRep: string }>();
     const allMonths = new Set<string>();
 
     data.forEach(item => {
@@ -501,9 +599,15 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
         customerMonthMap.set(customerId, new Map());
       }
 
-      // Store customerName for this customerId (use first occurrence)
-      if (!customerNameMap.has(customerId)) {
-        customerNameMap.set(customerId, item.customerName);
+      // Store customer info for this customerId (use first occurrence)
+      if (!customerInfoMap.has(customerId)) {
+        customerInfoMap.set(customerId, {
+          name: item.customerName,
+          area: item.area || '',
+          market: item.market || '',
+          merchandiser: item.merchandiser || '',
+          salesRep: item.salesRep || ''
+        });
       }
 
       const customerMonths = customerMonthMap.get(customerId)!;
@@ -528,12 +632,12 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
     const workbook = XLSX.utils.book_new();
 
     // Sheet 1: Amount
-    const amountHeaders = ['Customer', ...monthLabels, 'Total'];
+    const amountHeaders = ['Customer', 'Area', 'Market', 'Merchandiser', 'Sales Rep', ...monthLabels, 'Total'];
     const amountRows: any[][] = [];
 
     customerMonthMap.forEach((months, customerId) => {
-      const customerName = customerNameMap.get(customerId) || customerId; // Use customerName for display
-      const row: any[] = [customerName];
+      const info = customerInfoMap.get(customerId)!;
+      const row: any[] = [info.name, info.area, info.market, info.merchandiser, info.salesRep];
       let total = 0;
 
       sortedMonths.forEach(monthKey => {
@@ -561,19 +665,19 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       });
     });
     amountTotals[amountTotals.length - 1] = amountTotals.slice(0, -1).reduce((a, b) => a + b, 0);
-    amountRows.push(['Total', ...amountTotals.map(t => t.toFixed(2))]);
+    amountRows.push(['Total', '', '', '', '', ...amountTotals.map(t => t.toFixed(2))]);
 
     const amountData = [amountHeaders, ...amountRows];
     const amountSheet = XLSX.utils.aoa_to_sheet(amountData);
     XLSX.utils.book_append_sheet(workbook, amountSheet, 'Amount');
 
     // Sheet 2: Quantity
-    const qtyHeaders = ['Customer', ...monthLabels, 'Total'];
+    const qtyHeaders = ['Customer', 'Area', 'Market', 'Merchandiser', 'Sales Rep', ...monthLabels, 'Total'];
     const qtyRows: any[][] = [];
 
     customerMonthMap.forEach((months, customerId) => {
-      const customerName = customerNameMap.get(customerId) || customerId; // Use customerName for display
-      const row: any[] = [customerName];
+      const info = customerInfoMap.get(customerId)!;
+      const row: any[] = [info.name, info.area, info.market, info.merchandiser, info.salesRep];
       let total = 0;
 
       sortedMonths.forEach(monthKey => {
@@ -609,7 +713,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
 
     const filename = `sales_customers_by_months_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
-    setShowExportMenu(false);
+    setShowExportModal(false);
   };
 
   if (loading) {
@@ -664,31 +768,13 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="relative" ref={exportMenuRef}>
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="p-3 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md hover:shadow-lg active:scale-95"
-                title="Export to Excel"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
-                  <button
-                    onClick={exportToExcel}
-                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg transition-colors border-b border-gray-100"
-                  >
-                    Export Current Table
-                  </button>
-                  <button
-                    onClick={exportToExcelByMonths}
-                    className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg transition-colors"
-                  >
-                    Export by Months
-                  </button>
-                </div>
-              )}
-            </div>
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="p-3 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md hover:shadow-lg active:scale-95"
+              title="Export to Excel"
+            >
+              <Download className="w-5 h-5" />
+            </button>
           </div>
         </div>
 
@@ -1147,6 +1233,135 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
           )}
         </div>
       </div>
+
+      {/* Export Reports Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div
+            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="bg-green-600 px-8 py-6 flex items-center justify-between text-white">
+              <div>
+                <h3 className="text-2xl font-bold">Export Reports</h3>
+                <p className="text-green-100 text-sm mt-1">Select the report format you want to download</p>
+              </div>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+                {/* Standard Reports Section */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Standard Reports</h4>
+
+                  <button
+                    onClick={exportToExcel}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-green-50 border border-transparent hover:border-green-100 group transition-all"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
+                      <FileSpreadsheet className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-800">Summary List</div>
+                      <div className="text-xs text-gray-500">Full list with basic metrics</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={exportToExcelByMonths}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-green-50 border border-transparent hover:border-green-100 group transition-all"
+                  >
+                    <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
+                      <Calendar className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-800">Monthly Detailed</div>
+                      <div className="text-xs text-gray-500">Horizontal monthly breakdown</div>
+                    </div>
+                  </button>
+                </div>
+
+                {/* Categorized Reports Section */}
+                <div className="space-y-4">
+                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Categorized Sheets</h4>
+
+                  <button
+                    onClick={() => exportCategorizedExcel('area')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/30 group transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 transition-colors">
+                      <MapPin className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-800">Split by AREA</div>
+                      <div className="text-[10px] text-gray-400">Total + Sheet per Area</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => exportCategorizedExcel('market')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-amber-200 hover:bg-amber-50/30 group transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
+                      <ShoppingBag className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-800">Split by MARKET</div>
+                      <div className="text-[10px] text-gray-400">Total + Sheet per Market</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => exportCategorizedExcel('merchandiser')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30 group transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
+                      <BarChart3 className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-800">Split by MERCH</div>
+                      <div className="text-[10px] text-gray-400">Total + Sheet per Merch</div>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => exportCategorizedExcel('salesRep')}
+                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-rose-200 hover:bg-rose-50/30 group transition-all"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition-colors">
+                      <UserCircle className="w-5 h-5" />
+                    </div>
+                    <div className="text-left">
+                      <div className="font-bold text-gray-800">Split by SALES REP</div>
+                      <div className="text-[10px] text-gray-400">Total + Sheet per Rep</div>
+                    </div>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-8 py-4 text-center">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+              >
+                Cancel and Return
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

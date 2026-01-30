@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import CustomerDetails from './CustomerDetails';
+import { generateAccountStatementPDF, generateBulkDebitSummaryPDF } from '@/lib/pdfUtils';
 import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
@@ -354,8 +355,10 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
   const num = (inv.number?.toString() || '').toUpperCase();
   if (num.startsWith('BNK')) return true;
-  // PBNK4 excluded from Payment definition per user request
-  if (num.startsWith('PBNK4')) return false;
+  // PBNK with Debit is 'Our-Paid' (excluded from payment stats), PBNK with Credit is 'Payment'
+  if (num.startsWith('PBNK')) {
+    return (inv.credit || 0) > 0.01;
+  }
 
   if ((inv.credit || 0) <= 0.01) return false;
   return (
@@ -668,16 +671,17 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
 };
 
 // Helper function to get invoice type
-const getInvoiceType = (inv: { number?: string | null; credit?: number | null }): string => {
+const getInvoiceType = (inv: { number?: string | null; credit?: number | null; debit?: number | null }): string => {
   const num = (inv.number || '').toUpperCase();
   const credit = inv.credit ?? 0;
+  const debit = inv.debit ?? 0;
 
   if (num.startsWith('OB')) {
     return 'Opening Balance';
   } else if (num.startsWith('BNK')) {
     return 'Payment';
-  } else if (num.startsWith('PBNK4')) {
-    return 'Our-Paid';
+  } else if (num.startsWith('PBNK')) {
+    return debit > 0.01 ? 'Our-Paid' : 'Payment';
   } else if (num.startsWith('SAL')) {
     return 'Sale';
   } else if (num.startsWith('RSAL')) {
@@ -926,7 +930,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
 
       if (n.startsWith('BNK')) {
         type = 'Payment';
-      } else if (n.startsWith('PBNK4')) {
+      } else if (n.startsWith('PBNK') && row.debit > 0.01) {
         // Exclude from Payment stats per user request
         type = 'Other';
       } else if (n.startsWith('SAL')) {
@@ -936,8 +940,8 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       } else if (n.startsWith('JV') || n.startsWith('BIL')) {
         type = 'Discount';
       } else if (row.credit > 0.01) {
-        // Fallback for other credits: ensure PBNK4 didn't slip through if logic changes
-        if (!n.startsWith('PBNK4')) {
+        // Fallback for other credits: ensure PBNK didn't slip through if logic changes
+        if (!n.startsWith('PBNK')) {
           type = 'Payment';
         }
       }
@@ -1290,7 +1294,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
           let type = 'Payment';
 
           if (n.startsWith('OB')) type = 'OB';
-          else if (n.startsWith('BNK') || n.startsWith('PBNK4')) type = 'Payment';
+          else if (n.startsWith('BNK') || n.startsWith('PBNK')) type = 'Payment';
           else if (n.startsWith('SAL')) type = 'Sales';
           else if (n.startsWith('RSAL')) type = 'Return';
           else if (n.startsWith('JV') || n.startsWith('BIL')) type = 'Discount';
@@ -1946,6 +1950,33 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
+      const { generateAccountStatementPDF, generateBulkDebitSummaryPDF } = await import('@/lib/pdfUtils');
+
+      const customersToDehydrate = filteredData.filter(c => selectedCustomersForDownload.has(c.customerName));
+
+      const pdfBlob = await generateBulkDebitSummaryPDF(customersToDehydrate);
+      if (pdfBlob) {
+        saveAs(pdfBlob, `Debit_Summary_${new Date().toISOString().split('T')[0]}.pdf`);
+      }
+    } catch (error) {
+      console.error('Error generating summary PDF:', error);
+      alert('حدث خطأ أثناء تحميل الملف');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  // Bulk download function with Net Only filter
+  const handleBulkZIPDownload = async () => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('يرجى اختيار عملاء للتحميل');
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const { saveAs } = await import('file-saver');
       const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
 
       const zip = new JSZip();
@@ -1997,7 +2028,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
 
         if (pdfBlob) {
           const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
-          zip.file(`${cleanName}.pdf`, pdfBlob);
+          zip.file(`${cleanName}.pdf`, pdfBlob as Blob);
           count++;
         }
       }
@@ -2414,7 +2445,8 @@ ${debtSectionHtml}
     <div className="p-6">
       <div className="mb-6">
 
-        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 py-8 px-6 min-h-[180px] rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6 flex items-center relative">
+        <div className={`bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 px-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6 flex items-center relative transition-all duration-300 ${selectedCustomersForDownload.size > 0 ? 'py-12 min-h-[200px]' : 'py-8 min-h-[180px]'
+          }`}>
           <div className="w-full flex flex-col lg:flex-row lg:items-center gap-4">
             {/* Left Side - Total Net Debit */}
             <div className="flex items-center gap-3">
@@ -2568,56 +2600,75 @@ ${debtSectionHtml}
                   </button>
 
                   {/* Bulk Download Button */}
-                  {selectedCustomersForDownload.size > 0 && (
-                    <>
-                      <button
-                        onClick={handleBulkDownload}
-                        disabled={isDownloading}
-                        className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                        title={`Download ${selectedCustomersForDownload.size} account statements`}
-                      >
-                        {isDownloading ? (
-                          <>
+                  <div className="flex gap-1 items-center">
+                    {selectedCustomersForDownload.size > 0 && (
+                      <>
+                        <button
+                          onClick={handleBulkDownload}
+                          disabled={isDownloading}
+                          className="p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                          title={`Summary PDF para ${selectedCustomersForDownload.size} clientes`}
+                        >
+                          {isDownloading ? (
                             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                          </>
-                        ) : (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                          </>
-                        )}
-                      </button>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                              </svg>
+                              <span className="text-xs font-bold bg-red-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            </>
+                          )}
+                        </button>
 
-                      <button
-                        onClick={handleBulkEmail}
-                        disabled={isDownloading}
-                        className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                        title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
-                      >
-                        {isDownloading ? (
-                          <>
+                        <button
+                          onClick={handleBulkZIPDownload}
+                          disabled={isDownloading}
+                          className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                          title={`Download ${selectedCustomersForDownload.size} account statements Zip`}
+                        >
+                          {isDownloading ? (
                             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                          </>
-                        ) : (
-                          <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
+                          onClick={handleBulkEmail}
+                          disabled={isDownloading}
+                          className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                          title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
+                        >
+                          {isDownloading ? (
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                          </>
-                        )}
-                      </button>
-                    </>
-                  )}
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
+                              </svg>
+                              <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            </>
+                          )}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -3779,6 +3830,38 @@ ${debtSectionHtml}
 
                   {/* Returns Card */}
                   <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                    {selectedCustomersForDownload.size > 0 && (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleBulkDownload}
+                          className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"
+                          disabled={isDownloading}
+                        >
+                          {isDownloading ? (
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                          )}
+                          Summary PDF
+                        </button>
+                        <button
+                          onClick={handleBulkZIPDownload}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"
+                          disabled={isDownloading}
+                        >
+                          {isDownloading ? (
+                            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          )}
+                          Download PDFs (ZIP)
+                        </button>
+                      </div>
+                    )}
                     <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 opacity-50 group-hover:scale-110 transition-transform"></div>
 
                     <div className="relative z-10">

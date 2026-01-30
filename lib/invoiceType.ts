@@ -19,7 +19,7 @@ export const getInvoiceType = (inv: InvoiceTypeInput): string => {
   } else if (num.startsWith('BNK')) {
     // BNK with Debit is a 'R-Payment' (Refund/Bounced), otherwise Payment
     return debit > 0.01 ? 'R-Payment' : 'Payment';
-  } else if (num.startsWith('PBNK4')) {
+  } else if (num.startsWith('PBNK') && debit > 0.01) {
     return 'Our-Paid';
   } else if (num.startsWith('SAL')) {
     return 'Sales';

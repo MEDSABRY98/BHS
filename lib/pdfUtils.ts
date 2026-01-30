@@ -3,6 +3,209 @@
 // Helper function to load and add Arabic font to jsPDF
 import { getInvoiceType } from '@/lib/invoiceType';
 
+export async function generateBulkDebitSummaryPDF(
+  customers: Array<{
+    customerName: string;
+    salesReps?: Set<string>;
+    netDebt: number;
+  }>
+) {
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  const doc = new jsPDF('p', 'mm', 'a4');
+  await addArabicFont(doc);
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 10;
+  let yPosition = 20;
+
+  // Title
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Debit Summary Report', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 7;
+
+  // Company Name
+  doc.setFontSize(12);
+  doc.setTextColor(0, 155, 77);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+  doc.setTextColor(0, 0, 0);
+  yPosition += 10;
+
+  // Date
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'normal');
+  const now = new Date();
+  const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
+  doc.text(`Date: ${currentDate}`, margin, yPosition);
+  yPosition += 8;
+
+  // Table data
+  // Sort by city (sales rep) and then by net debt descending
+  const sortedCustomers = [...customers].sort((a, b) => {
+    const cityA = a.salesReps ? Array.from(a.salesReps).join(', ') : '';
+    const cityB = b.salesReps ? Array.from(b.salesReps).join(', ') : '';
+
+    // Primary sort: City
+    if (cityA < cityB) return -1;
+    if (cityA > cityB) return 1;
+
+    // Secondary sort: Net Debt descending
+    return b.netDebt - a.netDebt;
+  });
+
+  const tableData = sortedCustomers.map((c, index) => {
+    const reps = c.salesReps ? Array.from(c.salesReps).join(', ') : '';
+    return [
+      (index + 1).toString(),
+      c.customerName,
+      reps,
+      c.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    ];
+  });
+
+  const totalDebt = customers.reduce((sum, c) => sum + c.netDebt, 0);
+
+  // Add total row
+  tableData.push([
+    '',
+    'TOTAL',
+    '',
+    totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+  ]);
+
+  const tableOptions: any = {
+    startY: yPosition,
+    head: [['#', 'Customer Name', 'City', 'Balance']],
+    body: tableData,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [0, 0, 0],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    bodyStyles: {
+      fontSize: 9,
+      halign: 'center'
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 100, halign: 'center', font: 'Amiri' },
+      2: { cellWidth: 45, halign: 'center' },
+      3: { cellWidth: 35, halign: 'center' }
+    },
+    margin: { left: 10, right: 10 },
+    didParseCell: (data: any) => {
+      if (data.row.index === tableData.length - 1) {
+        data.cell.styles.fontStyle = 'bold';
+        data.cell.styles.fillColor = [240, 240, 240];
+      }
+    }
+  };
+
+  if (typeof (doc as any).autoTable === 'function') {
+    (doc as any).autoTable(tableOptions);
+  } else if (typeof autoTable === 'function') {
+    autoTable(doc, tableOptions);
+  }
+
+  // City Summary Logic - Add a new page if more than one city exists
+  const cityStatsMap = new Map<string, { totalDebt: number; customerCount: number }>();
+  customers.forEach(c => {
+    const city = c.salesReps && c.salesReps.size > 0 ? Array.from(c.salesReps).join(', ') : 'Unknown City';
+    const stats = cityStatsMap.get(city) || { totalDebt: 0, customerCount: 0 };
+    stats.totalDebt += c.netDebt;
+    stats.customerCount += 1;
+    cityStatsMap.set(city, stats);
+  });
+
+  if (cityStatsMap.size > 1) {
+    doc.addPage();
+    yPosition = 20;
+
+    // Summary Page Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('City Summary Report', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 8;
+
+    // Company Name
+    doc.setFontSize(12);
+    doc.setTextColor(0, 155, 77);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    yPosition += 10;
+
+    // Date
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const nowSummary = new Date();
+    const currentDateSummary = `${nowSummary.getDate()}-${nowSummary.toLocaleDateString('en-US', { month: 'short' })}-${nowSummary.getFullYear()}`;
+    doc.text(`Date: ${currentDateSummary}`, margin, yPosition);
+    yPosition += 8;
+
+    const cityTableData = Array.from(cityStatsMap.entries())
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([city, stats]) => [
+        city,
+        stats.totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        stats.customerCount.toString()
+      ]);
+
+    // Add Grand Total Row to Summary Table
+    const grandTotalDebt = customers.reduce((sum, c) => sum + c.netDebt, 0);
+    cityTableData.push([
+      'GRAND TOTAL',
+      grandTotalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      customers.length.toString()
+    ]);
+
+    const cityTableOptions: any = {
+      startY: yPosition,
+      head: [['City', 'Total Balance', 'Customers Count']],
+      body: cityTableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      bodyStyles: {
+        fontSize: 10,
+        halign: 'center'
+      },
+      columnStyles: {
+        0: { cellWidth: 100, halign: 'center' },
+        1: { cellWidth: 50, halign: 'center' },
+        2: { cellWidth: 40, halign: 'center' }
+      },
+      margin: { left: 10, right: 10 },
+      didParseCell: (data: any) => {
+        if (data.row.index === cityTableData.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [240, 240, 240];
+        }
+      }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') {
+      (doc as any).autoTable(cityTableOptions);
+    } else if (typeof autoTable === 'function') {
+      autoTable(doc, cityTableOptions);
+    }
+  }
+
+  return doc.output('blob');
+}
+
 const TYPE_BADGE_COLORS: Record<
   string,
   { fillColor: [number, number, number]; textColor: [number, number, number] }
@@ -117,7 +320,7 @@ export async function generateAccountStatementPDF(
   doc.setFont('helvetica', 'normal'); // Date uses English chars
   const now = new Date();
   const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
-  doc.text(`Date: ${currentDate} (${monthsLabel})`, margin, yPosition);
+  doc.text(`Date: ${currentDate}`, margin, yPosition);
   yPosition += 8; // Reduced spacing by ~50%
 
   // Prepare table data

@@ -87,8 +87,10 @@ const normalizeCustomerKey = (name: string): string =>
 const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): boolean => {
   const num = (inv.number?.toString() || '').toUpperCase();
   if (num.startsWith('BNK')) return true;
-  // PBNK4 excluded from payment stats per request
-  if (num.startsWith('PBNK4')) return false;
+  // PBNK with Debit is 'Our-Paid' (excluded from payment stats), PBNK with Credit is 'Payment'
+  if (num.startsWith('PBNK')) {
+    return (inv.credit || 0) > 0.01;
+  }
 
   if ((inv.credit || 0) <= 0.01) return false;
   return (
@@ -97,7 +99,7 @@ const isPaymentTxn = (inv: { number?: string | null; credit?: number | null }): 
     !num.startsWith('BIL') &&
     !num.startsWith('JV') &&
     !num.startsWith('OB') &&
-    !num.startsWith('PBNK4')
+    !num.startsWith('PBNK')
   );
 };
 
@@ -968,7 +970,7 @@ ${debtSectionHtml}
             !num.startsWith('BIL') &&
             !num.startsWith('JV') &&
             !num.startsWith('OB') &&
-            !num.startsWith('PBNK4')) {
+            !num.startsWith('PBNK')) {
             return true;
           }
         }
@@ -1120,8 +1122,8 @@ ${debtSectionHtml}
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
         if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
         if (showPayments) {
-          // Treat BNK* as payments even if credit isn't populated as expected
-          if ((num.startsWith('BNK') || num.startsWith('PBNK4')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
+          // Treat BNK* as payments. Treat PBNK with debit as Our-Paid (included in payments filter for convenience here, matching previous PBNK logic)
+          if ((num.startsWith('BNK') || num.startsWith('PBNK')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
           // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB, PBNK
           if (inv.credit > 0.01 &&
             !num.startsWith('SAL') &&
@@ -1129,7 +1131,7 @@ ${debtSectionHtml}
             !num.startsWith('BIL') &&
             !num.startsWith('JV') &&
             !num.startsWith('OB') &&
-            !num.startsWith('PBNK4')) {
+            !num.startsWith('PBNK')) {
             return true;
           }
         }
@@ -1905,6 +1907,31 @@ ${debtSectionHtml}
           monthsLabel += ` (Search: ${invoiceSearchQuery})`;
         }
 
+        // Apply Net Only filter if selected
+        if (pdfExportType === 'net') {
+          finalInvoices = finalInvoices.filter(inv => {
+            // Keep if no matching ID (Unmatched)
+            if (!inv.matching) return true;
+
+            // Keep only if it carries the residual (which means it's the main open invoice of an open group)
+            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+          }).map(inv => {
+            if (inv.matching && inv.residual !== undefined) {
+              // It's a condensed open invoice
+              // Calculate "Paid" amount to show in Credit
+              // Credit = Debit - Residual
+              return {
+                ...inv,
+                credit: inv.debit - inv.residual,
+                netDebt: inv.residual
+              };
+            }
+            return inv;
+          });
+
+          monthsLabel += ' (Net Only)';
+        }
+
       } else if (exportScope === 'selection') {
         const isOverdueTab = activeTab === 'overdue';
         const selectedIds = isOverdueTab ? selectedOverdueIds : selectedInvoiceIds;
@@ -2481,7 +2508,7 @@ ${debtSectionHtml}
                   </section>
 
                   {/* Export Type (Conditional) */}
-                  {exportScope === 'custom' && (
+                  {(exportScope === 'custom' || exportScope === 'view') && (
                     <section className="animate-in slide-in-from-left-5 duration-300">
                       <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
                         <CheckSquare className="w-4 h-4 text-indigo-500" /> Content Type

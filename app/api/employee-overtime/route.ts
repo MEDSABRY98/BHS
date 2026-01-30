@@ -1,93 +1,118 @@
 import { NextResponse } from 'next/server';
-import { getEmployeeNames, getEmployeeSalaries, saveEmployeeOvertime, getEmployeeOvertimeRecords, updateEmployeeOvertime, deleteEmployeeOvertime } from '@/lib/googleSheets';
+import {
+  getEmployeeNames,
+  getEmployeeSalaries,
+  saveEmployeeOvertime,
+  getEmployeeOvertimeRecords,
+  updateEmployeeOvertime,
+  deleteEmployeeOvertime,
+  getEmployeeAbsenceRecords,
+  saveEmployeeAbsence,
+  deleteEmployeeAbsence
+} from '@/lib/googleSheets';
 
-// GET: Fetch employee names or all records
+// GET: Fetch employee names, overtime records, or absence records
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type');
 
     if (type === 'names') {
-      // Get employee names for dropdown and salaries for calculation
       const [names, salaries] = await Promise.all([
         getEmployeeNames(),
         getEmployeeSalaries()
       ]);
       return NextResponse.json({ names, salaries });
+    } else if (type === 'absence') {
+      const records = await getEmployeeAbsenceRecords();
+      return NextResponse.json({ records });
     } else {
-      // Get all overtime records
       const records = await getEmployeeOvertimeRecords();
       return NextResponse.json({ records });
     }
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch data';
     return NextResponse.json(
-      {
-        error: 'Failed to fetch data',
-        details: errorMessage
-      },
+      { error: 'Failed to fetch data', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
 }
 
-// POST: Save employee overtime record
+// POST: Save overtime or absence records
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo, shiftStart, shiftEnd, shiftHours, overtimeHours, deductionHours } = body;
+    const { mode, date, employeeName, employeeNameEn, particulars, description, type, shiftStart, shiftEnd, shiftHours, overtimeHours, deductionHours } = body;
 
-    // Validation relaxed to allow new workflow (shiftStart/End etc instead of timeFrom/To)
-    // But we still need Date and EmployeeName
-    if (!date || !employeeName) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+    if (!date || (!employeeName && !employeeNameEn)) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    await saveEmployeeOvertime({
-      date,
-      employeeName,
-      type: type || 'Overtime',
-      description,
-      fromAmPm,
-      timeFrom,
-      toAmPm,
-      timeTo,
-      shiftStart,
-      shiftEnd,
-      shiftHours,
-      overtimeHours,
-      deductionHours
-    });
+    if (mode === 'absence') {
+      await saveEmployeeAbsence({
+        date,
+        employeeNameEn: employeeNameEn || employeeName,
+        particulars: particulars || description || ''
+      });
+    } else {
+      await saveEmployeeOvertime({
+        date,
+        employeeName: employeeName || employeeNameEn,
+        type: type || 'Overtime',
+        description: description || particulars || '',
+        shiftStart,
+        shiftEnd,
+        shiftHours,
+        overtimeHours,
+        deductionHours
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to save overtime record';
     return NextResponse.json(
-      {
-        error: 'Failed to save overtime record',
-        details: errorMessage
-      },
+      { error: 'Failed to save record', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
 }
 
-// PUT: Update employee overtime record
+// DELETE: Delete record
+export async function DELETE(request: Request) {
+  try {
+    const body = await request.json();
+    const { rowIndex, mode } = body;
+
+    if (!rowIndex) {
+      return NextResponse.json({ error: 'Missing rowIndex' }, { status: 400 });
+    }
+
+    if (mode === 'absence') {
+      await deleteEmployeeAbsence(rowIndex);
+    } else {
+      await deleteEmployeeOvertime(rowIndex);
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: 'Failed to delete record', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PUT: Update overtime record (Absence update not requested but could be added similarly)
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { rowIndex, date, employeeName, type, description, fromAmPm, timeFrom, toAmPm, timeTo, shiftStart, shiftEnd, shiftHours, overtimeHours, deductionHours } = body;
+    const { rowIndex, date, employeeName, type, description, shiftStart, shiftEnd, shiftHours, overtimeHours, deductionHours } = body;
 
     if (!rowIndex || !date || !employeeName) {
-      return NextResponse.json(
-        { error: 'Missing required fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
     await updateEmployeeOvertime(rowIndex, {
@@ -95,10 +120,6 @@ export async function PUT(request: Request) {
       employeeName,
       type: type || 'Overtime',
       description,
-      fromAmPm,
-      timeFrom,
-      toAmPm,
-      timeTo,
       shiftStart,
       shiftEnd,
       shiftHours,
@@ -109,41 +130,8 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to update overtime record';
     return NextResponse.json(
-      {
-        error: 'Failed to update overtime record',
-        details: errorMessage
-      },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE: Delete employee overtime record
-export async function DELETE(request: Request) {
-  try {
-    const body = await request.json();
-    const { rowIndex } = body;
-
-    if (!rowIndex) {
-      return NextResponse.json(
-        { error: 'Missing rowIndex' },
-        { status: 400 }
-      );
-    }
-
-    await deleteEmployeeOvertime(rowIndex);
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to delete overtime record';
-    return NextResponse.json(
-      {
-        error: 'Failed to delete overtime record',
-        details: errorMessage
-      },
+      { error: 'Failed to update record', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
