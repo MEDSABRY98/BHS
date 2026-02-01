@@ -8,6 +8,10 @@ export async function generateBulkDebitSummaryPDF(
     customerName: string;
     salesReps?: Set<string>;
     netDebt: number;
+    lastPaymentDate?: Date | null;
+    lastPaymentAmount?: number | null;
+    lastSalesDate?: Date | null;
+    lastSalesAmount?: number | null;
   }>
 ) {
   const jsPDFModule = await import('jspdf');
@@ -16,7 +20,7 @@ export async function generateBulkDebitSummaryPDF(
   const autoTableModule = await import('jspdf-autotable');
   const autoTable = autoTableModule.default || autoTableModule;
 
-  const doc = new jsPDF('p', 'mm', 'a4');
+  const doc = new jsPDF('l', 'mm', 'a4');
   await addArabicFont(doc);
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -59,13 +63,47 @@ export async function generateBulkDebitSummaryPDF(
     return b.netDebt - a.netDebt;
   });
 
+  const formatDmy = (d?: Date | null) => {
+    if (!d) return '-';
+    return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
+  };
+
   const tableData = sortedCustomers.map((c, index) => {
     const reps = c.salesReps ? Array.from(c.salesReps).join(', ') : '';
+
+    // Payment Data
+    let paymentDate = '-';
+    let paymentAmount = '-';
+    let paymentDays = '-';
+    if (c.lastPaymentDate) {
+      paymentDate = formatDmy(c.lastPaymentDate);
+      paymentAmount = (c.lastPaymentAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      const diffTime = Math.abs(now.getTime() - c.lastPaymentDate.getTime());
+      paymentDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)).toString();
+    }
+
+    // Sales Data
+    let salesDate = '-';
+    let salesAmount = '-';
+    let salesDays = '-';
+    if (c.lastSalesDate) {
+      salesDate = formatDmy(c.lastSalesDate);
+      salesAmount = (c.lastSalesAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+      const diffTime = Math.abs(now.getTime() - c.lastSalesDate.getTime());
+      salesDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)).toString();
+    }
+
     return [
       (index + 1).toString(),
       c.customerName,
       reps,
-      c.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      c.netDebt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }),
+      paymentDate,
+      paymentAmount,
+      paymentDays,
+      salesDate,
+      salesAmount,
+      salesDays
     ];
   });
 
@@ -76,29 +114,61 @@ export async function generateBulkDebitSummaryPDF(
     '',
     'TOTAL',
     '',
-    totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    totalDebt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }),
+    '', '', '', '', '', ''
   ]);
 
   const tableOptions: any = {
     startY: yPosition,
-    head: [['#', 'Customer Name', 'City', 'Balance']],
+    head: [
+      [
+        { content: '#', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Customer Name', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'City', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Balance', rowSpan: 2, styles: { valign: 'middle', halign: 'center' } },
+        { content: 'Last Payment', colSpan: 3, styles: { halign: 'center', fillColor: [220, 252, 231], textColor: [21, 128, 61] } },
+        { content: 'Last Sale', colSpan: 3, styles: { halign: 'center', fillColor: [219, 234, 254], textColor: [29, 78, 216] } },
+      ],
+      [
+        { content: 'Date', styles: { halign: 'center', fillColor: [220, 252, 231], textColor: [21, 128, 61] } },
+        { content: 'Amt', styles: { halign: 'center', fillColor: [220, 252, 231], textColor: [21, 128, 61] } },
+        { content: 'Days', styles: { halign: 'center', fillColor: [220, 252, 231], textColor: [21, 128, 61] } },
+        { content: 'Date', styles: { halign: 'center', fillColor: [219, 234, 254], textColor: [29, 78, 216] } },
+        { content: 'Amt', styles: { halign: 'center', fillColor: [219, 234, 254], textColor: [29, 78, 216] } },
+        { content: 'Days', styles: { halign: 'center', fillColor: [219, 234, 254], textColor: [29, 78, 216] } },
+      ]
+    ],
     body: tableData,
     theme: 'grid',
     headStyles: {
-      fillColor: [0, 0, 0],
+      fillColor: [50, 50, 50],
       textColor: [255, 255, 255],
       fontStyle: 'bold',
-      halign: 'center'
+      halign: 'center',
+      valign: 'middle',
+      fontSize: 8,
+      lineWidth: 0.1,
+      lineColor: [200, 200, 200]
     },
     bodyStyles: {
-      fontSize: 9,
-      halign: 'center'
+      fontSize: 8,
+      halign: 'center',
+      valign: 'middle',
+      cellPadding: 2.5
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 100, halign: 'center', font: 'Amiri' },
-      2: { cellWidth: 45, halign: 'center' },
-      3: { cellWidth: 35, halign: 'center' }
+      0: { cellWidth: 10 }, // #
+      1: { cellWidth: 80, halign: 'center', font: 'Amiri', textColor: [0, 0, 0] }, // Name (Wide)
+      2: { cellWidth: 25, halign: 'center' }, // City
+      3: { cellWidth: 30, fontStyle: 'bold' }, // Balance
+      // Payment
+      4: { cellWidth: 25 }, // Date
+      5: { cellWidth: 25 }, // Amt
+      6: { cellWidth: 15 }, // Days
+      // Sales
+      7: { cellWidth: 25 }, // Date
+      8: { cellWidth: 25 }, // Amt
+      9: { cellWidth: 15 }, // Days
     },
     margin: { left: 10, right: 10 },
     didParseCell: (data: any) => {
@@ -126,20 +196,22 @@ export async function generateBulkDebitSummaryPDF(
   });
 
   if (cityStatsMap.size > 1) {
-    doc.addPage();
+    doc.addPage('a4', 'p');
     yPosition = 20;
+
+    const portraitPageWidth = doc.internal.pageSize.getWidth();
 
     // Summary Page Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('City Summary Report', pageWidth / 2, yPosition, { align: 'center' });
+    doc.text('City Summary Report', portraitPageWidth / 2, yPosition, { align: 'center' });
     yPosition += 8;
 
     // Company Name
     doc.setFontSize(12);
     doc.setTextColor(0, 155, 77);
     doc.setFont('helvetica', 'bold');
-    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', portraitPageWidth / 2, yPosition, { align: 'center' });
     doc.setTextColor(0, 0, 0);
     yPosition += 10;
 
@@ -251,6 +323,370 @@ export async function addArabicFont(doc: any): Promise<void> {
   } catch (error) {
     console.warn('Failed to load Arabic font:', error);
   }
+}
+
+export async function generateBulkCustomerStatementsPDF(
+  statements: Array<{
+    customerName: string;
+    invoices: Array<{
+      date: string;
+      number: string;
+      debit: number;
+      credit: number;
+      netDebt: number;
+    }>
+  }>
+) {
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  const doc = new jsPDF('l', 'mm', 'a4');
+  await addArabicFont(doc);
+
+  for (let i = 0; i < statements.length; i++) {
+    const { customerName, invoices } = statements[i];
+    if (i > 0) doc.addPage();
+    const startPage = doc.internal.getNumberOfPages();
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let yPosition = 20;
+
+    // Calculate total table width
+    const tableWidth = 40 + 35 + 65 + 40 + 40 + 40; // 260mm
+    const tableLeftMargin = (pageWidth - tableWidth) / 2;
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Account Statement', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 7;
+
+    // Company Name
+    doc.setFontSize(12);
+    doc.setTextColor(0, 155, 77);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    yPosition += 10;
+
+    // Customer Name
+    doc.setFontSize(14);
+    doc.setFont('Amiri', 'normal');
+    doc.text(`Customer: ${customerName}`, margin, yPosition);
+    yPosition += 8;
+
+    // Date
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    const now = new Date();
+    const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
+    doc.text(`Date: ${currentDate}`, margin, yPosition);
+    yPosition += 8;
+
+    // Prepare table data
+    const tableData = invoices.map((inv) => {
+      let dateStr = '';
+      if (inv.date) {
+        const date = new Date(inv.date);
+        if (!isNaN(date.getTime())) {
+          dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
+        }
+      }
+      let type = getInvoiceType(inv);
+      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
+        const d = new Date(inv.date);
+        if (!isNaN(d.getTime())) {
+          const yy = d.getFullYear().toString().slice(-2);
+          type = `${type} ${yy}`;
+        }
+      }
+      return [
+        dateStr,
+        type,
+        inv.number || '',
+        inv.debit.toLocaleString('en-US'),
+        inv.credit.toLocaleString('en-US'),
+        inv.netDebt.toLocaleString('en-US')
+      ];
+    });
+
+    const totalDebit = invoices.reduce((sum, inv) => sum + inv.debit, 0);
+    const totalCredit = invoices.reduce((sum, inv) => sum + inv.credit, 0);
+    const totalNetDebt = totalDebit - totalCredit;
+
+    const tableOptions = {
+      startY: yPosition,
+      margin: { left: tableLeftMargin, right: tableLeftMargin },
+      head: [['Date', 'Type', 'Number', 'Debit', 'Credit', 'Net Debit']],
+      body: tableData,
+      theme: 'striped' as const,
+      styles: {
+        font: 'helvetica',
+        fontStyle: 'normal',
+        valign: 'middle'
+      },
+      headStyles: {
+        fillColor: [0, 0, 0],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 10,
+        halign: 'center',
+        font: 'helvetica'
+      },
+      bodyStyles: { fontSize: 9 },
+      columnStyles: {
+        0: { cellWidth: 40, halign: 'center', font: 'helvetica' }, // Date
+        1: { cellWidth: 35, halign: 'center', font: 'helvetica' }, // Type
+        2: { cellWidth: 65, halign: 'center', font: 'Amiri' }, // Number
+        3: { cellWidth: 40, halign: 'center', font: 'helvetica' }, // Debit
+        4: { cellWidth: 40, halign: 'center', font: 'helvetica' }, // Credit
+        5: { cellWidth: 40, halign: 'center', font: 'helvetica' }  // Net Debt
+      },
+      footStyles: {
+        fillColor: [240, 240, 240],
+        textColor: 0,
+        fontStyle: 'bold',
+        fontSize: 10,
+        font: 'helvetica'
+      },
+      didParseCell: function (data: any) {
+        if (data.section === 'head') {
+          data.cell.styles.textColor = 255;
+          return;
+        }
+        const inv = invoices[data.row.index];
+        const isReturnPayment = inv && getInvoiceType(inv) === 'R-Payment';
+        if (isReturnPayment && data.column.index !== 1) {
+          data.cell.styles.fillColor = [255, 235, 235];
+        }
+        if (data.column.index === 1 && data.row.index < tableData.length) {
+          data.cell.styles.textColor = [255, 255, 255];
+        }
+        if (data.column.index === 5 && data.row.index < tableData.length) {
+          const nd = invoices[data.row.index].netDebt;
+          if (nd > 0) data.cell.styles.textColor = [204, 0, 0];
+          else if (nd < 0) data.cell.styles.textColor = [0, 153, 0];
+        }
+      },
+      didDrawCell: function (data: any) {
+        if (data.section === 'body' && data.column.index === 1 && data.row.index < tableData.length) {
+          const inv = invoices[data.row.index];
+          if (!inv) return;
+          const text = Array.isArray(data.cell.text) ? data.cell.text.join('') : data.cell.text;
+          const type = getInvoiceType(inv);
+
+          let colors = TYPE_BADGE_COLORS[type];
+          if (!colors) {
+            const baseType = type.split(' ')[0];
+            colors = TYPE_BADGE_COLORS[baseType] || TYPE_BADGE_COLORS['Invoice/Txn'];
+          }
+
+          const isReturnPayment = inv && type === 'R-Payment';
+          const fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor;
+          const textColor = isReturnPayment ? [185, 28, 28] : colors.textColor;
+          const { x, y, width, height } = data.cell;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          const textWidth = doc.getTextWidth(text);
+          const badgeWidth = textWidth + 6;
+          const badgeHeight = 5;
+          const badgeX = x + (width - badgeWidth) / 2;
+          const badgeY = y + (height - badgeHeight) / 2;
+          doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+          doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 1.5, 1.5, 'F');
+          doc.setTextColor(textColor[0], textColor[1], textColor[2]);
+          doc.text(text, x + width / 2, y + height / 2, { align: 'center', baseline: 'middle' });
+        }
+      }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') {
+      (doc as any).autoTable(tableOptions);
+    } else {
+      if (typeof autoTable === 'function') {
+        autoTable(doc, tableOptions as any);
+      }
+    }
+
+    const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 50;
+    const totalBoxWidth = 50;
+    const totalBoxHeight = 15;
+    const totalBoxX = tableLeftMargin + tableWidth - totalBoxWidth;
+    let totalBoxY = finalY + 5;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const bottomMargin = 20;
+
+    if (totalBoxY + totalBoxHeight > pageHeight - bottomMargin) {
+      doc.addPage();
+      totalBoxY = 20;
+    }
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(totalBoxX, totalBoxY, totalBoxWidth, totalBoxHeight, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('TOTAL DUE', totalBoxX + totalBoxWidth / 2, totalBoxY + 6, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
+
+    const endPage = doc.internal.getNumberOfPages();
+    for (let p = startPage; p <= endPage; p++) {
+      doc.setPage(p);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Page ${p - startPage + 1} of ${endPage - startPage + 1}`, 15, doc.internal.pageSize.getHeight() - 10);
+    }
+    doc.setPage(endPage);
+  }
+
+  return doc.output('blob');
+}
+
+export async function generateBulkSupplierStatementsPDF(
+  statements: Array<{
+    supplierName: string;
+    transactions: Array<{
+      date: string;
+      number: string;
+      amount: number;
+      type: 'Purchase' | 'Refund';
+    }>
+  }>
+) {
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  const doc = new jsPDF('l', 'mm', 'a4');
+  await addArabicFont(doc);
+
+  for (let i = 0; i < statements.length; i++) {
+    const { supplierName, transactions } = statements[i];
+    if (i > 0) doc.addPage();
+    const startPage = doc.internal.getNumberOfPages();
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 15;
+    let yPosition = 20;
+
+    const tableWidth = 260;
+    const tableLeftMargin = (pageWidth - tableWidth) / 2;
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Supplier Statement', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 7;
+
+    // Company Name
+    doc.setFontSize(12);
+    doc.setTextColor(0, 155, 77);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    yPosition += 10;
+
+    // Supplier Name
+    doc.setFontSize(14);
+    doc.setFont('Amiri', 'normal');
+    doc.text(`Supplier: ${supplierName}`, margin, yPosition);
+    yPosition += 8;
+
+    const now = new Date();
+    const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
+    doc.text(`Date: ${currentDate}`, margin, yPosition);
+    yPosition += 8;
+
+    const tableData = transactions.map((tx) => {
+      let dateStr = tx.date;
+      // Try verify date
+      const d = new Date(tx.date);
+      if (!isNaN(d.getTime())) {
+        dateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
+      }
+
+      const purchase = tx.type === 'Purchase' ? tx.amount : 0;
+      const refund = tx.type === 'Refund' ? tx.amount : 0;
+
+      return [
+        dateStr,
+        tx.type,
+        tx.number,
+        purchase ? purchase.toLocaleString('en-US') : '-',
+        refund ? refund.toLocaleString('en-US') : '-'
+      ];
+    });
+
+    const totalPurchase = transactions.reduce((sum, tx) => sum + (tx.type === 'Purchase' ? tx.amount : 0), 0);
+    const totalRefund = transactions.reduce((sum, tx) => sum + (tx.type === 'Refund' ? tx.amount : 0), 0);
+    const netBalance = totalPurchase - totalRefund;
+
+    const tableOptions = {
+      startY: yPosition,
+      margin: { left: tableLeftMargin, right: tableLeftMargin },
+      head: [['Date', 'Type', 'Number', 'Purchase', 'Refund']],
+      body: tableData,
+      theme: 'striped' as const,
+      styles: { font: 'helvetica', fontStyle: 'normal', valign: 'middle' },
+      headStyles: { fillColor: [0, 0, 0], textColor: 255, fontStyle: 'bold', halign: 'center' },
+      columnStyles: {
+        0: { cellWidth: 40, halign: 'center' },
+        1: { cellWidth: 40, halign: 'center' },
+        2: { cellWidth: 60, halign: 'center' },
+        3: { cellWidth: 60, halign: 'center' },
+        4: { cellWidth: 60, halign: 'center' }
+      }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') {
+      (doc as any).autoTable(tableOptions);
+    } else {
+      if (typeof autoTable === 'function') {
+        autoTable(doc, tableOptions as any);
+      }
+    }
+
+    const finalY = (doc as any).lastAutoTable?.finalY || yPosition + 50;
+
+    // Total Box
+    const totalBoxWidth = 60;
+    const totalBoxHeight = 15;
+    const totalBoxX = tableLeftMargin + tableWidth - totalBoxWidth;
+    let totalBoxY = finalY + 5;
+
+    if (totalBoxY + totalBoxHeight > doc.internal.pageSize.getHeight() - 20) {
+      doc.addPage();
+      totalBoxY = 20;
+    }
+
+    doc.setFillColor(240, 240, 240);
+    doc.rect(totalBoxX, totalBoxY, totalBoxWidth, totalBoxHeight, 'F');
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(0, 0, 0);
+    doc.text('NET BALANCE', totalBoxX + totalBoxWidth / 2, totalBoxY + 6, { align: 'center' });
+    doc.setFontSize(14);
+    doc.text(netBalance.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
+
+    // Page Numbering
+    const endPage = doc.internal.getNumberOfPages();
+    for (let p = startPage; p <= endPage; p++) {
+      doc.setPage(p);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Page ${p - startPage + 1} of ${endPage - startPage + 1}`, 15, doc.internal.pageSize.getHeight() - 10);
+    }
+    doc.setPage(endPage);
+  }
+
+  return doc.output('blob');
 }
 
 export async function generateAccountStatementPDF(

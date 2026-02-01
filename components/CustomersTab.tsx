@@ -11,7 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import CustomerDetails from './CustomerDetails';
-import { generateAccountStatementPDF, generateBulkDebitSummaryPDF } from '@/lib/pdfUtils';
+import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/pdfUtils';
 import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
@@ -475,7 +475,7 @@ const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string 
 };
 
 // Helper function to build invoices with net debt and residual (extracted for reuse)
-const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[]) => {
+const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[], spiData: Array<{ number: string, matching: string }> = []) => {
   // 1. Calculate totals for each matching group
   const matchingTotals = new Map<string, number>();
   invList.forEach((invoice) => {
@@ -485,17 +485,59 @@ const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[]) => {
     }
   });
 
-  // 2. Identify which invoice should display the residual per matching group (largest debit)
+  // 2. Identify which invoice should display the residual per matching group
   const matchingTargetIndex = new Map<string, number>();
+  const maxDebits = new Map<string, number>(); // Track max debit per group
+  const overrideIndices = new Map<string, number>(); // Track SPI overrides
+
+  // Pre-scan for SPI Overrides
+  if (spiData.length > 0) {
+    invList.forEach((inv, index) => {
+      if (inv.matching && inv.number) {
+        const invNum = inv.number.toString().trim().toLowerCase();
+        const matchCode = inv.matching.toString().trim().toLowerCase();
+        const isOverride = spiData.some(s =>
+          s.number.toString().trim().toLowerCase() === invNum &&
+          s.matching.toString().trim().toLowerCase() === matchCode
+        );
+        if (isOverride) {
+          overrideIndices.set(inv.matching, index);
+        }
+      }
+    });
+  }
+
   invList.forEach((invoice, index) => {
     if (!invoice.matching) return;
-    const existingTarget = matchingTargetIndex.get(invoice.matching);
-    if (existingTarget === undefined) {
-      matchingTargetIndex.set(invoice.matching, index);
+
+    // A. Check for Override
+    if (overrideIndices.has(invoice.matching)) {
+      matchingTargetIndex.set(invoice.matching, overrideIndices.get(invoice.matching)!);
       return;
     }
-    const existingInvoice = invList[existingTarget];
-    if ((invoice.debit || 0) > (existingInvoice?.debit || 0)) {
+
+    // B. Default Logic: Largest Debit
+    // Only proceed if we haven't already locked this group with an override?
+    // Actually, since we iterate all invoices, if we found an override, we set it.
+    // But we need to make sure we don't overwrite the override with a "larger debit" invoice later in the loop.
+    // The previous block sets it once.
+    // Here we should check: if override exists for this matching group, DO NOTHING.
+
+    // However, the cleanest way is to separate the "find target" logic completely or check the map.
+    // Let's rely on the fact that if overrideIndices has it, we use it. 
+    // BUT we need to iterate to fill matchingTargetIndex for groups WITHOUT overrides.
+
+    // Determine max debit logic
+    const currentMax = maxDebits.get(invoice.matching) ?? -1;
+    if ((invoice.debit || 0) > currentMax) {
+      maxDebits.set(invoice.matching, invoice.debit);
+      // Only update target if NO override exists
+      if (!overrideIndices.has(invoice.matching)) {
+        matchingTargetIndex.set(invoice.matching, index);
+      }
+    } else if (!matchingTargetIndex.has(invoice.matching) && !overrideIndices.has(invoice.matching)) {
+      // Initialize for group if needed
+      maxDebits.set(invoice.matching, invoice.debit);
       matchingTargetIndex.set(invoice.matching, index);
     }
   });
@@ -701,6 +743,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [initialCustomerTab, setInitialCustomerTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue' | undefined>(undefined);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY'>('DEFAULT');
 
   // Modal State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -794,6 +837,21 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
     fetchEmails();
   }, []);
 
+  // SPI Data State
+  const [spiData, setSpiData] = useState<{ number: string, matching: string }[]>([]);
+
+  useEffect(() => {
+    const fetchSpi = async () => {
+      try {
+        const res = await fetch('/api/spi');
+        const json = await res.json();
+        if (json.data) setSpiData(json.data);
+      } catch (e) { console.error('Failed to fetch SPI', e); }
+    };
+    fetchSpi();
+  }, []);
+
+  // Fetch Closed Customers for Rating
   useEffect(() => {
     const fetchClosedCustomers = async () => {
       try {
@@ -986,11 +1044,15 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
 
         // Last Payment: max date where matches payment logic AND credit > 0
         if (isPaymentTxn(row) && (row.credit || 0) > 0.01) {
+          const amount = getPaymentAmount(row);
           if (!existing.lastPaymentDate || rowDate > existing.lastPaymentDate) {
             existing.lastPaymentDate = rowDate;
             existing.lastPaymentMatching = row.matching || 'UNMATCHED';
             // User-requested: Last Payment amount should be Credit - Debit
-            existing.lastPaymentAmount = getPaymentAmount(row);
+            existing.lastPaymentAmount = amount;
+          } else if (existing.lastPaymentDate && rowDate.getTime() === existing.lastPaymentDate.getTime()) {
+            // Same date - accumulate amount
+            existing.lastPaymentAmount = (existing.lastPaymentAmount || 0) + amount;
           }
         }
         // Last Sale: max date where invoice number starts with SAL (matching Dashboard logic)
@@ -999,6 +1061,9 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
           if (!existing.lastSalesDate || rowDate > existing.lastSalesDate) {
             existing.lastSalesDate = rowDate;
             existing.lastSalesAmount = row.debit;
+          } else if (existing.lastSalesDate && rowDate.getTime() === existing.lastSalesDate.getTime()) {
+            // Same date - accumulate amount
+            existing.lastSalesAmount = (existing.lastSalesAmount || 0) + row.debit;
           }
         }
       }
@@ -1993,7 +2058,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         }
 
         // Build invoices with net debt and residual
-        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices, spiData);
 
         // Apply Net Only filter: Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
         const netOnlyInvoices = invoicesWithNetDebt
@@ -2108,7 +2173,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         // Prepare invoices (Net Only)
         // Reuse logic from buildInvoicesWithNetDebtForExport which is available in file scope?
         // Wait, buildInvoicesWithNetDebtForExport is defined outside component (line 470). Yes.
-        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices, spiData);
         const netOnlyInvoices = invoicesWithNetDebt
           .filter(inv => {
             if (!inv.matching) return true;
@@ -2203,6 +2268,68 @@ ${debtSectionHtml}
     }
   };
 
+
+  const handleBulkPrint = async () => {
+    setIsDownloading(true);
+    try {
+      const customersToPrint = Array.from(selectedCustomersForDownload);
+      if (customersToPrint.length === 0) return;
+
+      const statements: Array<{ customerName: string; invoices: any[] }> = [];
+
+      for (const custName of customersToPrint) {
+        const customerRows = data.filter(r => r.customerName === custName);
+        if (customerRows.length === 0) continue;
+
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerRows, spiData);
+        const netOnlyInvoices = invoicesWithNetDebt
+          .filter(inv => {
+            if (!inv.matching) return true;
+            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+          })
+          .map(inv => {
+            if (inv.matching && inv.residual !== undefined) {
+              return {
+                ...inv,
+                credit: (inv.debit || 0) - (inv.residual || 0),
+                netDebt: inv.residual
+              };
+            }
+            return inv;
+          });
+
+        if (netOnlyInvoices.length === 0) continue;
+
+        const mappedInvoices = netOnlyInvoices.map(inv => ({
+          date: inv.date || '',
+          number: inv.number || '',
+          debit: inv.debit || 0,
+          credit: inv.credit || 0,
+          netDebt: inv.netDebt
+        }));
+
+        statements.push({
+          customerName: custName,
+          invoices: mappedInvoices
+        });
+      }
+
+      if (statements.length === 0) {
+        alert('No data found for selected customers.');
+        return;
+      }
+
+      const pdfBlob = await generateBulkCustomerStatementsPDF(statements);
+      const url = URL.createObjectURL(pdfBlob as Blob);
+      window.open(url, '_blank');
+
+    } catch (error) {
+      console.error('Error generating bulk print:', error);
+      alert('Error generating print document.');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   const columns = useMemo(
     () => [
@@ -2585,7 +2712,27 @@ ${debtSectionHtml}
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
                   </svg>
-                  {/* Red dot removed */}
+                </button>
+                {/* Red dot removed */}
+
+                {/* View Mode Toggle */}
+                <button
+                  onClick={() => setViewMode(prev => prev === 'DEFAULT' ? 'SUMMARY' : 'DEFAULT')}
+                  className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${viewMode === 'SUMMARY'
+                    ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                    : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                    }`}
+                  title={viewMode === 'DEFAULT' ? "Switch to Summary View" : "Switch to Default View"}
+                >
+                  {viewMode === 'DEFAULT' ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.414V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                    </svg>
+                  )}
                 </button>
 
                 <div className="flex items-center gap-2">
@@ -2646,6 +2793,27 @@ ${debtSectionHtml}
                         </button>
 
                         <button
+                          onClick={handleBulkPrint}
+                          disabled={isDownloading}
+                          className="p-2 bg-teal-600 text-white hover:bg-teal-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all shadow-sm border border-teal-200 hover:border-teal-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                          title={`Print Statements for ${selectedCustomersForDownload.size} customers`}
+                        >
+                          {isDownloading ? (
+                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                          ) : (
+                            <>
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                              </svg>
+                              <span className="text-xs font-bold bg-teal-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            </>
+                          )}
+                        </button>
+
+                        <button
                           onClick={handleBulkEmail}
                           disabled={isDownloading}
                           className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
@@ -2675,258 +2843,368 @@ ${debtSectionHtml}
           </div>
         </div>
 
-        {/* Header with Sort Controls */}
-        <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <div key={headerGroup.id} className="contents">
-                {headerGroup.headers.map((header, index) => {
-                  const columnId = header.column.id;
-                  const isSelectColumn = columnId === 'select';
-                  return (
-                    <div
-                      key={header.id}
-                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${columnId === 'customerName' ? 'md:col-span-2' : ''
-                        } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
-                    >
-                      {isSelectColumn ? (
-                        flexRender(header.column.columnDef.header, header.getContext())
-                      ) : (
-                        <button
-                          onClick={header.column.getToggleSortingHandler()}
-                          className="flex items-center justify-center gap-2 w-full"
-                        >
-                          {flexRender(header.column.columnDef.header, header.getContext())}
-                          <span className="text-blue-600">
-                            {{
-                              asc: '↑',
-                              desc: '↓',
-                            }[header.column.getIsSorted() as string] ?? (
-                                <span className="text-gray-300">↕</span>
-                              )}
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Cards Grid */}
-        <div className="space-y-3 mb-6">
-          {table.getRowModel().rows.map((row) => {
-            const customer = row.original;
-            const netDebt = customer.netDebt;
-            const totalDebit = customer.totalDebit;
-            const collectionRate = totalDebit > 0
-              ? ((customer.totalCredit / totalDebit) * 100)
-              : 0;
-            const creditDenom = customer.totalCredit || 0;
-            const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
-            const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
-            const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
-            const rating = calculateDebtRating(customer, closedCustomers);
-            const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
-            const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
-            const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
-
-            return (
-              <div
-                key={row.id}
-                className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
-              >
-                <div className="p-5">
-                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                    {/* Customer Name with Checkbox */}
-                    <div className="md:col-span-2">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={selectedCustomersForDownload.has(customer.customerName)}
-                          onChange={() => toggleCustomerSelection(customer.customerName)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
-                        />
-                        <button
-                          onClick={() => setSelectedCustomer(customer.customerName)}
-                          className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
-                        >
-                          {customer.customerName}
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            // Grab the element BEFORE awaiting (React may null out event fields after await)
-                            const buttonEl = (e.currentTarget as HTMLButtonElement | null);
-                            const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
-                            const success = await copyToClipboard(customer.customerName);
-                            if (success) {
-                              if (!buttonEl) return;
-                              buttonEl.title = 'تم النسخ!';
-                              setTimeout(() => {
-                                buttonEl.title = originalTitle;
-                              }, 2000);
-                            }
-                          }}
-                          className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
-                          title="نسخ اسم العميل"
-                        >
-                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Net Debit */}
-                    <div className="md:col-span-1">
-                      <button
-                        onClick={() => setSelectedCustomerForMonths(customer.customerName)}
-                        className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0
-                          ? 'text-red-600 hover:text-red-700'
-                          : netDebt < 0
-                            ? 'text-green-600 hover:text-green-700'
-                            : 'text-gray-600 hover:text-gray-700'
-                          }`}
-                        title="Click to view monthly debt breakdown"
+        {/* Header with Sort Controls - Visible only in DEFAULT mode */}
+        {viewMode === 'DEFAULT' && (
+          <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <div key={headerGroup.id} className="contents">
+                  {headerGroup.headers.map((header, index) => {
+                    const columnId = header.column.id;
+                    const isSelectColumn = columnId === 'select';
+                    return (
+                      <div
+                        key={header.id}
+                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${columnId === 'customerName' ? 'md:col-span-2' : ''
+                          } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
                       >
-                        {netDebt.toLocaleString('en-US')}
-                      </button>
-                    </div>
-
-                    {/* OB Amount (Visible only in OB modes) */}
-                    {(mode === 'OB_POS' || mode === 'OB_NEG') && (
-                      <div className="md:col-span-1">
-                        <div className="text-xl font-bold transition-colors w-full text-center">
-                          <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {(customer.openOBAmount || 0).toLocaleString('en-US')}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Collection Rate (Visible only in DEBIT mode) */}
-                    {mode === 'DEBIT' && (
-                      <div className="md:col-span-1">
-                        {customer.netDebt < 0 ? (
-                          <div className="text-center">
-                            <span className="text-gray-500 text-xl font-bold">-</span>
-                          </div>
+                        {isSelectColumn ? (
+                          flexRender(header.column.columnDef.header, header.getContext())
                         ) : (
                           <button
-                            onClick={() => {
-                              // Disable popup if date filter is active
-                              const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
-                              if (isDateFilterActive) return;
-
-                              // Calculate rankings within the current filtered view
-                              const stats = filteredData.map(c => {
-                                const denom = c.totalCredit || 0;
-                                return {
-                                  name: c.customerName,
-                                  collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
-                                  payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
-                                  returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
-                                  discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
-                                };
-                              });
-
-                              const getRank = (metric: keyof typeof stats[0], val: number) => {
-                                // Sort descending
-                                const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
-                                // Find index (1-based)
-                                return sorted.findIndex(s => s.name === customer.customerName) + 1;
-                              };
-
-                              const collRank = getRank('collRate', collectionRate);
-                              const payRank = getRank('payRate', payRate);
-                              const returnRank = getRank('returnRate', returnRate);
-                              const discountRank = getRank('discountRate', discountRate);
-
-                              setSelectedCollectionStats({
-                                customer,
-                                ranks: {
-                                  collRank,
-                                  payRank,
-                                  returnRank,
-                                  discountRank,
-                                  totalCount: filteredData.length
-                                },
-                                rates: {
-                                  payRate,
-                                  returnRate,
-                                  discountRate
-                                }
-                              });
-                            }}
-                            className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
-                              ? 'cursor-default'
-                              : 'hover:bg-gray-50 group cursor-pointer'
-                              }`}
+                            onClick={header.column.getToggleSortingHandler()}
+                            className="flex items-center justify-center gap-2 w-full"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xl font-bold ${collectionRate >= 80
-                                ? 'text-green-600'
-                                : collectionRate >= 50
-                                  ? 'text-yellow-600'
-                                  : 'text-red-600'
-                                }`}>
-                                {collectionRate.toFixed(1)}%
-                              </span>
-                              {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )}
-                              {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
-                                <span className="text-xs text-gray-500">
-                                  ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
-                                </span>
-                              )}
-                            </div>
-                            <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
-                                  ? 'bg-green-500'
-                                  : collectionRate >= 50
-                                    ? 'bg-yellow-500'
-                                    : 'bg-red-500'
-                                  }`}
-                                style={{ width: `${Math.min(collectionRate, 100)}%` }}
-                              />
-                            </div>
+                            {flexRender(header.column.columnDef.header, header.getContext())}
+                            <span className="text-blue-600">
+                              {{
+                                asc: '↑',
+                                desc: '↓',
+                              }[header.column.getIsSorted() as string] ?? (
+                                  <span className="text-gray-300">↕</span>
+                                )}
+                            </span>
                           </button>
                         )}
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
+        {/* Cards Grid - Visible only in DEFAULT mode */}
+        {viewMode === 'DEFAULT' && (
+          <div className="space-y-3 mb-6">
+            {table.getRowModel().rows.map((row) => {
+              const customer = row.original;
+              const netDebt = customer.netDebt;
+              const totalDebit = customer.totalDebit;
+              const collectionRate = totalDebit > 0
+                ? ((customer.totalCredit / totalDebit) * 100)
+                : 0;
+              const creditDenom = customer.totalCredit || 0;
+              const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
+              const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
+              const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
+              const rating = calculateDebtRating(customer, closedCustomers);
+              const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
+              const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+              const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
 
+              return (
+                <div
+                  key={row.id}
+                  className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
+                >
+                  <div className="p-5">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                      {/* Customer Name with Checkbox */}
+                      <div className="md:col-span-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedCustomersForDownload.has(customer.customerName)}
+                            onChange={() => toggleCustomerSelection(customer.customerName)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                          />
+                          <button
+                            onClick={() => setSelectedCustomer(customer.customerName)}
+                            className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
+                          >
+                            {customer.customerName}
+                          </button>
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              // Grab the element BEFORE awaiting (React may null out event fields after await)
+                              const buttonEl = (e.currentTarget as HTMLButtonElement | null);
+                              const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
+                              const success = await copyToClipboard(customer.customerName);
+                              if (success) {
+                                if (!buttonEl) return;
+                                buttonEl.title = 'تم النسخ!';
+                                setTimeout(() => {
+                                  buttonEl.title = originalTitle;
+                                }, 2000);
+                              }
+                            }}
+                            className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
+                            title="نسخ اسم العميل"
+                          >
+                            <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                            <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                          </button>
+                        </div>
+                      </div>
 
-                    {/* Debit Rating */}
-                    <div className="md:col-span-1">
-                      <div className="flex justify-center">
+                      {/* Net Debit */}
+                      <div className="md:col-span-1">
                         <button
-                          onClick={() => {
-                            const breakdown = calculateDebtRating(customer, closedCustomers, true);
-                            setSelectedRatingCustomer(customer);
-                            setRatingBreakdown(breakdown);
-                          }}
-                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
-                          title="اضغط لعرض تفاصيل التقييم"
+                          onClick={() => setSelectedCustomerForMonths(customer.customerName)}
+                          className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0
+                            ? 'text-red-600 hover:text-red-700'
+                            : netDebt < 0
+                              ? 'text-green-600 hover:text-green-700'
+                              : 'text-gray-600 hover:text-gray-700'
+                            }`}
+                          title="Click to view monthly debt breakdown"
                         >
-                          <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
-                          {rating}
+                          {netDebt.toLocaleString('en-US')}
                         </button>
+                      </div>
+
+                      {/* OB Amount (Visible only in OB modes) */}
+                      {(mode === 'OB_POS' || mode === 'OB_NEG') && (
+                        <div className="md:col-span-1">
+                          <div className="text-xl font-bold transition-colors w-full text-center">
+                            <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                              {(customer.openOBAmount || 0).toLocaleString('en-US')}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Collection Rate (Visible only in DEBIT mode) */}
+                      {mode === 'DEBIT' && (
+                        <div className="md:col-span-1">
+                          {customer.netDebt < 0 ? (
+                            <div className="text-center">
+                              <span className="text-gray-500 text-xl font-bold">-</span>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                // Disable popup if date filter is active
+                                const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
+                                if (isDateFilterActive) return;
+
+                                // Calculate rankings within the current filtered view
+                                const stats = filteredData.map(c => {
+                                  const denom = c.totalCredit || 0;
+                                  return {
+                                    name: c.customerName,
+                                    collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                                    payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                                    returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                                    discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                                  };
+                                });
+
+                                const getRank = (metric: keyof typeof stats[0], val: number) => {
+                                  // Sort descending
+                                  const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                                  // Find index (1-based)
+                                  return sorted.findIndex(s => s.name === customer.customerName) + 1;
+                                };
+
+                                const collRank = getRank('collRate', collectionRate);
+                                const payRank = getRank('payRate', payRate);
+                                const returnRank = getRank('returnRate', returnRate);
+                                const discountRank = getRank('discountRate', discountRate);
+
+                                setSelectedCollectionStats({
+                                  customer,
+                                  ranks: {
+                                    collRank,
+                                    payRank,
+                                    returnRank,
+                                    discountRank,
+                                    totalCount: filteredData.length
+                                  },
+                                  rates: {
+                                    payRate,
+                                    returnRate,
+                                    discountRate
+                                  }
+                                });
+                              }}
+                              className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
+                                ? 'cursor-default'
+                                : 'hover:bg-gray-50 group cursor-pointer'
+                                }`}
+                            >
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xl font-bold ${collectionRate >= 80
+                                  ? 'text-green-600'
+                                  : collectionRate >= 50
+                                    ? 'text-yellow-600'
+                                    : 'text-red-600'
+                                  }`}>
+                                  {collectionRate.toFixed(1)}%
+                                </span>
+                                {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                )}
+                                {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                                  <span className="text-xs text-gray-500">
+                                    ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
+                                    ? 'bg-green-500'
+                                    : collectionRate >= 50
+                                      ? 'bg-yellow-500'
+                                      : 'bg-red-500'
+                                    }`}
+                                  style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                                />
+                              </div>
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+
+
+                      {/* Debit Rating */}
+                      <div className="md:col-span-1">
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => {
+                              const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                              setSelectedRatingCustomer(customer);
+                              setRatingBreakdown(breakdown);
+                            }}
+                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
+                            title="اضغط لعرض تفاصيل التقييم"
+                          >
+                            <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
+                            {rating}
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div >
+              );
+            })}
+          </div>
+        )}
+
+        {/* SUMMARY View */}
+        {viewMode === 'SUMMARY' && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 uppercase tracking-wider" rowSpan={2}>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={filteredData.length > 0 && selectedCustomersForDownload.size === filteredData.length}
+                          onChange={toggleSelectAll}
+                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                          title="Select All"
+                        />
+                        <span>Customer Name</span>
+                      </div>
+                    </th>
+                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider" rowSpan={2}>Net Debit</th>
+                    <th className="px-6 py-2 text-center text-sm font-bold text-gray-500 uppercase tracking-wider bg-green-50/50 border-b border-green-100" colSpan={3}>Last Payment</th>
+                    <th className="px-6 py-2 text-center text-sm font-bold text-gray-500 uppercase tracking-wider bg-blue-50/50 border-b border-blue-100" colSpan={3}>Last Sale</th>
+                  </tr>
+                  <tr>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-green-50/30">Date</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-green-50/30">Amount</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-green-50/30">Days</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-blue-50/30">Date</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-blue-50/30">Amount</th>
+                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-blue-50/30">Days</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {table.getRowModel().rows.map((row) => {
+                    const customer = row.original;
+                    const now = new Date();
+
+                    // Calculate Days Since Last Payment
+                    let paymentDays = '-';
+                    if (customer.lastPaymentDate) {
+                      const diffTime = Math.abs(now.getTime() - customer.lastPaymentDate.getTime());
+                      paymentDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + ' days';
+                    }
+
+                    // Calculate Days Since Last Sale
+                    let salesDays = '-';
+                    if (customer.lastSalesDate) {
+                      const diffTime = Math.abs(now.getTime() - customer.lastSalesDate.getTime());
+                      salesDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + ' days';
+                    }
+
+                    return (
+                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                        <td className="px-6 py-4 whitespace-nowrap border-r border-gray-100">
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedCustomersForDownload.has(customer.customerName)}
+                              onChange={() => toggleCustomerSelection(customer.customerName)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 shrink-0"
+                            />
+                            <button
+                              onClick={() => setSelectedCustomer(customer.customerName)}
+                              className="text-sm font-bold text-blue-600 hover:underline text-left w-full"
+                            >
+                              {customer.customerName}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-center border-r border-gray-100">
+                          <span className={`text-sm font-bold ${customer.netDebt > 0 ? 'text-red-600' : customer.netDebt < 0 ? 'text-green-600' : 'text-gray-900'}`}>
+                            {customer.netDebt.toLocaleString('en-US')}
+                          </span>
+                        </td>
+
+                        {/* Last Payment Columns */}
+                        <td className="px-4 py-4 whitespace-nowrap text-center bg-green-50/5 text-sm font-medium text-gray-900 border-r border-green-50">
+                          {customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center bg-green-50/5 text-sm font-bold text-green-600 border-r border-green-50">
+                          {customer.lastPaymentDate ? customer.lastPaymentAmount?.toLocaleString('en-US') : '-'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center bg-green-50/5 text-xs text-gray-500 font-mono border-r border-gray-100">
+                          {customer.lastPaymentDate ? paymentDays : '-'}
+                        </td>
+
+                        {/* Last Sale Columns */}
+                        <td className="px-4 py-4 whitespace-nowrap text-center bg-blue-50/5 text-sm font-medium text-gray-900 border-r border-blue-50">
+                          {customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center bg-blue-50/5 text-sm font-bold text-blue-600 border-r border-blue-50">
+                          {customer.lastSalesDate ? customer.lastSalesAmount?.toLocaleString('en-US') : '-'}
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-center bg-blue-50/5 text-xs text-gray-500 font-mono">
+                          {customer.lastSalesDate ? salesDays : '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
 
         {/* Total Summary Card */}
         < div className="bg-gray-50 rounded-lg border border-gray-200 p-4" >

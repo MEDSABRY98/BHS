@@ -94,6 +94,47 @@ export async function getSheetData() {
   }
 }
 
+export async function getSupplierData() {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const [purchaseRes, refundRes] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "'S-Invoices - Purchase'!A:D",
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: "'S-Invoices - Refund'!A:D",
+      })
+    ]);
+
+    const parseRows = (rows: any[], type: 'Purchase' | 'Refund') => {
+      if (!rows || rows.length < 2) return [];
+      return rows.slice(1).map(row => ({
+        date: row[0] || '',
+        number: row[1]?.toString() || '',
+        supplierName: row[2]?.toString() || '',
+        amount: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
+        type
+      })).filter(r => r.supplierName); // Filter empty
+    };
+
+    const purchases = parseRows(purchaseRes.data.values || [], 'Purchase');
+    const refunds = parseRows(refundRes.data.values || [], 'Refund');
+
+    return [...purchases, ...refunds];
+  } catch (error) {
+    console.error('Error fetching supplier data:', error);
+    throw error;
+  }
+}
+
 const MONTH_ABBREVIATIONS: Record<string, number> = {
   JAN: 1,
   FEB: 2,
