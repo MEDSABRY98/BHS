@@ -470,22 +470,30 @@ export default function EmployeeOvertimeTab() {
 
       stats[name].days++;
 
-      // Use new fields if available, else legacy 'hours'
-      let ot = timeToDecimal(rec.overtimeHours || '0');
-      let ded = timeToDecimal(rec.deductionHours || '0');
+      let ot = 0;
+      let ded = 0;
 
-      if (!rec.overtimeHours && !rec.deductionHours && rec.hours) {
-        // Legacy record - if it was stored as decimal, timeToDecimal might misinterpret it
-        // but let's assume if it has hours it's either decimal or HH.MM
-        // To be safe, if it's old, treat as decimal directly
-        ot = parseFloat(rec.hours);
+      // 1. Try On-the-fly calculation (Most Accurate)
+      if (rec.shiftStart && rec.shiftEnd) {
+        const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
+        const std = parseFloat(rec.shiftHours) || 9;
+        const diff = dur - std;
+        if (diff > 0.001) ot = diff;
+        else if (diff < -0.001) ded = Math.abs(diff);
+      }
+      // 2. Fallback to Stored Values
+      else {
+        ot = timeToDecimal(rec.overtimeHours || '0');
+        ded = timeToDecimal(rec.deductionHours || '0');
+
+        if (!rec.overtimeHours && !rec.deductionHours && rec.hours) {
+          // Legacy fallback
+          ot = parseFloat(rec.hours);
+        }
       }
 
-      const otDecimal = ot; // already decimal
-      const dedDecimal = ded; // already decimal
-
-      stats[name].otHours += otDecimal;
-      stats[name].deductHours += dedDecimal;
+      stats[name].otHours += ot;
+      stats[name].deductHours += ded;
 
       // Amount Calculation
       // OT = +10 AED/hr (standard assumption)
@@ -525,7 +533,15 @@ export default function EmployeeOvertimeTab() {
       const d = new Date(r.date);
       return (d.getMonth() + 1) === parseInt(filterMonth);
     });
-    // etc for date range
+
+    // Search Filter
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(r =>
+        (r.employeeName || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q)
+      );
+    }
 
     // Group
     const groups: Map<string, any[]> = new Map();
@@ -536,13 +552,87 @@ export default function EmployeeOvertimeTab() {
     });
 
     return Array.from(groups.entries()).sort((a, b) => new Date(b[0]).getTime() - new Date(a[0]).getTime());
-  }, [overtimeRecords, filterYear, filterMonth]);
+  }, [overtimeRecords, filterYear, filterMonth, searchQuery]);
 
   const toggleDate = (date: string) => {
     const newSet = new Set(expandedDates);
     if (newSet.has(date)) newSet.delete(date);
     else newSet.add(date);
     setExpandedDates(newSet);
+  };
+
+  const handleExportStats = () => {
+    const data = getEmployeeStats.map(([name, stats]) => ({
+      'Employee Name': name,
+      'Days Worked': stats.days,
+      'Total Overtime (Hours)': decimalToTime(stats.otHours),
+      'Total Deductions (Hours)': decimalToTime(stats.deductHours),
+      'Net Amount (AED)': stats.totalAmount.toFixed(2)
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Overtime Statistics');
+    XLSX.writeFile(workbook, `Overtime_Statistics_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const handleExportViewRecords = () => {
+    // 1. Filter Logic
+    let filtered = [...overtimeRecords];
+    if (filterYear) filtered = filtered.filter(r => r.date.startsWith(filterYear));
+    if (filterMonth) filtered = filtered.filter(r => {
+      const d = new Date(r.date);
+      return (d.getMonth() + 1) === parseInt(filterMonth);
+    });
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      filtered = filtered.filter(r =>
+        (r.employeeName || '').toLowerCase().includes(q) ||
+        (r.description || '').toLowerCase().includes(q)
+      );
+    }
+
+    // 2. Sort Logic: Name ASC, then Date ASC
+    filtered.sort((a, b) => {
+      const nameA = (a.employeeName || '').toLowerCase();
+      const nameB = (b.employeeName || '').toLowerCase();
+      if (nameA < nameB) return -1;
+      if (nameA > nameB) return 1;
+      return new Date(a.date).getTime() - new Date(b.date).getTime();
+    });
+
+    // 3. Map to Excel Format
+    const data = filtered.map(rec => {
+      let otDisplay = (rec.overtimeHours || rec.hours || 0) > 0 ? `${rec.overtimeHours || rec.hours}` : '0';
+      let dedDisplay = (rec.deductionHours || 0) > 0 ? `${rec.deductionHours}` : '0';
+
+      // Re-calculate
+      if (rec.shiftStart && rec.shiftEnd) {
+        const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
+        const std = parseFloat(rec.shiftHours) || 9;
+        const diff = dur - std;
+
+        if (diff > 0.001) otDisplay = decimalToTime(diff);
+        else if (diff < -0.001) dedDisplay = decimalToTime(Math.abs(diff));
+        else { otDisplay = '0'; dedDisplay = '0'; }
+      }
+
+      return {
+        'Date': rec.date,
+        'Employee Name': rec.employeeName,
+        'Shift Hours': rec.shiftHours || '9',
+        'Start Time': rec.shiftStart ? `${rec.shiftStart} ${rec.shiftStartAmPm}` : (rec.timeFrom || ''),
+        'End Time': rec.shiftEnd ? `${rec.shiftEnd} ${rec.shiftEndAmPm}` : (rec.timeTo || ''),
+        'Overtime (Hours)': otDisplay,
+        'Deduction (Hours)': dedDisplay,
+        'Description': rec.description || ''
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Overtime Records');
+    XLSX.writeFile(workbook, `Overtime_Records_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
@@ -884,6 +974,13 @@ export default function EmployeeOvertimeTab() {
                 />
               </div>
               <button
+                onClick={handleExportViewRecords}
+                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                title="Export Records to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button
                 onClick={fetchRecords}
                 className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 title="Refresh"
@@ -966,10 +1063,30 @@ export default function EmployeeOvertimeTab() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 text-sm font-bold text-green-600 text-center">
-                                  {(rec.overtimeHours || rec.hours || 0) > 0 ? `${rec.overtimeHours || rec.hours}h` : '-'}
+                                  {(() => {
+                                    // 1. Try on-the-fly calculation for consistent formatting (H.MM)
+                                    if (rec.shiftStart && rec.shiftEnd) {
+                                      const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
+                                      const std = parseFloat(rec.shiftHours) || 9;
+                                      const diff = dur - std;
+                                      if (diff > 0.001) return `${decimalToTime(diff)}h`;
+                                    }
+                                    // 2. Fallback to stored value
+                                    return (rec.overtimeHours || rec.hours || 0) > 0 ? `${rec.overtimeHours || rec.hours}h` : '-';
+                                  })()}
                                 </td>
                                 <td className="px-6 py-4 text-sm font-bold text-red-600 text-center">
-                                  {(rec.deductionHours || 0) > 0 ? `${rec.deductionHours}h` : '-'}
+                                  {(() => {
+                                    // 1. Try on-the-fly calculation
+                                    if (rec.shiftStart && rec.shiftEnd) {
+                                      const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
+                                      const std = parseFloat(rec.shiftHours) || 9;
+                                      const diff = dur - std;
+                                      if (diff < -0.001) return `${decimalToTime(Math.abs(diff))}h`;
+                                    }
+                                    // 2. Fallback
+                                    return (rec.deductionHours || 0) > 0 ? `${rec.deductionHours}h` : '-';
+                                  })()}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-500 italic truncate max-w-xs text-center">{rec.description}</td>
                               </tr>
@@ -989,7 +1106,16 @@ export default function EmployeeOvertimeTab() {
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
               <h3 className="text-lg font-bold text-gray-900">Summary Statistics</h3>
-              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{getEmployeeStats.length} EMPLOYEES</div>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={handleExportStats}
+                  className="p-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors border border-green-200 shadow-sm"
+                  title="Export to Excel"
+                >
+                  <Download className="w-5 h-5" />
+                </button>
+                <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{getEmployeeStats.length} EMPLOYEES</div>
+              </div>
             </div>
             {getEmployeeStats.length === 0 ? (
               <div className="p-12 text-center text-gray-500">No records found.</div>
