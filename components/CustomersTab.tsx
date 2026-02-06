@@ -1427,17 +1427,35 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
           // 3. Calculate Net Debt based on Residual Holder (Overdue Tab Logic)
           // Only add residual if the "Residual Holder" (invoice with max debit) is in the filter period
           if (Math.abs(groupResidual) > 0.01) {
-            let maxDebit = -1;
-            let residualHolder = group[0];
+            let residualHolder: InvoiceRow | null = null;
 
-            group.forEach((inv) => {
-              if (inv.debit > maxDebit) {
-                maxDebit = inv.debit;
-                residualHolder = inv;
+            // A. Check for SPI Override first
+            if (spiData && spiData.length > 0 && matchingKey !== 'UNMATCHED') {
+              const override = group.find(inv =>
+                spiData.some(s =>
+                  s.matching.toString().trim().toLowerCase() === (inv.matching || '').toString().trim().toLowerCase() &&
+                  s.number.toString().trim().toLowerCase() === (inv.number || '').toString().trim().toLowerCase()
+                )
+              );
+              if (override) {
+                residualHolder = override;
               }
-            });
+            }
 
-            if (isRowInFilter(residualHolder)) {
+            // B. If no override found, use Max Debit Rule
+            if (!residualHolder) {
+              let maxDebit = -1;
+              residualHolder = group[0];
+
+              group.forEach((inv) => {
+                if (inv.debit > maxDebit) {
+                  maxDebit = inv.debit;
+                  residualHolder = inv;
+                }
+              });
+            }
+
+            if (residualHolder && isRowInFilter(residualHolder)) {
               // Net Debt allows ALL types
               if (checkNetDebtType(residualHolder.number || '')) {
                 specializedNetDebt += groupResidual;
@@ -1481,7 +1499,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         creditDiscounts: c.creditDiscounts,
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
-  }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter]);
+  }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter, spiData]);
 
 
 
