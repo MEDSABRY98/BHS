@@ -1241,56 +1241,69 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       let openOBAmount = 0;
 
       // Calculate residual for each matching group (same as CustomerDetails)
-      const matchingResiduals = new Map<string, { residual: number; residualHolderIndex: number }>();
+      const matchingResiduals = new Map<string, InvoiceRow>();
       matchingGroups.forEach((group, matchingKey) => {
         if (matchingKey === 'UNMATCHED') return; // Skip unmatched, handled separately
 
         let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
         if (Math.abs(groupNetDebt) <= 0.01) return; // Skip closed groups
 
-        // Find the invoice with largest debit (the residual holder)
-        let maxDebit = -1;
-        let residualHolderIndex = 0;
-        group.forEach((inv, idx) => {
-          if (inv.debit > maxDebit) {
-            maxDebit = inv.debit;
-            residualHolderIndex = idx;
-          }
-        });
+        let residualHolder = group[0];
+        let foundOverride = false;
 
-        matchingResiduals.set(matchingKey, {
-          residual: groupNetDebt,
-          residualHolderIndex
-        });
+        // 1. Check for SPI Override
+        if (spiData && spiData.length > 0) {
+          const override = group.find(inv =>
+            spiData.some(s =>
+              s.matching.toString().trim().toLowerCase() === (inv.matching || '').toString().trim().toLowerCase() &&
+              s.number.toString().trim().toLowerCase() === (inv.number || '').toString().trim().toLowerCase()
+            )
+          );
+          if (override) {
+            residualHolder = override;
+            foundOverride = true;
+          }
+        }
+
+        // 2. If no override, use Max Debit Rule (Original Logic)
+        if (!foundOverride) {
+          let maxDebit = -1;
+          group.forEach((inv) => {
+            if (inv.debit > maxDebit) {
+              maxDebit = inv.debit;
+              residualHolder = inv;
+            }
+          });
+        }
+
+        matchingResiduals.set(matchingKey, residualHolder);
       });
 
-      // Now calculate OB from overdue invoices
       matchingGroups.forEach((group, matchingKey) => {
-        let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-
-        if (Math.abs(groupNetDebt) <= 0.01) return; // Skip closed groups
-
         if (matchingKey === 'UNMATCHED') {
-          // Unmatched OB invoices - use individual netDebt
           group.forEach(inv => {
+            const invNetDebt = inv.debit - inv.credit;
+            if (Math.abs(invNetDebt) <= 0.01) return;
+
             const num = inv.number?.toString().toUpperCase() || '';
+            // Check unmatched OB
             if (num.startsWith('OB')) {
-              const invNetDebt = inv.debit - inv.credit;
-              if (Math.abs(invNetDebt) > 0.01) {
-                hasOB = true;
-                openOBAmount += invNetDebt;
-              }
+              hasOB = true;
+              openOBAmount += invNetDebt;
             }
           });
         } else {
           // Matched group - check if residual holder is OB
-          const residualInfo = matchingResiduals.get(matchingKey);
-          if (residualInfo) {
-            const residualHolder = group[residualInfo.residualHolderIndex];
-            const num = residualHolder.number?.toString().toUpperCase() || '';
-            if (num.startsWith('OB')) {
-              hasOB = true;
-              openOBAmount += residualInfo.residual;
+          const residualHolder = matchingResiduals.get(matchingKey);
+          if (residualHolder) {
+            // For matched groups, usage is the Group Net Debt (Residual)
+            const groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
+            if (Math.abs(groupNetDebt) > 0.01) {
+              const num = residualHolder.number?.toString().toUpperCase() || '';
+              if (num.startsWith('OB')) {
+                hasOB = true;
+                openOBAmount += groupNetDebt;
+              }
             }
           }
         }
