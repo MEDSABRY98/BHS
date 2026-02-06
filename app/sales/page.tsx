@@ -12,7 +12,7 @@ import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
 import Login from '@/components/Login';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function SalesPage() {
@@ -121,6 +121,10 @@ export default function SalesPage() {
     localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
   };
 
+  // Global Invoice Type Filter
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+
   // Augmented data based on customer mapping
   const augmentedData = useMemo(() => {
     if (Object.keys(customerMapping).length === 0) return data;
@@ -141,6 +145,17 @@ export default function SalesPage() {
       return item;
     });
   }, [data, customerMapping]);
+
+  // Apply Global Filter
+  const globallyFilteredData = useMemo(() => {
+    if (invoiceTypeFilter === 'all') return augmentedData;
+    return augmentedData.filter(item => {
+      const num = item.invoiceNumber?.trim().toUpperCase() || '';
+      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
+      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+      return true;
+    });
+  }, [augmentedData, invoiceTypeFilter]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -230,25 +245,25 @@ export default function SalesPage() {
 
     switch (activeTab) {
       case 'sales-overview':
-        return <SalesOverviewTab data={augmentedData} loading={loading} />;
+        return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
       case 'sales-top10':
-        return <SalesTop10Tab data={augmentedData} loading={loading} />;
+        return <SalesTop10Tab data={globallyFilteredData} loading={loading} />;
       case 'sales-customers':
-        return <SalesCustomersTab data={augmentedData} loading={loading} onUploadMapping={handleUploadMapping} />;
+        return <SalesCustomersTab data={globallyFilteredData} loading={loading} onUploadMapping={handleUploadMapping} />;
       case 'sales-invoice-details':
-        return <SalesInvoiceDetailsTab data={augmentedData} loading={loading} />;
+        return <SalesInvoiceDetailsTab data={globallyFilteredData} loading={loading} />;
       case 'sales-inactive-customers':
-        return <SalesInactiveCustomersTab data={augmentedData} loading={loading} />;
+        return <SalesInactiveCustomersTab data={globallyFilteredData} loading={loading} />;
       case 'sales-statistics':
-        return <SalesStatisticsTab data={augmentedData} loading={loading} />;
+        return <SalesStatisticsTab data={globallyFilteredData} loading={loading} />;
       case 'sales-daily-sales':
-        return <SalesDailySalesTab data={augmentedData} loading={loading} />;
+        return <SalesDailySalesTab data={globallyFilteredData} loading={loading} />;
       case 'sales-products':
-        return <SalesProductsTab data={augmentedData} loading={loading} />;
+        return <SalesProductsTab data={globallyFilteredData} loading={loading} />;
       case 'sales-download-form':
-        return <SalesDownloadFormTab data={augmentedData} loading={loading} />;
+        return <SalesDownloadFormTab data={globallyFilteredData} loading={loading} />;
       default:
-        return <SalesOverviewTab data={augmentedData} loading={loading} />;
+        return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
     }
   };
 
@@ -298,7 +313,6 @@ export default function SalesPage() {
             </div>
           </div>
 
-          {/* Wrapped Tabs - Center */}
           <div className="w-full xl:flex-1 flex items-center justify-center gap-2">
             <div
               ref={tabsRef}
@@ -337,8 +351,50 @@ export default function SalesPage() {
           </div>
 
           {/* Right Spacer / User */}
-          <div className="hidden xl:block w-auto shrink-0">
-            {/* Placeholder or User Menu if needed later */}
+          <div className="w-full xl:w-auto shrink-0 flex items-center justify-end">
+            <div className="relative">
+              <button
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${invoiceTypeFilter === 'all'
+                  ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                  : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+                  }`}
+              >
+                {invoiceTypeFilter === 'all' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <AlertCircle className="w-4 h-4" />}
+                <span className="hidden sm:inline">Mode: {invoiceTypeFilter === 'all' ? 'Standard' : invoiceTypeFilter.toUpperCase()}</span>
+                <ChevronDown className="w-4 h-4 opacity-50" />
+              </button>
+
+              {isFilterOpen && (
+                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 mb-1">Select View Mode</div>
+                  <button
+                    onClick={() => { setInvoiceTypeFilter('all'); setIsFilterOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold mb-1 transition-all ${invoiceTypeFilter === 'all' ? 'bg-green-50 text-green-700' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${invoiceTypeFilter === 'all' ? 'bg-green-500' : 'bg-slate-200'}`} />
+                    All Invoices
+                  </button>
+                  <button
+                    onClick={() => { setInvoiceTypeFilter('sales'); setIsFilterOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold mb-1 transition-all ${invoiceTypeFilter === 'sales' ? 'bg-red-50 text-red-700' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${invoiceTypeFilter === 'sales' ? 'bg-red-500' : 'bg-slate-200'}`} />
+                    Sales Only
+                  </button>
+                  <button
+                    onClick={() => { setInvoiceTypeFilter('returns'); setIsFilterOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all ${invoiceTypeFilter === 'returns' ? 'bg-red-50 text-red-700' : 'text-slate-600 hover:bg-slate-50'
+                      }`}
+                  >
+                    <div className={`w-2 h-2 rounded-full ${invoiceTypeFilter === 'returns' ? 'bg-red-500' : 'bg-slate-200'}`} />
+                    Returns Only
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
         </div>

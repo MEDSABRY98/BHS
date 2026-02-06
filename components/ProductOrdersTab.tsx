@@ -299,21 +299,17 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                 </th>
                                 <th
                                     className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
-                                    onClick={() => handleSort('qtyOnHand')}
-                                >
-                                    <div className="flex items-center justify-center gap-2">
-                                        Qty On Hand
-                                        {getSortIcon('qtyOnHand')}
-                                    </div>
-                                </th>
-                                <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('qtyFreeToUse')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
-                                        Free To Use
+                                        Free (Pcs)
                                         {getSortIcon('qtyFreeToUse')}
                                     </div>
+                                </th>
+                                <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md"
+                                >
+                                    Free (Ctns)
                                 </th>
                                 {products[0]?.salesBreakdown ? (
                                     products[0].salesBreakdown.map((m, i) => (
@@ -347,6 +343,9 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                 const orderItem = orderItems.find(item => item.productId === product.productId);
                                 const orderQty = orderItem ? orderItem.orderQty : '';
 
+                                const packSize = parseFloat(packSizes[product.productId]) || 1;
+                                const cartons = product.qtyFreeToUse / packSize;
+
                                 return (
                                     <tr
                                         key={`${product.productId}-${idx}`}
@@ -370,22 +369,17 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                             </div>
                                         </td>
                                         <td className="border border-gray-300 p-2 text-center">
-                                            <span className="font-bold text-gray-700 text-sm">
-                                                {product.qtyOnHand}
-                                            </span>
-                                        </td>
-                                        <td className="border border-gray-300 p-2 text-center">
                                             <div className="flex flex-col items-center relative gap-1">
                                                 <span className={`text-base font-bold ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-emerald-600'
                                                     }`}>
                                                     {product.qtyFreeToUse}
                                                 </span>
-                                                {product.qtyFreeToUse !== product.qtyOnHand && (
-                                                    <span className="text-[10px] text-gray-400 leading-none">
-                                                        (R: {product.qtyOnHand - product.qtyFreeToUse})
-                                                    </span>
-                                                )}
                                             </div>
+                                        </td>
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <span className="font-bold text-gray-700 text-sm">
+                                                {cartons.toFixed(1)}
+                                            </span>
                                         </td>
                                         {product.salesBreakdown ? (
                                             product.salesBreakdown.map((m, i) => {

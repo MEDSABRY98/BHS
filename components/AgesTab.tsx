@@ -34,7 +34,7 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
 
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'semi-closed' | 'closed'>('active');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'semi-closed' | 'closed'>('all');
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
   const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
 
@@ -249,6 +249,9 @@ export default function AgesTab({ data }: AgesTabProps) {
       );
     }
 
+    // Filter out negative balances
+    filtered = filtered.filter(customer => customer.total >= 0);
+
     return filtered;
   }, [agingData, searchQuery, selectedSalesRep, statusFilter, closedCustomers, semiClosedCustomers]);
 
@@ -276,6 +279,27 @@ export default function AgesTab({ data }: AgesTabProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleExportPDF = async () => {
+    try {
+      const { saveAs } = await import('file-saver');
+      const { generateAgesPDF } = await import('@/lib/pdfUtils');
+
+      // Determine filter description
+      let filterDesc = 'All Customers';
+      if (statusFilter === 'active') filterDesc = 'Active Customers Only';
+      if (statusFilter === 'closed') filterDesc = 'Closed Customers Only';
+      if (statusFilter === 'semi-closed') filterDesc = 'Semi-Closed Customers Only';
+
+      const pdfBlob = await generateAgesPDF(filteredData, filterDesc);
+      if (pdfBlob) {
+        saveAs(pdfBlob, `Aging_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+      }
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF');
+    }
   };
 
   const columns = useMemo(
@@ -419,6 +443,16 @@ export default function AgesTab({ data }: AgesTabProps) {
               d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
               clipRule="evenodd"
             />
+          </svg>
+        </button>
+        <button
+          onClick={handleExportPDF}
+          className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-colors"
+          title="Export to PDF"
+        >
+          {/* PDF Icon (Document Text) */}
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
           </svg>
         </button>
       </div>

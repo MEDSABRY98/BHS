@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Download, FileSpreadsheet, Calendar, User, Hash, Package, BarChart3, Receipt, PlusCircle, Trash2, MapPin, ShoppingBag, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import { Search, Download, FileSpreadsheet, Calendar, User, Hash, Package, BarChart3, Receipt, PlusCircle, Trash2, MapPin, ShoppingBag, CheckCircle2, AlertCircle, Info, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface SalesInvoiceDetailsTabProps {
@@ -14,10 +14,31 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
     const [activeSubTab, setActiveSubTab] = useState<'details' | 'lpo'>('details');
     const [invoiceNumber, setInvoiceNumber] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // LPO Check State
-    const [lpoRows, setLpoRows] = useState<Array<{ id: string; lpoNumber: string; lpoValue: string }>>([
-        { id: Math.random().toString(36).substr(2, 9), lpoNumber: '', lpoValue: '' }
+    interface LpoResultItem {
+        invoiceNumber: string;
+        date: string;
+        customer: string;
+        amountExcl: number;
+        amountWithVat: number;
+        targetValue: number;
+        diff: number;
+        status: 'match' | 'higher' | 'lower';
+    }
+
+    interface LpoRowData {
+        id: string;
+        lpoNumber: string;
+        lpoValue: string;
+        isVerified: boolean;
+        found: boolean;
+        results: LpoResultItem[];
+    }
+
+    const [lpoRows, setLpoRows] = useState<LpoRowData[]>([
+        { id: Math.random().toString(36).substr(2, 9), lpoNumber: '', lpoValue: '', isVerified: false, found: false, results: [] }
     ]);
 
     // --- Invoice Details Logic ---
@@ -57,57 +78,158 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
         setSearchQuery(invoiceNumber);
     };
 
-    // --- LPO Check Logic ---
-    const lpoResults = useMemo(() => {
-        return lpoRows.map(row => {
-            if (!row.lpoNumber.trim()) return { ...row, found: false, results: [] };
+    // --- LPO Check Logic (Manual Trigger) ---
+    const verifySingleLpo = (lpoNo: string, lpoVal: string, sourceData: SalesInvoice[]) => {
+        if (!lpoNo.trim()) return { found: false, results: [] };
 
-            const query = row.lpoNumber.trim().toUpperCase();
-            // Match invoices that contain the LPO number string
-            const matchedItems = data.filter(item =>
-                item.invoiceNumber && item.invoiceNumber.toUpperCase().includes(query)
-            );
+        const query = lpoNo.trim().toUpperCase();
 
-            if (matchedItems.length === 0) return { ...row, found: false, results: [] };
+        // STRICT MATCH: The LPO number must appear inside parentheses in the invoice number
+        // Example: Invoice "SAL/24/001 (2598)" matches LPO "2598"
+        // It searches for "(2598)" literally.
+        const targetPattern = `(${query})`;
 
-            // Group by invoice number to get totals per invoice
-            const invoiceGroups = new Map<string, any>();
-            matchedItems.forEach(item => {
-                if (!invoiceGroups.has(item.invoiceNumber)) {
-                    invoiceGroups.set(item.invoiceNumber, {
-                        invoiceNumber: item.invoiceNumber,
-                        date: item.invoiceDate,
-                        customer: item.customerName,
-                        amountExcl: 0
-                    });
-                }
-                const group = invoiceGroups.get(item.invoiceNumber);
-                group.amountExcl += (item.amount || 0);
-            });
-
-            const results = Array.from(invoiceGroups.values()).map(inv => {
-                const amountWithVat = inv.amountExcl * 1.05;
-                const targetValue = parseFloat(row.lpoValue) || 0;
-                const diff = amountWithVat - targetValue;
-
-                let status: 'match' | 'higher' | 'lower' = 'match';
-                if (Math.abs(diff) < 0.01) status = 'match';
-                else if (diff > 0) status = 'higher';
-                else status = 'lower';
-
-                return { ...inv, amountWithVat, targetValue, diff, status };
-            });
-
-            return { ...row, found: true, results };
+        const matchedItems = sourceData.filter(item => {
+            if (!item.invoiceNumber) return false;
+            // Check if the invoice number contains the LPO number wrapped in parentheses
+            return item.invoiceNumber.includes(targetPattern);
         });
-    }, [data, lpoRows]);
+
+        if (matchedItems.length === 0) return { found: false, results: [] };
+
+        // Group by invoice number to get totals per invoice
+        const invoiceGroups = new Map<string, any>();
+        matchedItems.forEach(item => {
+            if (!invoiceGroups.has(item.invoiceNumber)) {
+                invoiceGroups.set(item.invoiceNumber, {
+                    invoiceNumber: item.invoiceNumber,
+                    date: item.invoiceDate,
+                    customer: item.customerName,
+                    amountExcl: 0
+                });
+            }
+            const group = invoiceGroups.get(item.invoiceNumber);
+            group.amountExcl += (item.amount || 0);
+        });
+
+        const results = Array.from(invoiceGroups.values()).map(inv => {
+            const amountWithVat = inv.amountExcl * 1.05;
+            const targetValue = parseFloat(lpoVal) || 0;
+            const diff = amountWithVat - targetValue;
+
+            let status: 'match' | 'higher' | 'lower' = 'match';
+            if (Math.abs(diff) < 0.01) status = 'match';
+            else if (diff > 0) status = 'higher';
+            else status = 'lower';
+
+            return { ...inv, amountWithVat, targetValue, diff, status };
+        });
+
+        return { found: true, results };
+    };
+
+    const triggerLpoCheck = (id: string) => {
+        setLpoRows(prev => prev.map(row => {
+            if (row.id !== id) return row;
+            const verification = verifySingleLpo(row.lpoNumber, row.lpoValue, data);
+            return { ...row, ...verification, isVerified: true };
+        }));
+    };
+
+    // Re-verify if data updates (keep results in sync without manual re-trigger if dataset changes)
+    // We only re-verify rows that have been "verified" at least once or have content, 
+    // but to avoid auto-triggering on typing, we check if it WAS verified.
+    // However, simplest is to just re-calc all rows that have content using their CURRENT values IF data changes.
+    // But since data changes are rare (mount), this is fine.
+    /* 
+       Actually, `data` prop might change if user navigates away and back? 
+       If `data` is stable, this effect runs once.
+    */
+    /*
+    useEffect(() => {
+        setLpoRows(prev => prev.map(row => {
+            if (!row.isVerified && !row.lpoNumber) return row; // Skip empty unverified
+            // If it was verified OR has content, we could re-verify against new data?
+            // User asked for manual trigger. Let's respect that STRICTLY.
+            // Only re-verify if `isVerified` is true.
+            if (row.isVerified) {
+                const verification = verifySingleLpo(row.lpoNumber, row.lpoValue, data);
+                return { ...row, ...verification };
+            }
+            return row;
+        }));
+    }, [data]);
+    */
+    // Commented out to ensure absolute manual control as requested, unless strictly needed.
+    // If user refreshes or data reloads, the state resets anyway.
 
     const addLpoRow = () => {
-        setLpoRows([...lpoRows, { id: Math.random().toString(36).substr(2, 9), lpoNumber: '', lpoValue: '' }]);
+        setLpoRows([...lpoRows, { id: Math.random().toString(36).substr(2, 9), lpoNumber: '', lpoValue: '', isVerified: false, found: false, results: [] }]);
+    };
+
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const bstr = evt.target?.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const sheetData: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+            // Ensure data has rows
+            if (sheetData.length === 0) return;
+
+            // New rows to add
+            const newRows: LpoRowData[] = [];
+
+            sheetData.forEach((row) => {
+                if (row.length >= 2) {
+                    const lpoNum = String(row[0]).trim();
+                    const lpoVal = String(row[1]).replace(/,/g, '').trim();
+
+                    // Skip headers if found (simple check if value is not number-ish and not empty)
+                    if (lpoNum && lpoVal && !isNaN(parseFloat(lpoVal))) {
+                        // Immediately verify the row against current data
+                        const verification = verifySingleLpo(lpoNum, lpoVal, data);
+
+                        newRows.push({
+                            id: Math.random().toString(36).substr(2, 9),
+                            lpoNumber: lpoNum,
+                            lpoValue: lpoVal,
+                            isVerified: true, // Mark as verified immediately
+                            ...verification
+                        });
+                    }
+                }
+            });
+
+            if (newRows.length > 0) {
+                // Determine if we append or replace. User might want to replace empty rows if they haven't done anything yet.
+                // If only 1 empty row exists, replace it.
+                if (lpoRows.length === 1 && !lpoRows[0].lpoNumber) {
+                    setLpoRows(newRows);
+                } else {
+                    setLpoRows([...lpoRows, ...newRows]);
+                }
+            }
+        };
+        reader.readAsBinaryString(file);
+
+        // Reset input
+        if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+        }
     };
 
     const updateLpoRow = (id: string, field: 'lpoNumber' | 'lpoValue', value: string) => {
-        setLpoRows(lpoRows.map(r => r.id === id ? { ...r, [field]: value } : r));
+        // When editing, we mark as unverified (optional, or just keep old results until Enter)
+        // User experience: typing invalidates old result visually? 
+        // Let's keep old result but maybe dim it? Or just keep it. 
+        // Simplest: Just update value.
+        setLpoRows(lpoRows.map(r => r.id === id ? { ...r, [field]: value, isVerified: false } : r));
     };
 
     const removeLpoRow = (id: string) => {
@@ -169,7 +291,7 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
         const workbook = XLSX.utils.book_new();
         const exportData: any[] = [['LPO Suffix/Number', 'Expected Value', 'Found Invoice', 'Date', 'Customer', 'Inv Amount (Excl)', 'Inv Amount (Incl 5% VAT)', 'Difference', 'Status']];
 
-        lpoResults.forEach(row => {
+        lpoRows.forEach(row => {
             if (row.found) {
                 row.results.forEach((res: any) => {
                     exportData.push([
@@ -427,17 +549,33 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                     </h3>
                                     <p className="text-slate-400 text-xs font-medium mt-1">Cross-check LPO values against System Invoices (Includes +5% VAT automatic calculation)</p>
                                 </div>
-                                <button
-                                    onClick={addLpoRow}
-                                    className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-all active:scale-95 shadow-md shadow-green-100"
-                                >
-                                    <PlusCircle className="w-4 h-4" />
-                                    Add New LPO
-                                </button>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="file"
+                                        accept=".xlsx, .xls"
+                                        onChange={handleFileUpload}
+                                        className="hidden"
+                                        ref={fileInputRef}
+                                    />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-all active:scale-95 shadow-md shadow-blue-100"
+                                    >
+                                        <Upload className="w-4 h-4" />
+                                        Upload Excel
+                                    </button>
+                                    <button
+                                        onClick={addLpoRow}
+                                        className="flex items-center gap-2 px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold text-sm hover:bg-green-700 transition-all active:scale-95 shadow-md shadow-green-100"
+                                    >
+                                        <PlusCircle className="w-4 h-4" />
+                                        Add New LPO
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="p-8 space-y-8 bg-slate-50/30">
-                                {lpoRows.map((row, index) => (
+                                {lpoRows.map((row) => (
                                     <div key={row.id} className="relative bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden p-6 animate-in zoom-in-95 duration-200">
                                         {/* Inputs Group */}
                                         <div className="flex flex-col md:flex-row items-end gap-6 mb-6">
@@ -445,13 +583,23 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 px-1">
                                                     <Hash className="w-3 h-3" /> LPO Number / Suffix
                                                 </label>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Enter LPO part (e.g. 4800...)"
-                                                    value={row.lpoNumber}
-                                                    onChange={(e) => updateLpoRow(row.id, 'lpoNumber', e.target.value)}
-                                                    className="w-full px-5 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 font-bold text-slate-700 transition-all"
-                                                />
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Enter LPO part (e.g. 4800...)"
+                                                        value={row.lpoNumber}
+                                                        onChange={(e) => updateLpoRow(row.id, 'lpoNumber', e.target.value)}
+                                                        onKeyDown={(e) => e.key === 'Enter' && triggerLpoCheck(row.id)}
+                                                        className="w-full pl-5 pr-12 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 font-bold text-slate-700 transition-all"
+                                                    />
+                                                    <button
+                                                        onClick={() => triggerLpoCheck(row.id)}
+                                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                                        title="Check LPO"
+                                                    >
+                                                        <Search className="w-4 h-4" />
+                                                    </button>
+                                                </div>
                                             </div>
                                             <div className="flex-1 space-y-2">
                                                 <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 px-1">
@@ -462,6 +610,7 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                                     placeholder="Target amount..."
                                                     value={row.lpoValue}
                                                     onChange={(e) => updateLpoRow(row.id, 'lpoValue', e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && triggerLpoCheck(row.id)}
                                                     className="w-full px-5 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 font-bold text-slate-700 transition-all"
                                                 />
                                             </div>
@@ -476,7 +625,7 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                         </div>
 
                                         {/* Result Display for this Row */}
-                                        {lpoResults[index].found ? (
+                                        {row.found ? (
                                             <div className="mt-8 border-t border-slate-100 pt-6">
                                                 <div className="overflow-x-auto">
                                                     <table className="w-full text-sm text-center">
@@ -492,7 +641,7 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                                             </tr>
                                                         </thead>
                                                         <tbody className="divide-y divide-slate-50">
-                                                            {lpoResults[index].results.map((res: any, i: number) => (
+                                                            {row.results.map((res: any, i: number) => (
                                                                 <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                                                     <td className="py-4 px-4 font-medium text-slate-500">{res.date}</td>
                                                                     <td className="py-4 px-4 font-bold text-slate-800 text-xs truncate max-w-[180px]">{res.customer}</td>
@@ -516,7 +665,7 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                                     </table>
                                                 </div>
                                             </div>
-                                        ) : row.lpoNumber ? (
+                                        ) : row.lpoNumber && row.isVerified ? (
                                             <div className="mt-4 flex items-center justify-center gap-2 p-4 bg-red-50/50 text-red-600 rounded-xl border border-red-100">
                                                 <AlertCircle className="w-4 h-4" />
                                                 <span className="text-xs font-bold uppercase tracking-wide">No system invoice contains the sequence "{row.lpoNumber}"</span>
@@ -524,7 +673,9 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                         ) : (
                                             <div className="mt-4 p-8 border-2 border-dashed border-slate-100 bg-slate-50/20 rounded-xl flex flex-col items-center justify-center text-slate-300">
                                                 <Info className="w-8 h-8 mb-2" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">Awaiting Input...</span>
+                                                <span className="text-[10px] font-black uppercase tracking-widest">
+                                                    {row.lpoNumber ? 'Press Enter to Verify' : 'Awaiting Input...'}
+                                                </span>
                                             </div>
                                         )}
                                     </div>

@@ -2457,29 +2457,47 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
 
     const salesRows = salesResponse.data.values || [];
 
+    // --- Dynamic Column Mapping for Sales Sheet ---
+    let dateIndex = 0;      // Default: Column A
+    let productIdIndex = 8; // Default: Column I
+    let qtyIndex = 15;      // Default: Column P
+
+    if (salesRows.length > 0) {
+      const header = salesRows[0].map(h => h.toString().toLowerCase().trim());
+
+      const foundDate = header.findIndex(h => h === 'date' || h === 'invoice date');
+      if (foundDate !== -1) dateIndex = foundDate;
+
+      // Look for Product ID / Code
+      const foundProduct = header.findIndex(h => h === 'product id' || h === 'item code' || h === 'code');
+      if (foundProduct !== -1) productIdIndex = foundProduct;
+
+      // Look for Quantity
+      const foundQty = header.findIndex(h => h === 'qty' || h === 'quantity' || h === 'pieces' || h === 'pcs');
+      if (foundQty !== -1) qtyIndex = foundQty;
+    }
+
     // Calculate 90 days ago cutoff for total salesQty
     const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(now.getDate() - 120); // extend logic to roughly cover 4 months for map if needed, though strict 90 days kept for legacy total
+    ninetyDaysAgo.setDate(now.getDate() - 120);
     ninetyDaysAgo.setHours(0, 0, 0, 0);
 
     // Skip header row for sales
     salesRows.slice(1).forEach(row => {
-      const dateStr = row[0]?.toString().trim();
+      const dateStr = row[dateIndex]?.toString().trim();
       if (!dateStr) return;
 
       // Handle various date formats if needed, but assuming standard
       const invoiceDate = new Date(dateStr);
       if (isNaN(invoiceDate.getTime())) return;
 
-      const productId = row[8]?.toString().trim();
-      const qtyStr = row[15]?.toString().replace(/,/g, '') || '0';
+      const productId = row[productIdIndex]?.toString().trim();
+      const qtyStr = row[qtyIndex]?.toString().replace(/,/g, '') || '0';
       const qty = parseFloat(qtyStr);
 
       if (!productId || isNaN(qty)) return;
 
-      // 1. Total 90 Days Logic (Keep consistent or extend? User didn't ask to change total sales logic, just breakdown columns)
-      // Actually strictly speaking, if we show 4 months, user might expect total calculation to cover clean 4 months or keep strict 90 days.
-      // Let's keep strict 90 days for "salesQty" property to avoid changing semantic meaning elsewhere, but breakdown will show full months.
+      // 1. Total 90 Days Logic
       if (invoiceDate >= ninetyDaysAgo) {
         salesMap.set(productId, (salesMap.get(productId) || 0) + qty);
       }

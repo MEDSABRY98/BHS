@@ -1015,54 +1015,57 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         </div>
 
 
-        {/* Statistics Cards - Visible across all sub-tabs */}
+        {/* Statistics Cards - Distributed Layout */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           {/* Net Sales Card */}
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl p-4 shadow-lg text-white">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-green-100 text-sm font-semibold uppercase tracking-wide">Net Sales</p>
-              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                <ShoppingBag className="w-5 h-5" />
-              </div>
+          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-green-100 text-xs uppercase font-bold tracking-wider">Net Sales</span>
+              <span className="text-3xl font-black tracking-tight leading-none my-0.5">
+                {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span className="text-[10px] text-green-50 opacity-90 font-medium">AED (Sales - Returns)</span>
             </div>
-            <h3 className="text-3xl font-black mb-1">
-              {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </h3>
-            <p className="text-green-100 text-sm font-medium">
-              AED (Sales - Returns)
-            </p>
           </div>
 
           {/* Sales Invoices Count Card */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl p-4 shadow-lg text-white">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-blue-100 text-sm font-semibold uppercase tracking-wide">Count Sales Invoices</p>
-              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                <ShoppingBag className="w-5 h-5" />
+          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-blue-100 text-xs uppercase font-bold tracking-wider">Sales Invoices</span>
+              <span className="text-3xl font-black tracking-tight leading-none my-0.5">
+                {allInvoicesStats.salesCount.toLocaleString('en-US')}
+              </span>
+              <span className="text-[10px] text-blue-50 opacity-90 font-medium">Count</span>
+            </div>
+            <div className="flex flex-col items-end justify-center">
+              <div className="text-right">
+                <span className="block text-[10px] text-blue-100 opacity-80 uppercase font-bold">Total Val</span>
+                <span className="block text-2xl font-bold leading-none">
+                  {allInvoicesStats.totalSales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </span>
+                <span className="text-[10px] text-blue-100 opacity-90">AED</span>
               </div>
             </div>
-            <h3 className="text-3xl font-black mb-1">
-              {allInvoicesStats.salesCount.toLocaleString('en-US')} <span className="text-xl">Invoice{allInvoicesStats.salesCount !== 1 ? 's' : ''}</span>
-            </h3>
-            <p className="text-blue-100 text-sm font-medium">
-              Total: {allInvoicesStats.totalSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-            </p>
           </div>
 
           {/* Returns Invoices Count Card */}
-          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl p-4 shadow-lg text-white">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-red-100 text-sm font-semibold uppercase tracking-wide">Count Return Invoices</p>
-              <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-                <ShoppingBag className="w-5 h-5" />
+          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
+            <div className="flex flex-col">
+              <span className="text-red-100 text-xs uppercase font-bold tracking-wider">Return Invoices</span>
+              <span className="text-3xl font-black tracking-tight leading-none my-0.5">
+                {allInvoicesStats.returnsCount.toLocaleString('en-US')}
+              </span>
+              <span className="text-[10px] text-red-50 opacity-90 font-medium">Count</span>
+            </div>
+            <div className="flex flex-col items-end justify-center">
+              <div className="text-right">
+                <span className="block text-[10px] text-red-100 opacity-80 uppercase font-bold">Total Val</span>
+                <span className="block text-2xl font-bold leading-none">
+                  {allInvoicesStats.totalReturns.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </span>
+                <span className="text-[10px] text-red-100 opacity-90">AED</span>
               </div>
             </div>
-            <h3 className="text-3xl font-black mb-1">
-              {allInvoicesStats.returnsCount.toLocaleString('en-US')} <span className="text-xl">Return{allInvoicesStats.returnsCount !== 1 ? 's' : ''}</span>
-            </h3>
-            <p className="text-red-100 text-sm font-medium">
-              Total: {allInvoicesStats.totalReturns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} AED
-            </p>
           </div>
         </div>
 
@@ -1072,35 +1075,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-4">
                 <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
-                <div className="flex bg-gray-100 p-1 rounded-xl">
-                  <button
-                    onClick={() => setInvoiceTypeFilter('all')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'all'
-                      ? 'bg-white text-gray-800 shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    onClick={() => setInvoiceTypeFilter('sales')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'sales'
-                      ? 'bg-green-600 text-white shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    Sales
-                  </button>
-                  <button
-                    onClick={() => setInvoiceTypeFilter('returns')}
-                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'returns'
-                      ? 'bg-red-600 text-white shadow-sm'
-                      : 'text-gray-500 hover:text-gray-700'
-                      }`}
-                  >
-                    Returns
-                  </button>
-                </div>
               </div>
               <button
                 onClick={exportAllInvoicesToExcel}
@@ -1111,31 +1085,33 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
               </button>
             </div>
 
+            {dailySalesData.length > 0 && (
+              <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                <Search className="w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Quick search in table (Invoice #, Customer, Amount, etc.)..."
+                  value={tableSearchQuery}
+                  onChange={(e) => setTableSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
+                />
+                {tableSearchQuery && (
+                  <button
+                    onClick={() => setTableSearchQuery('')}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+            )}
+
             {searchedData.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-gray-500 text-lg">No data available for the selected filters</p>
               </div>
             ) : (
               <>
-                {/* Quick Search Box */}
-                <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                  <Search className="w-5 h-5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Quick search in table (Invoice #, Customer, Amount, etc.)..."
-                    value={tableSearchQuery}
-                    onChange={(e) => setTableSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
-                  />
-                  {tableSearchQuery && (
-                    <button
-                      onClick={() => setTableSearchQuery('')}
-                      className="text-gray-400 hover:text-gray-600 transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  )}
-                </div>
 
                 <div className="overflow-x-auto">
                   <table className="w-full">
