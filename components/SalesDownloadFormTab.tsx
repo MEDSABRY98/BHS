@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, FileDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Search, FileDown, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, MoreVertical, ChevronDown } from 'lucide-react';
 import { generateDownloadFormPDF } from '@/lib/pdfUtils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -14,12 +14,32 @@ interface SalesDownloadFormTabProps {
 
 const ITEMS_PER_PAGE = 50;
 
+// Helper to find the most frequent price
+const calculateMode = (numbers: number[]): number => {
+  if (!numbers || numbers.length === 0) return 0;
+  const counts: Record<number, number> = {};
+  let maxCount = 0;
+  let mode = numbers[0];
+  for (const n of numbers) {
+    const val = parseFloat(n.toFixed(2)); // Normalize to 2 decimals
+    counts[val] = (counts[val] || 0) + 1;
+    if (counts[val] > maxCount) {
+      maxCount = counts[val];
+      mode = val;
+    }
+  }
+  return mode;
+};
+
 export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFormTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
+
+
+
 
   // Debounce search query
   useEffect(() => {
@@ -29,30 +49,46 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Get unique customers with their products
+  // Get unique customers with their products and prices
   const customersData = useMemo(() => {
     if (!data || data.length === 0) return [];
 
-    const customerMap = new Map<string, Map<string, { barcode: string; product: string }>>();
+    const customerMap = new Map<string, Map<string, { barcode: string; product: string; prices: number[] }>>();
 
     data.forEach(item => {
-      if (!customerMap.has(item.customerName)) {
-        customerMap.set(item.customerName, new Map());
+      const custName = item.customerName || 'Unknown';
+      if (!customerMap.has(custName)) {
+        customerMap.set(custName, new Map());
       }
 
-      const productsMap = customerMap.get(item.customerName)!;
-      // Use productId || barcode || product as key to group by product
+      const productsMap = customerMap.get(custName)!;
       const productKey = item.productId || item.barcode || item.product;
+
+      // Extract price (Safe cast as generic since interface might vary)
+      // Prioritize explicit price/unitPrice, else derived
+      const itemAny = item as any;
+      let price = itemAny.price || itemAny.unitPrice || 0;
+      if (!price && itemAny.amount && itemAny.qty) {
+        price = itemAny.amount / itemAny.qty;
+      }
+
+      const pNum = parseFloat(price);
 
       if (!productsMap.has(productKey)) {
         productsMap.set(productKey, {
           barcode: item.barcode || '-',
-          product: item.product || '-'
+          product: item.product || '-',
+          prices: []
         });
+      }
+
+      const prodEntry = productsMap.get(productKey)!;
+      if (!isNaN(pNum) && pNum > 0) {
+        prodEntry.prices.push(pNum);
       }
     });
 
-    const result: Array<{ customer: string; products: Array<{ barcode: string; product: string }> }> = [];
+    const result: Array<{ customer: string; products: Array<{ barcode: string; product: string; prices: number[] }> }> = [];
 
     customerMap.forEach((productsMap, customerName) => {
       const products = Array.from(productsMap.values());
@@ -86,18 +122,27 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
     setCurrentPage(1);
   }, [debouncedSearchQuery]);
 
-  const handleDownloadPDF = async (customerName: string) => {
+  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist') => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
 
     try {
       setIsGenerating(true);
-      await generateDownloadFormPDF(customer.customer, customer.products);
+
+      // Prepare data based on mode
+      let productsToPrint = customer.products.map(p => ({
+        barcode: p.barcode,
+        product: p.product,
+        price: mode === 'pricelist' ? calculateMode(p.prices) : undefined
+      }));
+
+      await generateDownloadFormPDF(customer.customer, productsToPrint, false, mode);
     } catch (error) {
       console.error('Error generating PDF:', error);
       alert('Failed to generate PDF. Please try again.');
     } finally {
       setIsGenerating(false);
+
     }
   };
 
@@ -114,7 +159,13 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
         const customer = filteredCustomers[i];
         setGenerationProgress({ current: i + 1, total: filteredCustomers.length });
 
-        const blob = await generateDownloadFormPDF(customer.customer, customer.products, true) as Blob;
+        // Default to Order Form for ZIP
+        const blob = await generateDownloadFormPDF(
+          customer.customer,
+          customer.products.map(p => ({ barcode: p.barcode, product: p.product })),
+          true,
+          'order'
+        ) as Blob;
 
         const safeName = customer.customer.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
         zip.file(`${safeName}.pdf`, blob);
@@ -157,7 +208,7 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent whitespace-nowrap">
-                Order Form
+                Order Forms & Price Lists
               </h1>
               <p className="text-sm text-gray-500 mt-1">
                 {filteredCustomers.length} {filteredCustomers.length === 1 ? 'customer' : 'customers'} found
@@ -182,14 +233,14 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
               onClick={handleDownloadAllPDFs}
               disabled={isGenerating || filteredCustomers.length === 0}
               className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-bold whitespace-nowrap"
-              title="Download all filtered customers PDFs as ZIP"
+              title="Download all filtered customers Order Forms as ZIP"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <FileDown className="w-5 h-5" />
               )}
-              {isGenerating ? 'Generating ZIP...' : 'Download All (ZIP)'}
+              {isGenerating ? 'Generating ZIP...' : 'Download Order Forms (ZIP)'}
             </button>
             {isGenerating && generationProgress.total > 0 && (
               <p className="text-xs text-green-600 font-bold animate-pulse">
@@ -205,21 +256,24 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
             <table className="w-full" style={{ tableLayout: 'fixed' }}>
               <thead>
                 <tr className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
-                  <th className="text-left py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '50%' }}>
+                  <th className="text-left py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '45%' }}>
                     Customer Name
                   </th>
-                  <th className="text-center py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '20%' }}>
+                  <th className="text-center py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '15%' }}>
                     Products
                   </th>
-                  <th className="text-center py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '30%' }}>
-                    Action
+                  <th className="text-center py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '20%' }}>
+                    Order Form
+                  </th>
+                  <th className="text-center py-4 px-6 text-sm font-bold text-gray-700 uppercase tracking-wider" style={{ width: '20%' }}>
+                    Price List
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={3} className="py-12 text-center">
+                    <td colSpan={4} className="py-12 text-center">
                       <div className="flex flex-col items-center gap-2">
                         <div className="p-4 bg-gray-100 rounded-full">
                           <Search className="w-8 h-8 text-gray-400" />
@@ -234,24 +288,38 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
                   paginatedCustomers.map((customer, index) => (
                     <tr
                       key={index}
-                      className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50 hover:to-green-50/50 transition-colors duration-150"
+                      className="border-b border-gray-100 hover:bg-gradient-to-r hover:from-green-50 hover:to-green-50/50 transition-colors duration-150 relative"
                     >
-                      <td className="py-4 px-6 text-sm font-semibold text-gray-800 truncate" style={{ width: '50%' }}>
+                      <td className="py-4 px-6 text-sm font-semibold text-gray-800 truncate" style={{ width: '45%' }}>
                         {customer.customer}
                       </td>
-                      <td className="py-4 px-6 text-center" style={{ width: '20%' }}>
+                      <td className="py-4 px-6 text-center" style={{ width: '15%' }}>
                         <span className="inline-flex items-center justify-center px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
                           {customer.products.length}
                         </span>
                       </td>
-                      <td className="py-4 px-6 text-center" style={{ width: '30%' }}>
+                      {/* Order Form Button */}
+                      <td className="py-4 px-6 text-center" style={{ width: '20%' }}>
                         <button
-                          onClick={() => handleDownloadPDF(customer.customer)}
+                          onClick={() => handleDownload(customer.customer, 'order')}
                           disabled={isGenerating}
-                          className="inline-flex items-center justify-center p-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-lg hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md transform hover:scale-105"
-                          title="Download PDF"
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-green-100 text-green-700 rounded-lg hover:bg-green-50 hover:border-green-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md transform hover:scale-105 font-semibold text-xs uppercase tracking-wide"
+                          title="Download Order Form"
                         >
-                          <FileDown className="w-4 h-4" />
+                          <FileText className="w-4 h-4" />
+                          <span>Order Form</span>
+                        </button>
+                      </td>
+                      {/* Price List Button */}
+                      <td className="py-4 px-6 text-center" style={{ width: '20%' }}>
+                        <button
+                          onClick={() => handleDownload(customer.customer, 'pricelist')}
+                          disabled={isGenerating}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-white border-2 border-blue-100 text-blue-700 rounded-lg hover:bg-blue-50 hover:border-blue-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md transform hover:scale-105 font-semibold text-xs uppercase tracking-wide"
+                          title="Download Price List"
+                        >
+                          <DollarSign className="w-4 h-4" />
+                          <span>Price List</span>
                         </button>
                       </td>
                     </tr>

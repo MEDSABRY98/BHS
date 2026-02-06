@@ -1419,8 +1419,9 @@ export async function generateMonthlySeparatedPDF(
 
 export async function generateDownloadFormPDF(
   customerName: string,
-  products: Array<{ barcode: string; product: string }>,
-  returnBlob: boolean = false
+  products: Array<{ barcode: string; product: string; price?: number }>,
+  returnBlob: boolean = false,
+  mode: 'order' | 'pricelist' = 'order'
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
@@ -1437,7 +1438,7 @@ export async function generateDownloadFormPDF(
   let yPosition = 25;
 
   // Calculate table width first to know where it starts
-  const tableWidth = 15 + 50 + 85 + 40; // # + Barcode + Product + Quantity
+  const tableWidth = 15 + 50 + 85 + 40; // # + Barcode + Product + Quantity/Price
   const tableLeftMargin = (pageWidth - tableWidth) / 2; // Center the table
 
   // Company Name (top, centered, larger)
@@ -1445,7 +1446,13 @@ export async function generateDownloadFormPDF(
   doc.setTextColor(0, 155, 77);
   doc.setFont('helvetica', 'bold');
   doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
-  yPosition += 10;
+  yPosition += 8;
+
+  // Document Title (Subtitle)
+  doc.setFontSize(12);
+  doc.setTextColor(100, 100, 100);
+  doc.text(mode === 'pricelist' ? 'Price List' : 'Order Form', pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 8;
 
   // Customer Name Header (centered, bold, adjust size to fit on one line)
   doc.setTextColor(0, 0, 0);
@@ -1463,7 +1470,7 @@ export async function generateDownloadFormPDF(
 
   doc.setFontSize(fontSize);
   doc.text(customerName, pageWidth / 2, yPosition, { align: 'center', maxWidth: maxWidth });
-  yPosition += 4.6875; // Increased by 25% (from 3.75 to 4.6875)
+  yPosition += 5;
 
   // Date (aligned with table start, smaller)
   doc.setFontSize(10);
@@ -1474,20 +1481,26 @@ export async function generateDownloadFormPDF(
     day: 'numeric'
   });
   doc.text(`Date: ${dateStr}`, tableLeftMargin, yPosition, { align: 'left' });
-  yPosition += 3; // Reduced by 75% (from 12 to 3)
+  yPosition += 3;
 
   // Table data
-  const tableData = products.map((product, index) => [
-    (index + 1).toString(),
-    product.barcode || '-',
-    product.product || '-',
-    '' // Empty column for quantity
-  ]);
+  const tableData = products.map((product, index) => {
+    const lastCol = mode === 'pricelist'
+      ? (product.price !== undefined ? product.price.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : '-')
+      : '';
+
+    return [
+      (index + 1).toString(),
+      product.barcode || '-',
+      product.product || '-',
+      lastCol
+    ];
+  });
 
   // Table options with centered table
   const tableOptions = {
     startY: yPosition,
-    head: [['#', 'Barcode', 'Product', 'Quantity']],
+    head: [['#', 'Barcode', 'Product', mode === 'pricelist' ? 'Price' : 'Quantity']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -1505,7 +1518,7 @@ export async function generateDownloadFormPDF(
       0: { cellWidth: 15, halign: 'center' }, // #
       1: { cellWidth: 50, halign: 'center' }, // Barcode (centered)
       2: { cellWidth: 85, halign: 'center' }, // Product (centered)
-      3: { cellWidth: 40, halign: 'center' }, // Quantity (empty, centered)
+      3: { cellWidth: 40, halign: 'center' }, // Quantity/Price (centered)
     },
     margin: { left: tableLeftMargin, right: tableLeftMargin },
     showHead: 'everyPage',
@@ -1527,7 +1540,8 @@ export async function generateDownloadFormPDF(
 
   // File name
   const safeCustomerName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
-  const fileName = `Inventory_Form_${safeCustomerName}_${new Date().toISOString().split('T')[0]}.pdf`;
+  const prefix = mode === 'pricelist' ? 'Price_List' : 'Order_Form';
+  const fileName = `${prefix}_${safeCustomerName}_${new Date().toISOString().split('T')[0]}.pdf`;
 
   if (returnBlob) {
     return doc.output('blob');
