@@ -325,6 +325,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [showReturns, setShowReturns] = useState(false);
   const [showPayments, setShowPayments] = useState(false);
   const [showDiscounts, setShowDiscounts] = useState(false);
+  const [showJV, setShowJV] = useState(false);
 
   // PDF Export State
   const [showExportModal, setShowExportModal] = useState(false);
@@ -951,15 +952,16 @@ ${debtSectionHtml}
     }
 
     // Invoice Type Filters
-    const hasAnyFilter = showOB || showSales || showReturns || showPayments || showDiscounts;
+    const hasAnyFilter = showOB || showSales || showReturns || showPayments || showDiscounts || showJV;
     if (hasAnyFilter) {
       filtered = filtered.filter((inv) => {
-        const num = inv.number.toUpperCase();
+        const num = (inv.number || '').trim().toUpperCase();
 
         if (showOB && num.startsWith('OB')) return true;
         if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
-        if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
+        if (showDiscounts && num.startsWith('BIL')) return true;
+        if (showJV && num.startsWith('JV')) return true;
         if (showPayments) {
           // Treat BNK* as payments even if credit isn't populated as expected
           if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
@@ -983,7 +985,7 @@ ${debtSectionHtml}
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
     );
-  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
+  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV]);
 
   // Calculate totals for each invoice type based on current filters (excluding type filters)
   const invoiceTypeTotals = useMemo(() => {
@@ -1036,9 +1038,10 @@ ${debtSectionHtml}
     let returnsTotal = 0;
     let paymentsTotal = 0;
     let discountsTotal = 0;
+    let jvTotal = 0;
 
     filtered.forEach((inv) => {
-      const num = inv.number ? inv.number.toUpperCase() : '';
+      const num = (inv.number || '').trim().toUpperCase();
       const netDebt = inv.netDebt;
       const type = getInvoiceType(inv);
 
@@ -1050,6 +1053,8 @@ ${debtSectionHtml}
         returnsTotal += netDebt;
       } else if (num.startsWith('BIL')) {
         discountsTotal += netDebt;
+      } else if (num.startsWith('JV')) {
+        jvTotal += netDebt;
       } else if (isPaymentTxn(inv)) {
         // Payments checkbox total: Credit - Debit
         paymentsTotal += getPaymentAmount(inv);
@@ -1062,6 +1067,7 @@ ${debtSectionHtml}
       returns: returnsTotal,
       payments: paymentsTotal,
       discounts: discountsTotal,
+      jv: jvTotal,
     };
   }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual]);
 
@@ -1112,15 +1118,16 @@ ${debtSectionHtml}
     }
 
     // Invoice Type Filters
-    const hasAnyFilter = showOB || showSales || showReturns || showPayments || showDiscounts;
+    const hasAnyFilter = showOB || showSales || showReturns || showPayments || showDiscounts || showJV;
     if (hasAnyFilter) {
       filtered = filtered.filter((inv) => {
-        const num = inv.number.toUpperCase();
+        const num = (inv.number || '').trim().toUpperCase();
 
         if (showOB && num.startsWith('OB')) return true;
         if (showSales && num.startsWith('SAL') && inv.debit > 0) return true;
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
-        if (showDiscounts && (num.startsWith('JV') || num.startsWith('BIL'))) return true;
+        if (showDiscounts && num.startsWith('BIL')) return true;
+        if (showJV && num.startsWith('JV')) return true;
         if (showPayments) {
           // Treat BNK* as payments. Treat PBNK with debit as Our-Paid (included in payments filter for convenience here, matching previous PBNK logic)
           if ((num.startsWith('BNK') || num.startsWith('PBNK')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
@@ -1143,7 +1150,7 @@ ${debtSectionHtml}
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
     );
-  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts]);
+  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV]);
 
   // Prepare monthly debt data
   const monthlyDebt = useMemo(() => {
@@ -2963,6 +2970,20 @@ ${debtSectionHtml}
                 </div>
                 <span className="text-sm font-bold text-yellow-700">
                   {invoiceTypeTotals.discounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </label>
+              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-indigo-50 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all text-center">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showJV}
+                    onChange={(e) => setShowJV(e.target.checked)}
+                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <span className="text-sm font-bold text-gray-700">قيود (JV)</span>
+                </div>
+                <span className="text-sm font-bold text-indigo-700">
+                  {invoiceTypeTotals.jv.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </label>
             </div>

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { DiscountTrackerEntry, InvoiceRow } from '@/types';
 import Loading from './Loading';
+import * as XLSX from 'xlsx';
 
 interface DiscountTrackerTabProps {
   data: InvoiceRow[];
@@ -23,6 +24,8 @@ interface DiscountSummary {
   totalDiscounts: number;
   lastDiscountLabel: string;
   startKey: string;
+  averageMonthlyDiscount: number;
+  activeMonthsCount: number;
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -223,6 +226,24 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
         .sort(compareMonthKeys)
         .map((key) => ({ key, label: formatMonthLabel(key) }));
 
+      // Calculate Total Discount Value (sum of credit - debit for BIL invoices)
+      const totalDiscountValue = invoices.reduce((sum, inv) => sum + ((inv.credit || 0) - (inv.debit || 0)), 0);
+
+      // Calculate Active Months Count (distinct months with SAL invoices)
+      const salesMonthsSet = new Set<string>();
+      customerAllRows.forEach((row) => {
+        if (row.number?.toString().toUpperCase().startsWith('SAL')) {
+          const d = parseDate(row.date);
+          const key = toMonthKey(d);
+          if (key) {
+            salesMonthsSet.add(key);
+          }
+        }
+      });
+      const activeMonthsCount = salesMonthsSet.size;
+
+      const averageMonthlyDiscount = activeMonthsCount > 0 ? totalDiscountValue / activeMonthsCount : 0;
+
       return {
         customerName: entry.customerName,
         missingMonths,
@@ -232,6 +253,8 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
         totalDiscounts: invoices.length,
         lastDiscountLabel: latestMonth ? formatMonthLabel(latestMonth) : '—',
         startKey: startKey, // Return startKey for heatmap
+        averageMonthlyDiscount,
+        activeMonthsCount,
       };
     });
   }, [data, entries]);
@@ -244,27 +267,46 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
     [summaries, search],
   );
 
-  const exportMissingToCSV = () => {
+
+
+  const exportMissingToExcel = () => {
     try {
       setIsExporting(true);
-      const headers = ['Customer', 'Missing Months'];
-      const rows = filteredSummaries.map((item) => {
-        const missing = item.missingMonths.map((m) => m.label).join(' | ');
-        return [item.customerName, missing || ''];
+
+      // Sheet 1: Summary (Customer | Concatenated Missing Months)
+      const summaryData = filteredSummaries.map((item) => ({
+        Customer: item.customerName,
+        'Missing Months': item.missingMonths.map((m) => m.label).join(' | '),
+        'Avg. Monthly Discount': item.averageMonthlyDiscount,
+        'Active Months count': item.activeMonthsCount
+      }));
+
+      // Sheet 2: Details (Customer | Month | Due Amount)
+      const detailsData: any[] = [];
+      filteredSummaries.forEach((item) => {
+        item.missingMonths.forEach((month) => {
+          detailsData.push({
+            Customer: item.customerName,
+            Month: month.label,
+            'Due Amount': item.averageMonthlyDiscount // Using the average as the due amount per missing month
+          });
+        });
       });
-      const csvContent = [headers, ...rows]
-        .map((row) => row.map((cell) => `"${(cell ?? '').replace(/"/g, '""')}"`).join(','))
-        .join('\n');
-      const BOM = '\uFEFF';
-      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      const url = URL.createObjectURL(blob);
-      link.setAttribute('href', url);
-      link.setAttribute('download', `missing_discounts_${new Date().toISOString().split('T')[0]}.csv`);
-      link.style.visibility = 'hidden';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+
+      const wb = XLSX.utils.book_new();
+
+      const wsSummary = XLSX.utils.json_to_sheet(summaryData);
+      XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+      const wsDetails = XLSX.utils.json_to_sheet(detailsData);
+      XLSX.utils.book_append_sheet(wb, wsDetails, 'Due Amounts');
+
+      const fileName = `missing_discounts_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+
+    } catch (err) {
+      console.error('Export failed:', err);
+      alert('Failed to export Excel file.');
     } finally {
       setIsExporting(false);
     }
@@ -535,10 +577,10 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
           className="w-full sm:w-1/2 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-center"
         />
         <button
-          onClick={exportMissingToCSV}
+          onClick={exportMissingToExcel}
           disabled={isExporting}
           className="inline-flex items-center gap-2 p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Export missing months to CSV"
+          title="Export missing months to Excel"
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
             <path
@@ -555,10 +597,11 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
               <tr>
-                <th className="px-5 py-3 text-left font-semibold w-2/5">Customer Name</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/5">Missing</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/5">Posted (BIL)</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/5">Reconciled</th>
+                <th className="px-5 py-3 text-left font-semibold w-1/3">Customer Name</th>
+                <th className="px-5 py-3 text-center font-semibold w-1/6">Avg. Discount</th>
+                <th className="px-5 py-3 text-center font-semibold w-1/6">Missing</th>
+                <th className="px-5 py-3 text-center font-semibold w-1/6">Posted (BIL)</th>
+                <th className="px-5 py-3 text-center font-semibold w-1/6">Reconciled</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -591,6 +634,16 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                             Started {formatDisplayDate(summary.startKey)}
                           </div>
                         </div>
+                      </div>
+                    </td>
+                    <td className="px-5 py-4 whitespace-nowrap text-center">
+                      <div className="flex flex-col items-center">
+                        <span className="text-sm font-bold text-gray-800">
+                          {summary.averageMonthlyDiscount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          Over {summary.activeMonthsCount} mo.
+                        </span>
                       </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap text-center">
@@ -631,7 +684,7 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
               })}
               {filteredSummaries.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
                     No customers match your search.
                   </td>
                 </tr>
@@ -671,18 +724,54 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
             <div className="p-8 overflow-y-auto bg-white flex-1 relative min-h-[600px]">
               {showPostedDetails && selectedPostedMonth ? (
                 <div className="flex flex-col animate-in slide-in-from-right duration-200">
-                  <div className="flex items-center gap-3 mb-6">
-                    <button
-                      onClick={() => setShowPostedDetails(false)}
-                      className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                      </svg>
-                    </button>
-                    <h4 className="text-xl font-bold text-gray-800">
-                      Posted Invoices - {selectedPostedMonth.label}
-                    </h4>
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setShowPostedDetails(false)}
+                        className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                        </svg>
+                      </button>
+                      <h4 className="text-xl font-bold text-gray-800">
+                        Posted Invoices - {selectedPostedMonth.label}
+                      </h4>
+                    </div>
+
+                    {/* Navigation Arrows */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const currentIndex = selectedSummary.postedMonths.findIndex(m => m.key === selectedPostedMonth.key);
+                          if (currentIndex > 0) {
+                            setSelectedPostedMonth(selectedSummary.postedMonths[currentIndex - 1]);
+                          }
+                        }}
+                        disabled={selectedSummary.postedMonths.findIndex(m => m.key === selectedPostedMonth.key) <= 0}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Previous Month"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const currentIndex = selectedSummary.postedMonths.findIndex(m => m.key === selectedPostedMonth.key);
+                          if (currentIndex < selectedSummary.postedMonths.length - 1) {
+                            setSelectedPostedMonth(selectedSummary.postedMonths[currentIndex + 1]);
+                          }
+                        }}
+                        disabled={selectedSummary.postedMonths.findIndex(m => m.key === selectedPostedMonth.key) >= selectedSummary.postedMonths.length - 1}
+                        className="p-2 hover:bg-gray-100 rounded-full transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Next Month"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                   <div className="bg-white border boundary-gray-200 rounded-xl overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
@@ -696,15 +785,33 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {getPostedInvoices(selectedSummary.customerName, selectedPostedMonth.key).map((inv, idx) => (
-                          <tr key={`${inv.number}-${idx}`} className="hover:bg-gray-50 text-center">
-                            <td className="px-6 py-4 font-semibold text-gray-900 text-center">{inv.number}</td>
-                            <td className="px-6 py-4 text-gray-700 text-center">{formatDisplayDate(inv.date)}</td>
-                            <td className="px-6 py-4 text-gray-800 text-center">{inv.debit?.toLocaleString('en-US')}</td>
-                            <td className="px-6 py-4 text-gray-800 text-center">{inv.credit?.toLocaleString('en-US')}</td>
-                            <td className="px-6 py-4 text-gray-500 text-center">{inv.matching || '—'}</td>
-                          </tr>
-                        ))}
+                        {(() => {
+                          const invoices = getPostedInvoices(selectedSummary.customerName, selectedPostedMonth.key);
+                          const totalDebit = invoices.reduce((sum, inv) => sum + (inv.debit || 0), 0);
+                          const totalCredit = invoices.reduce((sum, inv) => sum + (inv.credit || 0), 0);
+                          const netTotal = totalCredit - totalDebit;
+
+                          return (
+                            <>
+                              {invoices.map((inv, idx) => (
+                                <tr key={`${inv.number}-${idx}`} className="hover:bg-gray-50 text-center">
+                                  <td className="px-6 py-4 font-semibold text-gray-900 text-center">{inv.number}</td>
+                                  <td className="px-6 py-4 text-gray-700 text-center">{formatDisplayDate(inv.date)}</td>
+                                  <td className="px-6 py-4 text-gray-800 text-center">{inv.debit?.toLocaleString('en-US')}</td>
+                                  <td className="px-6 py-4 text-gray-800 text-center">{inv.credit?.toLocaleString('en-US')}</td>
+                                  <td className="px-6 py-4 text-gray-500 text-center">{inv.matching || '—'}</td>
+                                </tr>
+                              ))}
+                              {/* Total Row */}
+                              <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold text-gray-900">
+                                <td colSpan={2} className="px-6 py-4 text-right"></td>
+                                <td className="px-6 py-4 text-center">{totalDebit.toLocaleString('en-US')}</td>
+                                <td className="px-6 py-4 text-center">{totalCredit.toLocaleString('en-US')}</td>
+                                <td className="px-6 py-4 text-center text-blue-700">Net: {netTotal.toLocaleString('en-US')}</td>
+                              </tr>
+                            </>
+                          );
+                        })()}
                       </tbody>
                     </table>
                   </div>
