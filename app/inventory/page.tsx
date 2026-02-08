@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 
 import ProductOrdersTab from '@/components/ProductOrdersTab';
+import NotificationOrderTab from '@/components/NotificationOrderTab';
 import ProductOrdersMakeTab, { OrderItem } from '@/components/ProductOrdersMakeTab';
 import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
 import Login from '@/components/Login';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'make' | 'quotation'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'notification' | 'make' | 'quotation'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   // Shared state for Orders
@@ -96,6 +97,15 @@ export default function InventoryPage() {
                 Orders Tracker
               </button>
               <button
+                onClick={() => setActiveTab('notification')}
+                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'notification'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700'
+                  }`}
+              >
+                Notification Order
+              </button>
+              <button
                 onClick={() => setActiveTab('make')}
                 className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'make'
                   ? 'bg-white text-blue-600 shadow-sm'
@@ -122,6 +132,9 @@ export default function InventoryPage() {
 
         <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
           <ProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
+        </div>
+        <div className={activeTab === 'notification' ? 'block' : 'hidden'}>
+          <NotificationOrderTab />
         </div>
         <div className={activeTab === 'make' ? 'block' : 'hidden'}>
           <ProductOrdersMakeTab

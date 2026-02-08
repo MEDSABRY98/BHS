@@ -9,15 +9,36 @@ interface LoadingProps {
 const Loading = ({ message = 'Loading data...', className = '' }: LoadingProps) => {
   return (
     <div className={`min-h-[60vh] flex flex-col items-center justify-center ${className}`}>
-      <div className="bg-white p-8 rounded-2xl shadow-lg border border-gray-100 flex flex-col items-center animate-in fade-in zoom-in duration-300">
-        <div className="relative mb-4">
-          <div className="absolute inset-0 bg-indigo-100 rounded-full animate-ping opacity-25"></div>
-          <div className="relative bg-indigo-50 p-4 rounded-full">
-            <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+      <div className="relative flex flex-col items-center p-8">
+        {/* Modern minimal spinner */}
+        <div className="relative w-16 h-16 mb-6">
+          {/* Background Drop */}
+          <div className="absolute inset-0 bg-blue-50 rounded-full blur-xl opacity-50 animate-pulse"></div>
+
+          {/* Spinning Ring */}
+          <div className="absolute inset-0 rounded-full border-4 border-slate-100"></div>
+
+          {/* Active Segment */}
+          <div className="absolute inset-0 rounded-full border-4 border-t-blue-500 border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+
+          {/* Inner Pulse */}
+          <div className="absolute inset-4 rounded-full bg-white shadow-sm flex items-center justify-center">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
           </div>
         </div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Please Wait</h3>
-        <p className="text-gray-500 text-sm text-center max-w-[200px]">{message}</p>
+
+        {/* Text Content */}
+        <div className="flex flex-col items-center gap-2">
+          <h3 className="text-lg font-medium text-slate-700 tracking-tight">Please Wait</h3>
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-slate-400 font-light">Loading data</span>
+            <span className="flex gap-0.5 mt-1">
+              <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.3s]"></span>
+              <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce [animation-delay:-0.15s]"></span>
+              <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+            </span>
+          </div>
+        </div>
       </div>
     </div>
   );

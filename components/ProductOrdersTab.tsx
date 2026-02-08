@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, ShoppingCart,
-    ArrowUpDown, RotateCw, RefreshCw, AlertCircle
+    ArrowUpDown, RotateCw, RefreshCw, AlertCircle, FileDown
 } from 'lucide-react';
 import Loading from './Loading';
 import { OrderItem, ProductOrder as BaseProductOrder } from './ProductOrdersMakeTab';
@@ -12,6 +12,8 @@ import ProductSalesAnalysisModal from './ProductSalesAnalysisModal';
 // Ensure local interface matches BaseProductOrder so we can cast it.
 interface ProductOrder extends BaseProductOrder {
     salesBreakdown?: { label: string; qty: number }[];
+    minQ?: number;
+    maxQ?: number;
 }
 
 interface Props {
@@ -19,7 +21,7 @@ interface Props {
     setOrderItems: (items: OrderItem[]) => void;
 }
 
-// --- Components ---
+// ... Components ...
 const StatCard = ({ title, value, icon: Icon, color }: { title: string, value: number | string, icon: any, color: 'blue' | 'green' | 'red' | 'amber' }) => {
     const styles = {
         blue: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: 'text-blue-600' },
@@ -55,6 +57,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
 
     const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'out_of_stock' | 'low_stock'>('all');
     const [packSizes, setPackSizes] = useState<Record<string, string>>({});
+    const [limits, setLimits] = useState<Record<string, { min: string, max: string }>>({});
 
     // Modal State
     const [selectedProductForAnalysis, setSelectedProductForAnalysis] = useState<ProductOrder | null>(null);
@@ -74,14 +77,20 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
             const data = json.data || [];
             setProducts(data);
 
-            // Initialize pack sizes from QINC column
+            // Initialize pack sizes and limits
             const initialPackSizes: Record<string, string> = {};
+            const initialLimits: Record<string, { min: string, max: string }> = {};
+
             data.forEach((p: ProductOrder) => {
                 if (p.qinc) {
                     initialPackSizes[p.productId] = p.qinc.toString();
                 }
+                const min = p.minQ !== undefined ? p.minQ.toString() : '';
+                const max = p.maxQ !== undefined ? p.maxQ.toString() : '';
+                initialLimits[p.productId] = { min, max };
             });
             setPackSizes(initialPackSizes);
+            setLimits(initialLimits);
             setError(null);
         } catch (err) {
             console.error('Error loading orders:', err);
@@ -202,6 +211,76 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
         }
     };
 
+    const handleLimitSave = async (product: ProductOrder, field: 'minQ' | 'maxQ') => {
+        const val = field === 'minQ' ? limits[product.productId]?.min : limits[product.productId]?.max;
+        const numValue = val ? parseFloat(val) : 0;
+
+        try {
+            await fetch('/api/inventory/update-limit', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rowIndex: product.rowIndex, field, value: numValue })
+            });
+        } catch (error) {
+            console.error(`Failed to save ${field}`, error);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        try {
+            const XLSX = await import('xlsx');
+
+            // Prepare data for export
+            const exportData = filteredAndSortedProducts.map(product => {
+                const packSize = parseFloat(packSizes[product.productId]) || 1;
+                const cartons = product.qtyFreeToUse / packSize;
+                const minLimit = limits[product.productId]?.min || '';
+                const maxLimit = limits[product.productId]?.max || '';
+
+                return {
+                    'Barcode': product.barcode || '---',
+                    'Product Name': product.productName,
+                    'Tags': product.tags || '',
+                    'Min (Ctn)': minLimit,
+                    'Max (Ctn)': maxLimit,
+                    'Free (Pcs)': product.qtyFreeToUse,
+                    'Free (Ctns)': cartons.toFixed(1),
+                    'Units/Carton': packSize
+                };
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 15 }, // Barcode
+                { wch: 35 }, // Product Name
+                { wch: 15 }, // Tags
+                { wch: 12 }, // Min
+                { wch: 12 }, // Max
+                { wch: 12 }, // Free Pcs
+                { wch: 12 }, // Free Ctns
+                { wch: 12 }  // Units/Carton
+            ];
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventory Orders');
+
+            // Generate filename with date
+            const today = new Date();
+            const dateStr = today.toISOString().slice(0, 10);
+            const filename = `Inventory_Orders_${dateStr}.xlsx`;
+
+            // Download
+            XLSX.writeFile(wb, filename);
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            alert('Failed to export Excel file');
+        }
+    };
+
     if (loading && products.length === 0) return <Loading message="Loading Product Orders Data..." />;
 
     if (error) {
@@ -272,6 +351,17 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
 
                 <div className="flex items-center gap-3 md:absolute md:right-4">
                     <button
+                        onClick={handleExportExcel}
+                        disabled={filteredAndSortedProducts.length === 0}
+                        className={`p-2 rounded-lg transition-colors ${filteredAndSortedProducts.length === 0
+                                ? 'text-gray-300 cursor-not-allowed'
+                                : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
+                            }`}
+                        title="Export to Excel"
+                    >
+                        <FileDown className="w-5 h-5" />
+                    </button>
+                    <button
                         onClick={fetchOrders}
                         disabled={loading}
                         className={`p-2 rounded-lg transition-colors ${loading ? 'bg-blue-50 text-blue-600 cursor-wait' : 'text-gray-500 hover:text-blue-600 hover:bg-blue-50'}`}
@@ -289,16 +379,27 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                         <thead>
                             <tr className="bg-gray-900 text-white">
                                 <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[15%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    onClick={() => handleSort('barcode')}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        Barcode
+                                        {getSortIcon('barcode')}
+                                    </div>
+                                </th>
+                                <th
                                     className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[30%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('productName')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
-                                        Product Info
+                                        Product Name
                                         {getSortIcon('productName')}
                                     </div>
                                 </th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md">Min (Ctn)</th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md">Max (Ctn)</th>
                                 <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
                                     onClick={() => handleSort('qtyFreeToUse')}
                                 >
                                     <div className="flex items-center justify-center gap-2">
@@ -307,33 +408,12 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                     </div>
                                 </th>
                                 <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md"
                                 >
                                     Free (Ctns)
                                 </th>
-                                {products[0]?.salesBreakdown ? (
-                                    products[0].salesBreakdown.map((m, i) => (
-                                        <th
-                                            key={i}
-                                            className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[5%] shadow-md whitespace-nowrap"
-                                        >
-                                            {m.label}
-                                        </th>
-                                    ))
-                                ) : (
-                                    <th
-                                        className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
-                                        onClick={() => handleSort('salesQty')}
-                                    >
-                                        <div className="flex items-center justify-center gap-2">
-                                            SALES (PCS)
-                                            {getSortIcon('salesQty')}
-                                        </div>
-                                    </th>
-                                )}
-                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Units/Carton</th>
-                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Status</th>
-                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] shadow-md">Make Order</th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md">Units/Carton</th>
+                                <th className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md">Make Order</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -352,21 +432,51 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                         className="hover:bg-blue-50"
                                     >
                                         <td className="border border-gray-300 p-2 text-center">
-                                            <div className="flex flex-col items-center cursor-pointer hover:opacity-80 transition-opacity" onClick={() => setSelectedProductForAnalysis(product)}>
-                                                <span className="font-semibold text-gray-800 text-sm leading-snug underline decoration-dotted decoration-gray-400 underline-offset-4" title="Click for Analysis">
+                                            <span className="font-mono text-sm text-gray-700 font-bold bg-gray-50 px-2 py-1 rounded border border-gray-200 block w-full">
+                                                {product.barcode || '---'}
+                                            </span>
+                                        </td>
+                                        <td className="border border-gray-300 p-2 text-center">
+                                            <div className="flex flex-col items-center">
+                                                <span className="font-semibold text-gray-800 text-sm leading-snug">
                                                     {product.productName}
                                                 </span>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <span className="font-mono text-xs text-gray-500 bg-gray-100 px-1 rounded border border-gray-200">
-                                                        {product.barcode || '---'}
+                                                {product.tags && (
+                                                    <span className="text-[10px] text-gray-400 truncate max-w-[150px] mt-1">
+                                                        {product.tags}
                                                     </span>
-                                                    {product.tags && (
-                                                        <span className="text-[10px] text-gray-400 truncate max-w-[150px]">
-                                                            {product.tags}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                )}
                                             </div>
+                                        </td>
+                                        {/* Min Q input */}
+                                        <td className="border border-gray-300 p-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
+                                                placeholder="Min"
+                                                value={limits[product.productId]?.min || ''}
+                                                onChange={(e) => setLimits(prev => ({
+                                                    ...prev,
+                                                    [product.productId]: { ...prev[product.productId], min: e.target.value }
+                                                }))}
+                                                onBlur={() => handleLimitSave(product, 'minQ')}
+                                            />
+                                        </td>
+                                        {/* Max Q input */}
+                                        <td className="border border-gray-300 p-2">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-blue-50 bg-transparent"
+                                                placeholder="Max"
+                                                value={limits[product.productId]?.max || ''}
+                                                onChange={(e) => setLimits(prev => ({
+                                                    ...prev,
+                                                    [product.productId]: { ...prev[product.productId], max: e.target.value }
+                                                }))}
+                                                onBlur={() => handleLimitSave(product, 'maxQ')}
+                                            />
                                         </td>
                                         <td className="border border-gray-300 p-2 text-center">
                                             <div className="flex flex-col items-center relative gap-1">
@@ -381,28 +491,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                                 {cartons.toFixed(1)}
                                             </span>
                                         </td>
-                                        {product.salesBreakdown ? (
-                                            product.salesBreakdown.map((m, i) => {
-                                                const size = parseFloat(packSizes[product.productId]) || 1;
-                                                // If size > 1, convert to cartons
-                                                const displayQty = size > 1 ? m.qty / size : m.qty;
-                                                const formatted = Number.isInteger(displayQty) ? displayQty : displayQty.toFixed(1);
-
-                                                return (
-                                                    <td key={i} className="border border-gray-300 p-2 text-center">
-                                                        <span className="font-bold text-blue-600 text-sm">
-                                                            {formatted || 0}
-                                                        </span>
-                                                    </td>
-                                                );
-                                            })
-                                        ) : (
-                                            <td className="border border-gray-300 p-2 text-center">
-                                                <span className="font-bold text-blue-600 text-sm">
-                                                    {product.salesQty || 0}
-                                                </span>
-                                            </td>
-                                        )}
+                                        {/* Sales Data Removed */}
                                         <td className="border border-gray-300 p-2">
                                             <input
                                                 type="number"
@@ -414,21 +503,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                                                 onBlur={() => handleQincSave(product)}
                                             />
                                         </td>
-                                        <td className="border border-gray-300 p-2 text-center">
-                                            {isOutOfStock ? (
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 border border-red-200">
-                                                    OUT OF STOCK
-                                                </span>
-                                            ) : isLowStock ? (
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
-                                                    LOW STOCK
-                                                </span>
-                                            ) : (
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 border border-green-200">
-                                                    IN STOCK
-                                                </span>
-                                            )}
-                                        </td>
+
                                         <td className="border border-gray-300 p-2">
                                             <input
                                                 type="number"
@@ -444,6 +519,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                             })}
                         </tbody>
                     </table>
+
                 </div>
                 {filteredAndSortedProducts.length === 0 && (
                     <div className="py-20 text-center flex flex-col items-center justify-center text-gray-400">

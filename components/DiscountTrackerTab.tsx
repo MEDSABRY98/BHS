@@ -7,6 +7,7 @@ import * as XLSX from 'xlsx';
 
 interface DiscountTrackerTabProps {
   data: InvoiceRow[];
+  isLoading?: boolean;
 }
 
 interface MonthItem {
@@ -112,7 +113,7 @@ const normalizeMonthKey = (key: string, fallbackYear: number) => {
   return `${year}-${String(idx + 1).padStart(2, '0')}`;
 };
 
-export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
+export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerTabProps) {
   const [entries, setEntries] = useState<DiscountTrackerEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -541,7 +542,7 @@ export default function DiscountTrackerTab({ data }: DiscountTrackerTabProps) {
   };
 
 
-  if (loading) {
+  if (loading || isLoading) {
     return <Loading message="Loading discount tracker..." />;
   }
 

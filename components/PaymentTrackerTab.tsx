@@ -133,8 +133,27 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('');
+  const [selectedSourceFilters, setSelectedSourceFilters] = useState<Set<string>>(new Set());
+  const [isSourceFilterOpen, setIsSourceFilterOpen] = useState(false);
   const [sortColumn, setSortColumn] = useState<'customerName' | 'totalPayments' | 'paymentCount' | 'lastPayment' | 'daysSince'>('totalPayments');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // PDF Export State
+  const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
+  const [pdfExportSections, setPdfExportSections] = useState({
+    summary: true,
+    summaryPrevious: true,
+    summaryLastYear: true,
+    daily: true,
+    weekly: true,
+    monthly: true,
+    customerList: true,
+    debtAge: true,
+    salesRep: true
+  });
+  const [pdfSelectedCustomers, setPdfSelectedCustomers] = useState<Set<string>>(new Set());
+  const [isCustomerSelectionOpen, setIsCustomerSelectionOpen] = useState(false);
+  const [checklistSearch, setChecklistSearch] = useState('');
 
   // Get unique sales reps from data
   const salesReps = useMemo(() => {
@@ -146,6 +165,24 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     });
     return Array.from(reps).sort();
   }, [data]);
+
+  // Derived list of ALL customers (for PDF selection)
+  const allCustomers = useMemo(() => {
+    return Array.from(new Set(
+      data
+        .filter(row => {
+          const t = getInvoiceType(row);
+          return t === 'Payment' || t === 'R-Payment';
+        })
+        .map(p => p.customerName)
+    )).sort();
+  }, [data]);
+
+  const filteredCustomerChecklist = useMemo(() => {
+    return allCustomers.filter(c =>
+      checklistSearch ? c.toLowerCase().includes(checklistSearch.toLowerCase()) : true
+    );
+  }, [allCustomers, checklistSearch]);
 
   // Pre-calc matching IDs that are tied to OB (opening balance) invoices
   const obMatchingIds = useMemo(() => {
@@ -200,6 +237,73 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     });
     return map;
   }, [data]);
+
+  // Helper to get payment source label
+  const getPaymentSource = (matching: string | undefined | null): string => {
+    const matchId = (matching || '').toString().toLowerCase();
+    if (!matchId || matchId.trim() === '') return 'Unmatched';
+
+    if (obMatchingIds.has(matchId)) {
+      return 'OB';
+    } else if (matchIdToDateMap.has(matchId)) {
+      const dates = matchIdToDateMap.get(matchId)!;
+      if (dates.length > 0) {
+        const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
+        const iDate = sortedDates[0];
+        // Format: MMM YY (Jan 25)
+        const m = iDate.toLocaleString('en-US', { month: 'short' });
+        const y = iDate.getFullYear().toString().slice(-2);
+        return `${m}${y}`; // e.g., Jan25
+      }
+    }
+    return 'ADV'; // Advance / Other
+  };
+
+  // Get unique payment sources for filter dropdown
+  const availableSources = useMemo(() => {
+    const set = new Set<string>();
+    data.forEach(row => {
+      const t = getInvoiceType(row);
+      if (t === 'Payment' || t === 'R-Payment') {
+        const source = getPaymentSource(row.matching);
+        set.add(source);
+      }
+    });
+
+    // Helper to parse "MMMYY" (e.g., Jan25) to a comparable value
+    const getSourceTime = (s: string): number => {
+      if (s === 'OB') return -1000; // Oldest
+      if (s === 'ADV' || s === 'Unmatched') return -2000; // Bottom
+
+      // Parse MMMYY
+      const monthStr = s.slice(0, 3);
+      const yearStr = s.slice(3);
+      if (!monthStr || !yearStr) return -2000;
+
+      const months: { [key: string]: number } = {
+        Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+        Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+      };
+      const m = months[monthStr];
+      const y = parseInt(yearStr, 10) + 2000; // Assume 20xx
+
+      if (m === undefined || isNaN(y)) return -2000;
+
+      return new Date(y, m, 1).getTime();
+    };
+
+    return Array.from(set).sort((a, b) => {
+      const timeA = getSourceTime(a);
+      const timeB = getSourceTime(b);
+
+      // If both are special bottom items (ADV/Unmatched), sort alphabetically
+      if (timeA === -2000 && timeB === -2000) return a.localeCompare(b);
+
+      // Sort Descending (Newest First)
+      // Dates (positive timestamps) > OB (-1000) > Misc (-2000)
+      return timeB - timeA;
+    });
+  }, [data, obMatchingIds, matchIdToDateMap]);
 
   // Dashboard Data Calculation
   const dashboardData = useMemo(() => {
@@ -453,12 +557,13 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       );
     }
 
-
+    // Note: Source filter is now applied via visiblePayments for collections
+    // Sales/Returns/Discounts are not filtered by source
 
     // Count payments with positive net (credit - debit > 0)
     let netPaymentCount = 0;
 
-    // Process data
+    // Process data for Sales/Returns/Discounts
     filteredData.forEach(row => {
       const d = parseDate(row.date);
       if (!d) return;
@@ -488,26 +593,177 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       } else if (type === 'Discount') {
         stats.discounts += credit;
         if (debit < 0) stats.discounts += Math.abs(debit);
-      } else if (type === 'Payment' || type === 'R-Payment') {
-        const netAmount = credit - debit;
+      }
+    });
+
+    // Build allocation map if source filter is active (for collections calculation)
+    let allocationMap: Map<string, { date: Date, amount: number, type: string }[]> | null = null;
+
+    if (selectedSourceFilters.size > 0) {
+      // Helper: Preprocess allocations
+      const preprocessAllocations = (rows: InvoiceRow[]) => {
+        const allocMap = new Map<string, { date: Date, amount: number, type: string }[]>();
+        const groups = new Map<string, InvoiceRow[]>();
+
+        rows.forEach(r => {
+          if (r.matching && r.matching !== 'Unmatched') {
+            const k = r.matching.toString().trim().toLowerCase();
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k)!.push(r);
+          }
+        });
+
+        groups.forEach((group) => {
+          const invoices = group.filter(r => (r.debit || 0) > 0.01);
+          const paymentsInGroup = group.filter(r => (r.credit || 0) > 0.01);
+
+          if (invoices.length === 0 || paymentsInGroup.length === 0) return;
+
+          paymentsInGroup.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          let holderIdx = -1;
+          let maxDeb = -1;
+          invoices.forEach((inv, i) => {
+            if (inv.debit > maxDeb) {
+              maxDeb = inv.debit;
+              holderIdx = i;
+            }
+          });
+
+          const sortedInvoices = invoices.map((inv, i) => ({ inv, isHolder: i === holderIdx, originalIdx: i }));
+          sortedInvoices.sort((a, b) => {
+            if (a.isHolder && !b.isHolder) return 1;
+            if (!a.isHolder && b.isHolder) return -1;
+            return new Date(a.inv.date).getTime() - new Date(b.inv.date).getTime();
+          });
+
+          const paidSoFar = new Map<number, number>();
+
+          paymentsInGroup.forEach(pay => {
+            let rem = (pay.credit || 0) - (pay.debit || 0);
+            const rowAllocations: { date: Date, amount: number, type: string }[] = [];
+
+            for (const item of sortedInvoices) {
+              if (rem <= 0.001) break;
+
+              const inv = item.inv;
+              const already = paidSoFar.get(item.originalIdx) || 0;
+              const capacity = inv.debit - already;
+
+              if (capacity > 0.001 || item.isHolder) {
+                let alloc = 0;
+                if (item.isHolder) {
+                  alloc = rem;
+                } else {
+                  alloc = Math.min(rem, capacity);
+                }
+
+                if (alloc > 0.001) {
+                  const d = parseDate(inv.date);
+                  if (d) {
+                    rowAllocations.push({ date: d, amount: alloc, type: getInvoiceType(inv) });
+                    paidSoFar.set(item.originalIdx, already + alloc);
+                    rem -= alloc;
+                  }
+                }
+              }
+            }
+
+            if (rem > 0.001) {
+              const d = parseDate(pay.date);
+              if (d) rowAllocations.push({ date: d, amount: rem, type: 'Unmatched' });
+            }
+
+            const payKey = `${pay.date}|${pay.customerName}|${pay.number}`;
+            allocMap.set(payKey, rowAllocations);
+          });
+        });
+
+        return allocMap;
+      };
+
+      allocationMap = preprocessAllocations(data);
+    }
+
+    // Process collections from payments with allocation-based source filtering
+    const paymentsToProcess = data.filter((row) => {
+      const t = getInvoiceType(row);
+      if (t !== 'Payment' && t !== 'R-Payment') return false;
+      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
+
+      // Apply search filter
+      if (searchLower) {
+        if (!row.customerName?.toLowerCase().includes(searchLower) &&
+          !row.number?.toLowerCase().includes(searchLower)) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    paymentsToProcess.forEach(payment => {
+      const d = parseDate(payment.date);
+      if (!d) return;
+      if (d < startDate || d > endDate) return;
+
+      let key: string;
+      if (chartPeriodType === 'daily') {
+        key = getDailyKey(d);
+      } else if (chartPeriodType === 'weekly') {
+        key = getWeeklyKey(d);
+      } else {
+        key = getMonthlyKey(d);
+      }
+
+      if (!periodStats.has(key)) return;
+
+      const stats = periodStats.get(key)!;
+
+      // Calculate filtered amount if source filter is active
+      let netAmount = 0;
+
+      if (allocationMap && selectedSourceFilters.size > 0) {
+        const payKey = `${payment.date}|${payment.customerName}|${payment.number}`;
+        const allocs = allocationMap.get(payKey);
+
+        if (allocs && allocs.length > 0) {
+          // Calculate total amount for selected sources only
+          allocs.forEach(frag => {
+            let sourceLabel = 'Unmatched';
+            if (frag.type === 'OB') sourceLabel = 'OB';
+            else if (frag.type === 'Unmatched') sourceLabel = 'Unmatched';
+            else {
+              const m = frag.date.toLocaleString('en-US', { month: 'short' });
+              const y = frag.date.getFullYear().toString().slice(-2);
+              sourceLabel = `${m}${y}`;
+            }
+
+            if (selectedSourceFilters.has(sourceLabel)) {
+              netAmount += frag.amount;
+            }
+          });
+        } else {
+          // Unmatched payment
+          if (selectedSourceFilters.has('Unmatched')) {
+            netAmount = (payment.credit || 0) - (payment.debit || 0);
+          }
+        }
+      } else {
+        // No source filter
+        netAmount = (payment.credit || 0) - (payment.debit || 0);
+      }
+
+      if (netAmount > 0.001 || netAmount < -0.001) {
         stats.collections += netAmount;
-        // Count payments with positive net (credit - debit > 0)
-        // R-Payments will be negative, decreasing the collection total correctly.
+
         if (netAmount > 0) {
           netPaymentCount++;
           stats.paymentCount += 1;
-        } else if (type === 'R-Payment') {
-          // Should we count negative R-Payment as a "payment transaction"? 
-          // Typically yes, it's a transaction affecting balance.
-          // But maybe not "successful payment count".
-          // Let's count it in paymentCount if user wants to track activity?
-          // Existing logic only increments if netAmount > 0.
-          // So R-Payment (netAmount < 0) won't increment paymentCount.
-          // This is likely correct for "Positive" payment count.
         }
 
-        if (row.customerName && (netAmount > 0 || type === 'R-Payment')) {
-          stats.customerSet.add(row.customerName.trim());
+        if (payment.customerName && netAmount > 0) {
+          stats.customerSet.add(payment.customerName.trim());
         }
       }
     });
@@ -541,7 +797,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         netPaymentCount,
       }
     };
-  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth, obMatchingIds]);
+  }, [data, dateFrom, dateTo, search, selectedSalesRep, chartPeriodType, chartYear, chartMonth, obMatchingIds, selectedSourceFilters]);
 
 
 
@@ -611,6 +867,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           return false;
         }
       }
+
+      // Note: Source filter is now applied at visiblePayments level with allocation logic
 
       return true;
     });
@@ -1000,16 +1258,151 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       });
   }, [data, dateFrom, dateTo, obMatchingIds, selectedSalesRep, chartYear, chartMonth, activeSubTab]);
 
-  // Apply Search Filter globally to visible payments
+  // Apply Search Filter AND Source Filter globally to visible payments
   const visiblePayments = useMemo<PaymentEntry[]>(() => {
     const searchLower = search.trim().toLowerCase();
-    if (!searchLower) return payments;
 
-    return payments.filter(p =>
+    // Build allocation map if source filter is active
+    let allocationMap: Map<string, { date: Date, amount: number, type: string }[]> | null = null;
+
+    if (selectedSourceFilters.size > 0) {
+      // Helper: Preprocess allocations (same logic as Analysis tab)
+      const preprocessAllocations = (rows: InvoiceRow[]) => {
+        const allocMap = new Map<string, { date: Date, amount: number, type: string }[]>();
+        const groups = new Map<string, InvoiceRow[]>();
+
+        rows.forEach(r => {
+          if (r.matching && r.matching !== 'Unmatched') {
+            const k = r.matching.toString().trim().toLowerCase();
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k)!.push(r);
+          }
+        });
+
+        groups.forEach((group) => {
+          const invoices = group.filter(r => (r.debit || 0) > 0.01);
+          const paymentsInGroup = group.filter(r => (r.credit || 0) > 0.01);
+
+          if (invoices.length === 0 || paymentsInGroup.length === 0) return;
+
+          paymentsInGroup.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+          let holderIdx = -1;
+          let maxDeb = -1;
+          invoices.forEach((inv, i) => {
+            if (inv.debit > maxDeb) {
+              maxDeb = inv.debit;
+              holderIdx = i;
+            }
+          });
+
+          const sortedInvoices = invoices.map((inv, i) => ({ inv, isHolder: i === holderIdx, originalIdx: i }));
+          sortedInvoices.sort((a, b) => {
+            if (a.isHolder && !b.isHolder) return 1;
+            if (!a.isHolder && b.isHolder) return -1;
+            return new Date(a.inv.date).getTime() - new Date(b.inv.date).getTime();
+          });
+
+          const paidSoFar = new Map<number, number>();
+
+          paymentsInGroup.forEach(pay => {
+            let rem = (pay.credit || 0) - (pay.debit || 0);
+            const rowAllocations: { date: Date, amount: number, type: string }[] = [];
+
+            for (const item of sortedInvoices) {
+              if (rem <= 0.001) break;
+
+              const inv = item.inv;
+              const already = paidSoFar.get(item.originalIdx) || 0;
+              const capacity = inv.debit - already;
+
+              if (capacity > 0.001 || item.isHolder) {
+                let alloc = 0;
+                if (item.isHolder) {
+                  alloc = rem;
+                } else {
+                  alloc = Math.min(rem, capacity);
+                }
+
+                if (alloc > 0.001) {
+                  const d = parseDate(inv.date);
+                  if (d) {
+                    rowAllocations.push({ date: d, amount: alloc, type: getInvoiceType(inv) });
+                    paidSoFar.set(item.originalIdx, already + alloc);
+                    rem -= alloc;
+                  }
+                }
+              }
+            }
+
+            if (rem > 0.001) {
+              const d = parseDate(pay.date);
+              if (d) rowAllocations.push({ date: d, amount: rem, type: 'Unmatched' });
+            }
+
+            const payKey = `${pay.date}|${pay.customerName}|${pay.number}`;
+            allocMap.set(payKey, rowAllocations);
+          });
+        });
+
+        return allocMap;
+      };
+
+      allocationMap = preprocessAllocations(data);
+    }
+
+    let result = payments.map(p => {
+      // If source filter is active, calculate filtered amount
+      if (allocationMap && selectedSourceFilters.size > 0) {
+        const payKey = `${p.date}|${p.customerName}|${p.number}`;
+        const allocs = allocationMap.get(payKey);
+
+        if (allocs && allocs.length > 0) {
+          // Calculate total amount for selected sources only
+          let filteredAmount = 0;
+          allocs.forEach(frag => {
+            let sourceLabel = 'Unmatched';
+            if (frag.type === 'OB') sourceLabel = 'OB';
+            else if (frag.type === 'Unmatched') sourceLabel = 'Unmatched';
+            else {
+              const m = frag.date.toLocaleString('en-US', { month: 'short' });
+              const y = frag.date.getFullYear().toString().slice(-2);
+              sourceLabel = `${m}${y}`;
+            }
+
+            if (selectedSourceFilters.has(sourceLabel)) {
+              filteredAmount += frag.amount;
+            }
+          });
+
+          // Return modified payment with adjusted credit
+          if (filteredAmount > 0.001) {
+            return { ...p, credit: filteredAmount };
+          } else {
+            return null; // Exclude this payment
+          }
+        } else {
+          // Unmatched payment
+          if (selectedSourceFilters.has('Unmatched')) {
+            return p;
+          } else {
+            return null;
+          }
+        }
+      }
+
+      // No source filter, return as is
+      return p;
+    }).filter((p): p is PaymentEntry => p !== null);
+
+    // Apply search filter
+    if (!searchLower) return result;
+
+    return result.filter(p =>
       (p.customerName || '').toLowerCase().includes(searchLower) ||
       (p.number || '').toLowerCase().includes(searchLower)
     );
-  }, [payments, search]);
+  }, [payments, search, selectedSourceFilters, data]);
 
   // Group by customer
   const paymentsByCustomer = useMemo<PaymentByCustomer[]>(() => {
@@ -1335,112 +1728,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   const areaStats = useMemo(() => {
     if (activeSubTab !== 'area') return [];
 
-    // START: Reuse filter logic from averageCollectionDays
-    const searchLower = search.toLowerCase().trim();
-
-    // Determine date range ONCE before filtering loop
-    let startDate: Date;
-    let endDate: Date;
-
-    const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
-    const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
-
-    if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
-      const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
-      if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        startDate = new Date(y, monthNum - 1, 1);
-        endDate = new Date(y, monthNum, 0);
-      } else {
-        startDate = new Date(y, 0, 1);
-        endDate = new Date(y, 11, 31);
-      }
-      endDate.setHours(23, 59, 59, 999);
-    } else if (dateFrom || dateTo) {
-      if (dateFrom) {
-        const fromDate = parseDate(dateFrom);
-        startDate = fromDate || new Date(new Date().getFullYear(), new Date().getMonth() - 11, 1);
-      } else {
-        startDate = new Date(0);
-      }
-
-      if (dateTo) {
-        const toDate = parseDate(dateTo);
-        if (toDate) {
-          endDate = new Date(toDate);
-          endDate.setHours(23, 59, 59, 999);
-        } else {
-          const today = new Date();
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        }
-      } else {
-        const today = new Date();
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-      }
-    } else {
-      // Default: ALL TIME (min date to max date from data)
-      const today = new Date();
-      let maxDate = new Date(0);
-      let minDate = new Date(8640000000000000); // Max possible date
-
-      // Find range in data (Iterate once if needed, but only if no date filters set)
-      let hasData = false;
-      data.forEach(row => {
-        const d = parseDate(row.date);
-        if (d) {
-          if (d > maxDate) maxDate = d;
-          if (d < minDate) minDate = d;
-          hasData = true;
-        }
-      });
-
-      if (!hasData) {
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-        startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
-      } else {
-        endDate = new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 0);
-        startDate = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
-      }
-      // Ensure end of day
-      endDate.setHours(23, 59, 59, 999);
-    }
-
-    let filteredPayments = data.filter((row) => {
-      const t = getInvoiceType(row);
-      if (t !== 'Payment' && t !== 'R-Payment') return false;
-
-      // Apply sales rep filter (if specific rep selected, only show that rep in table)
-      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-
-      const d = parseDate(row.date);
-      if (!d) return false;
-      if (d < startDate || d > endDate) return false;
-
-      // Apply search filter
-      if (searchLower) {
-        if (!row.customerName?.toLowerCase().includes(searchLower) &&
-          !row.number?.toLowerCase().includes(searchLower)) {
-          return false;
-        }
-      }
-
-      return true;
-    });
-    // END: Reuse filter logic
-
+    // Use visiblePayments which already has allocation-based source filtering applied
     // Group by Sales Rep
     const statsByRep = new Map<string, {
       repName: string;
       totalCollected: number;
       paymentCount: number;
-      avgPaymentAmount: number; // calculated later
-      payments: { date: Date }[]; // store dates for avg interval calc
-      avgCollectionDays: number; // calculated later
+      avgPaymentAmount: number;
+      payments: { date: Date }[];
+      avgCollectionDays: number;
     }>();
 
-    filteredPayments.forEach(row => {
-      const repName = row.salesRep?.trim() || 'Unknown';
-      const netAmount = (row.credit || 0) - (row.debit || 0);
-      const d = parseDate(row.date);
+    visiblePayments.forEach(payment => {
+      const repName = payment.salesRep?.trim() || 'Unknown';
+      const netAmount = payment.credit; // Already adjusted by allocation filter
 
       if (!statsByRep.has(repName)) {
         statsByRep.set(repName, {
@@ -1456,7 +1757,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       const stats = statsByRep.get(repName)!;
       stats.totalCollected += netAmount;
       stats.paymentCount += 1;
-      if (d) stats.payments.push({ date: d });
+      if (payment.parsedDate) stats.payments.push({ date: payment.parsedDate });
     });
 
     // Calculate Averages
@@ -1465,11 +1766,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       stats.avgPaymentAmount = stats.paymentCount > 0 ? stats.totalCollected / stats.paymentCount : 0;
 
       // Avg Collection Days
-      // Logic: Calculate intervals between payments for this area globally (simplification)
-      // Or: Group by customer within area, calc avg per customer, then avg of those averages?
-      // Request says: "Average every how many days this area pays a payment".
-      // Usually means: Sort ALL payments in area by date, get avg diff between consecutive payments.
-      // E.g. Area pays on 1st, 5th, 10th. Intervals: 4, 5. Avg: 4.5 days.
       if (stats.payments.length > 1) {
         stats.payments.sort((a, b) => a.date.getTime() - b.date.getTime());
         let totalDaysDiff = 0;
@@ -1486,74 +1782,178 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
 
       return stats;
-    }).sort((a, b) => b.totalCollected - a.totalCollected); // Default sort by total collected
+    }).sort((a, b) => b.totalCollected - a.totalCollected);
 
-  }, [data, search, selectedSalesRep, chartYear, chartMonth, dateFrom, dateTo, obMatchingIds, activeSubTab]);
+  }, [visiblePayments, activeSubTab]);
 
-  // Calculate Analysis / Breakdown Stats
+  // Calculate Analysis / Breakdown Stats with Allocation Logic
   const breakdownStats = useMemo(() => {
     if (activeSubTab !== 'analysis') return [];
 
+    // Helper: Preprocess allocations (same logic as PDF)
+    const preprocessAllocations = (rows: InvoiceRow[]) => {
+      // Use string key instead of object reference: "date|customer|number"
+      const allocMap = new Map<string, { date: Date, amount: number, type: string }[]>();
+      const groups = new Map<string, InvoiceRow[]>();
+
+      rows.forEach(r => {
+        if (r.matching && r.matching !== 'Unmatched') {
+          const k = r.matching.toString().trim().toLowerCase();
+          if (!groups.has(k)) groups.set(k, []);
+          groups.get(k)!.push(r);
+        }
+      });
+
+      groups.forEach((group) => {
+        const invoices = group.filter(r => (r.debit || 0) > 0.01);
+        const payments = group.filter(r => (r.credit || 0) > 0.01);
+
+        if (invoices.length === 0 || payments.length === 0) return;
+
+        payments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let holderIdx = -1;
+        let maxDeb = -1;
+        invoices.forEach((inv, i) => {
+          if (inv.debit > maxDeb) {
+            maxDeb = inv.debit;
+            holderIdx = i;
+          }
+        });
+
+        const sortedInvoices = invoices.map((inv, i) => ({ inv, isHolder: i === holderIdx, originalIdx: i }));
+        sortedInvoices.sort((a, b) => {
+          if (a.isHolder && !b.isHolder) return 1;
+          if (!a.isHolder && b.isHolder) return -1;
+          return new Date(a.inv.date).getTime() - new Date(b.inv.date).getTime();
+        });
+
+        const paidSoFar = new Map<number, number>();
+
+        payments.forEach(pay => {
+          let rem = (pay.credit || 0) - (pay.debit || 0);
+          const rowAllocations: { date: Date, amount: number, type: string }[] = [];
+
+          for (const item of sortedInvoices) {
+            if (rem <= 0.001) break;
+
+            const inv = item.inv;
+            const already = paidSoFar.get(item.originalIdx) || 0;
+            const capacity = inv.debit - already;
+
+            if (capacity > 0.001 || item.isHolder) {
+              let alloc = 0;
+              if (item.isHolder) {
+                alloc = rem;
+              } else {
+                alloc = Math.min(rem, capacity);
+              }
+
+              if (alloc > 0.001) {
+                const d = parseDate(inv.date);
+                if (d) {
+                  rowAllocations.push({ date: d, amount: alloc, type: getInvoiceType(inv) });
+                  paidSoFar.set(item.originalIdx, already + alloc);
+                  rem -= alloc;
+                }
+              }
+            }
+          }
+
+          if (rem > 0.001) {
+            const d = parseDate(pay.date);
+            if (d) rowAllocations.push({ date: d, amount: rem, type: 'Unmatched' });
+          }
+
+          // Create unique key for this payment
+          const payKey = `${pay.date}|${pay.customerName}|${pay.number}`;
+          allocMap.set(payKey, rowAllocations);
+        });
+      });
+
+      return allocMap;
+    };
+
+    // Build allocation map from all data
+    const allocationMap = preprocessAllocations(data);
+
     const stats = new Map<string, {
       monthLabel: string,
-      monthKey: string, // YYYY-MM
+      monthKey: string,
       totalCollected: number,
-      breakdown: Map<string, number> // Label -> Amount
+      breakdown: Map<string, number>
     }>();
 
     visiblePayments.forEach(p => {
       if (!p.parsedDate) return;
-      const pKey = getMonthlyKey(p.parsedDate);
-      const pLabel = formatPeriodLabel(pKey, 'monthly'); // May 2025
 
-      if (!stats.has(pKey)) {
-        stats.set(pKey, {
-          monthLabel: pLabel,
-          monthKey: pKey,
-          totalCollected: 0,
-          breakdown: new Map()
-        });
-      }
-      const entry = stats.get(pKey)!;
-      const amount = p.credit; // Payment amount (credit - debit logic is handled in payments memo, p.credit is net amount there)
+      // Create same unique key to lookup allocations
+      const payKey = `${p.date}|${p.customerName}|${p.number}`;
+      const allocs = allocationMap.get(payKey);
 
-      entry.totalCollected += amount;
-
-      // Determine Source
-      let sourceLabel = 'Unmatched';
-      const matchId = (p.matching || '').toString().toLowerCase();
-
-      if (matchId && matchId.trim() !== '') {
-        if (obMatchingIds.has(matchId)) {
-          sourceLabel = 'OB';
-        } else if (matchIdToDateMap.has(matchId)) {
-          const dates = matchIdToDateMap.get(matchId)!;
-          // Use the earliest date for statistical grouping
-          // Or latest? Earliest makes sense for "Debt Age".
-          // Let's sort and pick 0.
-          if (dates.length > 0) {
-            const sortedDates = [...dates].sort((a, b) => a.getTime() - b.getTime());
-            const iDate = sortedDates[0];
-            // Format: MMM YY (Jan 25)
-            const m = iDate.toLocaleString('en-US', { month: 'short' });
-            const y = iDate.getFullYear().toString().slice(-2);
+      if (allocs && allocs.length > 0) {
+        // Process each allocation fragment
+        allocs.forEach(frag => {
+          let sourceLabel = 'Unmatched';
+          if (frag.type === 'OB') sourceLabel = 'OB';
+          else if (frag.type === 'Unmatched') sourceLabel = 'Unmatched';
+          else {
+            const m = frag.date.toLocaleString('en-US', { month: 'short' });
+            const y = frag.date.getFullYear().toString().slice(-2);
             sourceLabel = `${m}${y}`;
-          } else {
-            sourceLabel = 'ADV';
           }
-        } else {
-          sourceLabel = 'ADV';
+
+          // Apply source filter: only include this fragment if its source is selected (or no filter active)
+          if (selectedSourceFilters.size > 0 && !selectedSourceFilters.has(sourceLabel)) {
+            return; // Skip this fragment
+          }
+
+          // Now add this fragment to the collection month stats
+          const pKey = getMonthlyKey(p.parsedDate!);
+          const pLabel = formatPeriodLabel(pKey, 'monthly');
+
+          if (!stats.has(pKey)) {
+            stats.set(pKey, {
+              monthLabel: pLabel,
+              monthKey: pKey,
+              totalCollected: 0,
+              breakdown: new Map()
+            });
+          }
+          const entry = stats.get(pKey)!;
+
+          entry.totalCollected += frag.amount;
+
+          const currentSourceVal = entry.breakdown.get(sourceLabel) || 0;
+          entry.breakdown.set(sourceLabel, currentSourceVal + frag.amount);
+        });
+      } else {
+        // Fallback for unmatched - only if Unmatched filter is selected or no filter
+        if (selectedSourceFilters.size === 0 || selectedSourceFilters.has('Unmatched')) {
+          const pKey = getMonthlyKey(p.parsedDate);
+          const pLabel = formatPeriodLabel(pKey, 'monthly');
+
+          if (!stats.has(pKey)) {
+            stats.set(pKey, {
+              monthLabel: pLabel,
+              monthKey: pKey,
+              totalCollected: 0,
+              breakdown: new Map()
+            });
+          }
+          const entry = stats.get(pKey)!;
+          const amount = p.credit;
+
+          entry.totalCollected += amount;
+          const currentSourceVal = entry.breakdown.get('Unmatched') || 0;
+          entry.breakdown.set('Unmatched', currentSourceVal + amount);
         }
       }
-
-      const currentSourceVal = entry.breakdown.get(sourceLabel) || 0;
-      entry.breakdown.set(sourceLabel, currentSourceVal + amount);
     });
 
-    // Sort by Month Key Descending (latest payments first)
     return Array.from(stats.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
 
-  }, [visiblePayments, activeSubTab, obMatchingIds, matchIdToDateMap]);
+  }, [visiblePayments, activeSubTab, data, selectedSourceFilters]);
 
   // (Customer detail restore is handled synchronously in the tab button click handler)
 
@@ -1592,6 +1992,127 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
               </option>
             ))}
           </select>
+
+          {/* Source Filter (Multi-select) */}
+
+
+          {/* Source Filter (Popup Modal) */}
+          <div className="relative h-[42px]">
+            <button
+              onClick={() => setIsSourceFilterOpen(true)}
+              className={`h-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center ${selectedSourceFilters.size > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 text-gray-700'
+                }`}
+              title="Filter by Source"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+            </button>
+
+            {isSourceFilterOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden max-h-[80vh]">
+
+                  {/* Header */}
+                  <div className="px-6 py-5 flex items-center justify-between bg-white border-b border-gray-100">
+                    <h3 className="text-xl font-bold text-gray-900 tracking-tight">Filter by Payment Source</h3>
+                    <button
+                      onClick={() => setIsSourceFilterOpen(false)}
+                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {/* Sub-header / Actions */}
+                  <div className="px-6 py-3 flex justify-between items-center bg-gray-50/50">
+                    <span className="text-sm font-medium text-gray-500">Select sources to include:</span>
+                    <button
+                      onClick={() => {
+                        const all = new Set(availableSources);
+                        setSelectedSourceFilters(all);
+                      }}
+                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline"
+                    >
+                      Select All
+                    </button>
+                  </div>
+
+                  {/* Options List */}
+                  <div className="flex-1 overflow-y-auto p-6 bg-white">
+                    <div className="grid grid-cols-2 gap-3">
+                      {availableSources.map(source => {
+                        const isSelected = selectedSourceFilters.has(source);
+                        return (
+                          <label
+                            key={source}
+                            className={`
+                              relative flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all duration-200
+                              ${isSelected
+                                ? 'border-blue-500 bg-blue-50/30'
+                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                              }
+                            `}
+                          >
+                            <div className="relative flex items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  const newSet = new Set(selectedSourceFilters);
+                                  if (e.target.checked) {
+                                    newSet.add(source);
+                                  } else {
+                                    newSet.delete(source);
+                                  }
+                                  setSelectedSourceFilters(newSet);
+                                }}
+                                className="peer appearance-none w-5 h-5 border-2 border-gray-300 rounded-md checked:bg-blue-600 checked:border-blue-600 transition-colors"
+                              />
+                              <svg
+                                className="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
+                                viewBox="0 0 16 16"
+                                fill="none"
+                                xmlns="http://www.w3.org/2000/svg"
+                              >
+                                <path d="M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z" fill="currentColor" />
+                              </svg>
+                            </div>
+                            <span className={`text-sm font-bold truncate ${isSelected ? 'text-blue-900' : 'text-gray-700'}`}>
+                              {source}
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {availableSources.length === 0 && (
+                      <div className="text-center text-gray-400 py-8">
+                        No sources available
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 py-4 bg-gray-50 flex justify-between items-center border-t border-gray-100">
+                    <button
+                      onClick={() => setSelectedSourceFilters(new Set())}
+                      className="text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors px-2 py-1"
+                    >
+                      Clear All
+                    </button>
+                    <button
+                      onClick={() => setIsSourceFilterOpen(false)}
+                      className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl hover:-translate-y-0.5 transition-all"
+                    >
+                      Done
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
           <input
             type="text"
             placeholder="Year"
@@ -1640,17 +2161,240 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             </button>
           )}
           <button
-            onClick={() => generatePaymentAnalysisPDF(data, {
-              startDate: dateFrom ? new Date(dateFrom) : undefined,
-              endDate: dateTo ? new Date(dateTo) : undefined,
-              salesRep: selectedSalesRep,
-              searchQuery: search
-            })}
+            onClick={() => {
+              setPdfSelectedCustomers(new Set());
+              setIsPdfExportOpen(true);
+            }}
             className="flex items-center justify-center p-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-sm transition-colors ml-2"
-            title="Generate Collections Analysis PDF"
+            title="Export PDF Report"
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" /><polyline points="14 2 14 8 20 8" /><line x1="16" x2="8" y1="13" y2="13" /><line x1="16" x2="8" y1="17" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
           </button>
+
+          {/* PDF Export Modal */}
+          {isPdfExportOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                  <h3 className="text-lg font-bold text-gray-900">Export Options</h3>
+                  <button
+                    onClick={() => setIsPdfExportOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="p-6">
+                  <p className="text-sm text-gray-500 mb-4">Select the sections to include in the PDF report:</p>
+                  <div className="space-y-3">
+                    {[
+                      { key: 'summary', label: 'Executive Summary' },
+                      { key: 'summaryPrevious', label: 'Include Previous Period', isSub: true, parentKey: 'summary' },
+                      { key: 'summaryLastYear', label: 'Include Last Year Period', isSub: true, parentKey: 'summary' },
+                      { key: 'daily', label: 'Daily Analysis' },
+                      { key: 'weekly', label: 'Weekly Analysis' },
+                      { key: 'monthly', label: 'Monthly Analysis' },
+                      { key: 'customerList', label: 'Customer Payment List' },
+                      { key: 'debtAge', label: 'Debt Age Analysis' },
+                      { key: 'salesRep', label: 'Sales Rep Performance' }
+                    ].map((section: any) => {
+                      const isParentActive = section.isSub ? pdfExportSections[section.parentKey as keyof typeof pdfExportSections] : true;
+
+                      return (
+                        <label
+                          key={section.key}
+                          className={`flex items-center gap-3 p-3 border rounded-xl transition-colors cursor-pointer ${section.isSub ? 'ml-8 py-2 border-dashed opacity-80' : 'hover:bg-gray-50'
+                            } ${!isParentActive && section.isSub ? 'pointer-events-none opacity-40' : ''}`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={pdfExportSections[section.key as keyof typeof pdfExportSections]}
+                            onChange={(e) => setPdfExportSections(prev => ({ ...prev, [section.key]: e.target.checked }))}
+                            disabled={!isParentActive && section.isSub}
+                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 disabled:opacity-50"
+                          />
+                          <span className={`font-medium ${section.isSub ? 'text-sm text-gray-600' : 'text-gray-700'}`}>
+                            {section.label}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+
+                  {/* Customer Selection Trigger */}
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => setIsCustomerSelectionOpen(true)}
+                      className="w-full flex items-center justify-between p-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                    >
+                      <span className="font-medium text-gray-700">Filter Customers</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-blue-600 font-semibold">
+                          {pdfSelectedCustomers.size === 0 ? 'All included' : `${pdfSelectedCustomers.size} selected`}
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-3">
+                  <button
+                    onClick={() => setIsPdfExportOpen(false)}
+                    className="px-4 py-2 text-gray-700 font-medium hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      generatePaymentAnalysisPDF(data, {
+                        startDate: dateFrom ? new Date(dateFrom) : undefined,
+                        endDate: dateTo ? new Date(dateTo) : undefined,
+                        salesRep: selectedSalesRep,
+                        searchQuery: search,
+                        sourceFilters: selectedSourceFilters,
+                        obMatchingIds: obMatchingIds,
+                        matchIdToDateMap: matchIdToDateMap,
+                        sections: pdfExportSections,
+                        selectedCustomers: pdfSelectedCustomers
+                      });
+                      setIsPdfExportOpen(false);
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 transition-all flex items-center gap-2"
+                  >
+                    <span>Download Report</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Customer Selection Modal (for PDF) */}
+          {isCustomerSelectionOpen && (
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg h-[80vh] flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+                  <h3 className="text-lg font-bold text-gray-900">Select Customers</h3>
+                  <button
+                    onClick={() => setIsCustomerSelectionOpen(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
+                  <span className="text-sm font-medium text-gray-500">
+                    {pdfSelectedCustomers.size === 0 ? 'All customers selected' : `${pdfSelectedCustomers.size} customers selected`}
+                  </span>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        // Select All -> Clear Set (my logic: Empty Set = All)
+                        setPdfSelectedCustomers(new Set());
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-semibold hover:underline"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      onClick={() => {
+                        // Deselect All -> Since we can't have empty set mean none, we need a special handling or just set to empty set and let user select? 
+                        // Wait, if I set to empty set, it selects all. 
+                        // To deselect all, I technically need to select NONE? Or maybe logic should be inverted?
+                        // If I can't select none, then "Deselect All" button behavior is tricky.
+                        // Let's make "Clear Selection" just empty the set (select all).
+                        // Or populate with NOTHING? But my logic uses empty set as ALL.
+                        // Let's invert UI logic: Checkbox checked if (Set Empty OR Set has it).
+                        setPdfSelectedCustomers(new Set(['__NONE__'])); // Hack: add dummy
+                      }}
+                      className="text-sm text-gray-500 hover:text-gray-700 font-medium hover:underline"
+                    >
+                      Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-2">
+                  <div className="flex flex-col h-full">
+                    <div className="mb-2 px-1">
+                      <input
+                        type="text"
+                        placeholder="Search customers..."
+                        className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                        value={checklistSearch}
+                        onChange={(e) => setChecklistSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 gap-1 overflow-y-auto">
+                      {filteredCustomerChecklist.map(customer => {
+                        const isSelected = pdfSelectedCustomers.size === 0 || pdfSelectedCustomers.has(customer.trim().toLowerCase());
+                        return (
+                          <label key={customer} className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const normName = customer.trim().toLowerCase();
+                                const newSet = new Set(pdfSelectedCustomers);
+
+                                // If currently "All Selected" (size 0), populate with ALL first
+                                if (newSet.size === 0) {
+                                  allCustomers.forEach(c => newSet.add(c.trim().toLowerCase()));
+                                }
+                                // Also remove dummy if present
+                                newSet.delete('__NONE__');
+
+                                if (e.target.checked) {
+                                  newSet.add(normName);
+                                } else {
+                                  newSet.delete(normName);
+                                }
+
+                                // If now ALL are selected (size == allCustomers.length), clear set to optimize
+                                if (newSet.size === allCustomers.length) {
+                                  setPdfSelectedCustomers(new Set());
+                                } else {
+                                  setPdfSelectedCustomers(newSet);
+                                }
+                              }}
+                              className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 shrink-0"
+                            />
+                            <span className={`text-sm ${isSelected ? 'text-gray-900 font-medium' : 'text-gray-500 line-through'}`}>
+                              {customer}
+                            </span>
+                          </label>
+                        );
+                      })}
+                      {filteredCustomerChecklist.length === 0 && (
+                        <div className="text-gray-500 text-center py-4 text-sm">No customers found</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end">
+                  <button
+                    onClick={() => setIsCustomerSelectionOpen(false)}
+                    className="px-6 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1742,1194 +2486,1210 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       </div>
 
       {/* Dashboard - Cards & Chart */}
-      {activeSubTab === 'dashboard' && (
-        <div className="space-y-4 animate-fadeIn">
-          {/* First Row - 4 Cards */}
-          {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Collections</h3>
-              <div className="text-2xl font-bold text-green-600">
-                {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Total payments collected</p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Net Payment Count</h3>
-              <div className="text-2xl font-bold text-blue-600">
-                {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">Payments with Credit - Debit &gt; 0</p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Avg Monthly Collections</h3>
-              <div className="text-2xl font-bold text-teal-600">
-                {averageCollections.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Based on {averageCollections.monthsCount} month(s) in period
-              </p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Avg Weekly Collections</h3>
-              <div className="text-2xl font-bold text-cyan-600">
-                {averageCollections.averageWeekly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Based on {averageCollections.weeksCount} week(s) in period
-              </p>
-            </div>
-
-            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-              <h3 className="text-gray-500 font-medium mb-2 text-sm">Avg Collection Days</h3>
-              <div className="text-2xl font-bold text-orange-600">
-                {averageCollectionDays.averageDays > 0 ? averageCollectionDays.averageDays.toFixed(1) : '0.0'} days
-              </div>
-              <p className="text-xs text-gray-400 mt-1">
-                Based on {averageCollectionDays.customersCount} customer(s) with multiple payments
-              </p>
-            </div>
-          </div>
-
-          {/* Chart */}
-          <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-[720px]">
-            <div className="flex flex-col items-center gap-3 mb-4">
-              <h3 className="text-lg font-bold text-gray-800 text-center">
-                Collections - {
-                  chartPeriodType === 'daily' ? (dateFrom || dateTo || chartYear || chartMonth ? 'Daily Trend' : 'All Time Daily') :
-                    chartPeriodType === 'weekly' ? (dateFrom || dateTo || chartYear || chartMonth ? 'Weekly Trend' : 'All Time Weekly') :
-                      (dateFrom || dateTo || chartYear || chartMonth ? 'Monthly Trend' : 'All Time Monthly')
-                }
-              </h3>
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs sm:text-sm font-semibold text-emerald-700 whitespace-nowrap">
-                  Total Payments:{' '}
-                  {dashboardData.totals.totalCollections.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                  <span className="text-[10px] sm:text-xs text-emerald-600">
-                    ({dashboardData.totals.netPaymentCount.toLocaleString('en-US')} payments)
-                  </span>
+      {
+        activeSubTab === 'dashboard' && (
+          <div className="space-y-4 animate-fadeIn">
+            {/* First Row - 4 Cards */}
+            {/* Summary Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="text-gray-500 font-medium mb-2 text-sm">Total Collections</h3>
+                <div className="text-2xl font-bold text-green-600">
+                  {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
-                <input
-                  type="text"
-                  placeholder="Year"
-                  value={chartYear}
-                  onChange={(e) => setChartYear(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-24 text-center"
-                />
-                <input
-                  type="text"
-                  placeholder="Month"
-                  value={chartMonth}
-                  onChange={(e) => setChartMonth(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-24 text-center"
-                />
-                <button
-                  onClick={() => setChartPeriodType('monthly')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'monthly'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Monthly
-                </button>
-                <button
-                  onClick={() => setChartPeriodType('weekly')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'weekly'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Weekly
-                </button>
-                <button
-                  onClick={() => setChartPeriodType('daily')}
-                  className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'daily'
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                    }`}
-                >
-                  Daily
-                </button>
+                <p className="text-xs text-gray-400 mt-1">Total payments collected</p>
               </div>
-            </div>
-            {chartPeriodType === 'daily' ? (
-              <div className="overflow-y-auto h-[600px] p-2">
-                <div className="grid grid-cols-8 gap-3">
-                  {(() => {
-                    const sortedData = [...dashboardData.chartData].sort((a, b) => b.periodKey.localeCompare(a.periodKey));
-                    const maxVal = sortedData.reduce((max, d) => Math.max(max, d.collections), 1);
 
-                    return sortedData.map((row) => {
-                      const isZero = row.collections === 0;
-
-                      // Green intensity for non-zero, Red for zero
-                      const intensity = isZero ? 0 : Math.min(Math.max((row.collections / maxVal), 0.1), 1);
-
-                      const bgStyle = isZero
-                        ? { backgroundColor: '#FEF2F2', borderColor: '#FECACA' } // Red-50, Red-200
-                        : { backgroundColor: `rgba(16, 185, 129, ${intensity * 0.2 + 0.05})`, borderColor: `rgba(16, 185, 129, ${intensity * 0.5})` };
-
-                      return (
-                        <div
-                          key={row.periodKey}
-                          className={`flex flex-col items-center justify-center p-3 rounded-xl border shadow-sm transition-transform hover:scale-105 ${isZero ? 'text-red-600' : 'text-gray-800'}`}
-                          style={bgStyle}
-                        >
-                          <span className={`text-sm font-semibold mb-1 ${isZero ? 'text-red-400' : 'text-gray-500'}`}>{row.periodLabel}</span>
-                          <span className={`text-xl font-bold ${isZero ? 'text-red-700' : 'text-gray-900'}`}>
-                            {row.collections.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </span>
-                          {!isZero && (
-                            <div className="flex flex-col items-center mt-1 space-y-0.5">
-                              <span className="text-[10px] sm:text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">
-                                {row.paymentCount} Pays
-                              </span>
-                              <span className="text-[10px] sm:text-xs font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full border border-purple-100">
-                                {row.customerCount} Customers
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    });
-                  })()}
-                  {dashboardData.chartData.length === 0 && (
-                    <div className="col-span-8 text-center text-gray-500 py-12">
-                      No data available for the selected period
-                    </div>
-                  )}
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="text-gray-500 font-medium mb-2 text-sm">Net Payment Count</h3>
+                <div className="text-2xl font-bold text-blue-600">
+                  {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
                 </div>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={600}>
-                <BarChart
-                  data={dashboardData.chartData}
-                  margin={{
-                    top: 20,
-                    right: 30,
-                    left: 20,
-                    bottom: chartPeriodType === 'weekly' ? 70 : 50,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis
-                    dataKey="periodLabel"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#6B7280', fontSize: 13, fontWeight: 'bold' }}
-                    height={chartPeriodType === 'weekly' ? 70 : 60}
-                    interval={0}
-                    angle={0}
-                    textAnchor="middle"
-                    dy={8}
-                  />
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#6B7280', fontSize: 12 }}
-                    tickFormatter={(value) =>
-                      new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
-                    }
-                  />
-                  <Tooltip
-                    cursor={{ fill: '#F3F4F6' }}
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                    formatter={(value: number, name: string, props: any) => {
-                      const rowData = props?.payload || {};
-                      if (name === 'Net Collections') {
-                        return [
-                          <>
-                            <div>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
-                            <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
-                              {rowData.paymentCount || 0} Payments<br />
-                              {rowData.customerCount || 0} Customers
-                            </div>
-                          </>,
-                          name
-                        ];
-                      }
-                      return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
-                    }}
-                  />
-                  <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
-                  <Bar
-                    dataKey="displayCollections"
-                    name="Net Collections"
-                    fill="#10B981"
-                    radius={[4, 4, 0, 0]}
-                    barSize={chartPeriodType === 'weekly' ? 25 : 30}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Period Type Selector (only for period tab) */}
-      {activeSubTab === 'period' && (
-        <div className="mb-6 flex w-full gap-2 justify-center">
-          <button
-            onClick={() => {
-              setPeriodType('daily');
-              setDetailMode('none');
-              setSelectedPeriod(null);
-            }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'daily'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-          >
-            Daily
-          </button>
-          <button
-            onClick={() => {
-              setPeriodType('weekly');
-              setDetailMode('none');
-              setSelectedPeriod(null);
-            }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'weekly'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-          >
-            Weekly
-          </button>
-          <button
-            onClick={() => {
-              setPeriodType('monthly');
-              setDetailMode('none');
-              setSelectedPeriod(null);
-            }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'monthly'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-          >
-            Monthly
-          </button>
-          <button
-            onClick={() => {
-              setPeriodType('yearly');
-              setDetailMode('none');
-              setSelectedPeriod(null);
-            }}
-            className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'yearly'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-          >
-            Yearly
-          </button>
-        </div>
-      )}
-
-      {/* Payment by Customer - Main List */}
-      {activeSubTab === 'customer' && detailMode === 'none' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full table-fixed">
-              <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
-                <tr>
-                  <th
-                    className="px-5 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none"
-                    onClick={() => {
-                      if (sortColumn === 'customerName') {
-                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortColumn('customerName');
-                        setSortDirection('asc');
-                      }
-                    }}
-                  >
-                    <div className="flex items-center gap-2">
-                      Customer Name
-                      {sortColumn === 'customerName' && (
-                        <span className="text-blue-600">
-                          {sortDirection === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
-                    onClick={() => {
-                      if (sortColumn === 'totalPayments') {
-                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortColumn('totalPayments');
-                        setSortDirection('desc');
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      Total Payments
-                      {sortColumn === 'totalPayments' && (
-                        <span className="text-blue-600">
-                          {sortDirection === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
-                    onClick={() => {
-                      if (sortColumn === 'paymentCount') {
-                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortColumn('paymentCount');
-                        setSortDirection('desc');
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      Payment Count
-                      {sortColumn === 'paymentCount' && (
-                        <span className="text-blue-600">
-                          {sortDirection === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
-                    onClick={() => {
-                      if (sortColumn === 'lastPayment') {
-                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortColumn('lastPayment');
-                        setSortDirection('desc');
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      Last Payment
-                      {sortColumn === 'lastPayment' && (
-                        <span className="text-blue-600">
-                          {sortDirection === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th
-                    className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
-                    onClick={() => {
-                      if (sortColumn === 'daysSince') {
-                        setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
-                      } else {
-                        setSortColumn('daysSince');
-                        setSortDirection('asc');
-                      }
-                    }}
-                  >
-                    <div className="flex items-center justify-center gap-2">
-                      Days Since
-                      {sortColumn === 'daysSince' && (
-                        <span className="text-blue-600">
-                          {sortDirection === 'asc' ? '↑' : '↓'}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                  <th className="px-5 py-3 text-center font-semibold w-40">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredByCustomer.map((item, index) => (
-                  <tr key={item.customerName} className="bg-white hover:bg-blue-50/40 transition-colors">
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="font-semibold text-gray-900">{item.customerName}</div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 text-center font-semibold text-gray-900 w-40">
-                      {item.totalPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-5 py-4 text-center w-40">
-                      <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                        {item.paymentCount}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4 text-center w-40">
-                      {item.lastPayment ? (
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="text-sm font-semibold text-gray-900">
-                            {item.lastPayment.credit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {item.lastPayment.parsedDate ? item.lastPayment.parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : item.lastPayment.date}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-center w-40">
-                      {item.daysSinceLastPayment !== null ? (
-                        <span className="text-sm font-semibold text-gray-900">
-                          {item.daysSinceLastPayment} {item.daysSinceLastPayment === 1 ? 'day' : 'days'}
-                        </span>
-                      ) : (
-                        <span className="text-sm text-gray-400">-</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 text-center w-40">
-                      <button
-                        onClick={() => {
-                          setSelectedCustomer(item);
-                          setDetailMode('customer');
-                          setLastCustomerSelection(item.customerName.trim().toLowerCase());
-                        }}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
-                      >
-                        View Details
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredByCustomer.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                      No payments match your search.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
-                <tr>
-                  <td className="px-5 py-3 text-left">Total</td>
-                  <td className="px-5 py-3 text-center w-40">
-                    {customerTotals.totalPayments.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="px-5 py-3 text-center w-40">{customerTotals.paymentCount}</td>
-                  <td className="px-5 py-3 text-center w-40">-</td>
-                  <td className="px-5 py-3 text-center w-40">-</td>
-                  <td className="px-5 py-3 text-center w-40"></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* Customer Details - Sub Page */}
-      {activeSubTab === 'customer' && detailMode === 'customer' && selectedCustomer && (
-        <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-right-4">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">{selectedCustomer.customerName}</h3>
-              <p className="text-sm text-gray-500 mt-1">Detailed payment history analysis</p>
-            </div>
-            <button
-              onClick={() => {
-                setDetailMode('none');
-                setSelectedCustomer(null);
-                setLastCustomerSelection(null);
-              }}
-              className="px-4 py-2 bg-white border border-gray-300 shadow-sm text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors flex items-center gap-2"
-            >
-              <span>←</span> Back to list
-            </button>
-          </div>
-
-          {/* Scrollable Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-
-            {/* Cards Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-100 flex flex-col items-center text-center">
-                <span className="text-emerald-600 font-medium text-sm uppercase tracking-wider mb-1">Total Collected</span>
-                <span className="text-3xl font-bold text-emerald-700">
-                  {customerDetailPayments
-                    .reduce((sum, p) => sum + (p.credit || 0), 0)
-                    .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
+                <p className="text-xs text-gray-400 mt-1">Payments with Credit - Debit &gt; 0</p>
               </div>
 
-              <div className="p-5 rounded-xl bg-cyan-50 border border-cyan-100 flex flex-col items-center text-center">
-                <span className="text-cyan-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Amount</span>
-                <span className="text-3xl font-bold text-cyan-700">
-                  {(() => {
-                    const total = customerDetailPayments.reduce((sum, p) => sum + (p.credit || 0), 0);
-                    const count = customerDetailPayments.filter(p => p.rawCredit > 0.01).length;
-                    return (count > 0 ? total / count : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                  })()}
-                </span>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="text-gray-500 font-medium mb-2 text-sm">Avg Monthly Collections</h3>
+                <div className="text-2xl font-bold text-teal-600">
+                  {averageCollections.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Based on {averageCollections.monthsCount} month(s) in period
+                </p>
               </div>
 
-              <div className="p-5 rounded-xl bg-blue-50 border border-blue-100 flex flex-col items-center text-center">
-                <span className="text-blue-600 font-medium text-sm uppercase tracking-wider mb-1">Payment Count</span>
-                <span className="text-3xl font-bold text-blue-700">
-                  {customerDetailPayments.filter(p => p.rawCredit > 0.01).length}
-                </span>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="text-gray-500 font-medium mb-2 text-sm">Avg Weekly Collections</h3>
+                <div className="text-2xl font-bold text-cyan-600">
+                  {averageCollections.averageWeekly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Based on {averageCollections.weeksCount} week(s) in period
+                </p>
               </div>
 
-              <div className="p-5 rounded-xl bg-purple-50 border border-purple-100 flex flex-col items-center text-center">
-                <span className="text-purple-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Days</span>
-                <span className="text-3xl font-bold text-purple-700">
-                  {Math.round(customerAvgDays)} <span className="text-lg font-normal text-purple-600">days</span>
-                </span>
+              <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200">
+                <h3 className="text-gray-500 font-medium mb-2 text-sm">Avg Collection Days</h3>
+                <div className="text-2xl font-bold text-orange-600">
+                  {averageCollectionDays.averageDays > 0 ? averageCollectionDays.averageDays.toFixed(1) : '0.0'} days
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Based on {averageCollectionDays.customersCount} customer(s) with multiple payments
+                </p>
               </div>
             </div>
 
             {/* Chart */}
-            <div className="bg-white rounded-xl p-4 h-80">
-              <h4 className="text-xl font-bold text-gray-800 mb-4 px-2">Payments Last 12 Months</h4>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={customerChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorPayment" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
-                      <stop offset="95%" stopColor="#2563EB" stopOpacity={0.8} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis
-                    dataKey="name"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{ fill: '#374151', fontSize: 13, fontWeight: '600' }}
-                    dy={10}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 h-[720px]">
+              <div className="flex flex-col items-center gap-3 mb-4">
+                <h3 className="text-lg font-bold text-gray-800 text-center">
+                  Collections - {
+                    chartPeriodType === 'daily' ? (dateFrom || dateTo || chartYear || chartMonth ? 'Daily Trend' : 'All Time Daily') :
+                      chartPeriodType === 'weekly' ? (dateFrom || dateTo || chartYear || chartMonth ? 'Weekly Trend' : 'All Time Weekly') :
+                        (dateFrom || dateTo || chartYear || chartMonth ? 'Monthly Trend' : 'All Time Monthly')
+                  }
+                </h3>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  <div className="px-3 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-xs sm:text-sm font-semibold text-emerald-700 whitespace-nowrap">
+                    Total Payments:{' '}
+                    {dashboardData.totals.totalCollections.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                    <span className="text-[10px] sm:text-xs text-emerald-600">
+                      ({dashboardData.totals.netPaymentCount.toLocaleString('en-US')} payments)
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Year"
+                    value={chartYear}
+                    onChange={(e) => setChartYear(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-24 text-center"
                   />
-                  <YAxis hide />
-                  <Tooltip
-                    cursor={{ fill: '#EFF6FF', radius: 4 }}
-                    content={({ active, payload, label }) => {
-                      if (active && payload && payload.length) {
-                        const data = payload[0].payload;
-                        return (
-                          <div className="bg-white p-3 rounded-xl shadow-xl border border-blue-100 text-sm">
-                            <p className="font-bold text-gray-800 mb-1">{label}</p>
-                            <div className="flex items-baseline gap-2">
-                              <span className="text-2xl font-bold text-blue-600">
-                                {new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(data.amount)}
-                              </span>
-                              <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">AED</span>
-                            </div>
-                            <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-4">
-                              <span className="text-gray-500 text-xs">Transactions</span>
-                              <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full text-xs">
-                                {data.count}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    }}
+                  <input
+                    type="text"
+                    placeholder="Month"
+                    value={chartMonth}
+                    onChange={(e) => setChartMonth(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-24 text-center"
                   />
-                  <Bar
-                    dataKey="amount"
-                    name="Amount"
-                    fill="url(#colorPayment)"
-                    radius={[6, 6, 0, 0]}
-                    barSize={40}
-                    activeBar={{ fill: '#1D4ED8' }}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-
-            {/* Data Table */}
-            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-12">
-              <div className="px-5 py-3 border-b bg-gray-50">
-                <h4 className="font-semibold text-gray-800">Payment History</h4>
+                  <button
+                    onClick={() => setChartPeriodType('monthly')}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'monthly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    onClick={() => setChartPeriodType('weekly')}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'weekly'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    Weekly
+                  </button>
+                  <button
+                    onClick={() => setChartPeriodType('daily')}
+                    className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${chartPeriodType === 'daily'
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                  >
+                    Daily
+                  </button>
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr className="text-gray-600 text-center">
-                      <th className="px-4 py-3 text-center">Date</th>
-                      <th className="px-4 py-3 text-center">Number</th>
-                      <th className="px-4 py-3 text-center">Paid</th>
-                      <th className="px-4 py-3 text-center">Matching</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
+              {chartPeriodType === 'daily' ? (
+                <div className="overflow-y-auto h-[600px] p-2">
+                  <div className="grid grid-cols-8 gap-3">
                     {(() => {
-                      // Group payments by Number
-                      const groupedMap = new Map<string, {
-                        date: Date | null;
-                        number: string;
-                        totalCredit: number;
-                        matches: { id: string; isOB: boolean }[];
-                        hasNegative: boolean;
-                        hasOB: boolean;
-                      }>();
+                      const sortedData = [...dashboardData.chartData].sort((a, b) => b.periodKey.localeCompare(a.periodKey));
+                      const maxVal = sortedData.reduce((max, d) => Math.max(max, d.collections), 1);
 
-                      customerDetailPayments.forEach(p => {
-                        const key = p.number.trim().toUpperCase();
-                        if (!groupedMap.has(key)) {
-                          groupedMap.set(key, {
-                            date: p.parsedDate,
-                            number: p.number,
-                            totalCredit: 0,
-                            matches: [],
-                            hasNegative: false,
-                            hasOB: false
-                          });
-                        }
-                        const group = groupedMap.get(key)!;
-                        group.totalCredit += p.credit;
-                        if (p.credit < 0) group.hasNegative = true;
+                      return sortedData.map((row) => {
+                        const isZero = row.collections === 0;
 
-                        if (p.matching) {
-                          const matchId = p.matching.toString().trim(); // Keep original case for display? Or normalize? Usually normalized for lookup.
-                          const matchIdLower = matchId.toLowerCase();
+                        // Green intensity for non-zero, Red for zero
+                        const intensity = isZero ? 0 : Math.min(Math.max((row.collections / maxVal), 0.1), 1);
 
-                          // Avoid duplicates in matches list (by checking ID)
-                          if (!group.matches.some(m => m.id.toLowerCase() === matchIdLower)) {
-                            const isOB = p.matchedOpeningBalance; // This was calculated using normalized lower case in useMemo
-                            group.matches.push({ id: matchId, isOB });
-                            if (isOB) group.hasOB = true;
-                          }
-                        }
-                      });
+                        const bgStyle = isZero
+                          ? { backgroundColor: '#FEF2F2', borderColor: '#FECACA' } // Red-50, Red-200
+                          : { backgroundColor: `rgba(16, 185, 129, ${intensity * 0.2 + 0.05})`, borderColor: `rgba(16, 185, 129, ${intensity * 0.5})` };
 
-                      const groupedPayments = Array.from(groupedMap.values()).sort((a, b) => {
-                        // Sort by date desc
-                        const da = a.date?.getTime() || 0;
-                        const db = b.date?.getTime() || 0;
-                        return db - da;
-                      });
-
-                      if (groupedPayments.length === 0) {
                         return (
-                          <tr>
-                            <td colSpan={4} className="p-8 text-center text-gray-400">No payments found</td>
-                          </tr>
-                        );
-                      }
-
-                      return groupedPayments.map((group, idx) => (
-                        <tr
-                          key={`${group.number}-${idx}`}
-                          className={`hover:bg-gray-50 text-center ${group.hasNegative
-                            ? 'bg-red-100 border-l-4 border-red-500' // Highlight R-Payment/Negative rows
-                            : group.hasOB
-                              ? 'bg-emerald-50/60'
-                              : ''
-                            }`}
-                        >
-                          <td className="px-4 py-2 text-gray-700 text-center">{formatDate(group.date)}</td>
-                          <td className="px-4 py-2 font-semibold text-gray-900 text-center">{group.number}</td>
-                          <td className={`px-4 py-2 font-semibold text-center text-base ${group.totalCredit < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                            {group.totalCredit.toLocaleString('en-US', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
-                            })}
-                          </td>
-                          <td className="px-4 py-2 text-center text-gray-500">
-                            {group.matches.length === 0 ? '—' : (
-                              <div className="flex flex-col gap-2 items-center w-full max-w-[200px] mx-auto">
-                                {(() => {
-                                  // First, group everything by ID to handle the visual grouping
-                                  const matchesById = new Map<string, {
-                                    id: string;
-                                    badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[];
-                                  }>();
-
-                                  group.matches.forEach(m => {
-                                    const matchIdRaw = m.id; // Display ID
-                                    const matchIdKey = m.id.toLowerCase(); // Lookup Key
-
-                                    if (!matchesById.has(matchIdKey)) {
-                                      matchesById.set(matchIdKey, { id: matchIdRaw, badges: [] });
-                                    }
-                                    const entry = matchesById.get(matchIdKey)!;
-
-                                    if (m.isOB) {
-                                      // Avoid dupes if already added
-                                      if (!entry.badges.some(b => b.type === 'OB')) {
-                                        entry.badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
-                                      }
-                                    }
-
-                                    if (matchIdToDateMap.has(matchIdKey)) {
-                                      const dates = matchIdToDateMap.get(matchIdKey)!;
-                                      dates.forEach(d => {
-                                        const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                                        // Avoid dupes
-                                        if (!entry.badges.some(b => b.label === label)) {
-                                          entry.badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
-                                        }
-                                      });
-                                    }
-
-                                    // If no OB and no Dates found, add Invalid
-                                    if (!m.isOB && (!matchIdToDateMap.has(matchIdKey) || matchIdToDateMap.get(matchIdKey)!.length === 0)) {
-                                      if (!entry.badges.some(b => b.type === 'INVALID')) {
-                                        entry.badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
-                                      }
-                                    }
-                                  });
-
-                                  // Convert to array and Sort Badges within each ID
-                                  const renderGroups = Array.from(matchesById.values()).map(g => {
-                                    g.badges.sort((a, b) => {
-                                      if (a.type === 'OB' && b.type !== 'OB') return -1;
-                                      if (a.type !== 'OB' && b.type === 'OB') return 1;
-                                      return a.dateIdx - b.dateIdx;
-                                    });
-                                    return g;
-                                  });
-
-                                  return renderGroups.map((g, idx) => (
-                                    <div key={`${g.id}-${idx}`} className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden transition-all hover:shadow-md">
-                                      <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
-                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
-                                        <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{g.id}</span>
-                                      </div>
-                                      <div className="flex flex-wrap justify-center gap-2 p-2.5">
-                                        {g.badges.map((b, bIdx) => {
-                                          let colors = '';
-                                          if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                                          else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
-                                          else colors = 'bg-red-50 text-red-500 border-red-200';
-
-                                          return (
-                                            <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
-                                              {b.label}
-                                            </span>
-                                          );
-                                        })}
-                                      </div>
-                                    </div>
-                                  ));
-                                })()}
+                          <div
+                            key={row.periodKey}
+                            className={`flex flex-col items-center justify-center p-3 rounded-xl border shadow-sm transition-transform hover:scale-105 ${isZero ? 'text-red-600' : 'text-gray-800'}`}
+                            style={bgStyle}
+                          >
+                            <span className={`text-sm font-semibold mb-1 ${isZero ? 'text-red-400' : 'text-gray-500'}`}>{row.periodLabel}</span>
+                            <span className={`text-xl font-bold ${isZero ? 'text-red-700' : 'text-gray-900'}`}>
+                              {row.collections.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </span>
+                            {!isZero && (
+                              <div className="flex flex-col items-center mt-1 space-y-0.5">
+                                <span className="text-[10px] sm:text-xs font-medium text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-100">
+                                  {row.paymentCount} Pays
+                                </span>
+                                <span className="text-[10px] sm:text-xs font-medium text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded-full border border-purple-100">
+                                  {row.customerCount} Customers
+                                </span>
                               </div>
                             )}
-                          </td>
-                        </tr>
-                      ));
+                          </div>
+                        );
+                      });
                     })()}
-                  </tbody>
-                </table>
-              </div>
+                    {dashboardData.chartData.length === 0 && (
+                      <div className="col-span-8 text-center text-gray-500 py-12">
+                        No data available for the selected period
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <ResponsiveContainer width="100%" height={600}>
+                  <BarChart
+                    data={dashboardData.chartData}
+                    margin={{
+                      top: 20,
+                      right: 30,
+                      left: 20,
+                      bottom: chartPeriodType === 'weekly' ? 70 : 50,
+                    }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="periodLabel"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#6B7280', fontSize: 13, fontWeight: 'bold' }}
+                      height={chartPeriodType === 'weekly' ? 70 : 60}
+                      interval={0}
+                      angle={0}
+                      textAnchor="middle"
+                      dy={8}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#6B7280', fontSize: 12 }}
+                      tickFormatter={(value) =>
+                        new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+                      }
+                    />
+                    <Tooltip
+                      cursor={{ fill: '#F3F4F6' }}
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const rowData = props?.payload || {};
+                        if (name === 'Net Collections') {
+                          return [
+                            <>
+                              <div>{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
+                              <div style={{ fontSize: '12px', marginTop: '4px', color: '#666' }}>
+                                {rowData.paymentCount || 0} Payments<br />
+                                {rowData.customerCount || 0} Customers
+                              </div>
+                            </>,
+                            name
+                          ];
+                        }
+                        return new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value);
+                      }}
+                    />
+                    <Legend iconType="circle" verticalAlign="top" wrapperStyle={{ paddingBottom: '20px' }} />
+                    <Bar
+                      dataKey="displayCollections"
+                      name="Net Collections"
+                      fill="#10B981"
+                      radius={[4, 4, 0, 0]}
+                      barSize={chartPeriodType === 'weekly' ? 25 : 30}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
             </div>
-
           </div>
-        </div>
-      )}
+        )
+      }
 
-      {/* Payment by Period - Main List */}
-      {activeSubTab === 'period' && detailMode === 'none' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
-                <tr>
-                  <th className="px-5 py-3 text-left font-semibold">Period</th>
-                  <th className="px-5 py-3 text-center font-semibold">Total Payments</th>
-                  <th className="px-5 py-3 text-center font-semibold">Payment Count</th>
-                  <th className="px-5 py-3 text-center font-semibold">Customer Count</th>
-                  <th className="px-5 py-3 text-center font-semibold">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filteredByPeriod.map((item, index) => {
-                  const customerCount = new Set(
-                    item.payments.map((p) => p.customerName.trim().toLowerCase()),
-                  ).size;
-                  return (
-                    <tr key={item.periodKey} className="bg-white hover:bg-blue-50/40 transition-colors">
+      {/* Period Type Selector (only for period tab) */}
+      {
+        activeSubTab === 'period' && (
+          <div className="mb-6 flex w-full gap-2 justify-center">
+            <button
+              onClick={() => {
+                setPeriodType('daily');
+                setDetailMode('none');
+                setSelectedPeriod(null);
+              }}
+              className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'daily'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              Daily
+            </button>
+            <button
+              onClick={() => {
+                setPeriodType('weekly');
+                setDetailMode('none');
+                setSelectedPeriod(null);
+              }}
+              className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'weekly'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              Weekly
+            </button>
+            <button
+              onClick={() => {
+                setPeriodType('monthly');
+                setDetailMode('none');
+                setSelectedPeriod(null);
+              }}
+              className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'monthly'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => {
+                setPeriodType('yearly');
+                setDetailMode('none');
+                setSelectedPeriod(null);
+              }}
+              className={`flex-1 py-2 rounded-lg font-semibold transition-colors text-center ${periodType === 'yearly'
+                ? 'bg-blue-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              Yearly
+            </button>
+          </div>
+        )
+      }
+
+      {/* Payment by Customer - Main List */}
+      {
+        activeSubTab === 'customer' && detailMode === 'none' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed">
+                <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
+                  <tr>
+                    <th
+                      className="px-5 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                      onClick={() => {
+                        if (sortColumn === 'customerName') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn('customerName');
+                          setSortDirection('asc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        Customer Name
+                        {sortColumn === 'customerName' && (
+                          <span className="text-blue-600">
+                            {sortDirection === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                      onClick={() => {
+                        if (sortColumn === 'totalPayments') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn('totalPayments');
+                          setSortDirection('desc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Total Payments
+                        {sortColumn === 'totalPayments' && (
+                          <span className="text-blue-600">
+                            {sortDirection === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                      onClick={() => {
+                        if (sortColumn === 'paymentCount') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn('paymentCount');
+                          setSortDirection('desc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Payment Count
+                        {sortColumn === 'paymentCount' && (
+                          <span className="text-blue-600">
+                            {sortDirection === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                      onClick={() => {
+                        if (sortColumn === 'lastPayment') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn('lastPayment');
+                          setSortDirection('desc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Last Payment
+                        {sortColumn === 'lastPayment' && (
+                          <span className="text-blue-600">
+                            {sortDirection === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th
+                      className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none w-40"
+                      onClick={() => {
+                        if (sortColumn === 'daysSince') {
+                          setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+                        } else {
+                          setSortColumn('daysSince');
+                          setSortDirection('asc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center justify-center gap-2">
+                        Days Since
+                        {sortColumn === 'daysSince' && (
+                          <span className="text-blue-600">
+                            {sortDirection === 'asc' ? '↑' : '↓'}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th className="px-5 py-3 text-center font-semibold w-40">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredByCustomer.map((item, index) => (
+                    <tr key={item.customerName} className="bg-white hover:bg-blue-50/40 transition-colors">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center font-bold">
+                          <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
                             {index + 1}
                           </div>
-                          <div className="font-semibold text-gray-900">{item.period}</div>
+                          <div className="font-semibold text-gray-900">{item.customerName}</div>
                         </div>
                       </td>
-                      <td className="px-5 py-4 text-center font-semibold text-gray-900">
-                        {item.totalPayments.toLocaleString('en-US', {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
+                      <td className="px-5 py-4 text-center font-semibold text-gray-900 w-40">
+                        {item.totalPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      <td className="px-5 py-4 text-center">
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-green-50 text-green-700 border border-green-200">
+                      <td className="px-5 py-4 text-center w-40">
+                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                           {item.paymentCount}
                         </span>
                       </td>
-                      <td className="px-5 py-4 text-center">
-                        <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                          {customerCount}
-                        </span>
+                      <td className="px-5 py-4 text-center w-40">
+                        {item.lastPayment ? (
+                          <div className="flex flex-col items-center gap-1">
+                            <span className="text-sm font-semibold text-gray-900">
+                              {item.lastPayment.credit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              {item.lastPayment.parsedDate ? item.lastPayment.parsedDate.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : item.lastPayment.date}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
                       </td>
-                      <td className="px-5 py-4 text-center">
+                      <td className="px-5 py-4 text-center w-40">
+                        {item.daysSinceLastPayment !== null ? (
+                          <span className="text-sm font-semibold text-gray-900">
+                            {item.daysSinceLastPayment} {item.daysSinceLastPayment === 1 ? 'day' : 'days'}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-5 py-4 text-center w-40">
                         <button
                           onClick={() => {
-                            setSelectedPeriod(item);
-                            setDetailMode('period');
-                            setLastPeriodSelection((prev) => ({
-                              ...prev,
-                              [periodType]: item.periodKey,
-                            }));
+                            setSelectedCustomer(item);
+                            setDetailMode('customer');
+                            setLastCustomerSelection(item.customerName.trim().toLowerCase());
                           }}
-                          className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-semibold"
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
                         >
                           View Details
                         </button>
                       </td>
                     </tr>
-                  );
-                })}
-                {filteredByPeriod.length === 0 && (
+                  ))}
+                  {filteredByCustomer.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
+                        No payments match your search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
                   <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No payments match your search.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
-                <tr>
-                  <td className="px-5 py-3 text-left">Total</td>
-                  <td className="px-5 py-3 text-center">
-                    {periodTotals.totalPayments.toLocaleString('en-US', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </td>
-                  <td className="px-5 py-3 text-center">{periodTotals.paymentCount}</td>
-                  <td className="px-5 py-3 text-center">{periodTotals.customerCount}</td>
-                  <td className="px-5 py-3"></td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      )}
-
-
-
-      {/* Period Details - Full Page inside tab */}
-      {activeSubTab === 'period' && detailMode === 'period' && selectedPeriod && (
-        <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900">{selectedPeriod.period}</h3>
-              <p className="text-sm text-gray-500">
-                Total Payments:{' '}
-                {periodDetailPayments
-                  .reduce((sum, p) => sum + (p.credit || 0), 0)
-                  .toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}{' '}
-                · Payment Count: {periodDetailPayments.filter(p => p.rawCredit > 0.01).length}
-              </p>
-            </div>
-            <button
-              onClick={() => {
-                setDetailMode('none');
-                setSelectedPeriod(null);
-              }}
-              className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100"
-            >
-              ← Back to list
-            </button>
-          </div>
-          <div className="px-6 pb-6 pt-4 overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr className="text-gray-600 text-center">
-                  <th className="px-4 py-3 text-center">Date</th>
-                  <th className="px-4 py-3 text-center">Customer Name</th>
-                  <th className="px-4 py-3 text-center">Number</th>
-                  <th className="px-4 py-3 text-center">Paid</th>
-                  <th className="px-4 py-3 text-center">Matching</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {periodDetailPayments.map((payment, idx) => (
-                  <tr
-                    key={`${payment.number}-${idx}`}
-                    className={`hover:bg-gray-50 text-center ${payment.credit < 0
-                      ? 'bg-red-50/60'
-                      : payment.matchedOpeningBalance
-                        ? 'bg-emerald-50/60'
-                        : ''
-                      }`}
-                  >
-                    <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
-                    <td className="px-4 py-2 text-gray-700 text-center">{payment.customerName}</td>
-                    <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
-                    <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                      {payment.credit.toLocaleString('en-US', {
+                    <td className="px-5 py-3 text-left">Total</td>
+                    <td className="px-5 py-3 text-center w-40">
+                      {customerTotals.totalPayments.toLocaleString('en-US', {
                         minimumFractionDigits: 2,
                         maximumFractionDigits: 2,
                       })}
                     </td>
-                    <td className="px-4 py-2 text-gray-500 text-center">
-                      {(() => {
-                        const matchIdRaw = payment.matching ? payment.matching.toString().trim() : '';
-                        if (!matchIdRaw) return '—';
+                    <td className="px-5 py-3 text-center w-40">{customerTotals.paymentCount}</td>
+                    <td className="px-5 py-3 text-center w-40">-</td>
+                    <td className="px-5 py-3 text-center w-40">-</td>
+                    <td className="px-5 py-3 text-center w-40"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )
+      }
 
-                        const matchIdKey = matchIdRaw.toLowerCase();
-                        const isOB = obMatchingIds.has(matchIdKey);
-                        const dates = matchIdToDateMap.has(matchIdKey) ? matchIdToDateMap.get(matchIdKey)! : [];
+      {/* Customer Details - Sub Page */}
+      {
+        activeSubTab === 'customer' && detailMode === 'customer' && selectedCustomer && (
+          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-in fade-in slide-in-from-right-4">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedCustomer.customerName}</h3>
+                <p className="text-sm text-gray-500 mt-1">Detailed payment history analysis</p>
+              </div>
+              <button
+                onClick={() => {
+                  setDetailMode('none');
+                  setSelectedCustomer(null);
+                  setLastCustomerSelection(null);
+                }}
+                className="px-4 py-2 bg-white border border-gray-300 shadow-sm text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors flex items-center gap-2"
+              >
+                <span>←</span> Back to list
+              </button>
+            </div>
 
-                        const badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[] = [];
+            {/* Scrollable Content */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
 
-                        if (isOB) {
-                          badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
+              {/* Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="p-5 rounded-xl bg-emerald-50 border border-emerald-100 flex flex-col items-center text-center">
+                  <span className="text-emerald-600 font-medium text-sm uppercase tracking-wider mb-1">Total Collected</span>
+                  <span className="text-3xl font-bold text-emerald-700">
+                    {customerDetailPayments
+                      .reduce((sum, p) => sum + (p.credit || 0), 0)
+                      .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+
+                <div className="p-5 rounded-xl bg-cyan-50 border border-cyan-100 flex flex-col items-center text-center">
+                  <span className="text-cyan-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Amount</span>
+                  <span className="text-3xl font-bold text-cyan-700">
+                    {(() => {
+                      const total = customerDetailPayments.reduce((sum, p) => sum + (p.credit || 0), 0);
+                      const count = customerDetailPayments.filter(p => p.rawCredit > 0.01).length;
+                      return (count > 0 ? total / count : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    })()}
+                  </span>
+                </div>
+
+                <div className="p-5 rounded-xl bg-blue-50 border border-blue-100 flex flex-col items-center text-center">
+                  <span className="text-blue-600 font-medium text-sm uppercase tracking-wider mb-1">Payment Count</span>
+                  <span className="text-3xl font-bold text-blue-700">
+                    {customerDetailPayments.filter(p => p.rawCredit > 0.01).length}
+                  </span>
+                </div>
+
+                <div className="p-5 rounded-xl bg-purple-50 border border-purple-100 flex flex-col items-center text-center">
+                  <span className="text-purple-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Days</span>
+                  <span className="text-3xl font-bold text-purple-700">
+                    {Math.round(customerAvgDays)} <span className="text-lg font-normal text-purple-600">days</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* Chart */}
+              <div className="bg-white rounded-xl p-4 h-80">
+                <h4 className="text-xl font-bold text-gray-800 mb-4 px-2">Payments Last 12 Months</h4>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={customerChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorPayment" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
+                        <stop offset="95%" stopColor="#2563EB" stopOpacity={0.8} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="name"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fill: '#374151', fontSize: 13, fontWeight: '600' }}
+                      dy={10}
+                    />
+                    <YAxis hide />
+                    <Tooltip
+                      cursor={{ fill: '#EFF6FF', radius: 4 }}
+                      content={({ active, payload, label }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white p-3 rounded-xl shadow-xl border border-blue-100 text-sm">
+                              <p className="font-bold text-gray-800 mb-1">{label}</p>
+                              <div className="flex items-baseline gap-2">
+                                <span className="text-2xl font-bold text-blue-600">
+                                  {new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(data.amount)}
+                                </span>
+                                <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">AED</span>
+                              </div>
+                              <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-4">
+                                <span className="text-gray-500 text-xs">Transactions</span>
+                                <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full text-xs">
+                                  {data.count}
+                                </span>
+                              </div>
+                            </div>
+                          );
                         }
+                        return null;
+                      }}
+                    />
+                    <Bar
+                      dataKey="amount"
+                      name="Amount"
+                      fill="url(#colorPayment)"
+                      radius={[6, 6, 0, 0]}
+                      barSize={40}
+                      activeBar={{ fill: '#1D4ED8' }}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
 
-                        dates.forEach((d) => {
-                          const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                          if (!badges.some((b) => b.label === label)) {
-                            badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
+              {/* Data Table */}
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-12">
+                <div className="px-5 py-3 border-b bg-gray-50">
+                  <h4 className="font-semibold text-gray-800">Payment History</h4>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr className="text-gray-600 text-center">
+                        <th className="px-4 py-3 text-center">Date</th>
+                        <th className="px-4 py-3 text-center">Number</th>
+                        <th className="px-4 py-3 text-center">Paid</th>
+                        <th className="px-4 py-3 text-center">Matching</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(() => {
+                        // Group payments by Number
+                        const groupedMap = new Map<string, {
+                          date: Date | null;
+                          number: string;
+                          totalCredit: number;
+                          matches: { id: string; isOB: boolean }[];
+                          hasNegative: boolean;
+                          hasOB: boolean;
+                        }>();
+
+                        customerDetailPayments.forEach(p => {
+                          const key = p.number.trim().toUpperCase();
+                          if (!groupedMap.has(key)) {
+                            groupedMap.set(key, {
+                              date: p.parsedDate,
+                              number: p.number,
+                              totalCredit: 0,
+                              matches: [],
+                              hasNegative: false,
+                              hasOB: false
+                            });
+                          }
+                          const group = groupedMap.get(key)!;
+                          group.totalCredit += p.credit;
+                          if (p.credit < 0) group.hasNegative = true;
+
+                          if (p.matching) {
+                            const matchId = p.matching.toString().trim(); // Keep original case for display? Or normalize? Usually normalized for lookup.
+                            const matchIdLower = matchId.toLowerCase();
+
+                            // Avoid duplicates in matches list (by checking ID)
+                            if (!group.matches.some(m => m.id.toLowerCase() === matchIdLower)) {
+                              const isOB = p.matchedOpeningBalance; // This was calculated using normalized lower case in useMemo
+                              group.matches.push({ id: matchId, isOB });
+                              if (isOB) group.hasOB = true;
+                            }
                           }
                         });
 
-                        if (!isOB && dates.length === 0) {
-                          badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
-                        }
-
-                        badges.sort((a, b) => {
-                          if (a.type === 'OB' && b.type !== 'OB') return -1;
-                          if (a.type !== 'OB' && b.type === 'OB') return 1;
-                          return a.dateIdx - b.dateIdx;
+                        const groupedPayments = Array.from(groupedMap.values()).sort((a, b) => {
+                          // Sort by date desc
+                          const da = a.date?.getTime() || 0;
+                          const db = b.date?.getTime() || 0;
+                          return db - da;
                         });
 
-                        return (
-                          <div className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full max-w-[200px] mx-auto overflow-hidden transition-all hover:shadow-md">
-                            <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
-                              <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
-                              <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{matchIdRaw}</span>
-                            </div>
-                            <div className="flex flex-wrap justify-center gap-2 p-2.5">
-                              {badges.map((b, bIdx) => {
-                                let colors = '';
-                                if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                                else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
-                                else colors = 'bg-red-50 text-red-500 border-red-200';
+                        if (groupedPayments.length === 0) {
+                          return (
+                            <tr>
+                              <td colSpan={4} className="p-8 text-center text-gray-400">No payments found</td>
+                            </tr>
+                          );
+                        }
 
-                                return (
-                                  <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
-                                    {b.label}
-                                  </span>
-                                );
+                        return groupedPayments.map((group, idx) => (
+                          <tr
+                            key={`${group.number}-${idx}`}
+                            className={`hover:bg-gray-50 text-center ${group.hasNegative
+                              ? 'bg-red-100 border-l-4 border-red-500' // Highlight R-Payment/Negative rows
+                              : group.hasOB
+                                ? 'bg-emerald-50/60'
+                                : ''
+                              }`}
+                          >
+                            <td className="px-4 py-2 text-gray-700 text-center">{formatDate(group.date)}</td>
+                            <td className="px-4 py-2 font-semibold text-gray-900 text-center">{group.number}</td>
+                            <td className={`px-4 py-2 font-semibold text-center text-base ${group.totalCredit < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                              {group.totalCredit.toLocaleString('en-US', {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
                               })}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-      {activeSubTab === 'area' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fadeIn">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
-                  Area Name
-                </th>
-                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
-                  Total Collected
-                </th>
-                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
-                  Payment Count
-                </th>
-                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-blue-700 uppercase tracking-wider">
-                  Avg Payment Amount
-                </th>
-                <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-orange-700 uppercase tracking-wider">
-                  Avg Days Between Payments
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200 text-base">
-              {areaStats.map((area) => (
-                <tr key={area.repName} className="hover:bg-gray-50 transition-colors">
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 text-center">
-                    {area.repName}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-bold text-emerald-600 text-center">
-                    {area.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-gray-700 text-center">
-                    {area.paymentCount.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-blue-600 text-center">
-                    {area.avgPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap font-medium text-orange-600 text-center">
-                    {area.avgCollectionDays.toFixed(1)} days
-                  </td>
-                </tr>
-              ))}
-              {areaStats.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                    No data available for the selected filters
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {areaStats.length > 0 && (
-              <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold text-base">
-                <tr>
-                  <td className="px-6 py-4 text-center text-gray-900">Total / Average</td>
-                  <td className="px-6 py-4 text-center text-emerald-700">
-                    {areaStats.reduce((acc, curr) => acc + curr.totalCollected, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4 text-center text-gray-800">
-                    {areaStats.reduce((acc, curr) => acc + curr.paymentCount, 0).toLocaleString('en-US')}
-                  </td>
-                  <td className="px-6 py-4 text-center text-blue-700">
-                    {(areaStats.reduce((acc, curr) => acc + curr.totalCollected, 0) / areaStats.reduce((acc, curr) => acc + curr.paymentCount, 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </td>
-                  <td className="px-6 py-4 text-center text-orange-700">
-                    -
-                  </td>
-                </tr>
-              </tfoot>
-            )}
-          </table>
-        </div>
-      )}
+                            </td>
+                            <td className="px-4 py-2 text-center text-gray-500">
+                              {group.matches.length === 0 ? '—' : (
+                                <div className="flex flex-col gap-2 items-center w-full max-w-[200px] mx-auto">
+                                  {(() => {
+                                    // First, group everything by ID to handle the visual grouping
+                                    const matchesById = new Map<string, {
+                                      id: string;
+                                      badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[];
+                                    }>();
 
-      {/* Analysis Tab Content */}
-      {activeSubTab === 'analysis' && (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-center border-collapse">
-              <thead>
-                <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
-                  <th className="py-4 px-6 font-semibold w-[15%] text-center">Collection Month</th>
-                  <th className="py-4 px-6 font-semibold w-[15%] text-center">Total Collected</th>
-                  <th className="py-4 px-6 font-semibold w-[15%] text-center">Year Summary</th>
-                  <th className="py-4 px-6 font-semibold text-center">Breakdown (Source & Amount)</th>
-                </tr>
-              </thead>
-              <tbody className="text-gray-700">
-                {breakdownStats.map((item) => (
-                  <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                    <td className="py-4 px-6 align-middle text-center">
-                      <div className="font-semibold text-gray-900">{item.monthLabel}</div>
+                                    group.matches.forEach(m => {
+                                      const matchIdRaw = m.id; // Display ID
+                                      const matchIdKey = m.id.toLowerCase(); // Lookup Key
+
+                                      if (!matchesById.has(matchIdKey)) {
+                                        matchesById.set(matchIdKey, { id: matchIdRaw, badges: [] });
+                                      }
+                                      const entry = matchesById.get(matchIdKey)!;
+
+                                      if (m.isOB) {
+                                        // Avoid dupes if already added
+                                        if (!entry.badges.some(b => b.type === 'OB')) {
+                                          entry.badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
+                                        }
+                                      }
+
+                                      if (matchIdToDateMap.has(matchIdKey)) {
+                                        const dates = matchIdToDateMap.get(matchIdKey)!;
+                                        dates.forEach(d => {
+                                          const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                                          // Avoid dupes
+                                          if (!entry.badges.some(b => b.label === label)) {
+                                            entry.badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
+                                          }
+                                        });
+                                      }
+
+                                      // If no OB and no Dates found, add Invalid
+                                      if (!m.isOB && (!matchIdToDateMap.has(matchIdKey) || matchIdToDateMap.get(matchIdKey)!.length === 0)) {
+                                        if (!entry.badges.some(b => b.type === 'INVALID')) {
+                                          entry.badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
+                                        }
+                                      }
+                                    });
+
+                                    // Convert to array and Sort Badges within each ID
+                                    const renderGroups = Array.from(matchesById.values()).map(g => {
+                                      g.badges.sort((a, b) => {
+                                        if (a.type === 'OB' && b.type !== 'OB') return -1;
+                                        if (a.type !== 'OB' && b.type === 'OB') return 1;
+                                        return a.dateIdx - b.dateIdx;
+                                      });
+                                      return g;
+                                    });
+
+                                    return renderGroups.map((g, idx) => (
+                                      <div key={`${g.id}-${idx}`} className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden transition-all hover:shadow-md">
+                                        <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
+                                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
+                                          <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{g.id}</span>
+                                        </div>
+                                        <div className="flex flex-wrap justify-center gap-2 p-2.5">
+                                          {g.badges.map((b, bIdx) => {
+                                            let colors = '';
+                                            if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                            else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
+                                            else colors = 'bg-red-50 text-red-500 border-red-200';
+
+                                            return (
+                                              <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
+                                                {b.label}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    ));
+                                  })()}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ));
+                      })()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )
+      }
+
+      {/* Payment by Period - Main List */}
+      {
+        activeSubTab === 'period' && detailMode === 'none' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-semibold">Period</th>
+                    <th className="px-5 py-3 text-center font-semibold">Total Payments</th>
+                    <th className="px-5 py-3 text-center font-semibold">Payment Count</th>
+                    <th className="px-5 py-3 text-center font-semibold">Customer Count</th>
+                    <th className="px-5 py-3 text-center font-semibold">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {filteredByPeriod.map((item, index) => {
+                    const customerCount = new Set(
+                      item.payments.map((p) => p.customerName.trim().toLowerCase()),
+                    ).size;
+                    return (
+                      <tr key={item.periodKey} className="bg-white hover:bg-blue-50/40 transition-colors">
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-green-50 text-green-600 flex items-center justify-center font-bold">
+                              {index + 1}
+                            </div>
+                            <div className="font-semibold text-gray-900">{item.period}</div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-center font-semibold text-gray-900">
+                          {item.totalPayments.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-green-50 text-green-700 border border-green-200">
+                            {item.paymentCount}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                            {customerCount}
+                          </span>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <button
+                            onClick={() => {
+                              setSelectedPeriod(item);
+                              setDetailMode('period');
+                              setLastPeriodSelection((prev) => ({
+                                ...prev,
+                                [periodType]: item.periodKey,
+                              }));
+                            }}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-semibold"
+                          >
+                            View Details
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  {filteredByPeriod.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                        No payments match your search.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
+                  <tr>
+                    <td className="px-5 py-3 text-left">Total</td>
+                    <td className="px-5 py-3 text-center">
+                      {periodTotals.totalPayments.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </td>
-                    <td className="py-4 px-6 align-middle text-center">
-                      <div className="font-bold text-green-700">
-                        {item.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 align-middle text-center">
-                      <div className="flex flex-wrap gap-2 justify-center">
+                    <td className="px-5 py-3 text-center">{periodTotals.paymentCount}</td>
+                    <td className="px-5 py-3 text-center">{periodTotals.customerCount}</td>
+                    <td className="px-5 py-3"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+
+
+      {/* Period Details - Full Page inside tab */}
+      {
+        activeSubTab === 'period' && detailMode === 'period' && selectedPeriod && (
+          <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b bg-gray-50">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">{selectedPeriod.period}</h3>
+                <p className="text-sm text-gray-500">
+                  Total Payments:{' '}
+                  {periodDetailPayments
+                    .reduce((sum, p) => sum + (p.credit || 0), 0)
+                    .toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}{' '}
+                  · Payment Count: {periodDetailPayments.filter(p => p.rawCredit > 0.01).length}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setDetailMode('none');
+                  setSelectedPeriod(null);
+                }}
+                className="px-3 py-1.5 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 hover:bg-gray-100"
+              >
+                ← Back to list
+              </button>
+            </div>
+            <div className="px-6 pb-6 pt-4 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr className="text-gray-600 text-center">
+                    <th className="px-4 py-3 text-center">Date</th>
+                    <th className="px-4 py-3 text-center">Customer Name</th>
+                    <th className="px-4 py-3 text-center">Number</th>
+                    <th className="px-4 py-3 text-center">Paid</th>
+                    <th className="px-4 py-3 text-center">Matching</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {periodDetailPayments.map((payment, idx) => (
+                    <tr
+                      key={`${payment.number}-${idx}`}
+                      className={`hover:bg-gray-50 text-center ${payment.credit < 0
+                        ? 'bg-red-50/60'
+                        : payment.matchedOpeningBalance
+                          ? 'bg-emerald-50/60'
+                          : ''
+                        }`}
+                    >
+                      <td className="px-4 py-2 text-gray-700 text-center">{formatDate(payment.parsedDate)}</td>
+                      <td className="px-4 py-2 text-gray-700 text-center">{payment.customerName}</td>
+                      <td className="px-4 py-2 font-semibold text-gray-900 text-center">{payment.number}</td>
+                      <td className={`px-4 py-2 font-semibold text-center text-base ${payment.credit < 0 ? 'text-red-700' : 'text-green-700'}`}>
+                        {payment.credit.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </td>
+                      <td className="px-4 py-2 text-gray-500 text-center">
                         {(() => {
-                          const yearSummary = new Map<string, number>();
-                          Array.from(item.breakdown.entries()).forEach(([label, amount]) => {
-                            let key = 'Other';
-                            if (label === 'OB') key = 'OB';
-                            else if (label === 'ADV') key = 'ADV';
-                            else if (label !== 'Unmatched') {
-                              // Extract Year from MMMYY (e.g. Jan25 -> 25)
-                              // Or full year if needed, user said "25", "26".
-                              const y = label.slice(-2);
-                              if (!isNaN(parseInt(y))) key = `20${y}`;
-                            } else {
-                              key = label; // Unmatched
+                          const matchIdRaw = payment.matching ? payment.matching.toString().trim() : '';
+                          if (!matchIdRaw) return '—';
+
+                          const matchIdKey = matchIdRaw.toLowerCase();
+                          const isOB = obMatchingIds.has(matchIdKey);
+                          const dates = matchIdToDateMap.has(matchIdKey) ? matchIdToDateMap.get(matchIdKey)! : [];
+
+                          const badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[] = [];
+
+                          if (isOB) {
+                            badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
+                          }
+
+                          dates.forEach((d) => {
+                            const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+                            if (!badges.some((b) => b.label === label)) {
+                              badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
                             }
-                            yearSummary.set(key, (yearSummary.get(key) || 0) + amount);
                           });
 
-                          // Sort years: OB first, then Years desc, then ADV/Unmatched
-                          return Array.from(yearSummary.entries())
-                            .sort(([aKey], [bKey]) => {
-                              if (aKey === 'OB') return -1;
-                              if (bKey === 'OB') return 1;
-                              if (aKey === 'ADV') return 1; // Put ADV at end or near end
-                              if (bKey === 'ADV') return -1;
-                              if (!isNaN(parseInt(aKey)) && !isNaN(parseInt(bKey))) return bKey.localeCompare(aKey);
-                              return aKey.localeCompare(bKey);
-                            })
-                            .map(([yLabel, yAmount]) => (
-                              <div key={yLabel} className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-800 rounded-full text-xs font-medium border border-purple-100">
-                                <span className="opacity-75">{yLabel}</span>
-                                <span className="font-bold">
-                                  {yAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </span>
+                          if (!isOB && dates.length === 0) {
+                            badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
+                          }
+
+                          badges.sort((a, b) => {
+                            if (a.type === 'OB' && b.type !== 'OB') return -1;
+                            if (a.type !== 'OB' && b.type === 'OB') return 1;
+                            return a.dateIdx - b.dateIdx;
+                          });
+
+                          return (
+                            <div className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full max-w-[200px] mx-auto overflow-hidden transition-all hover:shadow-md">
+                              <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
+                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
+                                <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{matchIdRaw}</span>
                               </div>
-                            ));
-                        })()}
-                      </div>
-                    </td>
-                    <td className="py-4 px-6 align-middle">
-                      <div className="flex flex-wrap gap-2 justify-center">
-                        {Array.from(item.breakdown.entries())
-                          // Sort priority: OB first, then date-based?
-                          // Source labels are 'OB', 'MMM YY', 'Unmatched', 'ADV'.
-                          // We can sort simply by label, or put OB first.
-                          .sort(([aLabel], [bLabel]) => {
-                            const getScore = (lbl: string) => {
-                              if (lbl === 'OB') return 9999999;
-                              if (lbl === 'Unmatched') return -9999999;
-                              if (lbl === 'ADV') return -9999998;
+                              <div className="flex flex-wrap justify-center gap-2 p-2.5">
+                                {badges.map((b, bIdx) => {
+                                  let colors = '';
+                                  if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                                  else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
+                                  else colors = 'bg-red-50 text-red-500 border-red-200';
 
-                              // Parse MmmYY (e.g. May25)
-                              const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                              const mStr = lbl.substring(0, 3);
-                              const yStr = lbl.substring(3);
-                              const mIdx = monthNames.indexOf(mStr);
-                              const yInt = parseInt(yStr, 10);
-
-                              if (mIdx >= 0 && !isNaN(yInt)) {
-                                // Score = YY * 100 + MonthIndex. e.g. 2500 for Jan 25, 2501 for Feb 25
-                                return (yInt * 100) + mIdx;
-                              }
-                              return -1; // Unknown format
-                            };
-
-                            // Descending sort (Higher score first)
-                            return getScore(bLabel) - getScore(aLabel);
-                          })
-                          .map(([label, amount]) => (
-                            <div key={label} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-800 rounded-full text-xs font-medium border border-blue-100">
-                              <span className="opacity-75">{label}</span>
-                              <span className="font-bold">
-                                {amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                              </span>
+                                  return (
+                                    <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
+                                      {b.label}
+                                    </span>
+                                  );
+                                })}
+                              </div>
                             </div>
-                          ))}
-                      </div>
+                          );
+                        })()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+      {
+        activeSubTab === 'area' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden animate-fadeIn">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
+                    Area Name
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
+                    Total Collected
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-gray-600 uppercase tracking-wider">
+                    Payment Count
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-blue-700 uppercase tracking-wider">
+                    Avg Payment Amount
+                  </th>
+                  <th scope="col" className="px-6 py-4 text-center text-sm font-bold text-orange-700 uppercase tracking-wider">
+                    Avg Days Between Payments
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200 text-base">
+                {areaStats.map((area) => (
+                  <tr key={area.repName} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-gray-900 text-center">
+                      {area.repName}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-bold text-emerald-600 text-center">
+                      {area.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-gray-700 text-center">
+                      {area.paymentCount.toLocaleString('en-US')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-blue-600 text-center">
+                      {area.avgPaymentAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-orange-600 text-center">
+                      {area.avgCollectionDays.toFixed(1)} days
                     </td>
                   </tr>
                 ))}
-                {breakdownStats.length === 0 && (
+                {areaStats.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="py-8 text-center text-gray-500">
-                      No payment data found for the selected period.
+                    <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                      No data available for the selected filters
                     </td>
                   </tr>
                 )}
               </tbody>
+              {areaStats.length > 0 && (
+                <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold text-base">
+                  <tr>
+                    <td className="px-6 py-4 text-center text-gray-900">Total / Average</td>
+                    <td className="px-6 py-4 text-center text-emerald-700">
+                      {areaStats.reduce((acc, curr) => acc + curr.totalCollected, 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 text-center text-gray-800">
+                      {areaStats.reduce((acc, curr) => acc + curr.paymentCount, 0).toLocaleString('en-US')}
+                    </td>
+                    <td className="px-6 py-4 text-center text-blue-700">
+                      {(areaStats.reduce((acc, curr) => acc + curr.totalCollected, 0) / areaStats.reduce((acc, curr) => acc + curr.paymentCount, 0)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 text-center text-orange-700">
+                      -
+                    </td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
-        </div>
-      )}
+        )
+      }
 
-    </div>
+      {/* Analysis Tab Content */}
+      {
+        activeSubTab === 'analysis' && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-center border-collapse">
+                <thead>
+                  <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
+                    <th className="py-4 px-6 font-semibold w-[15%] text-center">Collection Month</th>
+                    <th className="py-4 px-6 font-semibold w-[15%] text-center">Total Collected</th>
+                    <th className="py-4 px-6 font-semibold w-[15%] text-center">Year Summary</th>
+                    <th className="py-4 px-6 font-semibold text-center">Breakdown (Source & Amount)</th>
+                  </tr>
+                </thead>
+                <tbody className="text-gray-700">
+                  {breakdownStats.map((item) => (
+                    <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="py-4 px-6 align-middle text-center">
+                        <div className="font-semibold text-gray-900">{item.monthLabel}</div>
+                      </td>
+                      <td className="py-4 px-6 align-middle text-center">
+                        <div className="font-bold text-green-700">
+                          {item.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-middle text-center">
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {(() => {
+                            const yearSummary = new Map<string, number>();
+                            Array.from(item.breakdown.entries()).forEach(([label, amount]) => {
+                              let key = 'Other';
+                              if (label === 'OB') key = 'OB';
+                              else if (label === 'ADV') key = 'ADV';
+                              else if (label !== 'Unmatched') {
+                                // Extract Year from MMMYY (e.g. Jan25 -> 25)
+                                // Or full year if needed, user said "25", "26".
+                                const y = label.slice(-2);
+                                if (!isNaN(parseInt(y))) key = `20${y}`;
+                              } else {
+                                key = label; // Unmatched
+                              }
+                              yearSummary.set(key, (yearSummary.get(key) || 0) + amount);
+                            });
+
+                            // Sort years: OB first, then Years desc, then ADV/Unmatched
+                            return Array.from(yearSummary.entries())
+                              .sort(([aKey], [bKey]) => {
+                                if (aKey === 'OB') return -1;
+                                if (bKey === 'OB') return 1;
+                                if (aKey === 'ADV') return 1; // Put ADV at end or near end
+                                if (bKey === 'ADV') return -1;
+                                if (!isNaN(parseInt(aKey)) && !isNaN(parseInt(bKey))) return bKey.localeCompare(aKey);
+                                return aKey.localeCompare(bKey);
+                              })
+                              .map(([yLabel, yAmount]) => (
+                                <div key={yLabel} className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-800 rounded-full text-xs font-medium border border-purple-100">
+                                  <span className="opacity-75">{yLabel}</span>
+                                  <span className="font-bold">
+                                    {yAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                  </span>
+                                </div>
+                              ));
+                          })()}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6 align-middle">
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {Array.from(item.breakdown.entries())
+                            // Sort priority: OB first, then date-based?
+                            // Source labels are 'OB', 'MMM YY', 'Unmatched', 'ADV'.
+                            // We can sort simply by label, or put OB first.
+                            .sort(([aLabel], [bLabel]) => {
+                              const getScore = (lbl: string) => {
+                                if (lbl === 'OB') return 9999999;
+                                if (lbl === 'Unmatched') return -9999999;
+                                if (lbl === 'ADV') return -9999998;
+
+                                // Parse MmmYY (e.g. May25)
+                                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                                const mStr = lbl.substring(0, 3);
+                                const yStr = lbl.substring(3);
+                                const mIdx = monthNames.indexOf(mStr);
+                                const yInt = parseInt(yStr, 10);
+
+                                if (mIdx >= 0 && !isNaN(yInt)) {
+                                  // Score = YY * 100 + MonthIndex. e.g. 2500 for Jan 25, 2501 for Feb 25
+                                  return (yInt * 100) + mIdx;
+                                }
+                                return -1; // Unknown format
+                              };
+
+                              // Descending sort (Higher score first)
+                              return getScore(bLabel) - getScore(aLabel);
+                            })
+                            .map(([label, amount]) => (
+                              <div key={label} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-800 rounded-full text-xs font-medium border border-blue-100">
+                                <span className="opacity-75">{label}</span>
+                                <span className="font-bold">
+                                  {amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                            ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {breakdownStats.length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-gray-500">
+                        No payment data found for the selected period.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      }
+
+    </div >
   );
 }
 

@@ -295,15 +295,62 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
     onPaginationChange: setPagination,
   });
 
+  const exportToExcel = () => {
+    // Create CSV content
+    const headers = ['Customer Name', 'Date', 'Invoice Number', 'Type', 'Debit', 'Credit', 'Net Amount', 'Matching'];
+    const csvRows = [headers.join(',')];
+
+    filteredItems.forEach(item => {
+      const row = [
+        `"${item.customerName.replace(/"/g, '""')}"`,
+        item.date.toLocaleDateString('en-US'),
+        `"${item.number.replace(/"/g, '""')}"`,
+        item.type,
+        item.debit.toFixed(2),
+        item.credit.toFixed(2),
+        item.netAmount.toFixed(2),
+        `"${(item.matching || '').replace(/"/g, '""')}"`
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    // Add totals row
+    const totalDebit = filteredItems.reduce((sum, item) => sum + item.debit, 0);
+    const totalCredit = filteredItems.reduce((sum, item) => sum + item.credit, 0);
+    const totalNet = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
+    csvRows.push(['Total', '', '', '', totalDebit.toFixed(2), totalCredit.toFixed(2), totalNet.toFixed(2), ''].join(','));
+
+    // Create blob and download
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `all_transactions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="p-6">
       <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-3">
           <p className="text-lg">
             <span className="font-semibold">Total Transactions:</span>{' '}
             <span className="text-blue-600">{filteredItems.length}</span>
             {searchQuery && ` of ${allTransactions.length}`}
           </p>
+          <button
+            onClick={exportToExcel}
+            className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+            title="Export to Excel"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+          </button>
         </div>
         <div className="inline-flex items-center bg-white rounded-full shadow-sm border border-blue-100 overflow-hidden text-sm">
           <button

@@ -8,6 +8,21 @@ interface FilterContext {
     endDate?: Date;
     salesRep?: string;
     searchQuery?: string;
+    sourceFilters?: Set<string>;
+    obMatchingIds?: Set<string>;
+    matchIdToDateMap?: Map<string, Date[]>;
+    sections?: {
+        summary?: boolean;
+        summaryPrevious?: boolean;
+        summaryLastYear?: boolean;
+        daily?: boolean;
+        weekly?: boolean;
+        monthly?: boolean;
+        customerList?: boolean;
+        debtAge?: boolean;
+        salesRep?: boolean;
+    };
+    selectedCustomers?: Set<string>;
 }
 
 interface PeriodMetric {
@@ -150,8 +165,90 @@ const formatDate = (date: Date | null): string => {
 };
 
 
+const preprocessAllocations = (rows: InvoiceRow[]) => {
+    const allocMap = new Map<InvoiceRow, { date: Date, amount: number, type: string }[]>();
+    const groups = new Map<string, InvoiceRow[]>();
+
+    // Group by Matching
+    rows.forEach(r => {
+        if (r.matching && r.matching !== 'Unmatched') {
+            const k = r.matching.toString().trim().toLowerCase();
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k)!.push(r);
+        }
+    });
+
+    groups.forEach((group) => {
+        const invoices = group.filter(r => (r.debit || 0) > 0.01);
+        const payments = group.filter(r => (r.credit || 0) > 0.01);
+
+        if (invoices.length === 0 || payments.length === 0) return;
+
+        payments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let holderIdx = -1;
+        let maxDeb = -1;
+        invoices.forEach((inv, i) => {
+            if (inv.debit > maxDeb) {
+                maxDeb = inv.debit;
+                holderIdx = i;
+            }
+        });
+
+        const sortedInvoices = invoices.map((inv, i) => ({ inv, isHolder: i === holderIdx, originalIdx: i }));
+        sortedInvoices.sort((a, b) => {
+            if (a.isHolder && !b.isHolder) return 1;
+            if (!a.isHolder && b.isHolder) return -1;
+            return new Date(a.inv.date).getTime() - new Date(b.inv.date).getTime();
+        });
+
+        const paidSoFar = new Map<number, number>();
+
+        payments.forEach(pay => {
+            let rem = (pay.credit || 0) - (pay.debit || 0);
+            const rowAllocations: { date: Date, amount: number, type: string }[] = [];
+
+            for (const item of sortedInvoices) {
+                if (rem <= 0.001) break;
+
+                const inv = item.inv;
+                const already = paidSoFar.get(item.originalIdx) || 0;
+                const capacity = inv.debit - already;
+
+                if (capacity > 0.001 || item.isHolder) {
+                    let alloc = 0;
+                    if (item.isHolder) {
+                        alloc = rem;
+                    } else {
+                        alloc = Math.min(rem, capacity);
+                    }
+
+                    if (alloc > 0.001) {
+                        const d = parseDate(inv.date);
+                        if (d) {
+                            rowAllocations.push({ date: d, amount: alloc, type: getInvoiceType(inv) });
+                            paidSoFar.set(item.originalIdx, already + alloc);
+                            rem -= alloc;
+                        }
+                    }
+                }
+            }
+
+            if (rem > 0.001) {
+                const d = parseDate(pay.date);
+                if (d) rowAllocations.push({ date: d, amount: rem, type: 'Unmatched' });
+            }
+
+            allocMap.set(pay, rowAllocations);
+        });
+    });
+
+    return allocMap;
+};
+
 export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: FilterContext) => {
-    const doc = new jsPDF();
+    const doc = new jsPDF(); // Default Portrait for Cover Page
+
     const today = new Date();
 
     // 1. Base Filter (Strictly align with PaymentTrackerTab logic + R-Payment fix)
@@ -161,8 +258,16 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         if (t !== 'Payment' && t !== 'R-Payment') return false;
 
         // Filters
-        if (filters.salesRep && filters.salesRep !== 'All Sales Reps' && inv.salesRep?.trim() !== filters.salesRep) return false;
-        if (filters.searchQuery && !inv.customerName.toLowerCase().includes(filters.searchQuery.toLowerCase())) return false;
+        if (filters.selectedCustomers && filters.selectedCustomers.size > 0) {
+            // If specific customers are selected, ONLY filter by customer name (ignore salesRep/searchQuery)
+            if (!filters.selectedCustomers.has(inv.customerName.trim().toLowerCase())) return false;
+        } else {
+            // Standard filters if no specific customers selected
+            if (filters.salesRep && filters.salesRep !== 'All Sales Reps' && inv.salesRep?.trim() !== filters.salesRep) return false;
+            if (filters.searchQuery && !inv.customerName.toLowerCase().includes(filters.searchQuery.toLowerCase())) return false;
+        }
+
+        // Note: Source filter is now applied at allocation fragment level, not here
 
         return true;
     });
@@ -196,6 +301,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     // Ensure boundaries
     if (startDate) startDate.setHours(0, 0, 0, 0);
     if (endDate) endDate.setHours(23, 59, 59, 999);
+
+    // Preprocess Allocations (Distribute payments across invoices using Max Debit Holder logic)
+    const allocationMap = preprocessAllocations(allData);
+
 
     // Helper to sum range
     const sumRange = (start: Date, end: Date) => {
@@ -367,9 +476,9 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
 
     // --- METRICS CALCULATION (Current vs Previous Period) ---
-    const durationMs = endDate!.getTime() - startDate.getTime();
-    const prevEndDate = new Date(startDate.getTime() - 86400000); // 1 day before start
-    const prevStartDate = new Date(prevEndDate.getTime() - durationMs);
+    const diff = endDate!.getTime() - startDate!.getTime();
+    const prevEndDate = new Date(startDate!.getTime() - 1);
+    const prevStartDate = new Date(prevEndDate.getTime() - diff);
 
     // Helper for specific range sums
     const getMetrics = (s: Date, e: Date) => {
@@ -410,9 +519,9 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     const avgTrend = prevAvg > 0 ? ((curAvg - prevAvg) / prevAvg) * 100 : 0;
 
     // Last Year Trends
-    const revenueTrendLY = lyMet.total > 0 ? ((curMet.total - lyMet.total) / lyMet.total) * 100 : 0;
-    const countTrendLY = lyMet.count > 0 ? ((curMet.count - lyMet.count) / lyMet.count) * 100 : 0;
     const custTrendLY = lyMet.uniqueCustomers > 0 ? ((curMet.uniqueCustomers - lyMet.uniqueCustomers) / lyMet.uniqueCustomers) * 100 : 0;
+
+    const hasLYData = lyMet.total > 0 || lyMet.count > 0;
 
 
     // ================= PDF RENDERING =================
@@ -637,486 +746,747 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         });
     };
 
-    // Header
-    // doc.addImage('https://i.ibb.co/6r65S9g/logo.png', 'PNG', 15, 15, 20, 20); // Placeholder
-    doc.setFontSize(22);
-    doc.setTextColor(30, 41, 59);
-    doc.text('Collections Analysis Report', 105, 20, { align: 'center' });
+    // --- COVER PAGE ---
+    let y = 0;
+    const pageW = doc.internal.pageSize.width;
+    const pageH = doc.internal.pageSize.height;
 
+    // Background accent
+    doc.setFillColor(59, 130, 246); // Blue 500
+    doc.rect(0, 0, pageW, 60, 'F');
+
+    // Company Name (Top Center)
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageW / 2, 35, { align: 'center' });
+
+    // Main Title Section
+    doc.setFontSize(32); // Slightly smaller to be safe
+    doc.setTextColor(30, 41, 59); // Slate 800
+    doc.setFont('helvetica', 'bold');
+    doc.text('Collections Analysis Report', pageW / 2, pageH / 2 - 25, { align: 'center' });
+
+    // Decorative Line
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(1.5);
+    doc.line(pageW / 2 - 40, pageH / 2 - 15, pageW / 2 + 40, pageH / 2 - 15);
+
+    // Subtitle / Period
+    doc.setFontSize(18);
+    doc.setTextColor(71, 85, 105); // Slate 600
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Period: ${formatDate(startDate!)} - ${formatDate(endDate!)}`, pageW / 2, pageH / 2 + 10, { align: 'center' });
+
+    if (filters.salesRep) {
+        doc.setFontSize(16);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`Sales Representative: ${filters.salesRep}`, pageW / 2, pageH / 2 + 25, { align: 'center' });
+    }
+
+    // Bottom Branding / Date
     doc.setFontSize(10);
-    doc.setTextColor(100, 116, 139);
-    doc.text(`Period: ${formatDate(startDate!)} - ${formatDate(endDate!)}`, 105, 27, { align: 'center' });
-    if (filters.salesRep) doc.text(`Sales Rep: ${filters.salesRep}`, 105, 32, { align: 'center' });
+    doc.setTextColor(148, 163, 184);
+    doc.text(`Report Generation Date: ${today.toLocaleString()}`, pageW / 2, pageH - 30, { align: 'center' });
+    doc.text('Confidential Analysis Document', pageW / 2, pageH - 25, { align: 'center' });
 
+    // Resetting y for sections (actually each section will define its own startY or y)
+    y = 40;
 
-    // --- EXECUTIVE SUMMARY PAGE ---
-    let y = 40;
+    if (filters.sections?.summary !== false) {
+        doc.addPage('a4', 'landscape');
 
-    const cardW = 58;
-    const cardH = 35; // Slightly shorter to fit 3 rows
-    const gap = 6;
-    const rowGap = 50; // Space between rows (includes title)
-
-    // Helper to draw a full row of metrics
-    const drawMetricsRow = (
-        rowY: number,
-        title: string,
-        metrics: { total: number, count: number, uniqueCustomers: number },
-        trends: {
-            rev?: number, count?: number, cust?: number,
-            revLY?: number, countLY?: number, custLY?: number
-        } | null,
-        periodType: 'Current' | 'Previous' | 'LastYear'
-    ) => {
-        // Row Title
-        doc.setFontSize(11);
+        // --- PAGE TITLE ---
+        doc.setFontSize(20);
         doc.setTextColor(30, 41, 59);
         doc.setFont('helvetica', 'bold');
-        doc.text(title, 14, rowY - 5);
+        doc.text('Executive Summary Report', 148, 20, { align: 'center' });
 
-        // 1. Collections (Blue)
-        let revTrend = null;
-        if (periodType === 'Current' && trends && trends.rev !== undefined && trends.revLY !== undefined) {
-            revTrend = { prev: trends.rev, ly: trends.revLY };
+        // Period Subtitle removed as requested
+
+        // --- BACKGROUND ---
+        // Light gray background for the whole dashboard area
+        doc.setFillColor(248, 250, 252); // Slate 50
+        doc.rect(0, 40, 297, 170, 'F');
+
+        // --- LAYOUT & ALIGNMENT ---
+        const startY = 45;
+        const pageMargin = 12;
+        const colGap = 6;
+        const totalW = 297 - (2 * pageMargin);
+
+        // Granular toggles
+        const showPrev = filters.sections?.summaryPrevious !== false;
+        const showLY = filters.sections?.summaryLastYear !== false && hasLYData;
+
+        // Count visible columns
+        const visibleCols = [true, showPrev, showLY].filter(Boolean).length;
+        const colW = (totalW - (visibleCols - 1) * colGap) / visibleCols;
+
+        // Assign positions based on visibility
+        let nextX = pageMargin;
+        const getX = () => {
+            const currentX = nextX;
+            nextX += colW + colGap;
+            return currentX;
+        };
+
+        const posX1 = getX();
+        const posX2 = showPrev ? getX() : -1000; // Use a value far off-screen if not visible
+        const posX3 = showLY ? getX() : -1000; // Use a value far off-screen if not visible
+
+        // Container Helper
+        const drawContainer = (x: number, y: number, w: number, h: number, title: string, subtitle: string, isHero: boolean) => {
+            // Shadow
+            doc.setFillColor(226, 232, 240); // Slate 200
+            doc.roundedRect(x + 1, y + 1, w, h, 3, 3, 'F');
+            // Bg
+            doc.setFillColor(255, 255, 255);
+            doc.roundedRect(x, y, w, h, 3, 3, 'F');
+
+            // Header Border
+            if (isHero) {
+                doc.setDrawColor(59, 130, 246); // Blue top border
+                doc.setLineWidth(1);
+                doc.line(x + 1, y, x + w - 1, y);
+            }
+
+            // Title
+            doc.setFontSize(isHero ? 13 : 12);
+            doc.setTextColor(isHero ? 15 : 71, isHero ? 23 : 85, isHero ? 42 : 116);
+            doc.setFont('helvetica', 'bold');
+            doc.text(title, x + 6, y + 8);
+
+            // Subtitle
+            doc.setFontSize(11);
+            doc.setTextColor(148, 163, 184); // Slate 400
+            doc.setFont('helvetica', 'normal');
+            doc.text(subtitle, x + 6, y + 14);
+        };
+
+        // Stat Row Helper that enforces alignment
+        const drawAlignedRow = (
+            x: number, y: number, w: number,
+            label: string,
+            value: string,
+            trend: number | null,
+            iconColor: [number, number, number],
+            isHeroCol: boolean
+        ) => {
+            const rowH = 16; // Standard Height
+
+            // Icon
+            doc.setFillColor(...iconColor);
+            doc.circle(x + 5, y + 6, 2.5, 'F');
+
+            // Label
+            doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139);
+            doc.setFont('helvetica', 'normal');
+            doc.text(label, x + 10, y + 9);
+
+            // Value (Right aligned)
+            const rightMargin = isHeroCol ? 34 : 10;
+            doc.setFontSize(11);
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'bold');
+            doc.text(value, x + w - rightMargin, y + 9, { align: 'right' });
+
+            // Trend Pill (Hero only)
+            if (trend !== null && isHeroCol) {
+                const isPos = trend >= 0;
+                const trendColor = isPos ? [220, 252, 231] : [254, 226, 226]; // Green 100 vs Red 100
+                const trendText = isPos ? [22, 163, 74] : [220, 38, 38]; // Green 600 vs Red 600
+                const sym = isPos ? '+' : '';
+                const txt = `${sym}${trend.toFixed(1)}%`;
+
+                doc.setFillColor(...(trendColor as [number, number, number]));
+                doc.roundedRect(x + w - 30, y + 3, 28, 11, 3, 3, 'F'); // Shifted right
+
+                doc.setFontSize(9);
+                doc.setTextColor(...(trendText as [number, number, number]));
+                doc.setFont('helvetica', 'bold');
+                doc.text(txt, x + w - 16, y + 10, { align: 'center' }); // Centered
+            }
+
+            // Dashed Separator
+            doc.setDrawColor(241, 245, 249);
+            doc.setLineWidth(0.1);
+            doc.line(x + 6, y + rowH, x + w - 6, y + rowH);
+
+            return rowH;
+        };
+
+        const hMain = 135;
+
+        // Draw Containers
+        drawContainer(posX1, startY, colW, hMain, 'Current Period Performance', `${formatDate(startDate!)} - ${formatDate(endDate!)}`, true);
+        if (showPrev) {
+            drawContainer(posX2, startY, colW, hMain, 'Previous Period', `${formatDate(prevStartDate)} - ${formatDate(prevEndDate)}`, false);
+        }
+        if (showLY) {
+            drawContainer(posX3, startY, colW, hMain, 'Same Period Last Year', `${formatDate(lyStartDate)} - ${formatDate(lyEndDate)}`, false);
+        }
+        // --- ROW ALIGNMENT LOGIC ---
+        // Big Revenue Card Height in Hero Col
+        const heroCardH = 34;
+        const heroCardY = startY + 20;
+
+        // Draw Hero Revenue Card
+        // --- ROW ALIGNMENT LOGIC ---
+        // Revenue Cards (Top Row of each column)
+        const revCardH = 42; // Reduced height (was 58)
+        const revCardY = startY + 20;
+
+        // Helper: Draw Revenue Card
+        const drawRevenueCard = (
+            x: number,
+            w: number,
+            amount: string,
+            isHero: boolean
+        ) => {
+            // Card Bg
+            if (isHero) {
+                doc.setFillColor(59, 130, 246); // Blue 500
+                doc.roundedRect(x + 6, revCardY, w - 12, revCardH, 4, 4, 'F');
+                doc.setTextColor(255, 255, 255);
+            } else {
+                doc.setFillColor(241, 245, 249); // Slate 100
+                doc.roundedRect(x + 6, revCardY, w - 12, revCardH, 4, 4, 'F');
+                doc.setTextColor(100, 116, 139); // Slate 500
+            }
+
+            // Title
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Total Collections', x + 14, revCardY + 12);
+
+            // Amount
+            doc.setFontSize(isHero ? 24 : 20);
+            doc.setFont('helvetica', 'bold');
+            if (isHero) doc.setTextColor(255, 255, 255);
+            else doc.setTextColor(30, 41, 59);
+
+            // Draw amount
+            doc.text(amount, x + 14, revCardY + 30);
+        };
+
+        // Draw Revenue Cards
+        drawRevenueCard(posX1, colW, `${curMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, true);
+        if (showPrev) {
+            drawRevenueCard(posX2, colW, `${prevMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, false);
+        }
+        if (showLY) {
+            drawRevenueCard(posX3, colW, `${lyMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, false);
+        }
+        // Helper: Draw Metric Block (Replaces aligned row)
+        const drawMetricBlock = (
+            x: number,
+            y: number,
+            w: number,
+            label: string,
+            value: string,
+            trend: number | null
+        ) => {
+            // Label Centered
+            doc.setFontSize(10);
+            doc.setTextColor(148, 163, 184); // Slate 400
+            doc.setFont('helvetica', 'normal');
+            doc.text(label, x + w / 2, y + 5, { align: 'center' });
+
+            const boxY = y + 10;
+            const boxH = 14;
+
+            if (trend !== null) {
+                // Two Boxes: Value & Trend
+                const valBoxW = 32;
+                const trendBoxW = 32;
+                const gap = 4;
+                const totalContentW = valBoxW + trendBoxW + gap;
+                const startX = x + (w - totalContentW) / 2;
+
+                // 1. Value Box
+                doc.setFillColor(241, 245, 249); // Slate 100
+                doc.roundedRect(startX, boxY, valBoxW, boxH, 3, 3, 'F');
+                doc.setFontSize(12);
+                doc.setTextColor(30, 41, 59);
+                doc.setFont('helvetica', 'bold');
+                doc.text(value, startX + valBoxW / 2, boxY + 9, { align: 'center' });
+
+                // 2. Trend Box
+                const isPos = trend >= 0;
+                const trendColor = isPos ? [220, 252, 231] : [254, 226, 226];
+                const trendText = isPos ? [22, 163, 74] : [220, 38, 38];
+                const sym = isPos ? '+' : '';
+                const txt = `${sym}${trend.toFixed(1)}%`;
+
+                doc.setFillColor(...(trendColor as [number, number, number]));
+                doc.roundedRect(startX + valBoxW + gap, boxY, trendBoxW, boxH, 3, 3, 'F');
+                doc.setFontSize(10);
+                doc.setTextColor(...(trendText as [number, number, number]));
+                doc.text(txt, startX + valBoxW + gap + trendBoxW / 2, boxY + 9, { align: 'center' });
+
+            } else {
+                // One Box: Value Only
+                const valBoxW = 40;
+                const startX = x + (w - valBoxW) / 2;
+
+                doc.setFillColor(241, 245, 249); // Slate 100
+                doc.roundedRect(startX, boxY, valBoxW, boxH, 3, 3, 'F');
+                doc.setFontSize(12);
+                doc.setTextColor(30, 41, 59);
+                doc.setFont('helvetica', 'bold');
+                doc.text(value, startX + valBoxW / 2, boxY + 9, { align: 'center' });
+            }
+        };
+
+        const rowStartY = revCardY + revCardH + 16; // Increased gap after header
+        const rowGap_Metric = 32; // Increased gap for taller blocks
+
+        // --- DRAW ROWS ---
+        // Row 1: Active Customers
+        let yRow = rowStartY;
+        drawMetricBlock(posX1, yRow, colW, 'Active Customers', `${curMet.uniqueCustomers}`, custTrend);
+        if (showPrev) {
+            drawMetricBlock(posX2, yRow, colW, 'Active Customers', `${prevMet.uniqueCustomers}`, null);
+        }
+        if (showLY) {
+            drawMetricBlock(posX3, yRow, colW, 'Active Customers', `${lyMet.uniqueCustomers}`, null);
+        }
+        // Row 2: Transactions
+        yRow += rowGap_Metric;
+        drawMetricBlock(posX1, yRow, colW, 'Total Transactions', `${curMet.count}`, countTrend);
+        if (showPrev) {
+            drawMetricBlock(posX2, yRow, colW, 'Transactions', `${prevMet.count}`, null);
+        }
+        if (showLY) {
+            drawMetricBlock(posX3, yRow, colW, 'Transactions', `${lyMet.count}`, null);
         }
 
-        drawModernCard(
-            14, rowY, cardW, cardH,
-            'Total Collections',
-            `${metrics.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            revTrend,
-            [59, 130, 246]
-        );
 
-        // 2. Customers (Green)
-        let custTrend = null;
-        if (periodType === 'Current' && trends && trends.cust !== undefined && trends.custLY !== undefined) {
-            custTrend = { prev: trends.cust, ly: trends.custLY };
-        }
-
-        drawModernCard(
-            14 + cardW + gap, rowY, cardW, cardH,
-            'Active Customers',
-            `${metrics.uniqueCustomers}`,
-            custTrend,
-            [16, 185, 129]
-        );
-
-        // 3. Transactions (Orange)
-        let payTrend = null;
-        if (periodType === 'Current' && trends && trends.count !== undefined && trends.countLY !== undefined) {
-            payTrend = { prev: trends.count, ly: trends.countLY };
-        }
-
-        drawModernCard(
-            14 + (cardW + gap) * 2, rowY, cardW, cardH,
-            'Payment Count',
-            `${metrics.count}`,
-            payTrend,
-            [249, 115, 22]
-        );
-    };
-
-    // Row 1: Current
-    drawMetricsRow(
-        y,
-        `Current Period (${formatDate(startDate!)} - ${formatDate(endDate!)})`,
-        curMet,
-        {
-            rev: revenueTrend, cust: custTrend, count: countTrend,
-            revLY: revenueTrendLY, custLY: custTrendLY, countLY: countTrendLY
-        },
-        'Current'
-    );
-
-    // Row 2: Previous
-    y += rowGap;
-    drawMetricsRow(
-        y,
-        `Previous Period (${formatDate(prevStartDate)} - ${formatDate(prevEndDate)})`,
-        prevMet,
-        null,
-        'Previous'
-    );
-
-    // Row 3: Last Year
-    y += rowGap;
-    drawMetricsRow(
-        y,
-        `Same Period Last Year (${formatDate(lyStartDate)} - ${formatDate(lyEndDate)})`,
-        lyMet,
-        null,
-        'LastYear'
-    );
-
-
-
-    // Add page break before Daily Analysis
-    doc.addPage();
-    y = 20;
+    }
 
     // --- DAILY ANALYSIS PAGE ---
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59);
-    doc.text('Daily Breakdown', 105, y, { align: 'center' });
-    y += 8;
+    if (filters.sections?.daily !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
 
-    if (days.length > 0) {
-        // Chart removed
 
-        // 2. Table
-        const tableData = days.map(d => {
-            const diffPrev = d.previous > 0 ? ((d.current - d.previous) / d.previous) * 100 : 0;
-            const diffLy = d.lastYear > 0 ? ((d.current - d.lastYear) / d.lastYear) * 100 : 0;
 
-            return [
-                d.label,
-                `${d.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${d.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
-                `${d.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
-            ];
-        });
 
-        autoTable(doc, {
-            startY: y,
-            margin: { left: 22 },
-            head: [['Date', 'Current', 'Same Date Previous Month', 'MoM %', 'Last Year', 'YoY %']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-            bodyStyles: { halign: 'center', valign: 'middle' },
-            columnStyles: {
-                0: { halign: 'center', cellWidth: 25 },
-                1: { halign: 'center', cellWidth: 30 },
-                2: { halign: 'center', cellWidth: 30 },
-                3: { halign: 'center', cellWidth: 25 },
-                4: { halign: 'center', cellWidth: 30 },
-                5: { halign: 'center', cellWidth: 25 }
-            },
-            didParseCell: (data) => {
-                if (data.section === 'body') {
-                    // Check for Sunday Highlight
-                    const dateStr = String((data.row.raw as any)[0]);
-                    const parts = dateStr.split('/');
-                    if (parts.length === 3) {
-                        const dt = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                        if (dt.getDay() === 0) {
-                            data.cell.styles.fillColor = [255, 237, 213]; // Orange 100
+        // (Redundant addPage removed)
+
+
+        // --- DAILY ANALYSIS PAGE ---
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Daily Breakdown', 105, y, { align: 'center' });
+        y += 8;
+
+        if (days.length > 0) {
+            // Chart removed
+
+            // 2. Table
+            const tableData = days.map(d => {
+                const diffPrev = d.previous > 0 ? ((d.current - d.previous) / d.previous) * 100 : 0;
+                const diffLy = d.lastYear > 0 ? ((d.current - d.lastYear) / d.lastYear) * 100 : 0;
+
+                return [
+                    d.label,
+                    `${d.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${d.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                    `${d.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+                ];
+            });
+
+            autoTable(doc, {
+                startY: y,
+                margin: { left: 22 },
+                head: [['Date', 'Current', 'Same Date Previous Month', 'MoM %', 'Last Year', 'YoY %']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 25 },
+                    1: { halign: 'center', cellWidth: 30 },
+                    2: { halign: 'center', cellWidth: 30 },
+                    3: { halign: 'center', cellWidth: 25 },
+                    4: { halign: 'center', cellWidth: 30 },
+                    5: { halign: 'center', cellWidth: 25 }
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body') {
+                        // Check for Sunday Highlight
+                        const dateStr = String((data.row.raw as any)[0]);
+                        const parts = dateStr.split('/');
+                        if (parts.length === 3) {
+                            const dt = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            if (dt.getDay() === 0) {
+                                data.cell.styles.fillColor = [255, 237, 213]; // Orange 100
+                            }
+                        }
+
+                        // Existing Color Logic for Trends
+                        if (data.column.index === 3 || data.column.index === 5) {
+                            const txt = String(data.cell.raw);
+                            if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
+                            else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
+                            else data.cell.styles.textColor = [100, 116, 139];
                         }
                     }
+                }
+            });
 
-                    // Existing Color Logic for Trends
-                    if (data.column.index === 3 || data.column.index === 5) {
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFillColor(255, 237, 213); // Orange 100
+            doc.rect(14, finalY, 4, 4, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139); // Slate 500
+            doc.text('Orange highlighted rows indicate Sundays', 20, finalY + 3);
+        }
+
+    } // End Daily Table
+
+    // --- WEEKLY ANALYSIS PAGE ---
+    if (filters.sections?.weekly !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
+
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Weekly Breakdown', 105, y, { align: 'center' });
+        y += 8;
+
+        if (weeks.length > 0) {
+            // 1. Chart
+            // Show latest 8 weeks if period is long
+            const weeksForChart = weeks.length > 8 ? weeks.slice(-8) : weeks;
+            const chartTitleW = weeks.length > 8 ? 'Collections Trend (Last 8 Weeks)' : 'Collections Trend (Weekly)';
+
+            // Clone and format labels for Chart (Year under Week)
+            const chartWeeks = weeksForChart.map(w => ({
+                ...w,
+                label: w.label.replace(' / ', '\n')
+            }));
+            drawBarChart(doc, 15, y, 180, 80, chartWeeks, chartTitleW);
+            y += 110; // Increased spacing to avoid overlap with x-axis labels
+
+            // 2. Table
+            const tableData = weeks.map(w => {
+                const diffPrev = w.previous > 0 ? ((w.current - w.previous) / w.previous) * 100 : 0;
+                const diffLy = w.lastYear > 0 ? ((w.current - w.lastYear) / w.lastYear) * 100 : 0;
+
+                return [
+                    `${w.label}\n(${formatDate(w.start)} - ${formatDate(w.end)})`,
+                    `${w.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${w.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                    `${w.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+                ];
+            });
+
+            autoTable(doc, {
+                startY: y,
+                head: [['Week', 'Current', 'Previous', 'WoW %', 'Last Year', 'YoY %']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 30 },
+                    1: { halign: 'center', cellWidth: 30 },
+                    2: { halign: 'center', cellWidth: 30 },
+                    3: { halign: 'center', cellWidth: 30 },
+                    4: { halign: 'center', cellWidth: 30 },
+                    5: { halign: 'center', cellWidth: 30 }
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
                         const txt = String(data.cell.raw);
                         if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
                         else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
                         else data.cell.styles.textColor = [100, 116, 139];
                     }
                 }
+            });
+        }
+
+
+        // --- MONTHLY ANALYSIS PAGE ---
+        if (filters.sections?.monthly !== false && months.length > 0) {
+            doc.addPage('a4', 'portrait');
+
+            doc.setFontSize(16);
+            doc.setTextColor(30, 41, 59);
+            doc.text('Monthly Analysis', 105, 20, { align: 'center' });
+
+            // 1. Chart
+            // Show latest 8 months if period is long
+            const monthsForChart = months.length > 8 ? months.slice(-8) : months;
+            const chartTitleM = months.length > 8 ? 'Collections Trend (Last 8 Months)' : 'Collections Trend (Monthly)';
+
+            drawBarChart(doc, 15, 28, 180, 80, monthsForChart, chartTitleM);
+
+            // 2. Table
+            const tableDataM = months.map(m => {
+                const diffPrev = m.previous > 0 ? ((m.current - m.previous) / m.previous) * 100 : 0;
+                const diffLy = m.lastYear > 0 ? ((m.current - m.lastYear) / m.lastYear) * 100 : 0;
+
+                return [
+                    m.label,
+                    `${m.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${m.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                    `${m.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+                ];
+            });
+
+            autoTable(doc, {
+                startY: 140, // Increased spacing for Monthly table (Chart at 30 + 80 + 30 buffer)
+                head: [['Month', 'Current', 'Previous', 'MoM %', 'Last Year', 'YoY %']],
+                body: tableDataM,
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                columnStyles: {
+                    0: { halign: 'center' }
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
+                        const txt = String(data.cell.raw);
+                        if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
+                        else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
+                        else data.cell.styles.textColor = [100, 116, 139];
+                    }
+                }
+            });
+        }
+
+        // --- ALL CUSTOMERS PAGE ---
+        // If user filtered by date, show list of customers who paid IN THAT DATE RANGE
+    }
+
+    // --- ALL CUSTOMERS PAGE ---
+    if (filters.sections?.customerList !== false) {
+        doc.addPage('a4', 'landscape');
+        y = 20;
+
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        const pageW = doc.internal.pageSize.width;
+        doc.text('Customer Payment List', pageW / 2, 20, { align: 'center' });
+
+        // Removed specific period text as requested
+
+        // Build Matching Map for Invoice Lookups (for Active Months)
+        const matchingMapC = new Map<string, { date: Date, type: string }>();
+        allData.forEach(row => {
+            if (row.matching && (row.debit || 0) > 0) {
+                const d = parseDate(row.date);
+                const t = getInvoiceType(row);
+                if (d) {
+                    const current = matchingMapC.get(row.matching);
+                    if (!current || d < current.date) {
+                        matchingMapC.set(row.matching, { date: d, type: t });
+                    }
+                }
+            }
+        });
+
+        const historyMap = new Map<string, number[]>();
+        baseData.forEach(p => {
+            const d = parseDate(p.date);
+            if (d) {
+                const list = historyMap.get(p.customerName) || [];
+                list.push(d.getTime());
+                historyMap.set(p.customerName, list);
+            }
+        });
+        // Sort histories descending
+        historyMap.forEach(list => list.sort((a, b) => b - a));
+
+        const customerMap = new Map<string, { total: number, count: number, dates: number[], breakdown: Map<string, number> }>();
+
+        // Process filtered payments and build detailed breakdown
+        baseData.forEach(p => {
+            const d = parseDate(p.date);
+            if (d && d >= startDate! && d <= endDate!) {
+                // Use allocation map to get precise breakdown
+                const allocs = allocationMap.get(p);
+
+                let totalForThisPayment = 0;
+                const breakdownForThisPayment = new Map<string, number>();
+
+                if (allocs && allocs.length > 0) {
+                    allocs.forEach(frag => {
+                        let label = 'Unmatched';
+                        if (frag.type === 'OB') label = 'OB';
+                        else if (frag.type === 'Unmatched') label = 'Unmatched';
+                        else {
+                            const m = frag.date.toLocaleString('en-US', { month: 'short' });
+                            const y = frag.date.getFullYear().toString().slice(-2);
+                            label = `${m}${y}`;
+                        }
+
+                        // Apply source filter: only include this fragment if its source is selected (or no filter active)
+                        if (filters.sourceFilters && filters.sourceFilters.size > 0 && !filters.sourceFilters.has(label)) {
+                            return; // Skip this fragment
+                        }
+
+                        totalForThisPayment += frag.amount;
+                        const currentAmt = breakdownForThisPayment.get(label) || 0;
+                        breakdownForThisPayment.set(label, currentAmt + frag.amount);
+                    });
+                } else {
+                    // Fallback for unmatched
+                    const val = (p.credit || 0) - (p.debit || 0);
+                    if (val > 0.01) {
+                        // Only include if Unmatched is in filter or no filter
+                        if (!filters.sourceFilters || filters.sourceFilters.size === 0 || filters.sourceFilters.has('Unmatched')) {
+                            totalForThisPayment = val;
+                            breakdownForThisPayment.set('Unmatched', val);
+                        }
+                    }
+                }
+
+                // Only add to customer stats if we have any amount after filtering
+                if (totalForThisPayment > 0.01) {
+                    const curr = customerMap.get(p.customerName) || { total: 0, count: 0, dates: [] as number[], breakdown: new Map() };
+
+                    curr.total += totalForThisPayment;
+                    curr.count += 1;
+                    curr.dates.push(d.getTime());
+
+                    // Merge breakdown
+                    breakdownForThisPayment.forEach((amt, label) => {
+                        const currentAmt = curr.breakdown.get(label) || 0;
+                        curr.breakdown.set(label, currentAmt + amt);
+                    });
+
+                    customerMap.set(p.customerName, curr);
+                }
+            }
+        });
+
+        const custRows = Array.from(customerMap.entries())
+            .filter(([_, stats]) => stats.total > 0.01)
+            .sort((a, b) => b[1].total - a[1].total)
+            .map(([name, s], i) => {
+                // Generate breakdown string with amounts
+                const sortedLabels = Array.from(s.breakdown.keys()).sort((a, b) => {
+                    if (a === 'OB') return -1;
+                    if (b === 'OB') return 1;
+                    if (a === 'Unmatched') return 1;
+                    if (b === 'Unmatched') return -1;
+                    const dateA = new Date(`01 ${a}`);
+                    const dateB = new Date(`01 ${b}`);
+                    return dateA.getTime() - dateB.getTime();
+                });
+
+                const monthStr = sortedLabels.map(k => {
+                    const amt = s.breakdown.get(k) || 0;
+                    return `${k} (${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })})`;
+                }).join(', ');
+
+                // Calculate Gap (Using Full History)
+                let gapStr = 'No Payment Before';
+                const sortedPeriodDates = s.dates.sort((a, b) => a - b); // Ascending (Oldest First)
+                const earliestInPeriodMs = sortedPeriodDates[0];
+                const latestInPeriodMs = sortedPeriodDates[sortedPeriodDates.length - 1];
+
+                const allHistory = historyMap.get(name);
+                if (allHistory) {
+                    let prevMs: number | undefined;
+                    let anchorMs: number;
+
+                    // Check if user specifically filtered by date
+                    const isDateFiltered = !!filters.startDate;
+
+                    if (isDateFiltered && filters.startDate) {
+                        // NEW LOGIC: Gap between FIRST payment in filter AND last payment BEFORE filter
+                        anchorMs = earliestInPeriodMs;
+                        const startFilterMs = filters.startDate.getTime();
+                        // allHistory is sorted Descending, so find() gets the largest date < startFilterMs
+                        prevMs = allHistory.find(t => t < startFilterMs);
+                    } else {
+                        // DEFAULT LOGIC: Gap between Latest payment AND the one before it
+                        anchorMs = latestInPeriodMs;
+                        prevMs = allHistory.find(t => t < anchorMs);
+                    }
+
+                    if (prevMs) {
+                        const diffMs = anchorMs - prevMs;
+                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        gapStr = `${diffDays} Days`;
+                    }
+                }
+
+                const uniqueDates = Array.from(new Set(sortedPeriodDates.map(ms => formatDate(new Date(ms)))));
+                const paymentDatesStr = uniqueDates.join(', ');
+
+                return [
+                    i + 1,
+                    name,
+                    paymentDatesStr,
+                    gapStr,
+                    `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    s.count,
+                    monthStr
+                ];
+            });
+
+        autoTable(doc, {
+            startY: 28,
+            head: [['#', 'Customer Name', 'Payment Dates', 'Gap', 'Total Paid', 'Count', 'Matching Months']],
+            body: custRows,
+            theme: 'striped',
+            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+            bodyStyles: { halign: 'center', valign: 'middle' },
+            margin: { left: 8, right: 8 },
+            columnStyles: {
+                1: { halign: 'center', cellWidth: 70 } // Customer Name fixed width
             }
         });
 
         const finalY = (doc as any).lastAutoTable.finalY + 10;
-        doc.setFillColor(255, 237, 213); // Orange 100
-        doc.rect(14, finalY, 4, 4, 'F');
-        doc.setFontSize(8);
+        doc.setFontSize(10);
         doc.setTextColor(100, 116, 139); // Slate 500
-        doc.text('Orange highlighted rows indicate Sundays', 20, finalY + 3);
+        doc.setFont('helvetica', 'italic');
+        doc.text("Note: 'Gap' represents the number of days between the latest payment in this period and the previous payment.", 14, finalY);
+
+
     }
-
-    // Add page break before Weekly Analysis
-    doc.addPage();
-    y = 20;
-
-    // --- WEEKLY ANALYSIS PAGE ---
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59);
-    doc.text('Weekly Breakdown', 105, y, { align: 'center' });
-    y += 8;
-
-    if (weeks.length > 0) {
-        // 1. Chart
-        // Show latest 8 weeks if period is long
-        const weeksForChart = weeks.length > 8 ? weeks.slice(-8) : weeks;
-        const chartTitleW = weeks.length > 8 ? 'Collections Trend (Last 8 Weeks)' : 'Collections Trend (Weekly)';
-
-        // Clone and format labels for Chart (Year under Week)
-        const chartWeeks = weeksForChart.map(w => ({
-            ...w,
-            label: w.label.replace(' / ', '\n')
-        }));
-        drawBarChart(doc, 15, y, 180, 80, chartWeeks, chartTitleW);
-        y += 110; // Increased spacing to avoid overlap with x-axis labels
-
-        // 2. Table
-        const tableData = weeks.map(w => {
-            const diffPrev = w.previous > 0 ? ((w.current - w.previous) / w.previous) * 100 : 0;
-            const diffLy = w.lastYear > 0 ? ((w.current - w.lastYear) / w.lastYear) * 100 : 0;
-
-            return [
-                `${w.label}\n(${formatDate(w.start)} - ${formatDate(w.end)})`,
-                `${w.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${w.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
-                `${w.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
-            ];
-        });
-
-        autoTable(doc, {
-            startY: y,
-            head: [['Week', 'Current', 'Previous', 'WoW %', 'Last Year', 'YoY %']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-            bodyStyles: { halign: 'center', valign: 'middle' },
-            columnStyles: {
-                0: { halign: 'center', cellWidth: 30 },
-                1: { halign: 'center', cellWidth: 30 },
-                2: { halign: 'center', cellWidth: 30 },
-                3: { halign: 'center', cellWidth: 30 },
-                4: { halign: 'center', cellWidth: 30 },
-                5: { halign: 'center', cellWidth: 30 }
-            },
-            didParseCell: (data) => {
-                if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
-                    const txt = String(data.cell.raw);
-                    if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
-                    else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
-                    else data.cell.styles.textColor = [100, 116, 139];
-                }
-            }
-        });
-    }
-
-    // --- MONTHLY ANALYSIS PAGE ---
-    if (months.length > 0) {
-        doc.addPage();
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        doc.text('Monthly Analysis', 105, 20, { align: 'center' });
-
-        // 1. Chart
-        // Show latest 8 months if period is long
-        const monthsForChart = months.length > 8 ? months.slice(-8) : months;
-        const chartTitleM = months.length > 8 ? 'Collections Trend (Last 8 Months)' : 'Collections Trend (Monthly)';
-
-        drawBarChart(doc, 15, 28, 180, 80, monthsForChart, chartTitleM);
-
-        // 2. Table
-        const tableDataM = months.map(m => {
-            const diffPrev = m.previous > 0 ? ((m.current - m.previous) / m.previous) * 100 : 0;
-            const diffLy = m.lastYear > 0 ? ((m.current - m.lastYear) / m.lastYear) * 100 : 0;
-
-            return [
-                m.label,
-                `${m.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${m.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
-                `${m.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
-            ];
-        });
-
-        autoTable(doc, {
-            startY: 140, // Increased spacing for Monthly table (Chart at 30 + 80 + 30 buffer)
-            head: [['Month', 'Current', 'Previous', 'MoM %', 'Last Year', 'YoY %']],
-            body: tableDataM,
-            theme: 'grid',
-            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-            bodyStyles: { halign: 'center', valign: 'middle' },
-            columnStyles: {
-                0: { halign: 'center' }
-            },
-            didParseCell: (data) => {
-                if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
-                    const txt = String(data.cell.raw);
-                    if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
-                    else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
-                    else data.cell.styles.textColor = [100, 116, 139];
-                }
-            }
-        });
-    }
-
-    // --- ALL CUSTOMERS PAGE ---
-    // If user filtered by date, show list of customers who paid IN THAT DATE RANGE
-    doc.addPage('a4', 'landscape');
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59);
-    const pageW = doc.internal.pageSize.width;
-    doc.text('Customer Payment List', pageW / 2, 20, { align: 'center' });
-
-    // Removed specific period text as requested
-
-    // Build Matching Map for Invoice Lookups (for Active Months)
-    const matchingMapC = new Map<string, { date: Date, type: string }>();
-    allData.forEach(row => {
-        if (row.matching && (row.debit || 0) > 0) {
-            const d = parseDate(row.date);
-            const t = getInvoiceType(row);
-            if (d) {
-                const current = matchingMapC.get(row.matching);
-                if (!current || d < current.date) {
-                    matchingMapC.set(row.matching, { date: d, type: t });
-                }
-            }
-        }
-    });
-
-    const historyMap = new Map<string, number[]>();
-    baseData.forEach(p => {
-        const d = parseDate(p.date);
-        if (d) {
-            const list = historyMap.get(p.customerName) || [];
-            list.push(d.getTime());
-            historyMap.set(p.customerName, list);
-        }
-    });
-    // Sort histories descending
-    historyMap.forEach(list => list.sort((a, b) => b - a));
-
-    const customerMap = new Map<string, { total: number, count: number, dates: number[], months: Set<string> }>();
-
-    // Only process filtered range for this list
-    baseData.forEach(p => {
-        const d = parseDate(p.date);
-        if (d && d >= startDate! && d <= endDate!) {
-            const val = (p.credit || 0) - (p.debit || 0);
-            const curr = customerMap.get(p.customerName) || { total: 0, count: 0, dates: [], months: new Set() };
-
-            curr.total += val;
-            curr.count += 1;
-            curr.dates.push(d.getTime());
-
-            // Resolve Matching Month
-            let mKey = '9_Unmatched';
-            if (p.matching && p.matching !== 'Unmatched') {
-                // Check OB direct
-                if (p.matching.startsWith('OB')) {
-                    mKey = '0_OB';
-                } else {
-                    const matchInfo = matchingMapC.get(p.matching);
-                    if (matchInfo) {
-                        if (matchInfo.type === 'OB') {
-                            mKey = '0_OB';
-                        } else {
-                            // Format YYYY-MM
-                            const y = matchInfo.date.getFullYear();
-                            const m = matchInfo.date.getMonth() + 1;
-                            mKey = `1_${y}-${String(m).padStart(2, '0')}`;
-                        }
-                    }
-                }
-            }
-            curr.months.add(mKey);
-
-            customerMap.set(p.customerName, curr);
-        }
-    });
-
-    const custRows = Array.from(customerMap.entries())
-        .filter(([_, stats]) => stats.total > 0.01) // Show only positive contributors
-        .sort((a, b) => b[1].total - a[1].total)
-        .map(([name, s], i) => {
-            const sortedKeys = Array.from(s.months).sort();
-            const monthStr = sortedKeys.map(k => {
-                if (k === '0_OB') return 'OB';
-                if (k === '9_Unmatched') return 'Unmatched';
-                // 1_YYYY-MM
-                const parts = k.split('_')[1].split('-');
-                const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, 1);
-                return date.toLocaleString('en-US', { month: 'short', year: '2-digit' });
-            }).join(', ');
-
-            // Calculate Gap (Using Full History)
-            let gapStr = 'No Payment Before';
-            const sortedPeriodDates = s.dates.sort((a, b) => b - a);
-            const latestMs = sortedPeriodDates[0];
-
-            const allHistory = historyMap.get(name);
-            if (allHistory) {
-                // Find first date strictly less than latestMs
-                const prevMs = allHistory.find(t => t < latestMs);
-                if (prevMs) {
-                    const diffMs = latestMs - prevMs;
-                    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-                    gapStr = `${diffDays} Days`;
-                }
-            }
-
-            const uniqueDates = Array.from(new Set(sortedPeriodDates.map(ms => formatDate(new Date(ms)))));
-            const paymentDatesStr = uniqueDates.join(', ');
-
-            return [
-                i + 1,
-                name,
-                paymentDatesStr,
-                gapStr,
-                `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                s.count,
-                monthStr
-            ];
-        });
-
-    autoTable(doc, {
-        startY: 28,
-        head: [['#', 'Customer Name', 'Payment Dates', 'Gap', 'Total Paid', 'Count', 'Matching Months']],
-        body: custRows,
-        theme: 'striped',
-        headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-        bodyStyles: { halign: 'center', valign: 'middle' },
-        margin: { left: 8, right: 8 },
-        columnStyles: {
-            1: { halign: 'center', cellWidth: 70 } // Customer Name fixed width
-        }
-    });
 
     // --- COLLECTION QUALITY ANALYSIS (Debt Age) ---
-    doc.addPage('a4', 'portrait');
-    y = 20;
+    if (filters.sections?.debtAge !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
 
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59);
-    doc.text('Collection Quality Analysis (Debt Age)', 105, y, { align: 'center' });
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Collection Quality Analysis (Debt Age)', 105, y, { align: 'center' });
 
-    // 1. Build Matching Map (Invoice Date & Type) from FULL DATA
-    const matchingMap = new Map<string, { date: Date, type: string }>();
-    allData.forEach(row => {
-        if (row.matching && (row.debit || 0) > 0) {
-            const d = parseDate(row.date);
-            const t = getInvoiceType(row);
-            if (d) {
-                const current = matchingMap.get(row.matching);
-                if (!current || d < current.date) { // Find Oldest Debit date logic
-                    matchingMap.set(row.matching, { date: d, type: t });
-                }
-            }
-        }
-    });
+        // Buckets & Month Breakdown
+        const buckets: Record<string, number> = {
+            'Current Month Inv': 0,
+            '1 Month Old Inv': 0,
+            '2 Months Old Inv': 0,
+            '3 Months Old Inv': 0,
+            '4 Months Old Inv': 0,
+            '5 Months Old Inv': 0,
+            '6+ Months Old Inv': 0,
+            'Opening Balance (OB)': 0,
+            'Unmatched': 0
+        };
+        const monthTotals = new Map<string, { sortKey: number, amount: number, label: string }>();
+        let totalQualityCollected = 0;
 
-    // 2. Buckets & Month Breakdown
-    const buckets: Record<string, number> = {
-        'Current Month Inv': 0,
-        '1 Month Old Inv': 0,
-        '2 Months Old Inv': 0,
-        '3 Months Old Inv': 0,
-        '4 Months Old Inv': 0,
-        '5 Months Old Inv': 0,
-        '6+ Months Old Inv': 0,
-        'Opening Balance (OB)': 0,
-        'Unmatched': 0
-    };
-    const monthTotals = new Map<string, { sortKey: number, amount: number, label: string }>();
-    let totalQualityCollected = 0;
-
-    baseData.forEach(row => {
-        const credit = (row.credit || 0) - (row.debit || 0);
-
-        // Count POSITIVE collections
-        if (credit > 0) {
+        baseData.forEach(row => {
             const payDate = parseDate(row.date);
 
             // STRICTLY Respect Filter Period for this analysis
@@ -1124,333 +1494,358 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 if (payDate < startDate || payDate > endDate) return;
             }
 
-            // Handle Unmatched
-            if (!row.matching || row.matching === 'Unmatched' || row.matching === '') {
-                buckets['Unmatched'] += credit;
+            // Get allocations for this payment
+            const allocs = allocationMap.get(row);
 
-                const uKey = 'Unmatched';
-                const currentU = monthTotals.get(uKey) || { sortKey: -99999999999, amount: 0, label: 'Unmatched' };
-                currentU.amount += credit;
-                monthTotals.set(uKey, currentU);
+            if (allocs && allocs.length > 0) {
+                // Process each allocation fragment
+                allocs.forEach(frag => {
+                    let sourceLabel = 'Unmatched';
+                    if (frag.type === 'OB') sourceLabel = 'OB';
+                    else if (frag.type === 'Unmatched') sourceLabel = 'Unmatched';
+                    else {
+                        const m = frag.date.toLocaleString('en-US', { month: 'short' });
+                        const y = frag.date.getFullYear().toString().slice(-2);
+                        sourceLabel = `${m}${y}`;
+                    }
 
-                totalQualityCollected += credit;
-                return;
-            }
+                    // Apply source filter: only include this fragment if its source is selected (or no filter active)
+                    if (filters.sourceFilters && filters.sourceFilters.size > 0 && !filters.sourceFilters.has(sourceLabel)) {
+                        return; // Skip this fragment
+                    }
 
-            const matchInfo = matchingMap.get(row.matching);
+                    const credit = frag.amount;
+                    const type = frag.type;
+                    const invDate = frag.date;
 
-            // Check based on matched Invoice Type first, then fallback to string matching
-            const isOB = (matchInfo && matchInfo.type === 'OB') || row.matching.startsWith('OB');
+                    if (type === 'Unmatched') {
+                        buckets['Unmatched'] += credit;
+                        const uKey = 'Unmatched';
+                        const currentU = monthTotals.get(uKey) || { sortKey: -99999999999, amount: 0, label: 'Unmatched' };
+                        currentU.amount += credit;
+                        monthTotals.set(uKey, currentU);
+                    } else if (type === 'OB') {
+                        buckets['Opening Balance (OB)'] += credit;
+                        const obKey = 'OB';
+                        const currentOb = monthTotals.get(obKey) || { sortKey: -9999999999, amount: 0, label: 'Opening Balance' };
+                        currentOb.amount += credit;
+                        monthTotals.set(obKey, currentOb);
+                    } else {
+                        // Standard Invoice
+                        if (payDate && invDate) {
+                            const monthsDiff = getDiffMonths(payDate, invDate);
 
-            if (isOB) {
-                buckets['Opening Balance (OB)'] += credit;
-                // Add to Month Map (OB special case)
-                const obKey = 'OB';
-                const currentOb = monthTotals.get(obKey) || { sortKey: -9999999999, amount: 0, label: 'Opening Balance' };
-                currentOb.amount += credit;
-                monthTotals.set(obKey, currentOb);
+                            if (monthsDiff <= 0) buckets['Current Month Inv'] += credit;
+                            else if (monthsDiff === 1) buckets['1 Month Old Inv'] += credit;
+                            else if (monthsDiff === 2) buckets['2 Months Old Inv'] += credit;
+                            else if (monthsDiff === 3) buckets['3 Months Old Inv'] += credit;
+                            else if (monthsDiff === 4) buckets['4 Months Old Inv'] += credit;
+                            else if (monthsDiff === 5) buckets['5 Months Old Inv'] += credit;
+                            else buckets['6+ Months Old Inv'] += credit;
 
-                totalQualityCollected += credit;
-            } else {
-                const payDate = parseDate(row.date);
-                const invDate = matchInfo?.date;
+                            const mLabel = invDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+                            const mKey = `${invDate.getFullYear()}-${invDate.getMonth()}`;
+                            const sortKey = invDate.getTime();
 
-                if (invDate && payDate) {
-                    const monthsDiff = getDiffMonths(payDate, invDate);
-
-                    // Add to buckets
-                    if (monthsDiff <= 0) buckets['Current Month Inv'] += credit;
-                    else if (monthsDiff === 1) buckets['1 Month Old Inv'] += credit;
-                    else if (monthsDiff === 2) buckets['2 Months Old Inv'] += credit;
-                    else if (monthsDiff === 3) buckets['3 Months Old Inv'] += credit;
-                    else if (monthsDiff === 4) buckets['4 Months Old Inv'] += credit;
-                    else if (monthsDiff === 5) buckets['5 Months Old Inv'] += credit;
-                    else buckets['6+ Months Old Inv'] += credit;
-
-                    // Add to Invoice Month Map (Table)
-                    const mLabel = invDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-                    const mKey = `${invDate.getFullYear()}-${invDate.getMonth()}`;
-                    const sortKey = invDate.getTime();
-
-                    const currentM = monthTotals.get(mKey) || { sortKey, amount: 0, label: mLabel };
-                    currentM.amount += credit;
-                    monthTotals.set(mKey, currentM);
+                            const currentM = monthTotals.get(mKey) || { sortKey, amount: 0, label: mLabel };
+                            currentM.amount += credit;
+                            monthTotals.set(mKey, currentM);
+                        }
+                    }
 
                     totalQualityCollected += credit;
-                }
-            }
-        }
-    });
-
-    // 3. Prepare Data for Chart/Table - Filter out zero values for cleaner chart
-    // 3. Prepare Data for Chart matching Table (Invoice Month Breakdown)
-    // Filter and Sort from monthTotals
-    const allMonthEntries = Array.from(monthTotals.values());
-    const obEntry = allMonthEntries.find(m => m.label === 'Opening Balance');
-    const unmEntry = allMonthEntries.find(m => m.label === 'Unmatched');
-
-    // Sort standard months Descending (Newest First)
-    const stdMonthEntries = allMonthEntries
-        .filter(m => m.label !== 'Opening Balance' && m.label !== 'Unmatched')
-        .sort((a, b) => b.sortKey - a.sortKey); // All months for accurate "6+" Sum
-
-    const qualityData: { label: string, value: number }[] = [];
-
-    // Order: Standard Months Mapped to Age Buckets -> OB -> Unmatched
-
-    if (stdMonthEntries.length > 0) {
-        // Current (Index 0)
-        qualityData.push({ label: 'Current Month Inv', value: stdMonthEntries[0].amount });
-
-        // 1-5 Months
-        for (let i = 1; i < 6 && i < stdMonthEntries.length; i++) {
-            const lbl = i === 1 ? '1 Month Old Inv' : `${i} Months Old Inv`;
-            qualityData.push({ label: lbl, value: stdMonthEntries[i].amount });
-        }
-
-        // 6+ (Rest)
-        let restVal = 0;
-        for (let i = 6; i < stdMonthEntries.length; i++) {
-            restVal += stdMonthEntries[i].amount;
-        }
-        if (restVal > 0) {
-            qualityData.push({ label: '6+ Months Old Inv', value: restVal });
-        }
-    }
-
-    if (obEntry) qualityData.push({ label: 'Opening Balance (OB)', value: obEntry.amount });
-    if (unmEntry) qualityData.push({ label: 'Unmatched', value: unmEntry.amount });
-
-    y += 5;
-
-    // Modern Vertical Column Chart
-    if (qualityData.length > 0) {
-        // Dimensions
-        // Dimensions
-        const chartH = 70;
-        const chartW = 180;
-        const pageW = 210;
-        const startX = (pageW - chartW) / 2;
-
-        // Title Removed
-        y += 3; // Minimal spacing
-
-        // Chart Area (Background)
-        doc.setFillColor(250, 250, 252);
-        doc.roundedRect(startX, y, chartW, chartH + 20, 3, 3, 'F');
-
-        const maxQVal = Math.max(...qualityData.map(d => d.value), 1);
-        const colWidth = (chartW - 20) / qualityData.length; // Spread columns
-        const barWidth = colWidth * 0.6; // Bar is 60% of slot width
-        const bottomY = y + chartH;
-
-        let curX = startX + 10; // Padding left
-
-        qualityData.forEach(d => {
-            const valH = (d.value / maxQVal) * (chartH - 15); // Leave space for top labels
-            const barX = curX + (colWidth - barWidth) / 2;
-            const barY = bottomY - valH;
-
-            // Color Logic
-            if (d.label === 'Opening Balance (OB)') doc.setFillColor(16, 185, 129); // Emerald
-            else if (d.label === '6+ Months Old Inv') doc.setFillColor(34, 197, 94); // Green
-            else if (d.label === 'Current Month Inv') doc.setFillColor(59, 130, 246); // Blue
-            else if (d.label === 'Unmatched') doc.setFillColor(239, 68, 68); // Red
-            else doc.setFillColor(148, 163, 184); // Slate
-
-            // Draw Bar
-            if (valH > 0) {
-                // Rounded top corners manually or just rect
-                doc.roundedRect(barX, barY, barWidth, valH, 1, 1, 'F');
-
-                // Value Label (Top of bar)
-                doc.setFontSize(8);
-                doc.setTextColor(71, 85, 105);
-                doc.setFont('helvetica', 'bold');
-                const valStr = `${d.value.toLocaleString(undefined, { notation: 'compact' })}`;
-                doc.text(valStr, barX + barWidth / 2, barY - 2, { align: 'center' });
-            }
-
-            // X-Axis Label (Bottom)
-            doc.setFontSize(7);
-            doc.setTextColor(100, 116, 139);
-            doc.setFont('helvetica', 'normal');
-
-            // Clearer Labels (Restored Age Logic)
-            let displayLabel = d.label;
-            if (d.label === 'Current Month Inv') displayLabel = 'Current\nMonth';
-            else if (d.label === 'Opening Balance (OB)') displayLabel = 'Opening\nBalance';
-            else if (d.label === 'Unmatched') displayLabel = 'Unmatched';
-            else displayLabel = d.label.replace(' Old Inv', '').replace('Months', 'Mths').replace('Month', 'Mth');
-
-            const lines = doc.splitTextToSize(displayLabel, colWidth + 5);
-            doc.text(lines, barX + barWidth / 2, bottomY + 5, { align: 'center', lineHeightFactor: 1.1 });
-
-            curX += colWidth;
-        });
-
-        y += chartH + 30; // Move Y past chart
-    }
-
-    // Table
-    // Table: Detailed Invoice Months
-    const sortedMonths = Array.from(monthTotals.values())
-        .sort((a, b) => b.sortKey - a.sortKey);
-
-    const monthTableData = sortedMonths.map(d => {
-        const share = totalQualityCollected > 0 ? (d.amount / totalQualityCollected) * 100 : 0;
-        return [
-            d.label,
-            `${d.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            `${share.toFixed(1)}%`
-        ];
-    });
-
-    // Add Total Row
-    monthTableData.push([
-        'Total Analyzed',
-        `${totalQualityCollected.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-        '100.0%'
-    ]);
-
-    autoTable(doc, {
-        startY: y,
-        head: [['Invoice Month', 'Amount Collected', 'Share %']],
-        body: monthTableData,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-        bodyStyles: { halign: 'center', valign: 'middle' },
-        didParseCell: (data) => {
-            if (data.section === 'body') {
-                const label = String((data.row.raw as any)[0]);
-
-                // Color Highlights
-                if (label === 'Opening Balance') {
-                    data.cell.styles.textColor = [16, 185, 129];
-                    data.cell.styles.fontStyle = 'bold';
-                } else if (label === 'Unmatched') {
-                    data.cell.styles.textColor = [239, 68, 68]; // Red
-                    data.cell.styles.fontStyle = 'bold';
-                }
-
-                // Total Row
-                if (data.row.index === sortedMonths.length) {
-                    data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.fillColor = [241, 245, 249];
-                }
-            }
-        }
-    });
-
-    // --- SALES REPRESENTATIVE ANALYSIS ---
-    doc.addPage('a4', 'portrait'); // Ensure portrait
-    y = 20;
-
-    doc.setFontSize(16);
-    doc.setTextColor(30, 41, 59);
-    doc.text('Sales Representative Performance', 105, y, { align: 'center' });
-    y += 10;
-
-    // 1. Data Aggregation
-    const repMap = new Map<string, { total: number, count: number, customers: Set<string> }>();
-
-    baseData.forEach(p => {
-        // Check Date Range
-        const d = parseDate(p.date);
-        if (!d) return;
-        // Respect Start/End Date derived earlier
-        if (startDate && d < startDate) return;
-        if (endDate && d > endDate) return;
-
-        const rep = p.salesRep && p.salesRep.trim() ? p.salesRep.trim() : 'Unknown';
-        const val = (p.credit || 0) - (p.debit || 0);
-
-        if (!repMap.has(rep)) repMap.set(rep, { total: 0, count: 0, customers: new Set() });
-        const stat = repMap.get(rep)!;
-        stat.total += val;
-        stat.count++;
-        stat.customers.add(p.customerName);
-    });
-
-    const repData = Array.from(repMap.entries())
-        .map(([name, s]) => ({
-            name,
-            total: s.total,
-            count: s.count,
-            uniqueCust: s.customers.size,
-            avgVal: s.count > 0 ? s.total / s.count : 0
-        }))
-        .filter(d => d.total > 0.1) // Filter out zero/negative
-        .sort((a, b) => b.total - a.total);
-
-    // 2. Top Performers Cards Removed as per request
-
-    // 3. Horizontal Chart (Top 10)
-    if (repData.length > 0) {
-        // 3. Horizontal Chart (Top 10)
-        const chartData = repData.map(r => ({ label: r.name, value: r.total }));
-        const chartH = Math.min(250, chartData.length * 15 + 20); // Dynamic height (15 unit/item to fit 8mm bar + 6mm gap)
-        drawHorizontalBarChart(15, y, 180, chartH, chartData, '');
-
-        y += chartH + 15;
-    }
-
-    // 4. Detailed Table
-    const grandTotalRep = repData.reduce((acc, curr) => acc + curr.total, 0); // Total from filtered data
-
-    const repRows = repData.map((r, i) => {
-        const share = grandTotalRep > 0 ? (r.total / grandTotalRep) * 100 : 0;
-        return [
-            i + 1,
-            r.name,
-            `${r.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            r.count,
-            r.uniqueCust,
-            // Removed Avg/Txn
-            `${share.toFixed(1)}%`
-        ];
-    });
-
-    const totalTxns = repData.reduce((acc, curr) => acc + curr.count, 0);
-    const totalClients = repData.reduce((acc, curr) => acc + curr.uniqueCust, 0);
-
-    // Add Total Row
-    repRows.push([
-        '',
-        'Total',
-        `${grandTotalRep.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-        totalTxns,
-        totalClients,
-        '100.0%'
-    ]);
-
-    autoTable(doc, {
-        startY: y,
-        head: [['#', 'Sales Rep', 'Total Collected', 'Txns', 'Clients', 'Share %']],
-        body: repRows,
-        theme: 'grid',
-        headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-        bodyStyles: { halign: 'center', valign: 'middle' },
-        columnStyles: {},
-        didParseCell: (data) => {
-            if (data.section === 'body') {
-                // Highlight Top 3 (if not Total row)
-                if (data.row.index < repRows.length - 1 && data.row.index < 3) {
-                    if (data.column.index === 0) {
-                        data.cell.styles.fontStyle = 'bold';
-                        if (data.row.index === 0) data.cell.styles.textColor = [217, 119, 6]; // Dark Gold
+                });
+            } else {
+                // Fallback for unmatched
+                const credit = (row.credit || 0) - (row.debit || 0);
+                if (credit > 0.01) {
+                    // Only include if Unmatched is in filter or no filter
+                    if (!filters.sourceFilters || filters.sourceFilters.size === 0 || filters.sourceFilters.has('Unmatched')) {
+                        buckets['Unmatched'] += credit;
+                        const uKey = 'Unmatched';
+                        const currentU = monthTotals.get(uKey) || { sortKey: -99999999999, amount: 0, label: 'Unmatched' };
+                        currentU.amount += credit;
+                        monthTotals.set(uKey, currentU);
+                        totalQualityCollected += credit;
                     }
                 }
+            }
+        });
 
-                // Total Row Styling
-                if (data.row.index === repRows.length - 1) {
-                    data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.fillColor = [241, 245, 249]; // Slate 50
-                    if (data.column.index === 1) data.cell.styles.halign = 'center'; // Center "Total" text
-                }
+        // 3. Prepare Data for Chart/Table - Filter out zero values for cleaner chart
+        // 3. Prepare Data for Chart matching Table (Invoice Month Breakdown)
+        // Filter and Sort from monthTotals
+        const allMonthEntries = Array.from(monthTotals.values());
+        const obEntry = allMonthEntries.find(m => m.label === 'Opening Balance');
+        const unmEntry = allMonthEntries.find(m => m.label === 'Unmatched');
+
+        // Sort standard months Descending (Newest First)
+        const stdMonthEntries = allMonthEntries
+            .filter(m => m.label !== 'Opening Balance' && m.label !== 'Unmatched')
+            .sort((a, b) => b.sortKey - a.sortKey); // All months for accurate "6+" Sum
+
+        const qualityData: { label: string, value: number }[] = [];
+
+        // Order: Standard Months Mapped to Age Buckets -> OB -> Unmatched
+
+        if (stdMonthEntries.length > 0) {
+            // Current (Index 0)
+            qualityData.push({ label: 'Current Month Inv', value: stdMonthEntries[0].amount });
+
+            // 1-5 Months
+            for (let i = 1; i < 6 && i < stdMonthEntries.length; i++) {
+                const lbl = i === 1 ? '1 Month Old Inv' : `${i} Months Old Inv`;
+                qualityData.push({ label: lbl, value: stdMonthEntries[i].amount });
+            }
+
+            // 6+ (Rest)
+            let restVal = 0;
+            for (let i = 6; i < stdMonthEntries.length; i++) {
+                restVal += stdMonthEntries[i].amount;
+            }
+            if (restVal > 0) {
+                qualityData.push({ label: '6+ Months Old Inv', value: restVal });
             }
         }
-    });
+
+        if (obEntry) qualityData.push({ label: 'Opening Balance (OB)', value: obEntry.amount });
+        if (unmEntry) qualityData.push({ label: 'Unmatched', value: unmEntry.amount });
+
+        y += 5;
+
+        // Modern Vertical Column Chart
+        if (qualityData.length > 0) {
+            // Dimensions
+            // Dimensions
+            const chartH = 70;
+            const chartW = 180;
+            const pageW = 210;
+            const startX = (pageW - chartW) / 2;
+
+            // Title Removed
+            y += 3; // Minimal spacing
+
+            // Chart Area (Background)
+            doc.setFillColor(250, 250, 252);
+            doc.roundedRect(startX, y, chartW, chartH + 20, 3, 3, 'F');
+
+            const maxQVal = Math.max(...qualityData.map(d => d.value), 1);
+            const colWidth = (chartW - 20) / qualityData.length; // Spread columns
+            const barWidth = colWidth * 0.6; // Bar is 60% of slot width
+            const bottomY = y + chartH;
+
+            let curX = startX + 10; // Padding left
+
+            qualityData.forEach(d => {
+                const valH = (d.value / maxQVal) * (chartH - 15); // Leave space for top labels
+                const barX = curX + (colWidth - barWidth) / 2;
+                const barY = bottomY - valH;
+
+                // Color Logic
+                if (d.label === 'Opening Balance (OB)') doc.setFillColor(16, 185, 129); // Emerald
+                else if (d.label === '6+ Months Old Inv') doc.setFillColor(34, 197, 94); // Green
+                else if (d.label === 'Current Month Inv') doc.setFillColor(59, 130, 246); // Blue
+                else if (d.label === 'Unmatched') doc.setFillColor(239, 68, 68); // Red
+                else doc.setFillColor(148, 163, 184); // Slate
+
+                // Draw Bar
+                if (valH > 0) {
+                    // Rounded top corners manually or just rect
+                    doc.roundedRect(barX, barY, barWidth, valH, 1, 1, 'F');
+
+                    // Value Label (Top of bar)
+                    doc.setFontSize(8);
+                    doc.setTextColor(71, 85, 105);
+                    doc.setFont('helvetica', 'bold');
+                    const valStr = `${d.value.toLocaleString(undefined, { notation: 'compact' })}`;
+                    doc.text(valStr, barX + barWidth / 2, barY - 2, { align: 'center' });
+                }
+
+                // X-Axis Label (Bottom)
+                doc.setFontSize(7);
+                doc.setTextColor(100, 116, 139);
+                doc.setFont('helvetica', 'normal');
+
+                // Clearer Labels (Restored Age Logic)
+                let displayLabel = d.label;
+                if (d.label === 'Current Month Inv') displayLabel = 'Current\nMonth';
+                else if (d.label === 'Opening Balance (OB)') displayLabel = 'Opening\nBalance';
+                else if (d.label === 'Unmatched') displayLabel = 'Unmatched';
+                else displayLabel = d.label.replace(' Old Inv', '').replace('Months', 'Mths').replace('Month', 'Mth');
+
+                const lines = doc.splitTextToSize(displayLabel, colWidth + 5);
+                doc.text(lines, barX + barWidth / 2, bottomY + 5, { align: 'center', lineHeightFactor: 1.1 });
+
+                curX += colWidth;
+            });
+
+            y += chartH + 30; // Move Y past chart
+        }
+
+        // Table
+        // Table: Detailed Invoice Months
+        const sortedMonths = Array.from(monthTotals.values())
+            .sort((a, b) => b.sortKey - a.sortKey);
+
+        const monthTableData = sortedMonths.map(d => {
+            const share = totalQualityCollected > 0 ? (d.amount / totalQualityCollected) * 100 : 0;
+            return [
+                d.label,
+                `${d.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${share.toFixed(1)}%`
+            ];
+        });
+
+        // Add Total Row
+        monthTableData.push([
+            'Total Analyzed',
+            `${totalQualityCollected.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+            '100.0%'
+        ]);
+
+        autoTable(doc, {
+            startY: y,
+            head: [['Invoice Month', 'Amount Collected', 'Share %']],
+            body: monthTableData,
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+            bodyStyles: { halign: 'center', valign: 'middle' },
+            didParseCell: (data) => {
+                if (data.section === 'body') {
+                    const label = String((data.row.raw as any)[0]);
+
+                    // Color Highlights
+                    if (label === 'Opening Balance') {
+                        data.cell.styles.textColor = [16, 185, 129];
+                        data.cell.styles.fontStyle = 'bold';
+                    } else if (label === 'Unmatched') {
+                        data.cell.styles.textColor = [239, 68, 68]; // Red
+                        data.cell.styles.fontStyle = 'bold';
+                    }
+
+                    // Total Row
+                    if (data.row.index === sortedMonths.length) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [241, 245, 249];
+                    }
+                }
+            }
+        });
+
+    }
+
+    // --- SALES REPRESENTATIVE ANALYSIS ---
+    if (filters.sections?.salesRep !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
+
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Sales Representative Performance', 105, y, { align: 'center' });
+        y += 10;
+
+        // 1. Data Aggregation
+        const repMap = new Map<string, { total: number, count: number, customers: Set<string> }>();
+
+        baseData.forEach(p => {
+            // Check Date Range
+            const d = parseDate(p.date);
+            if (!d) return;
+            // Respect Start/End Date derived earlier
+            if (startDate && d < startDate) return;
+            if (endDate && d > endDate) return;
+
+            const rep = p.salesRep && p.salesRep.trim() ? p.salesRep.trim() : 'Unknown';
+            const val = (p.credit || 0) - (p.debit || 0);
+
+            if (!repMap.has(rep)) repMap.set(rep, { total: 0, count: 0, customers: new Set() });
+            const stat = repMap.get(rep)!;
+            stat.total += val;
+            stat.count++;
+            stat.customers.add(p.customerName);
+        });
+
+        const repData = Array.from(repMap.entries())
+            .map(([name, s]) => ({
+                name,
+                total: s.total,
+                count: s.count,
+                uniqueCust: s.customers.size,
+                avgVal: s.count > 0 ? s.total / s.count : 0
+            }))
+            .filter(d => d.total > 0.1) // Filter out zero/negative
+            .sort((a, b) => b.total - a.total);
+
+        // 2. Top Performers Cards Removed as per request
+
+        // 3. Horizontal Chart (Top 10)
+        if (repData.length > 0) {
+            // 3. Horizontal Chart (Top 10)
+            const chartData = repData.map(r => ({ label: r.name, value: r.total }));
+            const chartH = Math.min(250, chartData.length * 15 + 20); // Dynamic height (15 unit/item to fit 8mm bar + 6mm gap)
+            drawHorizontalBarChart(15, y, 180, chartH, chartData, '');
+
+            y += chartH + 15;
+        }
+
+        // 4. Detailed Table
+        const grandTotalRep = repData.reduce((acc, curr) => acc + curr.total, 0); // Total from filtered data
+
+        const repRows = repData.map((r, i) => {
+            const share = grandTotalRep > 0 ? (r.total / grandTotalRep) * 100 : 0;
+            return [
+                i + 1,
+                r.name,
+                `${r.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                r.count,
+                r.uniqueCust,
+                // Removed Avg/Txn
+                `${share.toFixed(1)}%`
+            ];
+        });
+
+        const totalTxns = repData.reduce((acc, curr) => acc + curr.count, 0);
+        const totalClients = repData.reduce((acc, curr) => acc + curr.uniqueCust, 0);
+
+        // Add Total Row
+        repRows.push([
+            '',
+            'Total',
+            `${grandTotalRep.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+            totalTxns,
+            totalClients,
+            '100.0%'
+        ]);
+
+        autoTable(doc, {
+            startY: y,
+            head: [['#', 'Sales Rep', 'Total Collected', 'Txns', 'Clients', 'Share %']],
+            body: repRows,
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+            bodyStyles: { halign: 'center', valign: 'middle' },
+            columnStyles: {},
+            didParseCell: (data) => {
+                if (data.section === 'body') {
+                    // Highlight Top 3 (if not Total row)
+                    if (data.row.index < repRows.length - 1 && data.row.index < 3) {
+                        if (data.column.index === 0) {
+                            data.cell.styles.fontStyle = 'bold';
+                            if (data.row.index === 0) data.cell.styles.textColor = [217, 119, 6]; // Dark Gold
+                        }
+                    }
+
+                    // Total Row Styling
+                    if (data.row.index === repRows.length - 1) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [241, 245, 249]; // Slate 50
+                        if (data.column.index === 1) data.cell.styles.halign = 'center'; // Center "Total" text
+                    }
+                }
+            }
+        });
+
+    }
 
     // Footer / Page Numbers
     const pageCount = (doc as any).internal.getNumberOfPages();

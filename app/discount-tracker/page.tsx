@@ -97,14 +97,7 @@ export default function DiscountTrackerPage() {
 
             <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
                 <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
-                    {loading ? (
-                        <div className="flex items-center justify-center h-96">
-                            <div className="text-center">
-                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
-                                <p className="text-gray-600">Loading discount data...</p>
-                            </div>
-                        </div>
-                    ) : error ? (
+                    {error ? (
                         <div className="flex items-center justify-center h-96">
                             <div className="text-center bg-red-50 p-6 rounded-lg">
                                 <p className="text-red-600 text-lg mb-4">Error loading data</p>
@@ -118,7 +111,7 @@ export default function DiscountTrackerPage() {
                             </div>
                         </div>
                     ) : (
-                        <DiscountTrackerTab data={data} />
+                        <DiscountTrackerTab data={data} isLoading={loading} />
                     )}
                 </main>
             </div>

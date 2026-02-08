@@ -2401,6 +2401,8 @@ export interface ProductOrder {
   barcode: string;
   productName: string;
   qinc: number;
+  minQ?: number; // New column
+  maxQ?: number; // New column
   tags: string;
   qtyOnHand: number;
   qtyFreeToUse: number;
@@ -2424,7 +2426,7 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     const [inventoryResponse, salesResponse] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - Orders'!A:G`, // Expanded range to include QINC
+        range: `'Inventory - Orders'!A:Z`, // Expanded range
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
@@ -2518,11 +2520,36 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
       return [];
     }
 
+    // Dynamic Column Mapping for Inventory Sheet
+    const invHeader = rows[0].map((h: string) => h.toString().toLowerCase().trim());
+    const idx = {
+      id: invHeader.findIndex((h: string) => h.includes('id') || h.includes('code')),
+      barcode: invHeader.findIndex((h: string) => h.includes('barcode')),
+      name: invHeader.findIndex((h: string) => (h.includes('name') || h.includes('product') || h.includes('item')) && !h.includes('id') && !h.includes('code')),
+      minQ: invHeader.findIndex((h: string) => h.includes('min q') || h.includes('min')),
+      maxQ: invHeader.findIndex((h: string) => h.includes('max q') || h.includes('max')),
+      qinc: invHeader.findIndex((h: string) => (h.includes('qinc') || h.includes('units') || h.includes('ctn')) && !h.includes('min') && !h.includes('max')),
+      tags: invHeader.findIndex((h: string) => h.includes('tag')),
+      onHand: invHeader.findIndex((h: string) => h.includes('on hand') || h.includes('stock')),
+      free: invHeader.findIndex((h: string) => h.includes('free') || h.includes('avail'))
+    };
+
+    // Fallback mappings if headers not found (based on user description)
+    if (idx.id === -1) idx.id = 0;
+    if (idx.barcode === -1) idx.barcode = 1;
+    if (idx.name === -1) idx.name = 2;
+    if (idx.minQ === -1) idx.minQ = 3;
+    if (idx.maxQ === -1) idx.maxQ = 4;
+    if (idx.qinc === -1) idx.qinc = 5;
+    if (idx.tags === -1) idx.tags = 6;
+    if (idx.onHand === -1) idx.onHand = 7;
+    if (idx.free === -1) idx.free = 8;
+
     // Skip header row
     const data = rows.slice(1).map((row, index) => {
-      let productId = row[0]?.toString().trim() || '';
-      const barcode = row[1]?.toString().trim() || '';
-      const productName = row[2]?.toString().trim() || '';
+      let productId = row[idx.id]?.toString().trim() || '';
+      const barcode = row[idx.barcode]?.toString().trim() || '';
+      const productName = row[idx.name]?.toString().trim() || '';
 
       // Fallback for missing ID to ensure uniqueness in UI
       if (!productId) {
@@ -2542,10 +2569,12 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
         productId,
         barcode,
         productName,
-        qinc: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'), // QINC column
-        tags: row[4]?.toString().trim() || '',
-        qtyOnHand: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
-        qtyFreeToUse: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
+        minQ: parseFloat(row[idx.minQ]?.toString().replace(/,/g, '') || '0'),
+        maxQ: parseFloat(row[idx.maxQ]?.toString().replace(/,/g, '') || '0'),
+        qinc: parseFloat(row[idx.qinc]?.toString().replace(/,/g, '') || '0'),
+        tags: row[idx.tags]?.toString().trim() || '',
+        qtyOnHand: parseFloat(row[idx.onHand]?.toString().replace(/,/g, '') || '0'),
+        qtyFreeToUse: parseFloat(row[idx.free]?.toString().replace(/,/g, '') || '0'),
         salesQty: salesMap.get(productId) || 0,
         rowIndex: index + 2, // 1-based index, header is 1
         salesBreakdown
@@ -2561,7 +2590,7 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
   }
 }
 
-export async function updateProductOrderQinc(rowIndex: number, qinc: number): Promise<{ success: boolean }> {
+export async function updateProductColumn(rowIndex: number, columnName: string, value: any): Promise<{ success: boolean }> {
   try {
     const credentials = getServiceAccountCredentials();
     const auth = new google.auth.GoogleAuth({
@@ -2570,20 +2599,52 @@ export async function updateProductOrderQinc(rowIndex: number, qinc: number): Pr
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
+    // Read header row to find column index
+    const headerRes = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - Orders'!1:1`,
+    });
+    const header = (headerRes.data.values?.[0] || []).map((h: string) => h.toLowerCase().trim());
+
+    let colIndex = -1;
+    // Map nice names to loose matching
+    if (columnName === 'qinc') colIndex = header.findIndex((h: string) => h.includes('qinc') || h.includes('units') || h.includes('ctn'));
+    else if (columnName === 'minQ') colIndex = header.findIndex((h: string) => h.includes('min q') || h.includes('min'));
+    else if (columnName === 'maxQ') colIndex = header.findIndex((h: string) => h.includes('max q') || h.includes('max'));
+
+    // Fallbacks if header logic fails
+    if (colIndex === -1) {
+      if (columnName === 'minQ') colIndex = 3;
+      else if (columnName === 'maxQ') colIndex = 4;
+      else if (columnName === 'qinc') colIndex = 5;
+    }
+
+    if (colIndex === -1) throw new Error(`Column for ${columnName} not found`);
+
+    const colLetter = String.fromCharCode(65 + colIndex);
+
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - Orders'!D${rowIndex}`, // Updated QINC column D
+      range: `'Inventory - Orders'!${colLetter}${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[qinc]],
+        values: [[value]],
       },
     });
 
     return { success: true };
   } catch (error) {
-    console.error('Error updating QINC:', error);
+    console.error('Error updating product column:', error);
     throw error;
   }
+}
+
+export async function updateProductOrderQinc(rowIndex: number, qinc: number): Promise<{ success: boolean }> {
+  return updateProductColumn(rowIndex, 'qinc', qinc);
+}
+
+export async function updateProductOrderLimit(rowIndex: number, field: 'minQ' | 'maxQ', value: number): Promise<{ success: boolean }> {
+  return updateProductColumn(rowIndex, field, value);
 }
 
 
