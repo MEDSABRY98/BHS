@@ -1229,61 +1229,57 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 }
             });
         }
+    }
 
+    // --- MONTHLY ANALYSIS PAGE ---
+    if (filters.sections?.monthly !== false && months.length > 0) {
+        doc.addPage('a4', 'portrait');
 
-        // --- MONTHLY ANALYSIS PAGE ---
-        if (filters.sections?.monthly !== false && months.length > 0) {
-            doc.addPage('a4', 'portrait');
+        doc.setFontSize(16);
+        doc.setTextColor(30, 41, 59);
+        doc.text('Monthly Analysis', 105, 20, { align: 'center' });
 
-            doc.setFontSize(16);
-            doc.setTextColor(30, 41, 59);
-            doc.text('Monthly Analysis', 105, 20, { align: 'center' });
+        // 1. Chart
+        // Show latest 8 months if period is long
+        const monthsForChart = months.length > 8 ? months.slice(-8) : months;
+        const chartTitleM = months.length > 8 ? 'Collections Trend (Last 8 Months)' : 'Collections Trend (Monthly)';
 
-            // 1. Chart
-            // Show latest 8 months if period is long
-            const monthsForChart = months.length > 8 ? months.slice(-8) : months;
-            const chartTitleM = months.length > 8 ? 'Collections Trend (Last 8 Months)' : 'Collections Trend (Monthly)';
+        drawBarChart(doc, 15, 28, 180, 80, monthsForChart, chartTitleM);
 
-            drawBarChart(doc, 15, 28, 180, 80, monthsForChart, chartTitleM);
+        // 2. Table
+        const tableDataM = months.map(m => {
+            const diffPrev = m.previous > 0 ? ((m.current - m.previous) / m.previous) * 100 : 0;
+            const diffLy = m.lastYear > 0 ? ((m.current - m.lastYear) / m.lastYear) * 100 : 0;
 
-            // 2. Table
-            const tableDataM = months.map(m => {
-                const diffPrev = m.previous > 0 ? ((m.current - m.previous) / m.previous) * 100 : 0;
-                const diffLy = m.lastYear > 0 ? ((m.current - m.lastYear) / m.lastYear) * 100 : 0;
+            return [
+                m.label,
+                `${m.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${m.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                `${m.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+            ];
+        });
 
-                return [
-                    m.label,
-                    `${m.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                    `${m.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                    `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
-                    `${m.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                    `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
-                ];
-            });
-
-            autoTable(doc, {
-                startY: 140, // Increased spacing for Monthly table (Chart at 30 + 80 + 30 buffer)
-                head: [['Month', 'Current', 'Previous', 'MoM %', 'Last Year', 'YoY %']],
-                body: tableDataM,
-                theme: 'grid',
-                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-                bodyStyles: { halign: 'center', valign: 'middle' },
-                columnStyles: {
-                    0: { halign: 'center' }
-                },
-                didParseCell: (data) => {
-                    if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
-                        const txt = String(data.cell.raw);
-                        if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
-                        else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
-                        else data.cell.styles.textColor = [100, 116, 139];
-                    }
+        autoTable(doc, {
+            startY: 140, // Increased spacing for Monthly table (Chart at 30 + 80 + 30 buffer)
+            head: [['Month', 'Current', 'Previous', 'MoM %', 'Last Year', 'YoY %']],
+            body: tableDataM,
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+            bodyStyles: { halign: 'center', valign: 'middle' },
+            columnStyles: {
+                0: { halign: 'center' }
+            },
+            didParseCell: (data) => {
+                if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
+                    const txt = String(data.cell.raw);
+                    if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
+                    else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
+                    else data.cell.styles.textColor = [100, 116, 139];
                 }
-            });
-        }
-
-        // --- ALL CUSTOMERS PAGE ---
-        // If user filtered by date, show list of customers who paid IN THAT DATE RANGE
+            }
+        });
     }
 
     // --- ALL CUSTOMERS PAGE ---
