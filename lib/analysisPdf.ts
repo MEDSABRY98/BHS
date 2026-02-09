@@ -376,17 +376,67 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     // Preprocess Allocations (Distribute payments across invoices using Max Debit Holder logic)
     const allocationMap = preprocessAllocations(allData);
 
+    // Filtered Amount Helper (Ensures consistency between Pages & UI Dashboard)
+    const getFilteredAmount = (p: InvoiceRow) => {
+        const val = (p.credit || 0) - (p.debit || 0);
+        if (!filters.sourceFilters || filters.sourceFilters.size === 0) return val;
+
+        const allocs = allocationMap.get(p);
+        if (allocs && allocs.length > 0) {
+            let total = 0;
+            allocs.forEach(frag => {
+                let label = 'Unmatched';
+                if (frag.type === 'OB') label = 'OB';
+                else if (frag.type === 'Unmatched') label = 'Unmatched';
+                else {
+                    const m = frag.date.toLocaleString('en-US', { month: 'short' });
+                    const y = frag.date.getFullYear().toString().slice(-2);
+                    label = `${m}${y}`;
+                }
+                if (filters.sourceFilters!.has(label)) {
+                    total += frag.amount;
+                }
+            });
+            return total;
+        }
+
+        // Fallback: Try to identify source via Matching ID (Critical for R-Payments/Refunds which might be skipped by alloc logic)
+        const matchId = (p.matching || '').toString().toLowerCase();
+        let derivedLabel = 'Unmatched';
+
+        if (matchId) {
+            if (filters.obMatchingIds && filters.obMatchingIds.has(matchId)) {
+                derivedLabel = 'OB';
+            } else if (filters.matchIdToDateMap && filters.matchIdToDateMap.has(matchId)) {
+                const dates = filters.matchIdToDateMap.get(matchId)!;
+                if (dates.length > 0) {
+                    // Use oldest date logic consistent with UI source identification
+                    const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+                    const d = sorted[0];
+                    const m = d.toLocaleString('en-US', { month: 'short' });
+                    const y = d.getFullYear().toString().slice(-2);
+                    derivedLabel = `${m}${y}`;
+                }
+            }
+        }
+
+        if (filters.sourceFilters.has(derivedLabel)) {
+            return val;
+        }
+
+        return 0;
+    };
+
 
     // Helper to sum range
     const sumRange = (start: Date, end: Date) => {
-        // Ensure strictly within standard days
         const s = new Date(start); s.setHours(0, 0, 0, 0);
         const e = new Date(end); e.setHours(23, 59, 59, 999);
 
         return baseData.reduce((sum, p) => {
             const d = parseDate(p.date);
             if (d && d >= s && d <= e) {
-                return sum + ((p.credit || 0) - (p.debit || 0));
+                return sum + getFilteredAmount(p);
             }
             return sum;
         }, 0);
@@ -557,17 +607,21 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         let count = 0;
         const customers = new Set<string>();
 
-        // Ensure boundaries
         const sTime = s.setHours(0, 0, 0, 0);
         const eTime = e.setHours(23, 59, 59, 999);
 
         baseData.forEach(p => {
             const d = parseDate(p.date);
             if (d && d.getTime() >= sTime && d.getTime() <= eTime) {
-                const val = (p.credit || 0) - (p.debit || 0);
-                total += val;
-                count++;
-                customers.add(p.customerName);
+                const val = getFilteredAmount(p);
+                if (val !== 0) {
+                    total += val;
+                    // Match UI logic: Only count as transaction/customer if amount is positive
+                    if (val > 0.001) {
+                        count++;
+                        customers.add(p.customerName.trim());
+                    }
+                }
             }
         });
 
@@ -616,14 +670,15 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     baseData.forEach(p => {
         const d = parseDate(p.date);
         if (d && d.getTime() >= startMs && d.getTime() <= endMs) {
-            const val = (p.credit || 0) - (p.debit || 0);
+            const val = getFilteredAmount(p);
+            if (val !== 0) {
+                // Daily
+                const dStr = formatDate(d);
+                if (dailyMap.has(dStr)) dailyMap.set(dStr, (dailyMap.get(dStr) || 0) + val);
 
-            // Daily
-            const dStr = formatDate(d);
-            if (dailyMap.has(dStr)) dailyMap.set(dStr, (dailyMap.get(dStr) || 0) + val);
-
-            // Cust
-            custMap.set(p.customerName, (custMap.get(p.customerName) || 0) + val);
+                // Cust
+                custMap.set(p.customerName, (custMap.get(p.customerName) || 0) + val);
+            }
         }
     });
 
@@ -1356,7 +1411,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 } else {
                     // Fallback for unmatched
                     const val = (p.credit || 0) - (p.debit || 0);
-                    if (val > 0.01) {
+                    if (val !== 0) {
                         // Only include if Unmatched is in filter or no filter
                         if (!filters.sourceFilters || filters.sourceFilters.size === 0 || filters.sourceFilters.has('Unmatched')) {
                             totalForThisPayment = val;
@@ -1366,7 +1421,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 }
 
                 // Only add to customer stats if we have any amount after filtering
-                if (totalForThisPayment > 0.01) {
+                if (Math.abs(totalForThisPayment) > 0.001) {
                     const curr = customerMap.get(p.customerName) || { total: 0, count: 0, dates: [] as number[], breakdown: new Map() };
 
                     curr.total += totalForThisPayment;
@@ -1569,7 +1624,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             } else {
                 // Fallback for unmatched
                 const credit = (row.credit || 0) - (row.debit || 0);
-                if (credit > 0.01) {
+                if (credit !== 0) {
                     // Only include if Unmatched is in filter or no filter
                     if (!filters.sourceFilters || filters.sourceFilters.size === 0 || filters.sourceFilters.has('Unmatched')) {
                         buckets['Unmatched'] += credit;

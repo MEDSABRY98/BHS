@@ -435,16 +435,15 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
     } else {
       // Monthly view
-      // If dateFrom is provided, respect it. Otherwise snap to 1st.
-      if (!dateFrom) {
+      // Only snap to month boundaries if NO date filter is active at all
+      if (!dateFrom && !dateTo && !yearNum && !monthNum) {
+        // No filters - snap to full months
         startDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      }
-      // If dateTo is provided, respect it. Otherwise snap to end of month.
-      if (dateTo) {
-        endDate = new Date(endDate);
+        endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
         endDate.setHours(23, 59, 59, 999);
       } else {
-        endDate = new Date(endDate.getFullYear(), endDate.getMonth() + 1, 0);
+        // User has specified some date filter - respect it exactly
+        startDate.setHours(0, 0, 0, 0);
         endDate.setHours(23, 59, 59, 999);
       }
     }
@@ -837,16 +836,19 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
         if (fromDate && toDate) {
           startDate = fromDate;
+          startDate.setHours(0, 0, 0, 0);
           endDate = new Date(toDate);
           endDate.setHours(23, 59, 59, 999);
         } else if (fromDate) {
           const today = new Date();
           startDate = fromDate;
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(today);
           endDate.setHours(23, 59, 59, 999);
         } else if (toDate) {
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+          endDate = new Date(toDate);
+          endDate.setHours(23, 59, 59, 999);
+          startDate = new Date(0);
         } else {
           const today = new Date();
           endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -959,16 +961,19 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
       if (fromDate && toDate) {
         startDate = fromDate;
+        startDate.setHours(0, 0, 0, 0);
         endDate = new Date(toDate);
         endDate.setHours(23, 59, 59, 999);
       } else if (fromDate) {
         const today = new Date();
         startDate = fromDate;
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        startDate.setHours(0, 0, 0, 0);
+        endDate = new Date(today);
         endDate.setHours(23, 59, 59, 999);
       } else if (toDate) {
-        endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-        startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+        endDate = new Date(toDate);
+        endDate.setHours(23, 59, 59, 999);
+        startDate = new Date(0);
       } else {
         const today = new Date();
         endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -1090,15 +1095,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         if (fromDate && toDate) {
           // Both dates are set
           startDate = fromDate;
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(toDate);
+          endDate.setHours(23, 59, 59, 999);
         } else if (fromDate) {
           // Only dateFrom is set
           startDate = fromDate;
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          startDate.setHours(0, 0, 0, 0);
+          endDate = new Date(today);
+          endDate.setHours(23, 59, 59, 999);
         } else if (toDate) {
           // Only dateTo is set
-          endDate = new Date(toDate.getFullYear(), toDate.getMonth() + 1, 0);
-          startDate = new Date(toDate.getFullYear(), toDate.getMonth() - 11, 1);
+          endDate = new Date(toDate);
+          endDate.setHours(23, 59, 59, 999);
+          startDate = new Date(0);
         } else {
           // Invalid dates, use default
           endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -1195,7 +1205,11 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
     if (!useYearMonthFilter) {
       if (dateFrom) {
-        filterStartDate = parseDate(dateFrom);
+        const d = parseDate(dateFrom);
+        if (d) {
+          filterStartDate = new Date(d);
+          filterStartDate.setHours(0, 0, 0, 0);
+        }
       }
       if (dateTo) {
         const d = parseDate(dateTo);
