@@ -139,11 +139,82 @@ const drawBarChart = (doc: jsPDF, x: number, y: number, w: number, h: number, da
 
 
 const getBHSWeek = (date: Date) => {
-    const year = date.getFullYear();
-    const startOfYear = new Date(year, 0, 1);
-    const days = Math.floor((date.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24));
-    const week = Math.floor(days / 7) + 1;
-    return { week, year };
+    const d = new Date(date.getTime());
+    d.setHours(0, 0, 0, 0);
+    const startOfYear = new Date(d.getFullYear(), 0, 1);
+    const diff = d.getTime() - startOfYear.getTime();
+    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+    const week = Math.floor(diff / oneWeekMs) + 1;
+    return { week, year: d.getFullYear() };
+};
+
+// --- ARABIC FONT CONFIG ---
+const ARABIC_FONT = 'Amiri';
+
+// --- DONUT CHART UTIL ---
+const drawDonutChart = (
+    doc: jsPDF,
+    x: number,
+    y: number,
+    radius: number,
+    currentVal: number,
+    prevVal: number,
+    title: string,
+    color: [number, number, number]
+) => {
+    const centerX = x + radius;
+    const centerY = y + radius + 5;
+
+    // Performance Difference (Center Text)
+    // Formula: ((Current - Prev) / Prev) * 100
+    const diff = prevVal > 0 ? ((currentVal - prevVal) / prevVal) * 100 : 0;
+    const diffStr = `${diff >= 0 ? '+' : ''}${Math.round(diff)}%`;
+    const diffColor = diff >= 0 ? [22, 163, 74] : [220, 38, 38]; // Green 600 or Red 600
+
+    // Contribution Share (The donut split)
+    const total = currentVal + prevVal;
+    const curShare = total > 0 ? (currentVal / total) : 0;
+    const prevShare = total > 0 ? (prevVal / total) : 0;
+
+    // Draw Background Circle (Previous Share Part)
+    doc.setDrawColor(226, 232, 240); // Slate 200
+    doc.setLineWidth(radius * 0.28);
+    doc.ellipse(centerX, centerY, radius - (radius * 0.14), radius - (radius * 0.14), 'S');
+
+    // Draw Current Share Arc (Blue Part)
+    if (curShare > 0) {
+        doc.setDrawColor(...color);
+        doc.setLineWidth(radius * 0.28);
+
+        // Exact Arc drawing using segments
+        const segments = 60;
+        const curDeg = curShare * 360;
+        const step = curDeg / segments;
+
+        for (let i = 0; i < segments; i++) {
+            const a1 = (i * step - 90) * (Math.PI / 180);
+            const a2 = ((i + 1) * step - 90) * (Math.PI / 180);
+            const rOffset = radius - (radius * 0.14);
+            doc.line(
+                centerX + rOffset * Math.cos(a1),
+                centerY + rOffset * Math.sin(a1),
+                centerX + rOffset * Math.cos(a2),
+                centerY + rOffset * Math.sin(a2)
+            );
+        }
+    }
+
+    // Title
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title.toUpperCase(), centerX, y, { align: 'center' });
+
+    // Performance Difference Text (Middle)
+    doc.setFontSize(14);
+    doc.setTextColor(...(diffColor as [number, number, number]));
+    doc.setFont('helvetica', 'bold');
+    doc.text(diffStr, centerX, centerY + 2, { align: 'center' });
 };
 
 const getWeekDateRange = (year: number, week: number) => {
@@ -796,26 +867,22 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     if (filters.sections?.summary !== false) {
         doc.addPage('a4', 'landscape');
 
-        // --- PAGE TITLE ---
-        doc.setFontSize(20);
-        doc.setTextColor(30, 41, 59);
-        doc.setFont('helvetica', 'bold');
-        doc.text('Executive Summary Report', 148, 20, { align: 'center' });
-
-        // Period Subtitle removed as requested
-
         // --- BACKGROUND ---
-        // Light gray background for the whole dashboard area
         doc.setFillColor(248, 250, 252); // Slate 50
-        doc.rect(0, 40, 297, 170, 'F');
+        doc.rect(0, 0, 297, 210, 'F');
 
-        // --- LAYOUT & ALIGNMENT ---
-        const startY = 45;
+        // --- PAGE TITLE ---
+        doc.setFontSize(18);
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Executive Summary Report', 148.5, 10, { align: 'center' });
+
+        // --- TOP CARDS LAYOUT ---
+        const startY = 15;
         const pageMargin = 12;
-        const colGap = 6;
+        const colGap = 8;
         const totalW = 297 - (2 * pageMargin);
 
-        // Granular toggles
         const showPrev = filters.sections?.summaryPrevious !== false;
         const showLY = filters.sections?.summaryLastYear !== false && hasLYData;
 
@@ -823,248 +890,196 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         const visibleCols = [true, showPrev, showLY].filter(Boolean).length;
         const colW = (totalW - (visibleCols - 1) * colGap) / visibleCols;
 
-        // Assign positions based on visibility
         let nextX = pageMargin;
-        const getX = () => {
-            const currentX = nextX;
-            nextX += colW + colGap;
-            return currentX;
-        };
+        const posX1 = nextX; nextX += (showPrev || showLY) ? colW + colGap : 0;
+        const posX2 = showPrev ? nextX : -1000; if (showPrev) nextX += showLY ? colW + colGap : 0;
+        const posX3 = showLY ? nextX : -1000;
 
-        const posX1 = getX();
-        const posX2 = showPrev ? getX() : -1000; // Use a value far off-screen if not visible
-        const posX3 = showLY ? getX() : -1000; // Use a value far off-screen if not visible
+        const cardH = 95;
 
-        // Container Helper
-        const drawContainer = (x: number, y: number, w: number, h: number, title: string, subtitle: string, isHero: boolean) => {
-            // Shadow
-            doc.setFillColor(226, 232, 240); // Slate 200
-            doc.roundedRect(x + 1, y + 1, w, h, 3, 3, 'F');
-            // Bg
-            doc.setFillColor(255, 255, 255);
-            doc.roundedRect(x, y, w, h, 3, 3, 'F');
-
-            // Header Border
-            if (isHero) {
-                doc.setDrawColor(59, 130, 246); // Blue top border
-                doc.setLineWidth(1);
-                doc.line(x + 1, y, x + w - 1, y);
-            }
-
-            // Title
-            doc.setFontSize(isHero ? 13 : 12);
-            doc.setTextColor(isHero ? 15 : 71, isHero ? 23 : 85, isHero ? 42 : 116);
-            doc.setFont('helvetica', 'bold');
-            doc.text(title, x + 6, y + 8);
-
-            // Subtitle
-            doc.setFontSize(11);
-            doc.setTextColor(148, 163, 184); // Slate 400
-            doc.setFont('helvetica', 'normal');
-            doc.text(subtitle, x + 6, y + 14);
-        };
-
-        // Stat Row Helper that enforces alignment
-        const drawAlignedRow = (
-            x: number, y: number, w: number,
-            label: string,
-            value: string,
-            trend: number | null,
-            iconColor: [number, number, number],
-            isHeroCol: boolean
-        ) => {
-            const rowH = 16; // Standard Height
-
-            // Icon
-            doc.setFillColor(...iconColor);
-            doc.circle(x + 5, y + 6, 2.5, 'F');
-
-            // Label
-            doc.setFontSize(9);
-            doc.setTextColor(100, 116, 139);
-            doc.setFont('helvetica', 'normal');
-            doc.text(label, x + 10, y + 9);
-
-            // Value (Right aligned)
-            const rightMargin = isHeroCol ? 34 : 10;
-            doc.setFontSize(11);
-            doc.setTextColor(30, 41, 59);
-            doc.setFont('helvetica', 'bold');
-            doc.text(value, x + w - rightMargin, y + 9, { align: 'right' });
-
-            // Trend Pill (Hero only)
-            if (trend !== null && isHeroCol) {
-                const isPos = trend >= 0;
-                const trendColor = isPos ? [220, 252, 231] : [254, 226, 226]; // Green 100 vs Red 100
-                const trendText = isPos ? [22, 163, 74] : [220, 38, 38]; // Green 600 vs Red 600
-                const sym = isPos ? '+' : '';
-                const txt = `${sym}${trend.toFixed(1)}%`;
-
-                doc.setFillColor(...(trendColor as [number, number, number]));
-                doc.roundedRect(x + w - 30, y + 3, 28, 11, 3, 3, 'F'); // Shifted right
-
-                doc.setFontSize(9);
-                doc.setTextColor(...(trendText as [number, number, number]));
-                doc.setFont('helvetica', 'bold');
-                doc.text(txt, x + w - 16, y + 10, { align: 'center' }); // Centered
-            }
-
-            // Dashed Separator
-            doc.setDrawColor(241, 245, 249);
-            doc.setLineWidth(0.1);
-            doc.line(x + 6, y + rowH, x + w - 6, y + rowH);
-
-            return rowH;
-        };
-
-        const hMain = 135;
-
-        // Draw Containers
-        drawContainer(posX1, startY, colW, hMain, 'Current Period Performance', `${formatDate(startDate!)} - ${formatDate(endDate!)}`, true);
-        if (showPrev) {
-            drawContainer(posX2, startY, colW, hMain, 'Previous Period', `${formatDate(prevStartDate)} - ${formatDate(prevEndDate)}`, false);
-        }
-        if (showLY) {
-            drawContainer(posX3, startY, colW, hMain, 'Same Period Last Year', `${formatDate(lyStartDate)} - ${formatDate(lyEndDate)}`, false);
-        }
-        // --- ROW ALIGNMENT LOGIC ---
-        // Big Revenue Card Height in Hero Col
-        const heroCardH = 34;
-        const heroCardY = startY + 20;
-
-        // Draw Hero Revenue Card
-        // --- ROW ALIGNMENT LOGIC ---
-        // Revenue Cards (Top Row of each column)
-        const revCardH = 42; // Reduced height (was 58)
-        const revCardY = startY + 20;
-
-        // Helper: Draw Revenue Card
-        const drawRevenueCard = (
-            x: number,
-            w: number,
-            amount: string,
-            isHero: boolean
-        ) => {
-            // Card Bg
-            if (isHero) {
-                doc.setFillColor(59, 130, 246); // Blue 500
-                doc.roundedRect(x + 6, revCardY, w - 12, revCardH, 4, 4, 'F');
-                doc.setTextColor(255, 255, 255);
-            } else {
-                doc.setFillColor(241, 245, 249); // Slate 100
-                doc.roundedRect(x + 6, revCardY, w - 12, revCardH, 4, 4, 'F');
-                doc.setTextColor(100, 116, 139); // Slate 500
-            }
-
-            // Title
-            doc.setFontSize(11);
-            doc.setFont('helvetica', 'normal');
-            doc.text('Total Collections', x + 14, revCardY + 12);
-
-            // Amount
-            doc.setFontSize(isHero ? 24 : 20);
-            doc.setFont('helvetica', 'bold');
-            if (isHero) doc.setTextColor(255, 255, 255);
-            else doc.setTextColor(30, 41, 59);
-
-            // Draw amount
-            doc.text(amount, x + 14, revCardY + 30);
-        };
-
-        // Draw Revenue Cards
-        drawRevenueCard(posX1, colW, `${curMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, true);
-        if (showPrev) {
-            drawRevenueCard(posX2, colW, `${prevMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, false);
-        }
-        if (showLY) {
-            drawRevenueCard(posX3, colW, `${lyMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, false);
-        }
-        // Helper: Draw Metric Block (Replaces aligned row)
-        const drawMetricBlock = (
+        // Helper: Draw Main Dynamic Card
+        const drawMainCard = (
             x: number,
             y: number,
             w: number,
-            label: string,
-            value: string,
-            trend: number | null
+            h: number,
+            title: string,
+            dateRange: string,
+            amount: number,
+            customers: number,
+            transactions: number,
+            type: 'current' | 'prev' | 'ly',
+            custTrendVal?: number,
+            countTrendVal?: number
         ) => {
-            // Label Centered
-            doc.setFontSize(10);
-            doc.setTextColor(148, 163, 184); // Slate 400
+            // Container Shadow Look
+            doc.setFillColor(255, 255, 255);
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.1);
+            doc.roundedRect(x, y, w, h, 4, 4, 'FD');
+
+            // Top Border Accent
+            const accentColor: [number, number, number] =
+                type === 'current' ? [59, 130, 246] :
+                    type === 'prev' ? [148, 163, 184] : [132, 204, 22]; // Blue, Slate, Lime
+
+            doc.setFillColor(...accentColor);
+            doc.roundedRect(x, y, w, 3, 2, 2, 'F');
+
+            // Title
+            doc.setFontSize(12);
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'bold');
+            doc.text(title, x + 8, y + 10);
+
+            // Subtitle (Date Range)
+            doc.setFontSize(8);
+            doc.setTextColor(148, 163, 184);
             doc.setFont('helvetica', 'normal');
-            doc.text(label, x + w / 2, y + 5, { align: 'center' });
+            doc.text(dateRange, x + 8, y + 15);
 
-            const boxY = y + 10;
-            const boxH = 14;
+            // Revenue Section
+            const revY = y + 20;
+            const revH = 28;
+            doc.setFillColor(...accentColor);
+            doc.roundedRect(x + 8, revY, w - 16, revH, 3, 3, 'F');
 
-            if (trend !== null) {
-                // Two Boxes: Value & Trend
-                const valBoxW = 32;
-                const trendBoxW = 32;
-                const gap = 4;
-                const totalContentW = valBoxW + trendBoxW + gap;
-                const startX = x + (w - totalContentW) / 2;
+            doc.setFontSize(8);
+            doc.setTextColor(255, 255, 255);
+            doc.text('TOTAL COLLECTIONS', x + (w / 2), revY + 8, { align: 'center' });
 
-                // 1. Value Box
-                doc.setFillColor(241, 245, 249); // Slate 100
-                doc.roundedRect(startX, boxY, valBoxW, boxH, 3, 3, 'F');
-                doc.setFontSize(12);
-                doc.setTextColor(30, 41, 59);
-                doc.setFont('helvetica', 'bold');
-                doc.text(value, startX + valBoxW / 2, boxY + 9, { align: 'center' });
+            doc.setFontSize(22);
+            doc.setFont('helvetica', 'bold');
+            doc.text(amount.toLocaleString(undefined, { maximumFractionDigits: 0 }), x + (w / 2), revY + 20, { align: 'center' });
 
-                // 2. Trend Box
-                const isPos = trend >= 0;
-                const trendColor = isPos ? [220, 252, 231] : [254, 226, 226];
-                const trendText = isPos ? [22, 163, 74] : [220, 38, 38];
-                const sym = isPos ? '+' : '';
-                const txt = `${sym}${trend.toFixed(1)}%`;
+            // Stats Rows
+            const statsY = revY + revH + 8;
 
-                doc.setFillColor(...(trendColor as [number, number, number]));
-                doc.roundedRect(startX + valBoxW + gap, boxY, trendBoxW, boxH, 3, 3, 'F');
-                doc.setFontSize(10);
-                doc.setTextColor(...(trendText as [number, number, number]));
-                doc.text(txt, startX + valBoxW + gap + trendBoxW / 2, boxY + 9, { align: 'center' });
+            // Active Customers Row
+            doc.setFontSize(8);
+            doc.setTextColor(148, 163, 184);
+            doc.text('ACTIVE CUSTOMERS', x + 8, statsY);
 
-            } else {
-                // One Box: Value Only
-                const valBoxW = 40;
-                const startX = x + (w - valBoxW) / 2;
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(x + 8, statsY + 3, w - 16, 12, 2, 2, 'F');
 
-                doc.setFillColor(241, 245, 249); // Slate 100
-                doc.roundedRect(startX, boxY, valBoxW, boxH, 3, 3, 'F');
-                doc.setFontSize(12);
-                doc.setTextColor(30, 41, 59);
-                doc.setFont('helvetica', 'bold');
-                doc.text(value, startX + valBoxW / 2, boxY + 9, { align: 'center' });
+            doc.setFontSize(14);
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${customers}`, x + (w / 2) - (custTrendVal !== undefined ? 10 : 0), statsY + 11.5, { align: 'center' });
+
+            if (custTrendVal !== undefined) {
+                const isPos = custTrendVal >= 0;
+                doc.setFillColor(isPos ? 220 : 254, isPos ? 252 : 226, isPos ? 231 : 226);
+                doc.roundedRect(x + w - 32, statsY + 4.5, 22, 9, 2, 2, 'F');
+                doc.setFontSize(8);
+                doc.setTextColor(isPos ? 22 : 220, isPos ? 163 : 38, isPos ? 74 : 38);
+                doc.text(`${isPos ? '+' : ''}${custTrendVal.toFixed(1)}%`, x + w - 21, statsY + 11, { align: 'center' });
+            }
+
+            // Transactions Row
+            const transY = statsY + 22;
+            doc.setFontSize(8);
+            doc.setTextColor(148, 163, 184);
+            doc.text('TOTAL TRANSACTIONS', x + 8, transY);
+
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(x + 8, transY + 3, w - 16, 12, 2, 2, 'F');
+
+            doc.setFontSize(14);
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${transactions}`, x + (w / 2) - (countTrendVal !== undefined ? 10 : 0), transY + 11.5, { align: 'center' });
+
+            if (countTrendVal !== undefined) {
+                const isPos = countTrendVal >= 0;
+                doc.setFillColor(isPos ? 220 : 254, isPos ? 252 : 226, isPos ? 231 : 226);
+                doc.roundedRect(x + w - 32, transY + 4.5, 22, 9, 2, 2, 'F');
+                doc.setFontSize(8);
+                doc.setTextColor(isPos ? 22 : 220, isPos ? 163 : 38, isPos ? 74 : 38);
+                doc.text(`${isPos ? '+' : ''}${countTrendVal.toFixed(1)}%`, x + w - 21, transY + 11, { align: 'center' });
             }
         };
 
-        const rowStartY = revCardY + revCardH + 16; // Increased gap after header
-        const rowGap_Metric = 32; // Increased gap for taller blocks
-
-        // --- DRAW ROWS ---
-        // Row 1: Active Customers
-        let yRow = rowStartY;
-        drawMetricBlock(posX1, yRow, colW, 'Active Customers', `${curMet.uniqueCustomers}`, custTrend);
+        // Draw Big Cards
+        drawMainCard(posX1, startY, colW, cardH, 'Current Period Performance', `${formatDate(startDate!)} - ${formatDate(endDate!)}`, curMet.total, curMet.uniqueCustomers, curMet.count, 'current', custTrend, countTrend);
         if (showPrev) {
-            drawMetricBlock(posX2, yRow, colW, 'Active Customers', `${prevMet.uniqueCustomers}`, null);
+            drawMainCard(posX2, startY, colW, cardH, 'Previous Period', `${formatDate(prevStartDate)} - ${formatDate(prevEndDate)}`, prevMet.total, prevMet.uniqueCustomers, prevMet.count, 'prev');
         }
         if (showLY) {
-            drawMetricBlock(posX3, yRow, colW, 'Active Customers', `${lyMet.uniqueCustomers}`, null);
-        }
-        // Row 2: Transactions
-        yRow += rowGap_Metric;
-        drawMetricBlock(posX1, yRow, colW, 'Total Transactions', `${curMet.count}`, countTrend);
-        if (showPrev) {
-            drawMetricBlock(posX2, yRow, colW, 'Transactions', `${prevMet.count}`, null);
-        }
-        if (showLY) {
-            drawMetricBlock(posX3, yRow, colW, 'Transactions', `${lyMet.count}`, null);
+            drawMainCard(posX3, startY, colW, cardH, 'Same Period Last Year', `${formatDate(lyStartDate)} - ${formatDate(lyEndDate)}`, lyMet.total, lyMet.uniqueCustomers, lyMet.count, 'ly');
         }
 
+        // --- PERFORMANCE ANALYSIS SECTION ---
+        const analysisY = startY + cardH + 10;
+        const analysisH = 80;
 
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(pageMargin, analysisY, totalW, analysisH, 5, 5, 'FD');
+
+        // Section Title
+        doc.setFontSize(14);
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Performance Analysis', pageMargin + 10, analysisY + 12);
+
+        // Underline
+        doc.setDrawColor(59, 130, 246);
+        doc.setLineWidth(1.5);
+        doc.line(pageMargin + 10, analysisY + 16, pageMargin + 50, analysisY + 16);
+
+        // Donut Charts Grid (Centered Group)
+        const donutRadius = 18;
+        const chartW = donutRadius * 2;
+        const gGap = 55; // Increased gap to prevent legend overlap
+        const totalGroupW = (chartW * 3) + (gGap * 2);
+        const startX = (297 - totalGroupW) / 2;
+        const donutY = analysisY + 28;
+
+        // 1. Collections Comparison (Current vs Previous)
+        drawDonutChart(doc, startX, donutY, donutRadius, curMet.total, prevMet.total, 'Collections Comparison', [59, 130, 246]);
+
+        // 2. Customer Distribution (Current vs Previous)
+        drawDonutChart(doc, startX + chartW + gGap, donutY, donutRadius, curMet.uniqueCustomers, prevMet.uniqueCustomers, 'Customer Distribution', [59, 130, 246]);
+
+        // 3. Transaction Volume (Current vs Previous)
+        drawDonutChart(doc, startX + (chartW + gGap) * 2, donutY, donutRadius, curMet.count, prevMet.count, 'Transaction Volume', [59, 130, 246]);
+
+        // --- SINGLE UNIFIED LEGEND (Centered at Bottom of Card) ---
+        const legendCenterY = analysisY + 77; // Positioned safely below the charts
+        const legendCenterX = 148.5;
+
+        doc.setFontSize(8);
+        doc.setTextColor(100, 116, 139);
+        doc.setFont('helvetica', 'normal');
+
+        // Centering the row: [Blue] Current  [Gray] Previous  [Green] Growth  [Red] Decline
+        const itemGap = 35;
+        const totalLegendW = itemGap * 3 + 20; // Approx width of the whole legend row
+        const startLegendX = legendCenterX - (totalLegendW / 2);
+
+        // Current (Blue)
+        doc.setFillColor(59, 130, 246);
+        doc.circle(startLegendX, legendCenterY - 1, 1.5, 'F');
+        doc.text('Current Period', startLegendX + 4, legendCenterY);
+
+        // Previous (Gray)
+        doc.setFillColor(148, 163, 184);
+        doc.circle(startLegendX + itemGap, legendCenterY - 1, 1.5, 'F');
+        doc.text('Previous Period', startLegendX + itemGap + 4, legendCenterY);
+
+        // Growth (Green)
+        doc.setFillColor(22, 163, 74);
+        doc.circle(startLegendX + itemGap * 2, legendCenterY - 1, 1.5, 'F');
+        doc.text('Growth (+)', startLegendX + itemGap * 2 + 4, legendCenterY);
+
+        // Decline (Red)
+        doc.setFillColor(220, 38, 38);
+        doc.circle(startLegendX + itemGap * 3, legendCenterY - 1, 1.5, 'F');
+        doc.text('Decline (-)', startLegendX + itemGap * 3 + 4, legendCenterY);
     }
+
 
     // --- DAILY ANALYSIS PAGE ---
     if (filters.sections?.daily !== false) {
