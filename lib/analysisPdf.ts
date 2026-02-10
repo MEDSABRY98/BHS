@@ -1429,7 +1429,13 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
                 // Only add to customer stats if we have any amount after filtering
                 if (Math.abs(totalForThisPayment) > 0.001) {
-                    const curr = customerMap.get(p.customerName) || { total: 0, count: 0, dates: [] as number[], breakdown: new Map() };
+                    const curr = customerMap.get(p.customerName) || {
+                        total: 0,
+                        count: 0,
+                        dates: [] as number[],
+                        breakdown: new Map(),
+                        repName: (p as any).salesRep || (p as any).repName || 'Unknown'
+                    };
 
                     curr.total += totalForThisPayment;
                     curr.count += 1;
@@ -1516,9 +1522,28 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             'No Payment Before': { count: 0, totalAmount: 0, color: [148, 163, 184] } // Slate 400
         };
 
+        // First, group by rep and calculate rep totals for sorting
+        const repTotals = new Map<string, number>();
+        customerMap.forEach((stats) => {
+            const rep = (stats as any).repName || 'Unknown';
+            repTotals.set(rep, (repTotals.get(rep) || 0) + stats.total);
+        });
+
         const custRows = Array.from(customerMap.entries())
             .filter(([_, stats]) => stats.total > 0.01)
-            .sort((a, b) => b[1].total - a[1].total)
+            .sort((a, b) => {
+                const repA = (a[1] as any).repName || 'Unknown';
+                const repB = (b[1] as any).repName || 'Unknown';
+                const repTotalA = repTotals.get(repA) || 0;
+                const repTotalB = repTotals.get(repB) || 0;
+
+                // First sort by rep total (descending)
+                if (repTotalB !== repTotalA) {
+                    return repTotalB - repTotalA;
+                }
+                // Then sort by customer total within same rep (descending)
+                return b[1].total - a[1].total;
+            })
             .map(([name, s], i) => {
                 // Generate breakdown string with amounts
                 const sortedLabels = Array.from(s.breakdown.keys()).sort((a, b) => {
@@ -1583,9 +1608,12 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 const uniqueDates = Array.from(new Set(sortedPeriodDates.map(ms => formatDate(new Date(ms)))));
                 const paymentDatesStr = uniqueDates.join(', ');
 
+                const repName = (s as any).repName || 'Unknown';
+
                 return [
                     i + 1,
                     name,
+                    repName,
                     `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
                     s.count,
                     paymentDatesStr,
@@ -1597,14 +1625,15 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         if (showCustomerList) {
             autoTable(doc, {
                 startY: 28,
-                head: [['#', 'Customer Name', 'Total Paid', 'Count', 'Payment Dates', 'Gap', 'Matching Months']],
+                head: [['#', 'Customer Name', 'Sales Rep', 'Total Paid', 'Count', 'Payment Dates', 'Gap', 'Matching Months']],
                 body: custRows,
                 theme: 'striped',
                 headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
                 bodyStyles: { halign: 'center', valign: 'middle' },
                 margin: { left: 8, right: 8 },
                 columnStyles: {
-                    1: { halign: 'center', cellWidth: 70 } // Customer Name fixed width
+                    1: { halign: 'center', cellWidth: 60 }, // Customer Name
+                    2: { halign: 'center', cellWidth: 35 }  // Sales Rep
                 }
             });
 
