@@ -1623,13 +1623,8 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             // HEADER
             doc.setFontSize(22);
             doc.setTextColor(30, 41, 59); // Slate 800
-            doc.setFont('helvetica', 'bold');
-            doc.text('Customer Retention (Gap Analysis)', 14, y);
-
-            doc.setFontSize(10);
-            doc.setTextColor(100, 116, 139); // Slate 500
             doc.setFont('helvetica', 'normal');
-            doc.text('Distribution of customers based on days since their last payment.', 14, y + 6);
+            doc.text('Customer Retention (Gap Analysis)', doc.internal.pageSize.width / 2, y, { align: 'center' });
 
             y += 10;
 
@@ -1823,8 +1818,9 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.addPage('a4', 'portrait');
         y = 20;
 
-        doc.setFontSize(16);
+        doc.setFontSize(22);
         doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'normal');
         doc.text('Collection Quality Analysis (Debt Age)', 105, y, { align: 'center' });
 
         // Buckets & Month Breakdown
