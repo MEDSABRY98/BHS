@@ -149,7 +149,8 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     monthly: true,
     customerList: true,
     debtAge: true,
-    salesRep: true
+    salesRep: true,
+    gapAnalysis: true
   });
   const [pdfSelectedCustomers, setPdfSelectedCustomers] = useState<Set<string>>(new Set());
   const [isCustomerSelectionOpen, setIsCustomerSelectionOpen] = useState(false);
@@ -2188,7 +2189,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           {/* PDF Export Modal */}
           {isPdfExportOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
                   <h3 className="text-lg font-bold text-gray-900">Export Options</h3>
                   <button
@@ -2202,40 +2203,113 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                 </div>
 
                 <div className="p-6">
-                  <p className="text-sm text-gray-500 mb-4">Select the sections to include in the PDF report:</p>
-                  <div className="space-y-3">
-                    {[
-                      { key: 'summary', label: 'Executive Summary' },
-                      { key: 'summaryPrevious', label: 'Include Previous Period', isSub: true, parentKey: 'summary' },
-                      { key: 'summaryLastYear', label: 'Include Last Year Period', isSub: true, parentKey: 'summary' },
-                      { key: 'daily', label: 'Daily Analysis' },
-                      { key: 'weekly', label: 'Weekly Analysis' },
-                      { key: 'monthly', label: 'Monthly Analysis' },
-                      { key: 'customerList', label: 'Customer Payment List' },
-                      { key: 'debtAge', label: 'Debt Age Analysis' },
-                      { key: 'salesRep', label: 'Sales Rep Performance' }
-                    ].map((section: any) => {
-                      const isParentActive = section.isSub ? pdfExportSections[section.parentKey as keyof typeof pdfExportSections] : true;
+                  <p className="text-sm text-gray-500 mb-6">Select the sections to include in your comprehensive analysis report.</p>
 
-                      return (
-                        <label
-                          key={section.key}
-                          className={`flex items-center gap-3 p-3 border rounded-xl transition-colors cursor-pointer ${section.isSub ? 'ml-8 py-2 border-dashed opacity-80' : 'hover:bg-gray-50'
-                            } ${!isParentActive && section.isSub ? 'pointer-events-none opacity-40' : ''}`}
-                        >
+                  <div className="space-y-6">
+                    {/* Section 1: Executive Summary */}
+                    <div className="bg-slate-50 rounded-xl p-4 border border-slate-200">
+                      <div className="flex items-start gap-3">
+                        <div className="pt-1">
                           <input
                             type="checkbox"
-                            checked={pdfExportSections[section.key as keyof typeof pdfExportSections]}
-                            onChange={(e) => setPdfExportSections(prev => ({ ...prev, [section.key]: e.target.checked }))}
-                            disabled={!isParentActive && section.isSub}
-                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300 disabled:opacity-50"
+                            checked={pdfExportSections.summary}
+                            onChange={(e) => setPdfExportSections(prev => ({ ...prev, summary: e.target.checked }))}
+                            className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
                           />
-                          <span className={`font-medium ${section.isSub ? 'text-sm text-gray-600' : 'text-gray-700'}`}>
-                            {section.label}
-                          </span>
-                        </label>
-                      );
-                    })}
+                        </div>
+                        <div className="flex-1">
+                          <span className="font-bold text-gray-800 block mb-1">Executive Summary</span>
+                          <p className="text-xs text-gray-500 mb-3">High-level overview of key performance indicators and comparisons.</p>
+
+                          <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 transition-opacity ${!pdfExportSections.summary ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={pdfExportSections.summaryPrevious}
+                                onChange={(e) => setPdfExportSections(prev => ({ ...prev, summaryPrevious: e.target.checked }))}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                              />
+                              Include Previous Period
+                            </label>
+                            <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={pdfExportSections.summaryLastYear}
+                                onChange={(e) => setPdfExportSections(prev => ({ ...prev, summaryLastYear: e.target.checked }))}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                              />
+                              Include Last Year Same Period
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Section 2: Time Analysis */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Time Analysis</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        {[
+                          { key: 'daily', label: 'Daily Breakdown' },
+                          { key: 'weekly', label: 'Weekly Trends' },
+                          { key: 'monthly', label: 'Monthly Overview' }
+                        ].map((item: any) => (
+                          <label
+                            key={item.key}
+                            className={`flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-all ${pdfExportSections[item.key as keyof typeof pdfExportSections]
+                              ? 'bg-blue-50 border-blue-200 shadow-sm'
+                              : 'hover:bg-gray-50 border-gray-200'
+                              }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={pdfExportSections[item.key as keyof typeof pdfExportSections]}
+                              onChange={(e) => setPdfExportSections(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                            />
+                            <span className={`text-sm font-medium ${pdfExportSections[item.key as keyof typeof pdfExportSections] ? 'text-blue-700' : 'text-gray-700'}`}>
+                              {item.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Section 3: Customer & Performance */}
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3 px-1">Customer & Performance Insights</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {[
+                          { key: 'customerList', label: 'Customer Payment List', desc: 'Detailed table of all transactions' },
+                          { key: 'gapAnalysis', label: 'Retention (Gap Analysis)', desc: 'View customer payment regularity' },
+                          { key: 'debtAge', label: 'Debt Age Analysis', desc: 'Breakdown of overdue payments' },
+                          { key: 'salesRep', label: 'Sales Rep Performance', desc: 'Collection stats per representative' }
+                        ].map((item: any) => (
+                          <label
+                            key={item.key}
+                            className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-all ${pdfExportSections[item.key as keyof typeof pdfExportSections]
+                              ? 'bg-blue-50 border-blue-200 shadow-sm'
+                              : 'hover:bg-gray-50 border-gray-200'
+                              }`}
+                          >
+                            <div className="pt-0.5">
+                              <input
+                                type="checkbox"
+                                checked={pdfExportSections[item.key as keyof typeof pdfExportSections]}
+                                onChange={(e) => setPdfExportSections(prev => ({ ...prev, [item.key]: e.target.checked }))}
+                                className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 border-gray-300"
+                              />
+                            </div>
+                            <div>
+                              <span className={`block text-sm font-bold ${pdfExportSections[item.key as keyof typeof pdfExportSections] ? 'text-blue-800' : 'text-gray-700'}`}>
+                                {item.label}
+                              </span>
+                              <span className="text-xs text-gray-500 leading-tight block mt-0.5">{item.desc}</span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                   </div>
 
                   {/* Customer Selection Trigger */}

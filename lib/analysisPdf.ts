@@ -21,6 +21,7 @@ interface FilterContext {
         customerList?: boolean;
         debtAge?: boolean;
         salesRep?: boolean;
+        gapAnalysis?: boolean;
     };
     selectedCustomers?: Set<string>;
 }
@@ -1338,14 +1339,20 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     }
 
     // --- ALL CUSTOMERS PAGE ---
-    if (filters.sections?.customerList !== false) {
-        doc.addPage('a4', 'landscape');
-        y = 20;
+    // --- ALL CUSTOMERS PAGE / DATA PREP ---
+    const showCustomerList = (filters.sections?.customerList ?? true) !== false;
+    const showGapAnalysis = (filters.sections?.gapAnalysis ?? true) !== false;
 
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        const pageW = doc.internal.pageSize.width;
-        doc.text('Customer Payment List', pageW / 2, 20, { align: 'center' });
+    if (showCustomerList || showGapAnalysis) {
+        if (showCustomerList) {
+            doc.addPage('a4', 'landscape');
+            y = 20;
+
+            doc.setFontSize(16);
+            doc.setTextColor(30, 41, 59);
+            const pageW = doc.internal.pageSize.width;
+            doc.text('Customer Payment List', pageW / 2, 20, { align: 'center' });
+        }
 
         // Removed specific period text as requested
 
@@ -1439,6 +1446,15 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             }
         });
 
+        // Retention / Gap Buckets
+        const gapBuckets: Record<string, { count: number, color: [number, number, number] }> = {
+            '0-30 Days': { count: 0, color: [34, 197, 94] },   // Green 500
+            '31-60 Days': { count: 0, color: [59, 130, 246] }, // Blue 500
+            '61-90 Days': { count: 0, color: [245, 158, 11] }, // Amber 500
+            '90+ Days': { count: 0, color: [239, 68, 68] },    // Red 500
+            'No Payment Before': { count: 0, color: [148, 163, 184] } // Slate 400
+        };
+
         const custRows = Array.from(customerMap.entries())
             .filter(([_, stats]) => stats.total > 0.01)
             .sort((a, b) => b[1].total - a[1].total)
@@ -1489,6 +1505,13 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                         const diffMs = anchorMs - prevMs;
                         const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
                         gapStr = `${diffDays} Days`;
+
+                        if (diffDays <= 30) gapBuckets['0-30 Days'].count++;
+                        else if (diffDays <= 60) gapBuckets['31-60 Days'].count++;
+                        else if (diffDays <= 90) gapBuckets['61-90 Days'].count++;
+                        else gapBuckets['90+ Days'].count++;
+                    } else {
+                        gapBuckets['No Payment Before'].count++;
                     }
                 }
 
@@ -1498,32 +1521,154 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 return [
                     i + 1,
                     name,
-                    paymentDatesStr,
-                    gapStr,
                     `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
                     s.count,
+                    paymentDatesStr,
+                    gapStr,
                     monthStr
                 ];
             });
 
-        autoTable(doc, {
-            startY: 28,
-            head: [['#', 'Customer Name', 'Payment Dates', 'Gap', 'Total Paid', 'Count', 'Matching Months']],
-            body: custRows,
-            theme: 'striped',
-            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-            bodyStyles: { halign: 'center', valign: 'middle' },
-            margin: { left: 8, right: 8 },
-            columnStyles: {
-                1: { halign: 'center', cellWidth: 70 } // Customer Name fixed width
-            }
-        });
+        if (showCustomerList) {
+            autoTable(doc, {
+                startY: 28,
+                head: [['#', 'Customer Name', 'Total Paid', 'Count', 'Payment Dates', 'Gap', 'Matching Months']],
+                body: custRows,
+                theme: 'striped',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                margin: { left: 8, right: 8 },
+                columnStyles: {
+                    1: { halign: 'center', cellWidth: 70 } // Customer Name fixed width
+                }
+            });
 
-        const finalY = (doc as any).lastAutoTable.finalY + 10;
-        doc.setFontSize(10);
-        doc.setTextColor(100, 116, 139); // Slate 500
-        doc.setFont('helvetica', 'italic');
-        doc.text("Note: 'Gap' represents the number of days between the latest payment in this period and the previous payment.", 14, finalY);
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFontSize(10);
+            doc.setTextColor(100, 116, 139); // Slate 500
+            doc.setFont('helvetica', 'italic');
+            doc.text("Note: 'Gap' represents the number of days between the latest payment in this period and the previous payment.", 14, finalY);
+        }
+
+        // --- NEW PAGE: CUSTOMER RETENTION (GAP ANALYSIS) ---
+        if ((filters.sections?.gapAnalysis ?? true) !== false) {
+            doc.addPage('a4', 'landscape'); // Use landscape for better charts
+            y = 20;
+
+            // HEADER
+            doc.setFontSize(22);
+            doc.setTextColor(30, 41, 59); // Slate 800
+            doc.setFont('helvetica', 'bold');
+            doc.text('Customer Retention (Gap Analysis)', 14, y);
+
+            doc.setFontSize(10);
+            doc.setTextColor(100, 116, 139); // Slate 500
+            doc.setFont('helvetica', 'normal');
+            doc.text('Distribution of customers based on days since their last payment.', 14, y + 6);
+
+            y += 25;
+
+            // CARDS
+            const cardW = 45;
+            const cardH = 28;
+            const cardGap = 6;
+
+            // Calculate centering
+            const pageW = 297; // A4 Landscape width in mm
+            const totalCardsW = (5 * cardW) + (4 * cardGap);
+            let cardX = (pageW - totalCardsW) / 2;
+
+            const totalCust = custRows.length;
+
+            Object.entries(gapBuckets).forEach(([label, data]) => {
+                const percent = totalCust > 0 ? (data.count / totalCust) * 100 : 0;
+
+                // Card Bg
+                doc.setFillColor(255, 255, 255);
+                doc.setDrawColor(226, 232, 240);
+                doc.roundedRect(cardX, y, cardW, cardH, 3, 3, 'FD');
+
+                // Color Strip (Left)
+                doc.setFillColor(...data.color);
+                doc.rect(cardX, y, 2, cardH, 'F');
+
+                // Label
+                doc.setFontSize(10);
+                doc.setTextColor(100, 116, 139);
+                doc.setFont('helvetica', 'bold');
+
+                // Wrap text if needed (max width = card width - padding)
+                const labelLines = doc.splitTextToSize(label.toUpperCase(), cardW - 8);
+                doc.text(labelLines, cardX + 6, y + 9);
+
+                // Count
+                doc.setFontSize(16);
+                doc.setTextColor(30, 41, 59);
+                doc.text(`${data.count}`, cardX + 6, y + 21);
+
+                // Percent
+                doc.setFontSize(10);
+                doc.setTextColor(100, 116, 139);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`(${percent.toFixed(1)}%)`, cardX + 6 + (doc.getTextWidth(`${data.count}`) + 4), y + 21);
+
+                cardX += cardW + cardGap;
+            });
+
+            y += 40; // Moved chart up
+
+            // Centering Calculations
+            // pageW already defined above
+            const chartBarW = 180; // Slightly enlarged from 170
+            const labelAreaW = 45; // Increased from 35 to fit "No Payment Before"
+            const totalChartBlockW = labelAreaW + chartBarW;
+            const startX = (pageW - totalChartBlockW) / 2;
+            const barStartX = startX + labelAreaW;
+
+            // CHART TITLE (Centered over the block)
+            doc.setFontSize(14);
+            doc.setTextColor(30, 41, 59);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Retention Distribution', startX, y);
+
+            y += 10;
+            const barCheckH = 8;
+            const barGap = 6;
+            let barY = y;
+
+            // Find Max for scaling
+            const maxCount = Math.max(...Object.values(gapBuckets).map(b => b.count));
+
+            Object.entries(gapBuckets).forEach(([label, data]) => {
+                const barW = maxCount > 0 ? (data.count / maxCount) * chartBarW : 0;
+
+                // Label
+                doc.setFontSize(11);
+                doc.setTextColor(0, 0, 0); // Black
+                doc.setFont('helvetica', 'bold');
+                doc.text(label, startX, barY + 6);
+
+                // Bar Background (Track)
+                doc.setFillColor(241, 245, 249); // Slate 100
+                doc.roundedRect(barStartX, barY, chartBarW, barCheckH, 2, 2, 'F');
+
+                // Actual Bar
+                if (barW > 0) {
+                    doc.setFillColor(...data.color);
+                    doc.roundedRect(barStartX, barY, barW, barCheckH, 2, 2, 'F');
+                }
+
+                // Value Label (at end of bar)
+                doc.setFontSize(11);
+                doc.setTextColor(0, 0, 0); // Black
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${data.count}`, barStartX + barW + 5, barY + 6);
+
+                barY += barCheckH + barGap;
+            });
+        }
+
+
 
 
     }
