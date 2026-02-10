@@ -1695,10 +1695,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                     const diff = data.count - prevCount;
                     const diffVal = Math.abs(diff);
                     const diffPercent = prevCount > 0 ? ((diffVal / prevCount) * 100).toFixed(0) + '%' : '-';
-                    const sign = diff > 0 ? '+' : (diff < 0 ? '-' : '');
-
                     if (diff !== 0) {
-                        const diffColor = diff > 0 ? [22, 163, 74] : [220, 38, 38]; // Green 600 / Red 600
+                        const sign = diff > 0 ? '+' : '-';
+                        const diffColor: [number, number, number] = diff > 0 ? [22, 163, 74] : [220, 38, 38];
+
                         doc.setTextColor(...diffColor);
                         const diffText = `${sign}${diffVal} (${diffPercent})`;
                         doc.text(diffText, cardX + 6 + (doc.getTextWidth(prevText) + 4), y + 29);
