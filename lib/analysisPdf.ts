@@ -19,7 +19,7 @@ interface FilterContext {
         weekly?: boolean;
         monthly?: boolean;
         customerList?: boolean;
-        debtAge?: boolean;
+
         salesRep?: boolean;
         gapAnalysis?: boolean;
     };
@@ -1545,21 +1545,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 return b[1].total - a[1].total;
             })
             .map(([name, s], i) => {
-                // Generate breakdown string with amounts
-                const sortedLabels = Array.from(s.breakdown.keys()).sort((a, b) => {
-                    if (a === 'OB') return -1;
-                    if (b === 'OB') return 1;
-                    if (a === 'Unmatched') return 1;
-                    if (b === 'Unmatched') return -1;
-                    const dateA = new Date(`01 ${a}`);
-                    const dateB = new Date(`01 ${b}`);
-                    return dateA.getTime() - dateB.getTime();
-                });
 
-                const monthStr = sortedLabels.map(k => {
-                    const amt = s.breakdown.get(k) || 0;
-                    return `${k} (${amt.toLocaleString(undefined, { maximumFractionDigits: 0 })})`;
-                }).join(', ');
 
                 // Calculate Gap (Using Full History)
                 let gapStr = 'No Payment Before';
@@ -1617,15 +1603,14 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                     `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
                     s.count,
                     paymentDatesStr,
-                    gapStr,
-                    monthStr
+                    gapStr
                 ];
             });
 
         if (showCustomerList) {
             autoTable(doc, {
                 startY: 28,
-                head: [['#', 'Customer Name', 'Sales Rep', 'Total Paid', 'Count', 'Payment Dates', 'Gap', 'Matching Months']],
+                head: [['#', 'Customer Name', 'Sales Rep', 'Total Paid', 'Count', 'Payment Dates', 'Gap']],
                 body: custRows,
                 theme: 'striped',
                 headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
@@ -1842,278 +1827,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     }
 
-    // --- COLLECTION QUALITY ANALYSIS (Debt Age) ---
-    if (filters.sections?.debtAge !== false) {
-        doc.addPage('a4', 'portrait');
-        y = 20;
 
-        doc.setFontSize(22);
-        doc.setTextColor(30, 41, 59);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Collection Quality Analysis (Debt Age)', 105, y, { align: 'center' });
-
-        // Buckets & Month Breakdown
-        const buckets: Record<string, number> = {
-            'Current Month Inv': 0,
-            '1 Month Old Inv': 0,
-            '2 Months Old Inv': 0,
-            '3 Months Old Inv': 0,
-            '4 Months Old Inv': 0,
-            '5 Months Old Inv': 0,
-            '6+ Months Old Inv': 0,
-            'Opening Balance (OB)': 0,
-            'Unmatched': 0
-        };
-        const monthTotals = new Map<string, { sortKey: number, amount: number, label: string }>();
-        let totalQualityCollected = 0;
-
-        baseData.forEach(row => {
-            const payDate = parseDate(row.date);
-
-            // STRICTLY Respect Filter Period for this analysis
-            if (payDate && startDate && endDate) {
-                if (payDate < startDate || payDate > endDate) return;
-            }
-
-            // Get allocations for this payment
-            const allocs = allocationMap.get(row);
-
-            if (allocs && allocs.length > 0) {
-                // Process each allocation fragment
-                allocs.forEach(frag => {
-                    let sourceLabel = 'Unmatched';
-                    if (frag.type === 'OB') sourceLabel = 'OB';
-                    else if (frag.type === 'Unmatched') sourceLabel = 'Unmatched';
-                    else {
-                        const m = frag.date.toLocaleString('en-US', { month: 'short' });
-                        const y = frag.date.getFullYear().toString().slice(-2);
-                        sourceLabel = `${m}${y}`;
-                    }
-
-                    // Apply source filter: only include this fragment if its source is selected (or no filter active)
-                    if (filters.sourceFilters && filters.sourceFilters.size > 0 && !filters.sourceFilters.has(sourceLabel)) {
-                        return; // Skip this fragment
-                    }
-
-                    const credit = frag.amount;
-                    const type = frag.type;
-                    const invDate = frag.date;
-
-                    if (type === 'Unmatched') {
-                        buckets['Unmatched'] += credit;
-                        const uKey = 'Unmatched';
-                        const currentU = monthTotals.get(uKey) || { sortKey: -99999999999, amount: 0, label: 'Unmatched' };
-                        currentU.amount += credit;
-                        monthTotals.set(uKey, currentU);
-                    } else if (type === 'OB') {
-                        buckets['Opening Balance (OB)'] += credit;
-                        const obKey = 'OB';
-                        const currentOb = monthTotals.get(obKey) || { sortKey: -9999999999, amount: 0, label: 'Opening Balance' };
-                        currentOb.amount += credit;
-                        monthTotals.set(obKey, currentOb);
-                    } else {
-                        // Standard Invoice
-                        if (payDate && invDate) {
-                            const monthsDiff = getDiffMonths(payDate, invDate);
-
-                            if (monthsDiff <= 0) buckets['Current Month Inv'] += credit;
-                            else if (monthsDiff === 1) buckets['1 Month Old Inv'] += credit;
-                            else if (monthsDiff === 2) buckets['2 Months Old Inv'] += credit;
-                            else if (monthsDiff === 3) buckets['3 Months Old Inv'] += credit;
-                            else if (monthsDiff === 4) buckets['4 Months Old Inv'] += credit;
-                            else if (monthsDiff === 5) buckets['5 Months Old Inv'] += credit;
-                            else buckets['6+ Months Old Inv'] += credit;
-
-                            const mLabel = invDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-                            const mKey = `${invDate.getFullYear()}-${invDate.getMonth()}`;
-                            const sortKey = invDate.getTime();
-
-                            const currentM = monthTotals.get(mKey) || { sortKey, amount: 0, label: mLabel };
-                            currentM.amount += credit;
-                            monthTotals.set(mKey, currentM);
-                        }
-                    }
-
-                    totalQualityCollected += credit;
-                });
-            } else {
-                // Fallback for unmatched
-                const credit = (row.credit || 0) - (row.debit || 0);
-                if (credit !== 0) {
-                    // Only include if Unmatched is in filter or no filter
-                    if (!filters.sourceFilters || filters.sourceFilters.size === 0 || filters.sourceFilters.has('Unmatched')) {
-                        buckets['Unmatched'] += credit;
-                        const uKey = 'Unmatched';
-                        const currentU = monthTotals.get(uKey) || { sortKey: -99999999999, amount: 0, label: 'Unmatched' };
-                        currentU.amount += credit;
-                        monthTotals.set(uKey, currentU);
-                        totalQualityCollected += credit;
-                    }
-                }
-            }
-        });
-
-        // 3. Prepare Data for Chart/Table - Filter out zero values for cleaner chart
-        // 3. Prepare Data for Chart matching Table (Invoice Month Breakdown)
-        // Filter and Sort from monthTotals
-        const allMonthEntries = Array.from(monthTotals.values());
-        const obEntry = allMonthEntries.find(m => m.label === 'Opening Balance');
-        const unmEntry = allMonthEntries.find(m => m.label === 'Unmatched');
-
-        // Sort standard months Descending (Newest First)
-        const stdMonthEntries = allMonthEntries
-            .filter(m => m.label !== 'Opening Balance' && m.label !== 'Unmatched')
-            .sort((a, b) => b.sortKey - a.sortKey); // All months for accurate "6+" Sum
-
-        const qualityData: { label: string, value: number }[] = [];
-
-        // Order: Standard Months Mapped to Age Buckets -> OB -> Unmatched
-
-        if (stdMonthEntries.length > 0) {
-            // Current (Index 0)
-            qualityData.push({ label: 'Current Month Inv', value: stdMonthEntries[0].amount });
-
-            // 1-5 Months
-            for (let i = 1; i < 6 && i < stdMonthEntries.length; i++) {
-                const lbl = i === 1 ? '1 Month Old Inv' : `${i} Months Old Inv`;
-                qualityData.push({ label: lbl, value: stdMonthEntries[i].amount });
-            }
-
-            // 6+ (Rest)
-            let restVal = 0;
-            for (let i = 6; i < stdMonthEntries.length; i++) {
-                restVal += stdMonthEntries[i].amount;
-            }
-            if (restVal > 0) {
-                qualityData.push({ label: '6+ Months Old Inv', value: restVal });
-            }
-        }
-
-        if (obEntry) qualityData.push({ label: 'Opening Balance (OB)', value: obEntry.amount });
-        if (unmEntry) qualityData.push({ label: 'Unmatched', value: unmEntry.amount });
-
-        y += 5;
-
-        // Modern Vertical Column Chart
-        if (qualityData.length > 0) {
-            // Dimensions
-            // Dimensions
-            const chartH = 70;
-            const chartW = 180;
-            const pageW = 210;
-            const startX = (pageW - chartW) / 2;
-
-            // Title Removed
-            y += 3; // Minimal spacing
-
-            // Chart Area (Background)
-            doc.setFillColor(250, 250, 252);
-            doc.roundedRect(startX, y, chartW, chartH + 20, 3, 3, 'F');
-
-            const maxQVal = Math.max(...qualityData.map(d => d.value), 1);
-            const colWidth = (chartW - 20) / qualityData.length; // Spread columns
-            const barWidth = colWidth * 0.6; // Bar is 60% of slot width
-            const bottomY = y + chartH;
-
-            let curX = startX + 10; // Padding left
-
-            qualityData.forEach(d => {
-                const valH = (d.value / maxQVal) * (chartH - 15); // Leave space for top labels
-                const barX = curX + (colWidth - barWidth) / 2;
-                const barY = bottomY - valH;
-
-                // Color Logic
-                if (d.label === 'Opening Balance (OB)') doc.setFillColor(16, 185, 129); // Emerald
-                else if (d.label === '6+ Months Old Inv') doc.setFillColor(34, 197, 94); // Green
-                else if (d.label === 'Current Month Inv') doc.setFillColor(59, 130, 246); // Blue
-                else if (d.label === 'Unmatched') doc.setFillColor(239, 68, 68); // Red
-                else doc.setFillColor(148, 163, 184); // Slate
-
-                // Draw Bar
-                if (valH > 0) {
-                    // Rounded top corners manually or just rect
-                    doc.roundedRect(barX, barY, barWidth, valH, 1, 1, 'F');
-
-                    // Value Label (Top of bar)
-                    doc.setFontSize(8);
-                    doc.setTextColor(71, 85, 105);
-                    doc.setFont('helvetica', 'bold');
-                    const valStr = `${d.value.toLocaleString(undefined, { notation: 'compact' })}`;
-                    doc.text(valStr, barX + barWidth / 2, barY - 2, { align: 'center' });
-                }
-
-                // X-Axis Label (Bottom)
-                doc.setFontSize(7);
-                doc.setTextColor(100, 116, 139);
-                doc.setFont('helvetica', 'normal');
-
-                // Clearer Labels (Restored Age Logic)
-                let displayLabel = d.label;
-                if (d.label === 'Current Month Inv') displayLabel = 'Current\nMonth';
-                else if (d.label === 'Opening Balance (OB)') displayLabel = 'Opening\nBalance';
-                else if (d.label === 'Unmatched') displayLabel = 'Unmatched';
-                else displayLabel = d.label.replace(' Old Inv', '').replace('Months', 'Mths').replace('Month', 'Mth');
-
-                const lines = doc.splitTextToSize(displayLabel, colWidth + 5);
-                doc.text(lines, barX + barWidth / 2, bottomY + 5, { align: 'center', lineHeightFactor: 1.1 });
-
-                curX += colWidth;
-            });
-
-            y += chartH + 30; // Move Y past chart
-        }
-
-        // Table
-        // Table: Detailed Invoice Months
-        const sortedMonths = Array.from(monthTotals.values())
-            .sort((a, b) => b.sortKey - a.sortKey);
-
-        const monthTableData = sortedMonths.map(d => {
-            const share = totalQualityCollected > 0 ? (d.amount / totalQualityCollected) * 100 : 0;
-            return [
-                d.label,
-                `${d.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-                `${share.toFixed(1)}%`
-            ];
-        });
-
-        // Add Total Row
-        monthTableData.push([
-            'Total Analyzed',
-            `${totalQualityCollected.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-            '100.0%'
-        ]);
-
-        autoTable(doc, {
-            startY: y,
-            head: [['Invoice Month', 'Amount Collected', 'Share %']],
-            body: monthTableData,
-            theme: 'grid',
-            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
-            bodyStyles: { halign: 'center', valign: 'middle' },
-            didParseCell: (data) => {
-                if (data.section === 'body') {
-                    const label = String((data.row.raw as any)[0]);
-
-                    // Color Highlights
-                    if (label === 'Opening Balance') {
-                        data.cell.styles.textColor = [16, 185, 129];
-                        data.cell.styles.fontStyle = 'bold';
-                    } else if (label === 'Unmatched') {
-                        data.cell.styles.textColor = [239, 68, 68]; // Red
-                        data.cell.styles.fontStyle = 'bold';
-                    }
-
-                    // Total Row
-                    if (data.row.index === sortedMonths.length) {
-                        data.cell.styles.fontStyle = 'bold';
-                        data.cell.styles.fillColor = [241, 245, 249];
-                    }
-                }
-            }
-        });
-
-    }
 
     // --- SALES REPRESENTATIVE ANALYSIS ---
     if (filters.sections?.salesRep !== false) {

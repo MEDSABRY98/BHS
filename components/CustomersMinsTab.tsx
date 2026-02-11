@@ -182,7 +182,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     if (returnBreakdown) {
       return {
         rating: 'Bad',
-        reason: 'مغلق',
+        reason: 'Closed',
         isClosed: true,
         breakdown: null
       };
@@ -204,12 +204,11 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
   // riskFlag1: صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0
   const riskFlag1 = sales90d < 0 && payCount === 0 ? 1 : 0;
 
-  // riskFlag2: مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب
+  // riskFlag2: No payment last 90d + No sale last 90d + positive debt
   const riskFlag2 = payCount === 0 && salesCount === 0 && netDebt > 0 ? 1 : 0;
 
-  // 🎯 ثالثاً: نظام النقاط (5 مستويات × نقطتين)
-
-  // score1 — تقييم صافي المديونية Net Debt
+  // 🎯 Part 3: Point System (8 Levels x 2 Points)
+  // score1 — Net Debt assessment
   let score1 = 0;
   if (netDebt < 0) {
     score1 = 2; // العميل ليه عندك فلوس
@@ -278,40 +277,70 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
       score5 = 0; // أكتر من 90 يوم
     }
   } else {
-    score5 = 0; // لو "-" → 0
+    score5 = 0; // if "-" → 0
   }
 
-  const totalScore = score1 + score2 + score3 + score4 + score5;
+  // score6 — Payment Value last 90d
+  let score6 = 0;
+  if (payments90d >= 10000) {
+    score6 = 2;
+  } else if (payments90d >= 2000) {
+    score6 = 1;
+  } else {
+    score6 = 0;
+  }
 
-  // 🎯 رابعاً: حساب التقييم النهائي
+  // score7 — Sales Value last 90d
+  let score7 = 0;
+  if (sales90d >= 10000) {
+    score7 = 2;
+  } else if (sales90d >= 2000) {
+    score7 = 1;
+  } else {
+    score7 = 0;
+  }
+
+  // score8 — Sales Count last 90d
+  let score8 = 0;
+  if (salesCount >= 2) {
+    score8 = 2;
+  } else if (salesCount === 1) {
+    score8 = 1;
+  } else {
+    score8 = 0;
+  }
+
+  const totalScore = score1 + score2 + score3 + score4 + score5 + score6 + score7 + score8;
+
+  // 🎯 Part 4: Final Rating Calculation
   let finalRating: 'Good' | 'Medium' | 'Bad';
   let reason = '';
 
   // 1️⃣ لو صافي المديونية بالسالب → على طول Good
   if (netDebt < 0) {
     finalRating = 'Good';
-    reason = 'صافي المديونية بالسالب (العميل ليه عندك فلوس)';
+    reason = 'Account in Credit';
   }
   // 2️⃣ بعدها: لو أي RiskFlag = 1 → Bad
   else if (riskFlag1 === 1 || riskFlag2 === 1) {
     finalRating = 'Bad';
     if (riskFlag1 === 1) {
-      reason = 'مؤشر خطر 1: صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0';
+      reason = 'Risk Indicator 1: Negative sales & zero payments (90d)';
     } else {
-      reason = 'مؤشر خطر 2: مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب';
+      reason = 'Risk Indicator 2: No activity with outstanding debt (90d)';
     }
   }
   // 3️⃣ آخر خطوة: تقييم النقاط
   else {
-    if (totalScore >= 7) {
-      finalRating = 'Good'; // 7–10 → Good
-      reason = `إجمالي النقاط = ${totalScore} (≥ 7 → Good)`;
-    } else if (totalScore >= 4) {
-      finalRating = 'Medium'; // 4–6 → Medium
-      reason = `إجمالي النقاط = ${totalScore} (4-6 → Medium)`;
+    if (totalScore >= 11) {
+      finalRating = 'Good'; // 11–16 → Good
+      reason = '';
+    } else if (totalScore >= 6) {
+      finalRating = 'Medium'; // 6-10 → Medium
+      reason = '';
     } else {
-      finalRating = 'Bad'; // ≤3 → Bad
-      reason = `إجمالي النقاط = ${totalScore} (≤3 → Bad)`;
+      finalRating = 'Bad'; // ≤5 → Bad
+      reason = '';
     }
   }
 
@@ -338,9 +367,13 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
           score2,
           score3,
           score4,
-          score5
+          score5,
+          score6,
+          score7,
+          score8
         },
-        totalScore
+        totalScore,
+        maxPossibleScore: 16
       }
     };
   }
@@ -2083,18 +2116,18 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
                             e.stopPropagation();
                             // Grab the element BEFORE awaiting (React may null out event fields after await)
                             const buttonEl = (e.currentTarget as HTMLButtonElement | null);
-                            const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
+                            const originalTitle = buttonEl?.title || 'Copy customer name';
                             const success = await copyToClipboard(customer.customerName);
                             if (success) {
                               if (!buttonEl) return;
-                              buttonEl.title = 'تم النسخ!';
+                              buttonEl.title = 'Copied!';
                               setTimeout(() => {
                                 buttonEl.title = originalTitle;
                               }, 2000);
                             }
                           }}
                           className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
-                          title="نسخ اسم العميل"
+                          title="Copy customer name"
                         >
                           <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
                           <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
@@ -2159,7 +2192,7 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
                             setRatingBreakdown(breakdown);
                           }}
                           className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
-                          title="اضغط لعرض تفاصيل التقييم"
+                          title="Click to view rating details"
                         >
                           <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
                           {rating}
@@ -2362,7 +2395,7 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
                         <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
                         <h4 className="text-lg font-bold text-gray-800">Score Details</h4>
                         <div className="ml-auto px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
-                          Total: {ratingBreakdown.breakdown.totalScore}/10
+                          Total: {ratingBreakdown.breakdown.totalScore}/{ratingBreakdown.breakdown.maxPossibleScore || 16}
                         </div>
                       </div>
                       {/* First Row: 2 Cards */}

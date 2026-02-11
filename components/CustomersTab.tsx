@@ -185,7 +185,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     if (returnBreakdown) {
       return {
         rating: 'Bad',
-        reason: 'مغلق',
+        reason: 'Closed',
         isClosed: true,
         breakdown: null
       };
@@ -284,37 +284,66 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     score5 = 0; // لو "-" → 0
   }
 
-  const totalScore = score1 + score2 + score3 + score4 + score5;
+  // score6 — تقييم قيمة المدفوعات آخر 90 يوم
+  let score6 = 0;
+  if (payments90d >= 10000) {
+    score6 = 2;
+  } else if (payments90d >= 2000) {
+    score6 = 1;
+  } else {
+    score6 = 0;
+  }
+
+  // score7 — تقييم قيمة المبيعات آخر 90 يوم
+  let score7 = 0;
+  if (sales90d >= 10000) {
+    score7 = 2;
+  } else if (sales90d >= 2000) {
+    score7 = 1;
+  } else {
+    score7 = 0;
+  }
+
+  // score8 — تقييم عدد المبيعات آخر 90 يوم
+  let score8 = 0;
+  if (salesCount >= 2) {
+    score8 = 2;
+  } else if (salesCount === 1) {
+    score8 = 1;
+  } else {
+    score8 = 0;
+  }
+
+  const totalScore = score1 + score2 + score3 + score4 + score5 + score6 + score7 + score8;
 
   // 🎯 رابعاً: حساب التقييم النهائي
   let finalRating: 'Good' | 'Medium' | 'Bad';
   let reason = '';
 
-  // 1️⃣ لو صافي المديونية بالسالب → على طول Good
   if (netDebt < 0) {
     finalRating = 'Good';
-    reason = 'صافي المديونية بالسالب (العميل ليه عندك فلوس)';
+    reason = 'Account in Credit';
   }
   // 2️⃣ بعدها: لو أي RiskFlag = 1 → Bad
   else if (riskFlag1 === 1 || riskFlag2 === 1) {
     finalRating = 'Bad';
     if (riskFlag1 === 1) {
-      reason = 'مؤشر خطر 1: صافي المبيعات آخر 90 يوم سالب + عدد المدفوعات = 0';
+      reason = 'Risk Indicator 1: Negative sales & zero payments (90d)';
     } else {
-      reason = 'مؤشر خطر 2: مفيش دفع آخر 90 يوم + مفيش بيع آخر 90 يوم + عليه دين موجب';
+      reason = 'Risk Indicator 2: No activity with outstanding debt (90d)';
     }
   }
   // 3️⃣ آخر خطوة: تقييم النقاط
   else {
-    if (totalScore >= 7) {
-      finalRating = 'Good'; // 7–10 → Good
-      reason = `إجمالي النقاط = ${totalScore} (≥ 7 → Good)`;
-    } else if (totalScore >= 4) {
-      finalRating = 'Medium'; // 4–6 → Medium
-      reason = `إجمالي النقاط = ${totalScore} (4-6 → Medium)`;
+    if (totalScore >= 11) {
+      finalRating = 'Good'; // 11–16 → Good
+      reason = '';
+    } else if (totalScore >= 6) {
+      finalRating = 'Medium'; // 6-10 → Medium
+      reason = '';
     } else {
-      finalRating = 'Bad'; // ≤3 → Bad
-      reason = `إجمالي النقاط = ${totalScore} (≤3 → Bad)`;
+      finalRating = 'Bad'; // ≤5 → Bad
+      reason = '';
     }
   }
 
@@ -341,9 +370,13 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
           score2,
           score3,
           score4,
-          score5
+          score5,
+          score6,
+          score7,
+          score8
         },
-        totalScore
+        totalScore,
+        maxPossibleScore: 16
       }
     };
   }
@@ -1506,10 +1539,12 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         payments3m,
         paymentsCount3m,
         sales3m,
+        salesCount3m,
         lastTransactionDate: c.lastTransactionDate,
         creditPayments: c.creditPayments,
         creditReturns: c.creditReturns,
         creditDiscounts: c.creditDiscounts,
+        totalSalesDebit: c.totalSalesDebit,
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter, spiData]);
@@ -2554,7 +2589,7 @@ ${debtSectionHtml}
                 setRatingBreakdown(breakdown);
               }}
               className={`px-3 py-1 rounded-full text-sm font-semibold ${colorClass} ${bgClass} border ${rating === 'Good' ? 'border-green-200' : rating === 'Medium' ? 'border-yellow-200' : 'border-red-200'} hover:shadow-md transition-all cursor-pointer`}
-              title="اضغط لعرض تفاصيل التقييم"
+              title="Click to view rating details"
             >
               {rating}
             </button>
@@ -2690,7 +2725,7 @@ ${debtSectionHtml}
                 <select
                   value={matchingFilter}
                   onChange={(e) => setMatchingFilter(e.target.value)}
-                  className="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
                 >
                   <option value="ALL">All Statuses</option>
 
@@ -2703,7 +2738,7 @@ ${debtSectionHtml}
                 <select
                   value={closedFilter}
                   onChange={(e) => setClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
-                  className="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
                 >
                   <option value="ALL">Show Closed</option>
                   <option value="HIDE">Hide Closed</option>
@@ -2713,7 +2748,7 @@ ${debtSectionHtml}
                 <select
                   value={semiClosedFilter}
                   onChange={(e) => setSemiClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
-                  className="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
                 >
                   <option value="ALL">Show Semi-Closed</option>
                   <option value="HIDE">Hide Semi-Closed</option>
@@ -2723,7 +2758,7 @@ ${debtSectionHtml}
                 <select
                   value={selectedSalesRep}
                   onChange={(e) => setSelectedSalesRep(e.target.value)}
-                  className="w-36 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
+                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
                 >
                   <option value="ALL">All Sales Reps</option>
                   {availableSalesReps.map(rep => (
@@ -2963,18 +2998,18 @@ ${debtSectionHtml}
                               e.stopPropagation();
                               // Grab the element BEFORE awaiting (React may null out event fields after await)
                               const buttonEl = (e.currentTarget as HTMLButtonElement | null);
-                              const originalTitle = buttonEl?.title || 'نسخ اسم العميل';
+                              const originalTitle = buttonEl?.title || 'Copy customer name';
                               const success = await copyToClipboard(customer.customerName);
                               if (success) {
                                 if (!buttonEl) return;
-                                buttonEl.title = 'تم النسخ!';
+                                buttonEl.title = 'Copied!';
                                 setTimeout(() => {
                                   buttonEl.title = originalTitle;
                                 }, 2000);
                               }
                             }}
                             className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
-                            title="نسخ اسم العميل"
+                            title="Copy customer name"
                           >
                             <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
                             <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
@@ -3868,7 +3903,7 @@ ${debtSectionHtml}
                           <div className="w-1 h-6 bg-gradient-to-b from-blue-500 to-indigo-600 rounded-full"></div>
                           <h4 className="text-lg font-bold text-gray-800">Score Details</h4>
                           <div className="ml-auto px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-semibold">
-                            Total: {ratingBreakdown.breakdown.totalScore}/10
+                            Total: {ratingBreakdown.breakdown.totalScore}/{ratingBreakdown.breakdown.maxPossibleScore || 16}
                           </div>
                         </div>
                         {/* First Row: 2 Cards */}
@@ -3941,8 +3976,13 @@ ${debtSectionHtml}
                           < div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow" >
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Payment Value</p>
-                              <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600">
-                                N/A
+                              <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${ratingBreakdown.breakdown.scores.score6 === 2
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : ratingBreakdown.breakdown.scores.score6 === 1
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-red-100 text-red-700'
+                                }`}>
+                                {ratingBreakdown.breakdown.scores.score6}/2
                               </div>
                             </div>
                             <p className="text-2xl font-bold text-gray-900">{(ratingBreakdown.breakdown.payments90d || 0).toLocaleString('en-US')}</p>
@@ -3988,8 +4028,13 @@ ${debtSectionHtml}
                           < div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow" >
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sales Value</p>
-                              <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600">
-                                N/A
+                              <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${ratingBreakdown.breakdown.scores.score7 === 2
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : ratingBreakdown.breakdown.scores.score7 === 1
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-red-100 text-red-700'
+                                }`}>
+                                {ratingBreakdown.breakdown.scores.score7}/2
                               </div>
                             </div>
                             <p className="text-2xl font-bold text-gray-900">{(ratingBreakdown.breakdown.sales90d || 0).toLocaleString('en-US')}</p>
@@ -4000,8 +4045,13 @@ ${debtSectionHtml}
                           < div className="p-5 bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md transition-shadow" >
                             <div className="flex items-center justify-between mb-3">
                               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Sales Count (90d)</p>
-                              <div className="px-2.5 py-1 rounded-lg text-xs font-bold bg-gray-100 text-gray-600">
-                                N/A
+                              <div className={`px-2.5 py-1 rounded-lg text-xs font-bold ${ratingBreakdown.breakdown.scores.score8 === 2
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : ratingBreakdown.breakdown.scores.score8 === 1
+                                  ? 'bg-amber-100 text-amber-700'
+                                  : 'bg-red-100 text-red-700'
+                                }`}>
+                                {ratingBreakdown.breakdown.scores.score8}/2
                               </div>
                             </div>
                             <p className="text-3xl font-bold text-gray-900">{ratingBreakdown.breakdown.salesCount}</p>

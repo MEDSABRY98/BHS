@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import {
   AreaChart,
   Area,
@@ -962,19 +963,8 @@ ${debtSectionHtml}
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
         if (showDiscounts && num.startsWith('BIL')) return true;
         if (showJV && num.startsWith('JV')) return true;
-        if (showPayments) {
-          // Treat BNK* as payments even if credit isn't populated as expected
-          if (num.startsWith('BNK') && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
-          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB, PBNK
-          if (inv.credit > 0.01 &&
-            !num.startsWith('SAL') &&
-            !num.startsWith('RSAL') &&
-            !num.startsWith('BIL') &&
-            !num.startsWith('JV') &&
-            !num.startsWith('OB') &&
-            !num.startsWith('PBNK')) {
-            return true;
-          }
+        if (showPayments && isPaymentTxn(inv)) {
+          return true;
         }
         return false;
       });
@@ -1128,19 +1118,8 @@ ${debtSectionHtml}
         if (showReturns && num.startsWith('RSAL') && inv.credit > 0) return true;
         if (showDiscounts && num.startsWith('BIL')) return true;
         if (showJV && num.startsWith('JV')) return true;
-        if (showPayments) {
-          // Treat BNK* as payments. Treat PBNK with debit as Our-Paid (included in payments filter for convenience here, matching previous PBNK logic)
-          if ((num.startsWith('BNK') || num.startsWith('PBNK')) && ((inv.credit || 0) > 0.01 || (inv.debit || 0) > 0.01)) return true;
-          // Payments: credit transactions excluding SAL, RSAL, BIL, JV, OB, PBNK
-          if (inv.credit > 0.01 &&
-            !num.startsWith('SAL') &&
-            !num.startsWith('RSAL') &&
-            !num.startsWith('BIL') &&
-            !num.startsWith('JV') &&
-            !num.startsWith('OB') &&
-            !num.startsWith('PBNK')) {
-            return true;
-          }
+        if (showPayments && isPaymentTxn(inv)) {
+          return true;
         }
         return false;
       });
@@ -1830,56 +1809,52 @@ ${debtSectionHtml}
     }
   };
 
-  const exportToExcel = (invoices: any[], monthsLabel: string) => {
+  const exportToExcel = (invoicesToExport: any[], monthsLabel: string) => {
     const headers = ['Date', 'Type', 'Invoice Number', 'Debit', 'Credit', 'Net Debt'];
 
-    const rows = invoices.map(inv => {
-      const date = inv.date ? (() => {
+    const rows = invoicesToExport.map(inv => {
+      const dateStr = inv.date ? (() => {
         const d = new Date(inv.date);
+        if (isNaN(d.getTime())) return '';
         const day = String(d.getDate()).padStart(2, '0');
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const year = d.getFullYear();
         return `${day}/${month}/${year}`;
       })() : '';
+
       let type = getInvoiceType(inv);
-      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
+      if (inv.date && (['Sales', 'Return', 'Discount', 'Payment', 'R-Payment', 'Our-Paid'].includes(type))) {
         const d = new Date(inv.date);
         if (!isNaN(d.getTime())) {
           const yy = d.getFullYear().toString().slice(-2);
-          // Convert "Sales" to "Sale" to match preference
           let base = type === 'Sales' ? 'Sale' : type;
-
           type = `${base} ${yy}`;
         }
       }
+
       return [
-        date,
+        dateStr,
         type,
         inv.number || '',
-        (inv.debit || 0).toFixed(2),
-        (inv.credit || 0).toFixed(2),
-        (inv.netDebt || 0).toFixed(2)
+        inv.debit || 0,
+        inv.credit || 0,
+        inv.netDebt || 0
       ];
     });
 
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
-    ].join('\n');
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Account Statement');
 
-    // Add BOM for UTF-8 to ensure Excel opens it correctly
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    const fileName = `${customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim()}_${monthsLabel.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '_')}.csv`;
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    // Auto-size columns
+    const colWidths = [15, 15, 20, 12, 12, 12];
+    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
+
+    const safeName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+    const safeLabel = monthsLabel.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '_');
+    const fileName = `${safeName}_${safeLabel}.xlsx`;
+
+    XLSX.writeFile(workbook, fileName);
   };
 
   const handleExport = async () => {
@@ -3055,12 +3030,142 @@ ${debtSectionHtml}
       {activeTab === 'dashboard' && (
         <div className="space-y-6 animate-in fade-in duration-300">
 
+          {/* Section 0: Last Invoices */}
+          <div>
+            <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Last Invoices</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Last Sale Invoice */}
+              {(() => {
+                const lastSale = filteredInvoices
+                  .filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'))
+                  .sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0];
+
+                return (
+                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-20">
+                      <span className="text-5xl">🛒</span>
+                    </div>
+                    <h4 className="text-blue-700 text-xs font-bold uppercase tracking-wider mb-2">Last Sale</h4>
+                    {lastSale ? (
+                      <>
+                        <p className="text-sm font-semibold text-blue-900 mb-1">{lastSale.number}</p>
+                        <p className="text-2xl font-bold text-blue-700 mb-1">{lastSale.debit.toLocaleString('en-US')}</p>
+                        <p className="text-xs text-blue-600">
+                          {lastSale.parsedDate?.toLocaleDateString('en-GB') || lastSale.date}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-blue-600 italic">No invoices</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Last Return Invoice */}
+              {(() => {
+                const lastReturn = filteredInvoices
+                  .filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'))
+                  .sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0];
+
+                return (
+                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-xl shadow-sm border border-orange-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-20">
+                      <span className="text-5xl">↩️</span>
+                    </div>
+                    <h4 className="text-orange-700 text-xs font-bold uppercase tracking-wider mb-2">Last Return</h4>
+                    {lastReturn ? (
+                      <>
+                        <p className="text-sm font-semibold text-orange-900 mb-1">{lastReturn.number}</p>
+                        <p className="text-2xl font-bold text-orange-700 mb-1">{lastReturn.credit.toLocaleString('en-US')}</p>
+                        <p className="text-xs text-orange-600">
+                          {lastReturn.parsedDate?.toLocaleDateString('en-GB') || lastReturn.date}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-orange-600 italic">No returns</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Last Payment */}
+              {(() => {
+                const lastPayment = filteredInvoices
+                  .filter(inv => isPaymentTxn(inv))
+                  .sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0];
+
+                return (
+                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-xl shadow-sm border border-green-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-20">
+                      <span className="text-5xl">💸</span>
+                    </div>
+                    <h4 className="text-green-700 text-xs font-bold uppercase tracking-wider mb-2">Last Payment</h4>
+                    {lastPayment ? (
+                      <>
+                        <p className="text-sm font-semibold text-green-900 mb-1">{lastPayment.number}</p>
+                        <p className="text-2xl font-bold text-green-700 mb-1">{getPaymentAmount(lastPayment).toLocaleString('en-US')}</p>
+                        <p className="text-xs text-green-600">
+                          {lastPayment.parsedDate?.toLocaleDateString('en-GB') || lastPayment.date}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-green-600 italic">No payments</p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Last Discount (BIL) */}
+              {(() => {
+                const lastDiscount = filteredInvoices
+                  .filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'))
+                  .sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0];
+
+                return (
+                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-3 opacity-20">
+                      <span className="text-5xl">🎁</span>
+                    </div>
+                    <h4 className="text-purple-700 text-xs font-bold uppercase tracking-wider mb-2">Last Discount</h4>
+                    {lastDiscount ? (
+                      <>
+                        <p className="text-sm font-semibold text-purple-900 mb-1">{lastDiscount.number}</p>
+                        <p className="text-2xl font-bold text-purple-700 mb-1">{lastDiscount.credit.toLocaleString('en-US')}</p>
+                        <p className="text-xs text-purple-600">
+                          {lastDiscount.parsedDate?.toLocaleDateString('en-GB') || lastDiscount.date}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-sm text-purple-600 italic">No discounts</p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+
           {/* Section 1: Debit Overview */}
           <div>
             <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
-            <div className="flex flex-wrap justify-center gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
               {/* Net Debt Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden w-full md:w-1/3 lg:w-1/4">
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <span className="text-6xl">💰</span>
                 </div>
@@ -3072,10 +3177,98 @@ ${debtSectionHtml}
               </div>
 
 
+              {/* Total Payments Card */}
+              {(() => {
+                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                const totalPayments = payments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+                return (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                      <span className="text-6xl">💸</span>
+                    </div>
+                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
+                    <p className="text-3xl font-bold mt-2 text-green-600">
+                      {totalPayments.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">All Time</p>
+                  </div>
+                );
+              })()}
+
+              {/* Average Monthly Payment Card */}
+              {(() => {
+                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                const totalPayments = payments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+                const paymentsByMonth = new Map<string, number>();
+                payments.forEach(inv => {
+                  if (!inv.date) return;
+                  const d = inv.parsedDate || new Date(inv.date);
+                  if (isNaN(d.getTime())) return;
+                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                  paymentsByMonth.set(key, (paymentsByMonth.get(key) || 0) + getPaymentAmount(inv));
+                });
+                const avgMonthlyPayment = paymentsByMonth.size > 0
+                  ? totalPayments / paymentsByMonth.size
+                  : 0;
+
+                return (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                      <span className="text-6xl">📅</span>
+                    </div>
+                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg Monthly Payment</h3>
+                    <p className="text-3xl font-bold mt-2 text-blue-600">
+                      {avgMonthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">{paymentsByMonth.size} Active Months</p>
+                  </div>
+                );
+              })()}
+
+              {/* Payment Frequency Card */}
+              {(() => {
+                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+
+                const paymentDates = payments
+                  .map(inv => inv.parsedDate || (inv.date ? new Date(inv.date) : null))
+                  .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+                  .sort((a, b) => a.getTime() - b.getTime());
+
+                let avgDaysBetweenPayments = 0;
+                if (paymentDates.length > 1) {
+                  const daysDiffs: number[] = [];
+                  for (let i = 1; i < paymentDates.length; i++) {
+                    const diff = (paymentDates[i].getTime() - paymentDates[i - 1].getTime()) / (1000 * 60 * 60 * 24);
+                    daysDiffs.push(diff);
+                  }
+                  avgDaysBetweenPayments = daysDiffs.reduce((sum, d) => sum + d, 0) / daysDiffs.length;
+                }
+
+                return (
+                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 p-4 opacity-10">
+                      <span className="text-6xl">⏱️</span>
+                    </div>
+                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Payment Frequency</h3>
+                    <p className="text-3xl font-bold mt-2 text-purple-600">
+                      {avgDaysBetweenPayments > 0
+                        ? Math.round(avgDaysBetweenPayments)
+                        : '-'
+                      }
+                    </p>
+                    <p className="text-sm text-gray-400 mt-1">
+                      {avgDaysBetweenPayments > 0 ? 'Days Between Payments' : 'N/A'}
+                    </p>
+                  </div>
+                );
+              })()}
+
 
               {/* Collection Rate Card */}
               <div
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden w-full md:w-1/3 lg:w-1/4"
+                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden"
               >
                 <div className="absolute top-0 right-0 p-4 opacity-10">
                   <span className="text-6xl">📈</span>
@@ -3093,9 +3286,82 @@ ${debtSectionHtml}
               </div>
             </div>
 
-
-
-
+            {/* Monthly Payments Trend Chart */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Payments (Last 12 Months)</h3>
+              <div className="h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={monthlyPaymentsTrendData}
+                    margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+                    barCategoryGap="12%"
+                  >
+                    <defs>
+                      <linearGradient id="colorPaymentsPositive" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                        <stop offset="50%" stopColor="#34D399" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1} />
+                      </linearGradient>
+                      <linearGradient id="colorPaymentsNegative" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#EC4899" stopOpacity={1} />
+                        <stop offset="50%" stopColor="#F472B6" stopOpacity={1} />
+                        <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
+                    <XAxis
+                      dataKey="monthLabel"
+                      tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 12, fill: '#6B7280' }}
+                      tickFormatter={(value) => `${value / 1000}k`}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <RechartsTooltip
+                      formatter={(value: number) => value.toLocaleString('en-US')}
+                      labelFormatter={(label) => `Month: ${label}`}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: 'none',
+                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                        padding: '12px',
+                        backgroundColor: 'white'
+                      }}
+                      cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                    />
+                    <Bar
+                      dataKey="credit"
+                      name="Payments"
+                      radius={[10, 10, 0, 0]}
+                      barSize={58}
+                    >
+                      {monthlyPaymentsTrendData.map((entry: any, index: number) => {
+                        const isPositive = entry.credit >= 0;
+                        return (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={isPositive ? "url(#colorPaymentsPositive)" : "url(#colorPaymentsNegative)"}
+                            stroke="none"
+                          />
+                        );
+                      })}
+                      <LabelList
+                        dataKey="credit"
+                        position="top"
+                        formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
+                        style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
+                        offset={10}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
           </div>
 
           {/* Section 2: Sales & Performance */}
@@ -3245,7 +3511,8 @@ ${debtSectionHtml}
 
 
         </div>
-      )}
+      )
+      }
 
       {/* Tab Content: Invoices */}
       {activeTab === 'invoices' && (

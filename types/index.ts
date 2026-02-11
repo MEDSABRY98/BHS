@@ -41,6 +41,10 @@ export interface CustomerAnalysis {
   creditReturns?: number;
   creditDiscounts?: number;
   totalSalesDebit?: number;
+  sales3m?: number;
+  salesCount3m?: number;
+  payments3m?: number;
+  paymentsCount3m?: number;
 }
 
 export interface SalesRepAnalysis {

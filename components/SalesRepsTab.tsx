@@ -22,7 +22,7 @@ const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) return d;
-  
+
   const parts = dateStr.split(/[\/\-]/);
   if (parts.length === 3) {
     const p1 = parseInt(parts[0]);
@@ -57,7 +57,7 @@ const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }
 const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>): 'Good' | 'Medium' | 'Bad' => {
   const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
   const isClosed = closedCustomersSet.has(customerNameNormalized);
-  
+
   if (isClosed) {
     return 'Bad';
   }
@@ -101,7 +101,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     const lastPayDate = new Date(lastPay);
     lastPayDate.setHours(0, 0, 0, 0);
     const daysSinceLastPay = Math.floor((today.getTime() - lastPayDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysSinceLastPay <= 30) {
       score3 = 2;
     } else if (daysSinceLastPay <= 90) {
@@ -129,7 +129,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     const lastSaleDate = new Date(lastSale);
     lastSaleDate.setHours(0, 0, 0, 0);
     const daysSinceLastSale = Math.floor((today.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysSinceLastSale <= 30) {
       score5 = 2;
     } else if (daysSinceLastSale <= 90) {
@@ -141,18 +141,48 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     score5 = 0;
   }
 
-  const totalScore = score1 + score2 + score3 + score4 + score5;
+  // score6 — Payment Value last 90d
+  let score6 = 0;
+  if ((customer.payments3m || 0) >= 10000) {
+    score6 = 2;
+  } else if ((customer.payments3m || 0) >= 2000) {
+    score6 = 1;
+  } else {
+    score6 = 0;
+  }
+
+  // score7 — Sales Value last 90d
+  let score7 = 0;
+  if ((customer.sales3m || 0) >= 10000) {
+    score7 = 2;
+  } else if ((customer.sales3m || 0) >= 2000) {
+    score7 = 1;
+  } else {
+    score7 = 0;
+  }
+
+  // score8 — Sales Count last 90d
+  let score8 = 0;
+  if ((customer.salesCount3m || 0) >= 2) {
+    score8 = 2;
+  } else if ((customer.salesCount3m || 0) === 1) {
+    score8 = 1;
+  } else {
+    score8 = 0;
+  }
+
+  const totalScore = score1 + score2 + score3 + score4 + score5 + score6 + score7 + score8;
 
   let finalRating: 'Good' | 'Medium' | 'Bad';
-  
+
   if (netDebt < 0) {
     finalRating = 'Good';
   } else if (riskFlag1 === 1 || riskFlag2 === 1) {
     finalRating = 'Bad';
   } else {
-    if (totalScore >= 7) {
+    if (totalScore >= 11) {
       finalRating = 'Good';
-    } else if (totalScore >= 4) {
+    } else if (totalScore >= 6) {
       finalRating = 'Medium';
     } else {
       finalRating = 'Bad';
@@ -199,7 +229,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
 
     data.forEach((row) => {
       let existing = customerMap.get(row.customerName);
-      
+
       if (!existing) {
         existing = {
           customerName: row.customerName,
@@ -223,14 +253,14 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
       existing.totalCredit += row.credit;
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
-      
+
       const num = row.number?.toString().toUpperCase() || '';
       if (num.startsWith('SAL')) {
         existing.netSales = (existing.netSales || 0) + row.debit;
       } else if (num.startsWith('RSAL')) {
         existing.netSales = (existing.netSales || 0) - row.credit;
       }
-      
+
       if (row.salesRep && row.salesRep.trim()) {
         existing.salesReps?.add(row.salesRep.trim());
       }
@@ -284,7 +314,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
 
     return Array.from(customerMap.values()).map(c => {
       const customerInvoices = customerInvoicesMap.get(c.customerName) || [];
-      
+
       const sales3m = customerInvoices
         .filter(inv => {
           const num = inv.number?.toString().toUpperCase() || '';
@@ -308,10 +338,10 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
         const paymentInvoices = customerInvoices
           .filter(inv => isInLast90(inv.date))
           .filter(inv => isPaymentTxn(inv));
-        
+
         const creditCount = paymentInvoices.filter(inv => (inv.credit || 0) > 0.01).length;
         const debitCount = paymentInvoices.filter(inv => (inv.debit || 0) > 0.01).length;
-        
+
         return creditCount - debitCount;
       })();
 
@@ -334,7 +364,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
         paymentsCount3m,
         sales3m,
         salesCount3m
-      } as CustomerAnalysis & { payments3m: number; paymentsCount3m: number; sales3m: number; salesCount3m: number };
+      };
     });
   }, [data]);
 
@@ -385,16 +415,16 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
     // Calculate collection rate and customer ratings for each rep
     repMap.forEach((rep, repName) => {
       rep.customerCount = customerCountMap.get(repName)?.size || 0;
-      
+
       // Calculate collection rate
       rep.collectionRate = rep.totalDebit > 0 ? (rep.totalCredit / rep.totalDebit) * 100 : 0;
-      
+
       // Get customers for this rep and calculate ratings
       const repCustomers = customersByRep.get(repName) || [];
       let goodCount = 0;
       let mediumCount = 0;
       let badCount = 0;
-      
+
       repCustomers.forEach((customer) => {
         const rating = calculateDebtRating(customer, closedCustomers);
         if (rating === 'Good') {
@@ -405,7 +435,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
           badCount++;
         }
       });
-      
+
       rep.goodCustomersCount = goodCount;
       rep.mediumCustomersCount = mediumCount;
       rep.badCustomersCount = badCount;

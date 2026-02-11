@@ -148,7 +148,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
     weekly: true,
     monthly: true,
     customerList: true,
-    debtAge: true,
+
     salesRep: true,
     gapAnalysis: true
   });
@@ -1802,173 +1802,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
   }, [visiblePayments, activeSubTab]);
 
   // Calculate Analysis / Breakdown Stats with Allocation Logic
-  const breakdownStats = useMemo(() => {
-    if (activeSubTab !== 'analysis') return [];
 
-    // Helper: Preprocess allocations (same logic as PDF)
-    const preprocessAllocations = (rows: InvoiceRow[]) => {
-      // Use string key instead of object reference: "date|customer|number"
-      const allocMap = new Map<string, { date: Date, amount: number, type: string }[]>();
-      const groups = new Map<string, InvoiceRow[]>();
-
-      rows.forEach(r => {
-        if (r.matching && r.matching !== 'Unmatched') {
-          const k = r.matching.toString().trim().toLowerCase();
-          if (!groups.has(k)) groups.set(k, []);
-          groups.get(k)!.push(r);
-        }
-      });
-
-      groups.forEach((group) => {
-        const invoices = group.filter(r => (r.debit || 0) > 0.01);
-        const payments = group.filter(r => (r.credit || 0) > 0.01);
-
-        if (invoices.length === 0 || payments.length === 0) return;
-
-        payments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        let holderIdx = -1;
-        let maxDeb = -1;
-        invoices.forEach((inv, i) => {
-          if (inv.debit > maxDeb) {
-            maxDeb = inv.debit;
-            holderIdx = i;
-          }
-        });
-
-        const sortedInvoices = invoices.map((inv, i) => ({ inv, isHolder: i === holderIdx, originalIdx: i }));
-        sortedInvoices.sort((a, b) => {
-          if (a.isHolder && !b.isHolder) return 1;
-          if (!a.isHolder && b.isHolder) return -1;
-          return new Date(a.inv.date).getTime() - new Date(b.inv.date).getTime();
-        });
-
-        const paidSoFar = new Map<number, number>();
-
-        payments.forEach(pay => {
-          let rem = (pay.credit || 0) - (pay.debit || 0);
-          const rowAllocations: { date: Date, amount: number, type: string }[] = [];
-
-          for (const item of sortedInvoices) {
-            if (rem <= 0.001) break;
-
-            const inv = item.inv;
-            const already = paidSoFar.get(item.originalIdx) || 0;
-            const capacity = inv.debit - already;
-
-            if (capacity > 0.001 || item.isHolder) {
-              let alloc = 0;
-              if (item.isHolder) {
-                alloc = rem;
-              } else {
-                alloc = Math.min(rem, capacity);
-              }
-
-              if (alloc > 0.001) {
-                const d = parseDate(inv.date);
-                if (d) {
-                  rowAllocations.push({ date: d, amount: alloc, type: getInvoiceType(inv) });
-                  paidSoFar.set(item.originalIdx, already + alloc);
-                  rem -= alloc;
-                }
-              }
-            }
-          }
-
-          if (rem > 0.001) {
-            const d = parseDate(pay.date);
-            if (d) rowAllocations.push({ date: d, amount: rem, type: 'Unmatched' });
-          }
-
-          // Create unique key for this payment
-          const payKey = `${pay.date}|${pay.customerName}|${pay.number}`;
-          allocMap.set(payKey, rowAllocations);
-        });
-      });
-
-      return allocMap;
-    };
-
-    // Build allocation map from all data
-    const allocationMap = preprocessAllocations(data);
-
-    const stats = new Map<string, {
-      monthLabel: string,
-      monthKey: string,
-      totalCollected: number,
-      breakdown: Map<string, number>
-    }>();
-
-    visiblePayments.forEach(p => {
-      if (!p.parsedDate) return;
-
-      // Create same unique key to lookup allocations
-      const payKey = `${p.date}|${p.customerName}|${p.number}`;
-      const allocs = allocationMap.get(payKey);
-
-      if (allocs && allocs.length > 0) {
-        // Process each allocation fragment
-        allocs.forEach(frag => {
-          let sourceLabel = 'Unmatched';
-          if (frag.type === 'OB') sourceLabel = 'OB';
-          else if (frag.type === 'Unmatched') sourceLabel = 'Unmatched';
-          else {
-            const m = frag.date.toLocaleString('en-US', { month: 'short' });
-            const y = frag.date.getFullYear().toString().slice(-2);
-            sourceLabel = `${m}${y}`;
-          }
-
-          // Apply source filter: only include this fragment if its source is selected (or no filter active)
-          if (selectedSourceFilters.size > 0 && !selectedSourceFilters.has(sourceLabel)) {
-            return; // Skip this fragment
-          }
-
-          // Now add this fragment to the collection month stats
-          const pKey = getMonthlyKey(p.parsedDate!);
-          const pLabel = formatPeriodLabel(pKey, 'monthly');
-
-          if (!stats.has(pKey)) {
-            stats.set(pKey, {
-              monthLabel: pLabel,
-              monthKey: pKey,
-              totalCollected: 0,
-              breakdown: new Map()
-            });
-          }
-          const entry = stats.get(pKey)!;
-
-          entry.totalCollected += frag.amount;
-
-          const currentSourceVal = entry.breakdown.get(sourceLabel) || 0;
-          entry.breakdown.set(sourceLabel, currentSourceVal + frag.amount);
-        });
-      } else {
-        // Fallback for unmatched - only if Unmatched filter is selected or no filter
-        if (selectedSourceFilters.size === 0 || selectedSourceFilters.has('Unmatched')) {
-          const pKey = getMonthlyKey(p.parsedDate);
-          const pLabel = formatPeriodLabel(pKey, 'monthly');
-
-          if (!stats.has(pKey)) {
-            stats.set(pKey, {
-              monthLabel: pLabel,
-              monthKey: pKey,
-              totalCollected: 0,
-              breakdown: new Map()
-            });
-          }
-          const entry = stats.get(pKey)!;
-          const amount = p.credit;
-
-          entry.totalCollected += amount;
-          const currentSourceVal = entry.breakdown.get('Unmatched') || 0;
-          entry.breakdown.set('Unmatched', currentSourceVal + amount);
-        }
-      }
-    });
-
-    return Array.from(stats.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-
-  }, [visiblePayments, activeSubTab, data, selectedSourceFilters]);
 
   // (Customer detail restore is handled synchronously in the tab button click handler)
 
@@ -2011,123 +1845,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
           {/* Source Filter (Multi-select) */}
 
 
-          {/* Source Filter (Popup Modal) */}
-          <div className="relative h-[42px]">
-            <button
-              onClick={() => setIsSourceFilterOpen(true)}
-              className={`h-full p-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 flex items-center justify-center ${selectedSourceFilters.size > 0 ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 text-gray-700'
-                }`}
-              title="Filter by Source"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-              </svg>
-            </button>
 
-            {isSourceFilterOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md flex flex-col overflow-hidden max-h-[80vh]">
-
-                  {/* Header */}
-                  <div className="px-6 py-5 flex items-center justify-between bg-white border-b border-gray-100">
-                    <h3 className="text-xl font-bold text-gray-900 tracking-tight">Filter by Payment Source</h3>
-                    <button
-                      onClick={() => setIsSourceFilterOpen(false)}
-                      className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full hover:bg-gray-100"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  {/* Sub-header / Actions */}
-                  <div className="px-6 py-3 flex justify-between items-center bg-gray-50/50">
-                    <span className="text-sm font-medium text-gray-500">Select sources to include:</span>
-                    <button
-                      onClick={() => {
-                        const all = new Set(availableSources);
-                        setSelectedSourceFilters(all);
-                      }}
-                      className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline"
-                    >
-                      Select All
-                    </button>
-                  </div>
-
-                  {/* Options List */}
-                  <div className="flex-1 overflow-y-auto p-6 bg-white">
-                    <div className="grid grid-cols-2 gap-3">
-                      {availableSources.map(source => {
-                        const isSelected = selectedSourceFilters.has(source);
-                        return (
-                          <label
-                            key={source}
-                            className={`
-                              relative flex items-center gap-3 p-3 rounded-2xl border cursor-pointer transition-all duration-200
-                              ${isSelected
-                                ? 'border-blue-500 bg-blue-50/30'
-                                : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
-                              }
-                            `}
-                          >
-                            <div className="relative flex items-center justify-center">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  const newSet = new Set(selectedSourceFilters);
-                                  if (e.target.checked) {
-                                    newSet.add(source);
-                                  } else {
-                                    newSet.delete(source);
-                                  }
-                                  setSelectedSourceFilters(newSet);
-                                }}
-                                className="peer appearance-none w-5 h-5 border-2 border-gray-300 rounded-md checked:bg-blue-600 checked:border-blue-600 transition-colors"
-                              />
-                              <svg
-                                className="absolute w-3.5 h-3.5 text-white pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity"
-                                viewBox="0 0 16 16"
-                                fill="none"
-                                xmlns="http://www.w3.org/2000/svg"
-                              >
-                                <path d="M12.207 4.793a1 1 0 010 1.414l-5 5a1 1 0 01-1.414 0l-2-2a1 1 0 011.414-1.414L6.5 9.086l4.293-4.293a1 1 0 011.414 0z" fill="currentColor" />
-                              </svg>
-                            </div>
-                            <span className={`text-sm font-bold truncate ${isSelected ? 'text-blue-900' : 'text-gray-700'}`}>
-                              {source}
-                            </span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                    {availableSources.length === 0 && (
-                      <div className="text-center text-gray-400 py-8">
-                        No sources available
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Footer */}
-                  <div className="px-6 py-4 bg-gray-50 flex justify-between items-center border-t border-gray-100">
-                    <button
-                      onClick={() => setSelectedSourceFilters(new Set())}
-                      className="text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors px-2 py-1"
-                    >
-                      Clear All
-                    </button>
-                    <button
-                      onClick={() => setIsSourceFilterOpen(false)}
-                      className="px-5 py-2.5 rounded-xl bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-200 hover:bg-indigo-700 hover:shadow-xl hover:-translate-y-0.5 transition-all"
-                    >
-                      Done
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
           <input
             type="text"
             placeholder="Year"
@@ -2282,7 +2000,6 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                         {[
                           { key: 'customerList', label: 'Customer Payment List', desc: 'Detailed table of all transactions' },
                           { key: 'gapAnalysis', label: 'Retention (Gap Analysis)', desc: 'View customer payment regularity' },
-                          { key: 'debtAge', label: 'Debt Age Analysis', desc: 'Breakdown of overdue payments' },
                           { key: 'salesRep', label: 'Sales Rep Performance', desc: 'Collection stats per representative' }
                         ].map((item: any) => (
                           <label
@@ -2556,20 +2273,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         >
           Payment by Area
         </button>
-        <button
-          onClick={() => {
-            setActiveSubTab('analysis');
-            setDetailMode('none');
-            setSelectedCustomer(null);
-            setSelectedPeriod(null);
-          }}
-          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'analysis'
-            ? 'border-blue-600 text-blue-600'
-            : 'border-transparent text-gray-500 hover:text-gray-700'
-            }`}
-        >
-          Analysis
-        </button>
+
 
       </div>
 
@@ -3194,7 +2898,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                         <th className="px-4 py-3 text-center">Date</th>
                         <th className="px-4 py-3 text-center">Number</th>
                         <th className="px-4 py-3 text-center">Paid</th>
-                        <th className="px-4 py-3 text-center">Matching</th>
+
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -3271,87 +2975,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                                 maximumFractionDigits: 2,
                               })}
                             </td>
-                            <td className="px-4 py-2 text-center text-gray-500">
-                              {group.matches.length === 0 ? '—' : (
-                                <div className="flex flex-col gap-2 items-center w-full max-w-[200px] mx-auto">
-                                  {(() => {
-                                    // First, group everything by ID to handle the visual grouping
-                                    const matchesById = new Map<string, {
-                                      id: string;
-                                      badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[];
-                                    }>();
 
-                                    group.matches.forEach(m => {
-                                      const matchIdRaw = m.id; // Display ID
-                                      const matchIdKey = m.id.toLowerCase(); // Lookup Key
-
-                                      if (!matchesById.has(matchIdKey)) {
-                                        matchesById.set(matchIdKey, { id: matchIdRaw, badges: [] });
-                                      }
-                                      const entry = matchesById.get(matchIdKey)!;
-
-                                      if (m.isOB) {
-                                        // Avoid dupes if already added
-                                        if (!entry.badges.some(b => b.type === 'OB')) {
-                                          entry.badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
-                                        }
-                                      }
-
-                                      if (matchIdToDateMap.has(matchIdKey)) {
-                                        const dates = matchIdToDateMap.get(matchIdKey)!;
-                                        dates.forEach(d => {
-                                          const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                                          // Avoid dupes
-                                          if (!entry.badges.some(b => b.label === label)) {
-                                            entry.badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
-                                          }
-                                        });
-                                      }
-
-                                      // If no OB and no Dates found, add Invalid
-                                      if (!m.isOB && (!matchIdToDateMap.has(matchIdKey) || matchIdToDateMap.get(matchIdKey)!.length === 0)) {
-                                        if (!entry.badges.some(b => b.type === 'INVALID')) {
-                                          entry.badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
-                                        }
-                                      }
-                                    });
-
-                                    // Convert to array and Sort Badges within each ID
-                                    const renderGroups = Array.from(matchesById.values()).map(g => {
-                                      g.badges.sort((a, b) => {
-                                        if (a.type === 'OB' && b.type !== 'OB') return -1;
-                                        if (a.type !== 'OB' && b.type === 'OB') return 1;
-                                        return a.dateIdx - b.dateIdx;
-                                      });
-                                      return g;
-                                    });
-
-                                    return renderGroups.map((g, idx) => (
-                                      <div key={`${g.id}-${idx}`} className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full overflow-hidden transition-all hover:shadow-md">
-                                        <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
-                                          <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
-                                          <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{g.id}</span>
-                                        </div>
-                                        <div className="flex flex-wrap justify-center gap-2 p-2.5">
-                                          {g.badges.map((b, bIdx) => {
-                                            let colors = '';
-                                            if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                                            else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
-                                            else colors = 'bg-red-50 text-red-500 border-red-200';
-
-                                            return (
-                                              <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
-                                                {b.label}
-                                              </span>
-                                            );
-                                          })}
-                                        </div>
-                                      </div>
-                                    ));
-                                  })()}
-                                </div>
-                              )}
-                            </td>
                           </tr>
                         ));
                       })()}
@@ -3495,7 +3119,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                     <th className="px-4 py-3 text-center">Customer Name</th>
                     <th className="px-4 py-3 text-center">Number</th>
                     <th className="px-4 py-3 text-center">Paid</th>
-                    <th className="px-4 py-3 text-center">Matching</th>
+
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -3518,62 +3142,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
                           maximumFractionDigits: 2,
                         })}
                       </td>
-                      <td className="px-4 py-2 text-gray-500 text-center">
-                        {(() => {
-                          const matchIdRaw = payment.matching ? payment.matching.toString().trim() : '';
-                          if (!matchIdRaw) return '—';
 
-                          const matchIdKey = matchIdRaw.toLowerCase();
-                          const isOB = obMatchingIds.has(matchIdKey);
-                          const dates = matchIdToDateMap.has(matchIdKey) ? matchIdToDateMap.get(matchIdKey)! : [];
-
-                          const badges: { type: 'OB' | 'DATE' | 'INVALID'; label: string; dateIdx: number }[] = [];
-
-                          if (isOB) {
-                            badges.push({ type: 'OB', label: 'OB', dateIdx: -1 });
-                          }
-
-                          dates.forEach((d) => {
-                            const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-                            if (!badges.some((b) => b.label === label)) {
-                              badges.push({ type: 'DATE', label, dateIdx: d.getTime() });
-                            }
-                          });
-
-                          if (!isOB && dates.length === 0) {
-                            badges.push({ type: 'INVALID', label: 'Invalid Date', dateIdx: 9999999999999 });
-                          }
-
-                          badges.sort((a, b) => {
-                            if (a.type === 'OB' && b.type !== 'OB') return -1;
-                            if (a.type !== 'OB' && b.type === 'OB') return 1;
-                            return a.dateIdx - b.dateIdx;
-                          });
-
-                          return (
-                            <div className="flex flex-col items-center bg-white rounded-xl border border-gray-200 shadow-sm w-full max-w-[200px] mx-auto overflow-hidden transition-all hover:shadow-md">
-                              <div className="w-full bg-slate-50 px-3 py-1.5 border-b border-gray-100 flex items-center justify-center gap-2">
-                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">REF</span>
-                                <span className="font-mono text-sm text-gray-700 font-bold tracking-tight">{matchIdRaw}</span>
-                              </div>
-                              <div className="flex flex-wrap justify-center gap-2 p-2.5">
-                                {badges.map((b, bIdx) => {
-                                  let colors = '';
-                                  if (b.type === 'OB') colors = 'bg-emerald-50 text-emerald-700 border-emerald-200';
-                                  else if (b.type === 'DATE') colors = 'bg-blue-50 text-blue-700 border-blue-200';
-                                  else colors = 'bg-red-50 text-red-500 border-red-200';
-
-                                  return (
-                                    <span key={bIdx} className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold border ${colors} shadow-sm`}>
-                                      {b.label}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          );
-                        })()}
-                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -3658,124 +3227,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
 
       {/* Analysis Tab Content */}
-      {
-        activeSubTab === 'analysis' && (
-          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-center border-collapse">
-                <thead>
-                  <tr className="bg-gray-50 text-gray-600 text-sm border-b border-gray-200">
-                    <th className="py-4 px-6 font-semibold w-[15%] text-center">Collection Month</th>
-                    <th className="py-4 px-6 font-semibold w-[15%] text-center">Total Collected</th>
-                    <th className="py-4 px-6 font-semibold w-[15%] text-center">Year Summary</th>
-                    <th className="py-4 px-6 font-semibold text-center">Breakdown (Source & Amount)</th>
-                  </tr>
-                </thead>
-                <tbody className="text-gray-700">
-                  {breakdownStats.map((item) => (
-                    <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                      <td className="py-4 px-6 align-middle text-center">
-                        <div className="font-semibold text-gray-900">{item.monthLabel}</div>
-                      </td>
-                      <td className="py-4 px-6 align-middle text-center">
-                        <div className="font-bold text-green-700">
-                          {item.totalCollected.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 align-middle text-center">
-                        <div className="flex flex-wrap gap-2 justify-center">
-                          {(() => {
-                            const yearSummary = new Map<string, number>();
-                            Array.from(item.breakdown.entries()).forEach(([label, amount]) => {
-                              let key = 'Other';
-                              if (label === 'OB') key = 'OB';
-                              else if (label === 'ADV') key = 'ADV';
-                              else if (label !== 'Unmatched') {
-                                // Extract Year from MMMYY (e.g. Jan25 -> 25)
-                                // Or full year if needed, user said "25", "26".
-                                const y = label.slice(-2);
-                                if (!isNaN(parseInt(y))) key = `20${y}`;
-                              } else {
-                                key = label; // Unmatched
-                              }
-                              yearSummary.set(key, (yearSummary.get(key) || 0) + amount);
-                            });
 
-                            // Sort years: OB first, then Years desc, then ADV/Unmatched
-                            return Array.from(yearSummary.entries())
-                              .sort(([aKey], [bKey]) => {
-                                if (aKey === 'OB') return -1;
-                                if (bKey === 'OB') return 1;
-                                if (aKey === 'ADV') return 1; // Put ADV at end or near end
-                                if (bKey === 'ADV') return -1;
-                                if (!isNaN(parseInt(aKey)) && !isNaN(parseInt(bKey))) return bKey.localeCompare(aKey);
-                                return aKey.localeCompare(bKey);
-                              })
-                              .map(([yLabel, yAmount]) => (
-                                <div key={yLabel} className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-50 text-purple-800 rounded-full text-xs font-medium border border-purple-100">
-                                  <span className="opacity-75">{yLabel}</span>
-                                  <span className="font-bold">
-                                    {yAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                  </span>
-                                </div>
-                              ));
-                          })()}
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 align-middle">
-                        <div className="flex flex-wrap gap-2 justify-center">
-                          {Array.from(item.breakdown.entries())
-                            // Sort priority: OB first, then date-based?
-                            // Source labels are 'OB', 'MMM YY', 'Unmatched', 'ADV'.
-                            // We can sort simply by label, or put OB first.
-                            .sort(([aLabel], [bLabel]) => {
-                              const getScore = (lbl: string) => {
-                                if (lbl === 'OB') return 9999999;
-                                if (lbl === 'Unmatched') return -9999999;
-                                if (lbl === 'ADV') return -9999998;
-
-                                // Parse MmmYY (e.g. May25)
-                                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                                const mStr = lbl.substring(0, 3);
-                                const yStr = lbl.substring(3);
-                                const mIdx = monthNames.indexOf(mStr);
-                                const yInt = parseInt(yStr, 10);
-
-                                if (mIdx >= 0 && !isNaN(yInt)) {
-                                  // Score = YY * 100 + MonthIndex. e.g. 2500 for Jan 25, 2501 for Feb 25
-                                  return (yInt * 100) + mIdx;
-                                }
-                                return -1; // Unknown format
-                              };
-
-                              // Descending sort (Higher score first)
-                              return getScore(bLabel) - getScore(aLabel);
-                            })
-                            .map(([label, amount]) => (
-                              <div key={label} className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-800 rounded-full text-xs font-medium border border-blue-100">
-                                <span className="opacity-75">{label}</span>
-                                <span className="font-bold">
-                                  {amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                                </span>
-                              </div>
-                            ))}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                  {breakdownStats.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="py-8 text-center text-gray-500">
-                        No payment data found for the selected period.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )
-      }
 
     </div >
   );

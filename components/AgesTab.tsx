@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   useReactTable,
   getCoreRowModel,
@@ -260,25 +261,37 @@ export default function AgesTab({ data }: AgesTabProps) {
     const rows = filteredData.map((item) => [
       item.customerName,
       item.salesReps.join(', ') || '',
-      item.atDate.toLocaleString('en-US'),
-      item.oneToThirty.toLocaleString('en-US'),
-      item.thirtyOneToSixty.toLocaleString('en-US'),
-      item.sixtyOneToNinety.toLocaleString('en-US'),
-      item.ninetyOneToOneTwenty.toLocaleString('en-US'),
-      item.older.toLocaleString('en-US'),
-      item.total.toLocaleString('en-US'),
+      item.atDate,
+      item.oneToThirty,
+      item.thirtyOneToSixty,
+      item.sixtyOneToNinety,
+      item.ninetyOneToOneTwenty,
+      item.older,
+      item.total,
     ]);
-    const csvContent = [headers.join(','), ...rows.map((row) => row.map((cell) => `"${cell}"`).join(','))].join('\n');
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `ages_export_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    // Add totals row
+    rows.push([
+      'TOTAL',
+      '',
+      totalAtDate,
+      total1To30,
+      total31To60,
+      total61To90,
+      total91To120,
+      totalOlder,
+      grandTotal
+    ]);
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Aging Report');
+
+    // Auto-size columns
+    const colWidths = [35, 20, 15, 12, 12, 12, 12, 12, 15];
+    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
+
+    XLSX.writeFile(workbook, `ages_export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleExportPDF = async () => {

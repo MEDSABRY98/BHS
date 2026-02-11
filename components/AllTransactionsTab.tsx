@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, Fragment } from 'react';
+import * as XLSX from 'xlsx';
 import {
   useReactTable,
   getCoreRowModel,
@@ -142,7 +143,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       filtered = filtered.filter(item =>
         item.customerName.toLowerCase().includes(query) ||
         item.number.toLowerCase().includes(query) ||
-        item.date.toLocaleDateString('en-US').toLowerCase().includes(query) ||
+        item.date.toLocaleDateString('en-GB').toLowerCase().includes(query) ||
         item.debit.toString().includes(query) ||
         item.credit.toString().includes(query) ||
         item.netAmount.toString().includes(query) ||
@@ -217,7 +218,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       }),
       columnHelper.accessor('date', {
         header: 'Date',
-        cell: (info) => info.getValue().toLocaleDateString('en-US'),
+        cell: (info) => info.getValue().toLocaleDateString('en-GB'),
       }),
       columnHelper.accessor('number', {
         header: 'Invoice Number',
@@ -296,41 +297,33 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
   });
 
   const exportToExcel = () => {
-    // Create CSV content
     const headers = ['Customer Name', 'Date', 'Invoice Number', 'Type', 'Debit', 'Credit', 'Net Amount', 'Matching'];
-    const csvRows = [headers.join(',')];
-
-    filteredItems.forEach(item => {
-      const row = [
-        `"${item.customerName.replace(/"/g, '""')}"`,
-        item.date.toLocaleDateString('en-US'),
-        `"${item.number.replace(/"/g, '""')}"`,
-        item.type,
-        item.debit.toFixed(2),
-        item.credit.toFixed(2),
-        item.netAmount.toFixed(2),
-        `"${(item.matching || '').replace(/"/g, '""')}"`
-      ];
-      csvRows.push(row.join(','));
-    });
+    const rows = filteredItems.map(item => [
+      item.customerName,
+      item.date.toLocaleDateString('en-GB'),
+      item.number,
+      item.type,
+      item.debit,
+      item.credit,
+      item.netAmount,
+      item.matching || ''
+    ]);
 
     // Add totals row
     const totalDebit = filteredItems.reduce((sum, item) => sum + item.debit, 0);
     const totalCredit = filteredItems.reduce((sum, item) => sum + item.credit, 0);
     const totalNet = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
-    csvRows.push(['Total', '', '', '', totalDebit.toFixed(2), totalCredit.toFixed(2), totalNet.toFixed(2), ''].join(','));
+    rows.push(['Total', '', '', '', totalDebit, totalCredit, totalNet, '']);
 
-    // Create blob and download
-    const csvContent = csvRows.join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `all_transactions_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+
+    // Auto-size columns (rough approximation)
+    const colWidths = [30, 12, 15, 12, 12, 12, 12, 15];
+    worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
+
+    XLSX.writeFile(workbook, `all_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
@@ -743,7 +736,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                                         return (
                                           <tr key={`${item.number}-${idx}`} className="border-b">
                                             <td className="px-3 py-1.5 text-center">
-                                              {item.date.toLocaleDateString('en-US')}
+                                              {item.date.toLocaleDateString('en-GB')}
                                             </td>
                                             <td className="px-3 py-1.5 text-center text-sm font-mono">
                                               {item.number}
