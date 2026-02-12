@@ -2258,7 +2258,7 @@ ${debtSectionHtml}
                       <LabelList
                         dataKey="credit"
                         position="top"
-                        formatter={(value: number) => value > 0 ? Math.round(value).toLocaleString() : ''}
+                        formatter={(value: any) => Number(value) > 0 ? Math.round(Number(value)).toLocaleString() : ''}
                         style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
                       />
                     </Bar>
@@ -2299,7 +2299,7 @@ ${debtSectionHtml}
                       <LabelList
                         dataKey="originalDebit"
                         position="top"
-                        formatter={(value: number) => value > 0 ? Math.round(value).toLocaleString() : ''}
+                        formatter={(value: any) => Number(value) > 0 ? Math.round(Number(value)).toLocaleString() : ''}
                         style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
                       />
                     </Bar>
