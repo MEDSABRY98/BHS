@@ -27,6 +27,9 @@ interface DiscountSummary {
   startKey: string;
   averageMonthlyDiscount: number;
   activeMonthsCount: number;
+  monthlyRebate?: string;
+  qRent?: string;
+  bRent?: string;
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -256,6 +259,9 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
         startKey: startKey, // Return startKey for heatmap
         averageMonthlyDiscount,
         activeMonthsCount,
+        monthlyRebate: entry.monthlyRebate,
+        qRent: entry.qRent,
+        bRent: entry.bRent,
       };
     });
   }, [data, entries]);
@@ -713,6 +719,29 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                   </span>
                 </div>
               </div>
+
+              {/* Estimated Discounts Section */}
+              <div className="flex items-center gap-6 px-6 py-2 bg-blue-50/50 rounded-2xl border border-blue-100 shadow-sm ml-auto mr-8">
+                <div className="text-center">
+                  <div className="text-[10px] uppercase tracking-wider text-blue-500 font-bold mb-0.5">Monthly</div>
+                  <div className="text-sm font-black text-blue-900 px-3 py-1 bg-white rounded-lg shadow-sm min-w-[60px]">
+                    {selectedSummary.monthlyRebate || '—'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] uppercase tracking-wider text-indigo-500 font-bold mb-0.5">Q Rent</div>
+                  <div className="text-sm font-black text-indigo-900 px-3 py-1 bg-white rounded-lg shadow-sm min-w-[60px]">
+                    {selectedSummary.qRent || '—'}
+                  </div>
+                </div>
+                <div className="text-center">
+                  <div className="text-[10px] uppercase tracking-wider text-violet-500 font-bold mb-0.5">B Rent</div>
+                  <div className="text-sm font-black text-violet-900 px-3 py-1 bg-white rounded-lg shadow-sm min-w-[60px]">
+                    {selectedSummary.bRent || '—'}
+                  </div>
+                </div>
+              </div>
+
               <button
                 onClick={() => setSelectedSummary(null)}
                 className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-2xl"

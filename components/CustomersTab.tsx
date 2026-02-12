@@ -597,6 +597,186 @@ const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[], spiData: Array
   });
 };
 
+const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'customers_report', closedCustomersSet: Set<string> = new Set()) => {
+  try {
+    const jsPDF = (await import('jspdf')).default;
+    const autoTable = (await import('jspdf-autotable')).default;
+    const JSZip = (await import('jszip')).default;
+
+    // Helper to generate a PDF Blob from a subset of data
+    const generatePDFBlob = (pdfData: CustomerAnalysis[]): Blob => {
+      const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // 1. Group Data by Sales Rep (first one if multiple)
+      const groupedData: Record<string, CustomerAnalysis[]> = {};
+      pdfData.forEach(customer => {
+        let rep = 'Unassigned';
+        if (customer.salesReps && customer.salesReps.size > 0) {
+          const reps = Array.from(customer.salesReps).sort();
+          rep = reps[0];
+        }
+        if (!groupedData[rep]) {
+          groupedData[rep] = [];
+        }
+        groupedData[rep].push(customer);
+      });
+
+      // 2. Sort Reps
+      const sortedReps = Object.keys(groupedData).sort();
+
+      const tableColumn = [
+        'Customer Name',
+        'City / Rep',
+        'Total Debt',
+        'Last Pay Date',
+        'Last Pay Amt',
+        'Pay (90d)',
+        '# Pay (90d)',
+        'Coll Rate (Pay)',
+        'Last Sale Date',
+        'Last Sale Amt',
+        'Sales (90d)',
+        '# Sales (90d)',
+        'Rating'
+      ];
+
+      let isFirstPage = true;
+      const ratingOrder = ['Good', 'Medium', 'Bad'];
+
+      // 3. Iterate and Generate Pages
+      for (const rep of sortedReps) {
+        const groupData = groupedData[rep];
+
+        // Pre-calculate ratings and group by rating
+        const byRating: Record<string, CustomerAnalysis[]> = {
+          'Good': [],
+          'Medium': [],
+          'Bad': []
+        };
+
+        groupData.forEach(customer => {
+          const ratingInfo = calculateDebtRating(customer, closedCustomersSet, true);
+          const rating = typeof ratingInfo === 'string' ? ratingInfo : ratingInfo.rating;
+          if (byRating[rating]) {
+            byRating[rating].push(customer);
+          } else {
+            byRating['Bad'].push(customer);
+          }
+        });
+
+        for (const ratingLabel of ratingOrder) {
+          const customersInRating = byRating[ratingLabel];
+          if (customersInRating.length === 0) continue;
+
+          if (!isFirstPage) {
+            doc.addPage();
+          }
+          isFirstPage = false;
+
+          // Header
+          doc.setFontSize(16);
+          const totalDebt = customersInRating.reduce((sum, c) => sum + c.netDebt, 0);
+          const formattedDebt = totalDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          doc.text(`Customers Analysis Report - ${rep} (${ratingLabel}) - ${customersInRating.length} Customers - Total Debt: ${formattedDebt}`, 14, 15);
+          doc.setFontSize(10);
+          doc.text(`Date: ${formatDmy(new Date())}`, 14, 22);
+
+          const tableRows = customersInRating.map(customer => {
+            const ratingInfo = calculateDebtRating(customer, closedCustomersSet, true);
+            const rating = typeof ratingInfo === 'string' ? ratingInfo : ratingInfo.rating;
+
+            const payments = customer.creditPayments || 0;
+            const totalSales = customer.totalDebit || 0;
+            const collRatePay = totalSales > 0 ? ((payments / totalSales) * 100).toFixed(1) + '%' : '0.0%';
+
+            const salesReps = customer.salesReps ? Array.from(customer.salesReps).join(', ') : '';
+
+            return [
+              customer.customerName,
+              salesReps,
+              customer.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+              customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-',
+              customer.lastPaymentAmount ? customer.lastPaymentAmount.toLocaleString('en-US') : '-',
+              (customer.payments3m || 0).toLocaleString('en-US'),
+              customer.paymentsCount3m || 0,
+              collRatePay,
+              customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-',
+              customer.lastSalesAmount ? customer.lastSalesAmount.toLocaleString('en-US') : '-',
+              (customer.sales3m || 0).toLocaleString('en-US'),
+              customer.salesCount3m || 0,
+              rating
+            ];
+          });
+
+          autoTable(doc, {
+            head: [tableColumn],
+            body: tableRows,
+            startY: 30,
+            styles: { fontSize: 7, cellPadding: 2, halign: 'center', textColor: 0, fontStyle: 'bold' },
+            headStyles: { fillColor: [75, 85, 99], halign: 'center', valign: 'middle', textColor: 255 },
+            alternateRowStyles: { fillColor: [229, 231, 235] },
+            didParseCell: (data) => {
+              if (data.section === 'head') {
+                const index = data.column.index;
+                if (index >= 3 && index <= 7) data.cell.styles.fillColor = [37, 99, 235];
+                else if (index >= 8 && index <= 11) data.cell.styles.fillColor = [234, 88, 12];
+                else if (index === 12) data.cell.styles.fillColor = [147, 51, 234];
+                else data.cell.styles.fillColor = [22, 163, 74];
+              }
+            }
+          });
+        }
+      }
+      return doc.output('blob');
+    };
+
+    const zip = new JSZip();
+
+    // 1. Generate Combined PDF
+    const combinedBlob = generatePDFBlob(data);
+    zip.file(`${filename}_Combined.pdf`, combinedBlob);
+
+    // 2. Generate Individual PDFs per Rep
+    const groupedData: Record<string, CustomerAnalysis[]> = {};
+    data.forEach(customer => {
+      let rep = 'Unassigned';
+      if (customer.salesReps && customer.salesReps.size > 0) {
+        const reps = Array.from(customer.salesReps).sort();
+        rep = reps[0];
+      }
+      if (!groupedData[rep]) {
+        groupedData[rep] = [];
+      }
+      groupedData[rep].push(customer);
+    });
+
+    for (const rep of Object.keys(groupedData)) {
+      const repData = groupedData[rep];
+      const repBlob = generatePDFBlob(repData);
+      // Clean filename
+      const safeRepName = rep.replace(/[^a-z0-9]/gi, '_').trim();
+      zip.file(`${safeRepName}.pdf`, repBlob);
+    }
+
+    // 3. Generate and Save Zip
+    const content = await zip.generateAsync({ type: 'blob' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(content);
+    link.download = `${filename}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Failed to generate PDF');
+  }
+};
+
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = []) => {
   // Sheet 1: Customer Summary
   const summaryHeaders = [
@@ -1344,8 +1524,16 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
 
       // Last 90 days sales and payments
       const sales3m = customerInvoices
-        .filter(inv => inv.number?.toString().toUpperCase().startsWith('SAL') && isInLast90(inv.date))
-        .reduce((s, inv) => s + inv.debit, 0);
+        .filter(inv => {
+          const num = inv.number?.toString().toUpperCase() || '';
+          return (num.startsWith('SAL') || num.startsWith('RSAL')) && isInLast90(inv.date);
+        })
+        .reduce((s, inv) => {
+          const num = inv.number?.toString().toUpperCase() || '';
+          if (num.startsWith('SAL')) return s + inv.debit;
+          if (num.startsWith('RSAL')) return s - inv.credit;
+          return s;
+        }, 0);
       const salesCount3m = customerInvoices
         .filter(inv => inv.number?.toString().toUpperCase().startsWith('SAL') && isInLast90(inv.date))
         .length;
@@ -2809,6 +2997,16 @@ ${debtSectionHtml}
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+
+                  <button
+                    onClick={() => exportToPDF(filteredData, `customers_report_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
+                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300"
+                    title="Export to PDF"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
                     </svg>
                   </button>
 

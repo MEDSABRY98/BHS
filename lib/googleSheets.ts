@@ -207,7 +207,7 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!A:C`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION
+      range: `DISCOUNTS!A:F`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION, MONTHLY, Q RENT, B RENT
     });
 
     const rows = response.data.values;
@@ -217,6 +217,9 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
       .map((row) => {
         const customerName = row[1]?.toString().trim() || ''; // Column B: CUSTOMER NAME
         const reconciliationRaw = row[2]?.toString() || ''; // Column C: RECONCILIATION
+        const monthlyRebate = row[3]?.toString().trim() || ''; // Column D
+        const qRent = row[4]?.toString().trim() || ''; // Column E
+        const bRent = row[5]?.toString().trim() || ''; // Column F
 
         const tokens = reconciliationRaw
           .split(/[,;\s]+/)
@@ -228,6 +231,9 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
         return {
           customerName,
           reconciliationMonths: tokens,
+          monthlyRebate,
+          qRent,
+          bRent,
         } as DiscountTrackerEntry;
       })
       .filter((entry): entry is DiscountTrackerEntry => Boolean(entry));

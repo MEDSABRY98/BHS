@@ -29,7 +29,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare } from 'lucide-react';
+import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download } from 'lucide-react';
 import { getInvoiceType } from '@/lib/invoiceType';
 
 interface CustomerDetailsProps {
@@ -2003,6 +2003,356 @@ ${debtSectionHtml}
     }
   };
 
+  const generateAnalyticalPDF = async () => {
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
+      const ReactDOM = (await import('react-dom/client')).default;
+      const React = (await import('react')).default;
+
+      // Create a temporary container
+      const container = document.createElement('div');
+      container.style.position = 'absolute';
+      container.style.top = '-9999px';
+      container.style.left = '-9999px';
+      container.style.width = '1122px'; // A4 Landscape width at 96 DPI
+      container.style.zIndex = '-1000';
+      document.body.appendChild(container);
+
+      // Define the Report Component inline to ensure it has access to current scope data
+      // using explicit styles for colors to avoid html2canvas issues with Tailwind v4 (lab/oklch)
+      const AnalyticalReport = () => (
+        <div
+          style={{
+            width: '1122px',
+            height: '793px',
+            fontFamily: 'system-ui, -apple-system, sans-serif',
+            backgroundColor: '#ffffff',
+            padding: '30px',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column'
+          }}
+        >
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '2px solid #f3f4f6', paddingBottom: '15px' }}>
+            <div>
+              <h1 style={{ fontSize: '32px', fontWeight: '900', color: '#111827', marginBottom: '4px' }}>{customerName}</h1>
+              <p style={{ fontSize: '18px', color: '#6b7280', fontWeight: '500' }}>Customer Analysis Report</p>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#15803d', textTransform: 'uppercase', letterSpacing: '-0.025em' }}>Al Marai Al Arabia</h2>
+              <p style={{ color: '#9ca3af', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '12px' }}>Sole Proprietorship L.L.C</p>
+              <p style={{ color: '#6b7280', marginTop: '4px', fontWeight: '600', fontSize: '14px' }}>Date: {new Date().toLocaleDateString('en-GB')}</p>
+            </div>
+          </div>
+
+          {/* Top Cards: Last Transactions */}
+          <div className="grid grid-cols-4 gap-5 mb-6">
+            {/* Last Sale */}
+            {(() => {
+              const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
+              const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
+                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                return dateB.getTime() - dateA.getTime();
+              })[0] : null;
+
+              const latestDate = latestSale?.parsedDate;
+              const sameDaySales = latestDate ? sales.filter(inv => {
+                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                return d?.getTime() === latestDate.getTime();
+              }) : [];
+              const totalAmount = sameDaySales.reduce((sum, inv) => sum + inv.debit, 0);
+
+              return (
+                <div style={{ backgroundColor: '#eff6ff', padding: '16px', borderRadius: '12px', border: '1px solid #dbeafe' }}>
+                  <p style={{ color: '#2563eb', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Sale</p>
+                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#1d4ed8', marginBottom: '2px' }}>
+                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#3b82f6', fontWeight: '700' }}>
+                    {latestDate?.toLocaleDateString('en-GB') || '—'}
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* Last Return */}
+            {(() => {
+              const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
+              const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
+                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                return dateB.getTime() - dateA.getTime();
+              })[0] : null;
+
+              const latestDate = latestReturn?.parsedDate;
+              const sameDayReturns = latestDate ? returns.filter(inv => {
+                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                return d?.getTime() === latestDate.getTime();
+              }) : [];
+              const totalAmount = sameDayReturns.reduce((sum, inv) => sum + inv.credit, 0);
+
+              return (
+                <div style={{ backgroundColor: '#fff7ed', padding: '16px', borderRadius: '12px', border: '1px solid #ffedd5' }}>
+                  <p style={{ color: '#ea580c', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Return</p>
+                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#c2410c', marginBottom: '2px' }}>
+                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#f97316', fontWeight: '700' }}>
+                    {latestDate?.toLocaleDateString('en-GB') || '—'}
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* Last Payment */}
+            {(() => {
+              const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+              const latestPayment = payments.length > 0 ? [...payments].sort((a, b) => {
+                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                return dateB.getTime() - dateA.getTime();
+              })[0] : null;
+
+              const latestDate = latestPayment?.parsedDate;
+              const sameDayPayments = latestDate ? payments.filter(inv => {
+                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                return d?.getTime() === latestDate.getTime();
+              }) : [];
+              const totalAmount = sameDayPayments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+              return (
+                <div style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
+                  <p style={{ color: '#16a34a', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Payment</p>
+                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#15803d', marginBottom: '2px' }}>
+                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#22c55e', fontWeight: '700' }}>
+                    {latestDate?.toLocaleDateString('en-GB') || '—'}
+                  </p>
+                </div>
+              );
+            })()}
+
+            {/* Last Discount */}
+            {(() => {
+              const discounts = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'));
+              const latestDiscount = discounts.length > 0 ? [...discounts].sort((a, b) => {
+                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                return dateB.getTime() - dateA.getTime();
+              })[0] : null;
+
+              const latestDate = latestDiscount?.parsedDate;
+              const sameDayDiscounts = latestDate ? discounts.filter(inv => {
+                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                return d?.getTime() === latestDate.getTime();
+              }) : [];
+              const totalAmount = sameDayDiscounts.reduce((sum, inv) => sum + (inv.credit - inv.debit), 0);
+
+              return (
+                <div style={{ backgroundColor: '#faf5ff', padding: '16px', borderRadius: '12px', border: '1px solid #f3e8ff' }}>
+                  <p style={{ color: '#9333ea', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Discount</p>
+                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#7e22ce', marginBottom: '2px' }}>
+                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                  </p>
+                  <p style={{ fontSize: '13px', color: '#a855f7', fontWeight: '700' }}>
+                    {latestDate?.toLocaleDateString('en-GB') || '—'}
+                  </p>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Stats Row */}
+          <div className="grid grid-cols-5 gap-5 mb-6">
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
+              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Net Outstanding</p>
+              <p style={{ fontSize: '22px', fontWeight: '900', color: totalNetDebt > 0 ? '#dc2626' : '#16a34a' }}>
+                {totalNetDebt.toLocaleString('en-US')}
+              </p>
+            </div>
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
+              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Collection Rate</p>
+              <p style={{ fontSize: '22px', fontWeight: '900', color: '#2563eb' }}>{dashboardMetrics.collectionRate.toFixed(1)}%</p>
+            </div>
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
+              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Total Payments</p>
+              <p style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>
+                {filteredInvoices.filter(inv => isPaymentTxn(inv)).reduce((sum, inv) => sum + (inv.credit || 0), 0).toLocaleString('en-US')}
+              </p>
+            </div>
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
+              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Avg Payment Cycle</p>
+              <p style={{ fontSize: '22px', fontWeight: '900', color: '#8b5cf6' }}>
+                {(() => {
+                  const payments = filteredInvoices
+                    .filter(inv => isPaymentTxn(inv))
+                    .sort((a, b) => {
+                      const dateA = a.parsedDate ? a.parsedDate.getTime() : (a.date ? new Date(a.date).getTime() : 0);
+                      const dateB = b.parsedDate ? b.parsedDate.getTime() : (b.date ? new Date(b.date).getTime() : 0);
+                      return dateA - dateB;
+                    });
+
+                  if (payments.length < 2) return '0 Days';
+
+                  const start = payments[0].parsedDate || (payments[0].date ? new Date(payments[0].date) : new Date());
+                  const end = payments[payments.length - 1].parsedDate || (payments[payments.length - 1].date ? new Date(payments[payments.length - 1].date) : new Date());
+
+                  const diffTime = Math.abs(end.getTime() - start.getTime());
+                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                  const avgDays = Math.round(diffDays / (payments.length - 1));
+
+                  return `${avgDays} Days`;
+                })()}
+              </p>
+            </div>
+            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
+              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Net Sales</p>
+              <p style={{ fontSize: '22px', fontWeight: '900', color: '#111827' }}>
+                {filteredInvoices.reduce((sum, inv) => {
+                  const num = (inv.number || '').toString().toUpperCase();
+                  if (num.startsWith('SAL')) return sum + inv.debit;
+                  if (num.startsWith('RSAL')) return sum - inv.credit;
+                  return sum;
+                }, 0).toLocaleString('en-US')}
+              </p>
+            </div>
+          </div>
+
+          {/* Charts Section */}
+          <div className="grid grid-cols-2 gap-6 flex-1 min-h-0">
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#4b5563', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Payments Trend (12M)</h3>
+              <div style={{ flex: 1, minHeight: 0, backgroundColor: 'rgba(249, 250, 251, 0.3)', borderRadius: '12px', border: '1px solid #f3f4f6', padding: '12px', maxHeight: '340px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyPaymentsTrendData} margin={{ top: 25, right: 5, left: 5, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      tick={(props) => {
+                        const { x, y, payload } = props;
+                        const label = payload.value || '';
+                        // Assuming format starts with letters and ends with numbers (e.g. APR25)
+                        const month = label.replace(/[0-9]/g, '');
+                        const year = label.replace(/[^0-9]/g, '');
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#6B7280" fontSize={10} fontWeight={700}>
+                              {month}
+                            </text>
+                            <text x={0} y={0} dy={22} textAnchor="middle" fill="#9CA3AF" fontSize={9} fontWeight={500}>
+                              {year}
+                            </text>
+                          </g>
+                        );
+                      }}
+                    />
+                    <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                    <Bar dataKey="credit" fill="#10B981" radius={[4, 4, 0, 0]} barSize={24}>
+                      <LabelList
+                        dataKey="credit"
+                        position="top"
+                        formatter={(value: number) => value > 0 ? Math.round(value).toLocaleString() : ''}
+                        style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+              <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#4b5563', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Net Sales Trend (12M)</h3>
+              <div style={{ flex: 1, minHeight: 0, backgroundColor: 'rgba(249, 250, 251, 0.3)', borderRadius: '12px', border: '1px solid #f3f4f6', padding: '12px', maxHeight: '340px' }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlySalesTrendData} margin={{ top: 25, right: 5, left: 5, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis
+                      dataKey="monthLabel"
+                      axisLine={false}
+                      tickLine={false}
+                      interval={0}
+                      tick={(props) => {
+                        const { x, y, payload } = props;
+                        const label = payload.value || '';
+                        const month = label.replace(/[0-9]/g, '');
+                        const year = label.replace(/[^0-9]/g, '');
+                        return (
+                          <g transform={`translate(${x},${y})`}>
+                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#6B7280" fontSize={10} fontWeight={700}>
+                              {month}
+                            </text>
+                            <text x={0} y={0} dy={22} textAnchor="middle" fill="#9CA3AF" fontSize={9} fontWeight={500}>
+                              {year}
+                            </text>
+                          </g>
+                        );
+                      }}
+                    />
+                    <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                    <Bar dataKey="originalDebit" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={24}>
+                      <LabelList
+                        dataKey="originalDebit"
+                        position="top"
+                        formatter={(value: number) => value > 0 ? Math.round(value).toLocaleString() : ''}
+                        style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
+                      />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      );
+
+      // Render the component to the temporary container
+      const root = ReactDOM.createRoot(container);
+      root.render(<AnalyticalReport />);
+
+      // Wait a bit for charts to be fully ready
+      await new Promise(r => setTimeout(r, 1000));
+
+      const canvas = await html2canvas(container, {
+        scale: 2, // Higher quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 1122,
+        height: 793,
+        windowWidth: 1122,
+        windowHeight: 793
+      });
+
+      // Cleanup
+      root.unmount();
+      document.body.removeChild(container);
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgProps = pdf.getImageProperties(imgData);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`${customerName.replace(/\s+/g, '_')}_Analysis.pdf`);
+    } catch (error) {
+      console.error('Error generating analytical PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
   // Calculate Dashboard Metrics
   const dashboardMetrics = useMemo(() => {
     const totalSales = filteredInvoices.reduce((acc, inv) => acc + inv.debit, 0);
@@ -2332,6 +2682,13 @@ ${debtSectionHtml}
             title="Export"
           >
             <FileText className="w-5 h-5" />
+          </button>
+          <button
+            onClick={() => generateAnalyticalPDF()}
+            className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
+            title="Analytical PDF Report"
+          >
+            <BarChart3 className="w-5 h-5" />
           </button>
           {!isRestrictedUser && (
             <button
@@ -3036,13 +3393,19 @@ ${debtSectionHtml}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Last Sale Invoice */}
               {(() => {
-                const lastSale = filteredInvoices
-                  .filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'))
-                  .sort((a, b) => {
-                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                    return dateB.getTime() - dateA.getTime();
-                  })[0];
+                const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
+                const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestSale?.parsedDate;
+                const sameDaySales = latestDate ? sales.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDaySales.reduce((sum, inv) => sum + inv.debit, 0);
 
                 return (
                   <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden">
@@ -3050,12 +3413,14 @@ ${debtSectionHtml}
                       <span className="text-5xl">🛒</span>
                     </div>
                     <h4 className="text-blue-700 text-xs font-bold uppercase tracking-wider mb-2">Last Sale</h4>
-                    {lastSale ? (
+                    {latestSale ? (
                       <>
-                        <p className="text-sm font-semibold text-blue-900 mb-1">{lastSale.number}</p>
-                        <p className="text-2xl font-bold text-blue-700 mb-1">{lastSale.debit.toLocaleString('en-US')}</p>
+                        <p className="text-sm font-semibold text-blue-900 mb-1">
+                          {sameDaySales.length > 1 ? `${sameDaySales.length} Invoices` : latestSale.number}
+                        </p>
+                        <p className="text-2xl font-bold text-blue-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
                         <p className="text-xs text-blue-600">
-                          {lastSale.parsedDate?.toLocaleDateString('en-GB') || lastSale.date}
+                          {latestDate?.toLocaleDateString('en-GB') || latestSale.date}
                         </p>
                       </>
                     ) : (
@@ -3067,13 +3432,19 @@ ${debtSectionHtml}
 
               {/* Last Return Invoice */}
               {(() => {
-                const lastReturn = filteredInvoices
-                  .filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'))
-                  .sort((a, b) => {
-                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                    return dateB.getTime() - dateA.getTime();
-                  })[0];
+                const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
+                const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestReturn?.parsedDate;
+                const sameDayReturns = latestDate ? returns.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDayReturns.reduce((sum, inv) => sum + inv.credit, 0);
 
                 return (
                   <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-xl shadow-sm border border-orange-200 relative overflow-hidden">
@@ -3081,12 +3452,14 @@ ${debtSectionHtml}
                       <span className="text-5xl">↩️</span>
                     </div>
                     <h4 className="text-orange-700 text-xs font-bold uppercase tracking-wider mb-2">Last Return</h4>
-                    {lastReturn ? (
+                    {latestReturn ? (
                       <>
-                        <p className="text-sm font-semibold text-orange-900 mb-1">{lastReturn.number}</p>
-                        <p className="text-2xl font-bold text-orange-700 mb-1">{lastReturn.credit.toLocaleString('en-US')}</p>
+                        <p className="text-sm font-semibold text-orange-900 mb-1">
+                          {sameDayReturns.length > 1 ? `${sameDayReturns.length} Returns` : latestReturn.number}
+                        </p>
+                        <p className="text-2xl font-bold text-orange-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
                         <p className="text-xs text-orange-600">
-                          {lastReturn.parsedDate?.toLocaleDateString('en-GB') || lastReturn.date}
+                          {latestDate?.toLocaleDateString('en-GB') || latestReturn.date}
                         </p>
                       </>
                     ) : (
@@ -3098,13 +3471,19 @@ ${debtSectionHtml}
 
               {/* Last Payment */}
               {(() => {
-                const lastPayment = filteredInvoices
-                  .filter(inv => isPaymentTxn(inv))
-                  .sort((a, b) => {
-                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                    return dateB.getTime() - dateA.getTime();
-                  })[0];
+                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                const latestPayment = payments.length > 0 ? [...payments].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestPayment?.parsedDate;
+                const sameDayPayments = latestDate ? payments.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDayPayments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
 
                 return (
                   <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-xl shadow-sm border border-green-200 relative overflow-hidden">
@@ -3112,12 +3491,14 @@ ${debtSectionHtml}
                       <span className="text-5xl">💸</span>
                     </div>
                     <h4 className="text-green-700 text-xs font-bold uppercase tracking-wider mb-2">Last Payment</h4>
-                    {lastPayment ? (
+                    {latestPayment ? (
                       <>
-                        <p className="text-sm font-semibold text-green-900 mb-1">{lastPayment.number}</p>
-                        <p className="text-2xl font-bold text-green-700 mb-1">{getPaymentAmount(lastPayment).toLocaleString('en-US')}</p>
+                        <p className="text-sm font-semibold text-green-900 mb-1">
+                          {sameDayPayments.length > 1 ? `${sameDayPayments.length} Payments` : latestPayment.number}
+                        </p>
+                        <p className="text-2xl font-bold text-green-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
                         <p className="text-xs text-green-600">
-                          {lastPayment.parsedDate?.toLocaleDateString('en-GB') || lastPayment.date}
+                          {latestDate?.toLocaleDateString('en-GB') || latestPayment.date}
                         </p>
                       </>
                     ) : (
@@ -3129,13 +3510,19 @@ ${debtSectionHtml}
 
               {/* Last Discount (BIL) */}
               {(() => {
-                const lastDiscount = filteredInvoices
-                  .filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'))
-                  .sort((a, b) => {
-                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                    return dateB.getTime() - dateA.getTime();
-                  })[0];
+                const discounts = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'));
+                const latestDiscount = discounts.length > 0 ? [...discounts].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestDiscount?.parsedDate;
+                const sameDayDiscounts = latestDate ? discounts.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDayDiscounts.reduce((sum, inv) => sum + (inv.credit - inv.debit), 0);
 
                 return (
                   <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 relative overflow-hidden">
@@ -3143,12 +3530,14 @@ ${debtSectionHtml}
                       <span className="text-5xl">🎁</span>
                     </div>
                     <h4 className="text-purple-700 text-xs font-bold uppercase tracking-wider mb-2">Last Discount</h4>
-                    {lastDiscount ? (
+                    {latestDiscount ? (
                       <>
-                        <p className="text-sm font-semibold text-purple-900 mb-1">{lastDiscount.number}</p>
-                        <p className="text-2xl font-bold text-purple-700 mb-1">{lastDiscount.credit.toLocaleString('en-US')}</p>
+                        <p className="text-sm font-semibold text-purple-900 mb-1">
+                          {sameDayDiscounts.length > 1 ? `${sameDayDiscounts.length} Discounts` : latestDiscount.number}
+                        </p>
+                        <p className="text-2xl font-bold text-purple-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
                         <p className="text-xs text-purple-600">
-                          {lastDiscount.parsedDate?.toLocaleDateString('en-GB') || lastDiscount.date}
+                          {latestDate?.toLocaleDateString('en-GB') || latestDiscount.date}
                         </p>
                       </>
                     ) : (

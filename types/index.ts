@@ -101,4 +101,7 @@ export interface DiscountTrackerEntry {
    * (e.g. '2025-01' for JAN25). Used to suppress alerts for those months.
    */
   reconciliationMonths: string[];
+  monthlyRebate?: string;
+  qRent?: string;
+  bRent?: string;
 }
