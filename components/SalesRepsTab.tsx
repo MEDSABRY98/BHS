@@ -373,8 +373,16 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
     const customerCountMap = new Map<string, Set<string>>();
     const customersByRep = new Map<string, CustomerAnalysis[]>();
 
+    // Filter to include only customers with positive Net Debt (Debtors)
+    const debitCustomersSet = new Set(
+      customerAnalysis.filter(c => c.netDebt > 0.01).map(c => c.customerName)
+    );
+
     // Group customers by sales rep
     customerAnalysis.forEach((customer) => {
+      // Skip if customer is not a debtor
+      if (!debitCustomersSet.has(customer.customerName)) return;
+
       if (customer.salesReps) {
         customer.salesReps.forEach((rep) => {
           if (!customersByRep.has(rep)) {
@@ -386,6 +394,8 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
     });
 
     data.forEach((row) => {
+      // Skip if customer is not a debtor
+      if (!debitCustomersSet.has(row.customerName)) return;
       const existing = repMap.get(row.salesRep) || {
         salesRep: row.salesRep,
         totalDebit: 0,

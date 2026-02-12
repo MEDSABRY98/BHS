@@ -371,7 +371,14 @@ export default function YearsTab({ data }: YearsTabProps) {
   const yearAnalysis = useMemo(() => {
     const yearMap = new Map<string, YearAnalysis>();
 
+    // Filter to include only customers with positive Net Debt (Debtors)
+    const debitCustomersSet = new Set(
+      customerAnalysis.filter(c => c.netDebt > 0.01).map(c => c.customerName)
+    );
+
     data.forEach((row) => {
+      // Skip if customer is not a debtor
+      if (!debitCustomersSet.has(row.customerName)) return;
       const year = new Date(row.date).getFullYear().toString();
       if (isNaN(new Date(row.date).getTime())) {
         // Try to extract year from date string if date parsing fails

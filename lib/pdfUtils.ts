@@ -1699,15 +1699,15 @@ export async function generateAgesPDF(
       },
       columnStyles: {
         0: { cellWidth: 8 }, // #
-        1: { font: 'Amiri', halign: 'center' }, // Name (Auto width)
+        1: { font: 'Amiri', halign: 'center', fontStyle: 'bold' }, // Name (Bold)
         2: { cellWidth: 28 }, // City
         3: { cellWidth: 28, fontStyle: 'bold', fillColor: [230, 230, 230] }, // Total (Highlighted)
         // Buckets
-        4: { cellWidth: 22, textColor: [21, 128, 61] }, // At Date (Greenish)
-        5: { cellWidth: 22 },
-        6: { cellWidth: 22 },
-        7: { cellWidth: 22 },
-        8: { cellWidth: 22 },
+        4: { cellWidth: 22, fontStyle: 'bold' }, // At Date (Bold, Black)
+        5: { cellWidth: 22, fontStyle: 'bold' },
+        6: { cellWidth: 22, fontStyle: 'bold' },
+        7: { cellWidth: 22, fontStyle: 'bold' },
+        8: { cellWidth: 22, fontStyle: 'bold' },
         9: { cellWidth: 25, textColor: [185, 28, 28], fontStyle: 'bold' } // Older (Red)
       },
       margin: { left: 5, right: 5 },

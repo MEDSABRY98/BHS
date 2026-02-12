@@ -1160,8 +1160,17 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       creditPayments: number;
       creditReturns: number;
       creditDiscounts: number;
+      // 90-day metrics
+      sales3m: number;
+      salesCount3m: number;
+      payments3m: number;
+      paymentsCount3m: number;
     };
     const customerMap = new Map<string, CustomerData>();
+
+    const now = new Date();
+    const date90DaysAgo = new Date();
+    date90DaysAgo.setDate(now.getDate() - 90);
 
     // Use filteredRawData instead of data
     filteredRawData.forEach((row) => {
@@ -1187,6 +1196,10 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
           creditPayments: 0,
           creditReturns: 0,
           creditDiscounts: 0,
+          sales3m: 0,
+          salesCount3m: 0,
+          payments3m: 0,
+          paymentsCount3m: 0,
         };
       }
 
@@ -1195,14 +1208,13 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
 
-      // Classification of Credits/Collections (Matches Payment Tracker logic)
+      // Classification of Credits/Collections
       const n = (row.number || '').toUpperCase();
       let type = '';
 
       if (n.startsWith('BNK')) {
         type = 'Payment';
       } else if (n.startsWith('PBNK') && row.debit > 0.01) {
-        // Exclude from Payment stats per user request
         type = 'Other';
       } else if (n.startsWith('SAL')) {
         type = 'Sales';
@@ -1211,19 +1223,28 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       } else if (n.startsWith('JV') || n.startsWith('BIL')) {
         type = 'Discount';
       } else if (row.credit > 0.01) {
-        // Fallback for other credits: ensure PBNK didn't slip through if logic changes
         if (!n.startsWith('PBNK')) {
           type = 'Payment';
         }
       }
 
       if (type === 'Payment') {
-        // Payment Tracker Logic: Collections = Credit - Debit
         existing.creditPayments += (row.credit - row.debit);
       } else if (type === 'Return') {
         existing.creditReturns += row.credit;
       } else if (type === 'Discount') {
         existing.creditDiscounts += row.credit;
+      }
+
+      const rowDate = parseDate(row.date);
+      if (rowDate && rowDate >= date90DaysAgo) {
+        if (type === 'Payment') {
+          existing.payments3m += (row.credit - row.debit);
+          existing.paymentsCount3m += 1;
+        } else if (type === 'Sales') {
+          existing.sales3m += (row.debit - row.credit);
+          existing.salesCount3m += 1;
+        }
       }
 
       // Calculate Net Sales (SAL debit - RSAL credit) - matching Dashboard logic
@@ -1248,7 +1269,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
         existing.matchingsMap.set(row.matching, currentMatchTotal + (row.debit - row.credit));
       }
 
-      const rowDate = parseDate(row.date);
+
       if (rowDate) {
         // Track Last Transaction of ANY type
         if (!existing.lastTransactionDate || rowDate > existing.lastTransactionDate) {
@@ -1292,7 +1313,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack }: Customers
       customerInvoicesMap.set(row.customerName, invoices);
     });
 
-    const now = new Date();
+
     const since90 = new Date();
     since90.setDate(now.getDate() - 90);
     const isInLast90 = (dateStr?: string) => {
@@ -2647,6 +2668,20 @@ ${debtSectionHtml}
           );
         },
       }),
+      columnHelper.accessor(row => row.salesReps, {
+        id: 'salesReps',
+        header: 'City',
+        cell: (info) => {
+          const val = info.getValue() as Set<string> | undefined;
+          if (val && val instanceof Set && val.size > 0) {
+            return Array.from(val).join(', ');
+          }
+          if (Array.isArray(val) && (val as string[]).length > 0) {
+            return (val as string[]).join(', ');
+          }
+          return '-';
+        },
+      }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debit',
         cell: (info) => {
@@ -2826,11 +2861,10 @@ ${debtSectionHtml}
     <div className="p-6">
       <div className="mb-6">
 
-        <div className={`bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 px-6 rounded-xl shadow-[0_4px_12px_rgba(0,0,0,0.06)] border border-blue-100 mb-6 flex items-center relative transition-all duration-300 ${selectedCustomersForDownload.size > 0 ? 'py-12 min-h-[200px]' : 'py-8 min-h-[180px]'
-          }`}>
-          <div className="w-full flex flex-col lg:flex-row lg:items-center gap-4">
+        <div className="bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50 px-4 py-3 rounded-xl shadow-sm border border-blue-100 mb-6 transition-all duration-300 relative">
+          <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             {/* Left Side - Total Net Debit */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 shrink-0">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center shadow-sm ${totalDebt > 0
                 ? 'bg-gradient-to-br from-red-500 to-red-600'
                 : 'bg-gradient-to-br from-green-500 to-green-600'
@@ -2848,671 +2882,633 @@ ${debtSectionHtml}
                 </p>
                 <p className="text-xs text-gray-600 mt-0.5">
                   <span className="font-medium">{filteredData.length}</span> customers
-                  {searchQuery && <span className="text-gray-400"> (from {customerAnalysis.length})</span>}
                 </p>
               </div>
             </div>
 
-            {/* Center - Filters and Search */}
-            <div className="flex flex-col gap-3 items-center justify-center max-w-4xl mx-auto w-full lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:top-1/2 lg:-translate-y-1/2 p-2">
-              {/* Row 1: Search and Date Controls */}
-              <div className="flex flex-wrap items-center justify-center gap-2 w-full max-w-5xl">
-                <div className="relative flex-grow min-w-[350px]">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    placeholder="Search by customer name or invoice number..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
-                  />
+            {/* Right Side - Search & Actions */}
+            <div className="flex items-center justify-center gap-3 w-full lg:w-auto lg:absolute lg:left-1/2 lg:-translate-x-1/2 lg:top-1/2 lg:-translate-y-1/2">
+              {/* Search Bar */}
+              <div className="relative flex-grow min-w-[450px] max-w-2xl">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
                 </div>
-
-                {/* Quick Date Filters */}
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    placeholder="Year"
-                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
-                    value={filterYear}
-                    onChange={(e) => setFilterYear(e.target.value)}
-                  />
-                  <input
-                    type="number"
-                    placeholder="Month"
-                    min="1"
-                    max="12"
-                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
-                    value={filterMonth}
-                    onChange={(e) => setFilterMonth(e.target.value)}
-                  />
-                  <input
-                    type="date"
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm w-40"
-                    value={dateRangeFrom}
-                    onChange={(e) => setDateRangeFrom(e.target.value)}
-                    title="From Date"
-                  />
-                  <span className="text-gray-400 text-sm">to</span>
-                  <input
-                    type="date"
-                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm w-40"
-                    value={dateRangeTo}
-                    onChange={(e) => setDateRangeTo(e.target.value)}
-                    title="To Date"
-                  />
-                </div>
+                <input
+                  type="text"
+                  placeholder="Search by customer name or invoice number..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm"
+                />
               </div>
 
-              {/* Row 2: Dropdowns & Buttons */}
-              <div className="flex flex-wrap items-center justify-center gap-2 w-full">
-                <select
-                  value={matchingFilter}
-                  onChange={(e) => setMatchingFilter(e.target.value)}
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-                >
-                  <option value="ALL">All Statuses</option>
+              {/* Filter Button */}
+              <button
+                onClick={() => setIsFilterModalOpen(true)}
+                className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB || filterYear || filterMonth || collectionRateTypes.size !== 3
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                  : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                title="Advanced Filters"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                </svg>
+              </button>
+              {/* Red dot removed */}
 
-                  <option value="WITH_EMAIL">Customers with Email</option>
-                  <option value="RATING_GOOD">Rating: Good</option>
-                  <option value="RATING_MEDIUM">Rating: Medium</option>
-                  <option value="RATING_BAD">Rating: Bad</option>
-                </select>
-
-                <select
-                  value={closedFilter}
-                  onChange={(e) => setClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-                >
-                  <option value="ALL">Show Closed</option>
-                  <option value="HIDE">Hide Closed</option>
-                  <option value="ONLY">Only Closed</option>
-                </select>
-
-                <select
-                  value={semiClosedFilter}
-                  onChange={(e) => setSemiClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-                >
-                  <option value="ALL">Show Semi-Closed</option>
-                  <option value="HIDE">Hide Semi-Closed</option>
-                  <option value="ONLY">Only Semi-Closed</option>
-                </select>
-
-                <select
-                  value={selectedSalesRep}
-                  onChange={(e) => setSelectedSalesRep(e.target.value)}
-                  className="w-40 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm bg-white shadow-sm font-medium text-gray-700"
-                >
-                  <option value="ALL">All Sales Reps</option>
-                  {availableSalesReps.map(rep => (
-                    <option key={rep} value={rep}>{rep}</option>
-                  ))}
-                </select>
-
-                {/* Filter Button */}
-                <button
-                  onClick={() => setIsFilterModalOpen(true)}
-                  className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${debtOperator || lastPaymentValue || lastPaymentAmountOperator || noSalesValue || lastSalesAmountOperator || debtType !== 'ALL' || minTotalDebit || netSalesOperator || collectionRateOperator || overdueAmount || overdueAging.length > 0 || dateRangeFrom || dateRangeTo || hasOB || filterYear || filterMonth || collectionRateTypes.size !== 3
-                    ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-                    : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
-                    }`}
-                  title="Advanced Filters"
-                >
+              {/* View Mode Toggle */}
+              <button
+                onClick={() => setViewMode(prev => prev === 'DEFAULT' ? 'SUMMARY' : 'DEFAULT')}
+                className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${viewMode === 'SUMMARY'
+                  ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
+                  : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
+                  }`}
+                title={viewMode === 'DEFAULT' ? "Switch to Summary View" : "Switch to Default View"}
+              >
+                {viewMode === 'DEFAULT' ? (
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 011 1v3a1 1 0 01-.293.707L12 11.414V15a1 1 0 01-.293.707l-2 2A1 1 0 018 17v-5.586L3.293 6.707A1 1 0 013 6V3z" clipRule="evenodd" />
+                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.414V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
+                  className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
+                  title="Export to Excel (Summary + Net Only Details)"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                   </svg>
                 </button>
-                {/* Red dot removed */}
 
-                {/* View Mode Toggle */}
                 <button
-                  onClick={() => setViewMode(prev => prev === 'DEFAULT' ? 'SUMMARY' : 'DEFAULT')}
-                  className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${viewMode === 'SUMMARY'
-                    ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
-                    : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
-                    }`}
-                  title={viewMode === 'DEFAULT' ? "Switch to Summary View" : "Switch to Default View"}
+                  onClick={() => exportToPDF(filteredData, `customers_report_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
+                  className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300"
+                  title="Export to PDF"
                 >
-                  {viewMode === 'DEFAULT' ? (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.414V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                    </svg>
-                  ) : (
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                    </svg>
-                  )}
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                  </svg>
                 </button>
 
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
-                    className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
-                    title="Export to Excel (Summary + Net Only Details)"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-
-                  <button
-                    onClick={() => exportToPDF(filteredData, `customers_report_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
-                    className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300"
-                    title="Export to PDF"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-
-                  {/* Bulk Download Button */}
-                  <div className="flex gap-1 items-center">
-                    {selectedCustomersForDownload.size > 0 && (
-                      <>
-                        <button
-                          onClick={handleBulkDownload}
-                          disabled={isDownloading}
-                          className="p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                          title={`Summary PDF para ${selectedCustomersForDownload.size} clientes`}
-                        >
-                          {isDownloading ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                {/* Bulk Download Button */}
+                <div className="flex gap-1 items-center">
+                  {selectedCustomersForDownload.size > 0 && (
+                    <>
+                      <button
+                        onClick={handleBulkDownload}
+                        disabled={isDownloading}
+                        className="p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        title={`Summary PDF para ${selectedCustomersForDownload.size} clientes`}
+                      >
+                        {isDownloading ? (
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                             </svg>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                              </svg>
-                              <span className="text-xs font-bold bg-red-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                            </>
-                          )}
-                        </button>
+                            <span className="text-xs font-bold bg-red-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                          </>
+                        )}
+                      </button>
 
-                        <button
-                          onClick={handleBulkZIPDownload}
-                          disabled={isDownloading}
-                          className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                          title={`Download ${selectedCustomersForDownload.size} account statements Zip`}
-                        >
-                          {isDownloading ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <button
+                        onClick={handleBulkZIPDownload}
+                        disabled={isDownloading}
+                        className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        title={`Download ${selectedCustomersForDownload.size} account statements Zip`}
+                      >
+                        {isDownloading ? (
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
                             </svg>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                            </>
-                          )}
-                        </button>
+                            <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                          </>
+                        )}
+                      </button>
 
-                        <button
-                          onClick={handleBulkPrint}
-                          disabled={isDownloading}
-                          className="p-2 bg-teal-600 text-white hover:bg-teal-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all shadow-sm border border-teal-200 hover:border-teal-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                          title={`Print Statements for ${selectedCustomersForDownload.size} customers`}
-                        >
-                          {isDownloading ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <button
+                        onClick={handleBulkPrint}
+                        disabled={isDownloading}
+                        className="p-2 bg-teal-600 text-white hover:bg-teal-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all shadow-sm border border-teal-200 hover:border-teal-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        title={`Print Statements for ${selectedCustomersForDownload.size} customers`}
+                      >
+                        {isDownloading ? (
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                             </svg>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                              </svg>
-                              <span className="text-xs font-bold bg-teal-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                            </>
-                          )}
-                        </button>
+                            <span className="text-xs font-bold bg-teal-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                          </>
+                        )}
+                      </button>
 
-                        <button
-                          onClick={handleBulkEmail}
-                          disabled={isDownloading}
-                          className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                          title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
-                        >
-                          {isDownloading ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      <button
+                        onClick={handleBulkEmail}
+                        disabled={isDownloading}
+                        className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
+                      >
+                        {isDownloading ? (
+                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
+                              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                             </svg>
-                          ) : (
-                            <>
-                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                                <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                              </svg>
-                              <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
-                            </>
-                          )}
-                        </button>
-                      </>
-                    )}
-                  </div>
+                            <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Header with Sort Controls - Visible only in DEFAULT mode */}
-        {viewMode === 'DEFAULT' && (
-          <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              {table.getHeaderGroups().map((headerGroup) => (
-                <div key={headerGroup.id} className="contents">
-                  {headerGroup.headers.map((header, index) => {
-                    const columnId = header.column.id;
-                    const isSelectColumn = columnId === 'select';
-                    return (
-                      <div
-                        key={header.id}
-                        className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${columnId === 'customerName' ? 'md:col-span-2' : ''
-                          } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
+      {/* Header with Sort Controls - Visible only in DEFAULT mode */}
+      {viewMode === 'DEFAULT' && (
+        <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <div key={headerGroup.id} className="contents">
+                {headerGroup.headers.map((header, index) => {
+                  const columnId = header.column.id;
+                  const isSelectColumn = columnId === 'select';
+                  return (
+                    <div
+                      key={header.id}
+                      className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${columnId === 'customerName' ? 'md:col-span-2' : ''
+                        } ${isSelectColumn ? '' : 'hover:bg-white cursor-pointer'}`}
+                    >
+                      {isSelectColumn ? (
+                        flexRender(header.column.columnDef.header, header.getContext())
+                      ) : (
+                        <button
+                          onClick={header.column.getToggleSortingHandler()}
+                          className="flex items-center justify-center gap-2 w-full"
+                        >
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          <span className="text-blue-600">
+                            {{
+                              asc: '↑',
+                              desc: '↓',
+                            }[header.column.getIsSorted() as string] ?? (
+                                <span className="text-gray-300">↕</span>
+                              )}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Cards Grid - Visible only in DEFAULT mode */}
+      {viewMode === 'DEFAULT' && (
+        <div className="space-y-3 mb-6">
+          {table.getRowModel().rows.map((row) => {
+            const customer = row.original;
+            const netDebt = customer.netDebt;
+            const totalDebit = customer.totalDebit;
+            const collectionRate = totalDebit > 0
+              ? ((customer.totalCredit / totalDebit) * 100)
+              : 0;
+            const creditDenom = customer.totalCredit || 0;
+            const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
+            const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
+            const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
+            const rating = calculateDebtRating(customer, closedCustomers);
+            const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
+            const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+            const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
+
+            return (
+              <div
+                key={row.id}
+                className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
+              >
+                <div className="p-5">
+                  <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+                    {/* Customer Name with Checkbox */}
+                    <div className="md:col-span-2">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedCustomersForDownload.has(customer.customerName)}
+                          onChange={() => toggleCustomerSelection(customer.customerName)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                        />
+                        <button
+                          onClick={() => setSelectedCustomer(customer.customerName)}
+                          className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
+                        >
+                          {customer.customerName}
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Grab the element BEFORE awaiting (React may null out event fields after await)
+                            const buttonEl = (e.currentTarget as HTMLButtonElement | null);
+                            const originalTitle = buttonEl?.title || 'Copy customer name';
+                            const success = await copyToClipboard(customer.customerName);
+                            if (success) {
+                              if (!buttonEl) return;
+                              buttonEl.title = 'Copied!';
+                              setTimeout(() => {
+                                buttonEl.title = originalTitle;
+                              }, 2000);
+                            }
+                          }}
+                          className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
+                          title="Copy customer name"
+                        >
+                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* City / Sales Reps */}
+                    <div className="md:col-span-1 hidden md:flex items-center justify-center">
+                      <span className="text-sm font-semibold text-gray-700 text-center">
+                        {(() => {
+                          const val = customer.salesReps;
+                          if (val && val instanceof Set && val.size > 0) {
+                            return Array.from(val).join(', ');
+                          }
+                          if (Array.isArray(val) && (val as string[]).length > 0) {
+                            return (val as string[]).join(', ');
+                          }
+                          return '-';
+                        })()}
+                      </span>
+                    </div>
+
+                    {/* Net Debit */}
+                    <div className="md:col-span-1">
+                      <button
+                        onClick={() => setSelectedCustomerForMonths(customer.customerName)}
+                        className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0
+                          ? 'text-red-600 hover:text-red-700'
+                          : netDebt < 0
+                            ? 'text-green-600 hover:text-green-700'
+                            : 'text-gray-600 hover:text-gray-700'
+                          }`}
+                        title="Click to view monthly debt breakdown"
                       >
-                        {isSelectColumn ? (
-                          flexRender(header.column.columnDef.header, header.getContext())
+                        {netDebt.toLocaleString('en-US')}
+                      </button>
+                    </div>
+
+                    {/* OB Amount (Visible only in OB modes) */}
+                    {(mode === 'OB_POS' || mode === 'OB_NEG') && (
+                      <div className="md:col-span-1">
+                        <div className="text-xl font-bold transition-colors w-full text-center">
+                          <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {(customer.openOBAmount || 0).toLocaleString('en-US')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Collection Rate (Visible only in DEBIT mode) */}
+                    {mode === 'DEBIT' && (
+                      <div className="md:col-span-1">
+                        {customer.netDebt < 0 ? (
+                          <div className="text-center">
+                            <span className="text-gray-500 text-xl font-bold">-</span>
+                          </div>
                         ) : (
                           <button
-                            onClick={header.column.getToggleSortingHandler()}
-                            className="flex items-center justify-center gap-2 w-full"
+                            onClick={() => {
+                              // Disable popup if date filter is active
+                              const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
+                              if (isDateFilterActive) return;
+
+                              // Calculate rankings within the current filtered view
+                              const stats = filteredData.map(c => {
+                                const denom = c.totalCredit || 0;
+                                return {
+                                  name: c.customerName,
+                                  collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                                  payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                                  returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                                  discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                                };
+                              });
+
+                              const getRank = (metric: keyof typeof stats[0], val: number) => {
+                                // Sort descending
+                                const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                                // Find index (1-based)
+                                return sorted.findIndex(s => s.name === customer.customerName) + 1;
+                              };
+
+                              const collRank = getRank('collRate', collectionRate);
+                              const payRank = getRank('payRate', payRate);
+                              const returnRank = getRank('returnRate', returnRate);
+                              const discountRank = getRank('discountRate', discountRate);
+
+                              setSelectedCollectionStats({
+                                customer,
+                                ranks: {
+                                  collRank,
+                                  payRank,
+                                  returnRank,
+                                  discountRank,
+                                  totalCount: filteredData.length
+                                },
+                                rates: {
+                                  payRate,
+                                  returnRate,
+                                  discountRate
+                                }
+                              });
+                            }}
+                            className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
+                              ? 'cursor-default'
+                              : 'hover:bg-gray-50 group cursor-pointer'
+                              }`}
                           >
-                            {flexRender(header.column.columnDef.header, header.getContext())}
-                            <span className="text-blue-600">
-                              {{
-                                asc: '↑',
-                                desc: '↓',
-                              }[header.column.getIsSorted() as string] ?? (
-                                  <span className="text-gray-300">↕</span>
-                                )}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xl font-bold ${collectionRate >= 80
+                                ? 'text-green-600'
+                                : collectionRate >= 50
+                                  ? 'text-yellow-600'
+                                  : 'text-red-600'
+                                }`}>
+                                {collectionRate.toFixed(1)}%
+                              </span>
+                              {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                              {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
+                                <span className="text-xs text-gray-500">
+                                  ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                                </span>
+                              )}
+                            </div>
+                            <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
+                                  ? 'bg-green-500'
+                                  : collectionRate >= 50
+                                    ? 'bg-yellow-500'
+                                    : 'bg-red-500'
+                                  }`}
+                                style={{ width: `${Math.min(collectionRate, 100)}%` }}
+                              />
+                            </div>
                           </button>
                         )}
                       </div>
-                    );
-                  })}
+                    )}
+
+
+
+                    {/* Debit Rating */}
+                    <div className="md:col-span-1">
+                      <div className="flex justify-center">
+                        <button
+                          onClick={() => {
+                            const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                            setSelectedRatingCustomer(customer);
+                            setRatingBreakdown(breakdown);
+                          }}
+                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
+                          title="اضغط لعرض تفاصيل التقييم"
+                        >
+                          <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
+                          {rating}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
-        {/* Cards Grid - Visible only in DEFAULT mode */}
-        {viewMode === 'DEFAULT' && (
-          <div className="space-y-3 mb-6">
-            {table.getRowModel().rows.map((row) => {
-              const customer = row.original;
-              const netDebt = customer.netDebt;
-              const totalDebit = customer.totalDebit;
-              const collectionRate = totalDebit > 0
-                ? ((customer.totalCredit / totalDebit) * 100)
-                : 0;
-              const creditDenom = customer.totalCredit || 0;
-              const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
-              const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
-              const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
-              const rating = calculateDebtRating(customer, closedCustomers);
-              const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
-              const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
-              const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
+      {/* SUMMARY View */}
+      {viewMode === 'SUMMARY' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 border-collapse table-fixed">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider border-r border-gray-200 w-10">
+                    #
+                  </th>
+                  <th className="px-2 py-4 text-center text-xs font-bold text-white bg-green-600 uppercase tracking-wider border-r border-gray-200 w-48">
+                    <div className="flex items-center justify-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={filteredData.length > 0 && selectedCustomersForDownload.size === filteredData.length}
+                        onChange={toggleSelectAll}
+                        className="w-4 h-4 text-white bg-green-700 border-green-500 rounded focus:ring-green-500"
+                        title="Select All"
+                      />
+                      <span>Customer Name</span>
+                    </div>
+                  </th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-green-600 uppercase tracking-wider border-r border-gray-200 w-24">City / Rep</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-green-600 uppercase tracking-wider border-r border-gray-200 w-28">Total Debt</th>
 
-              return (
-                <div
-                  key={row.id}
-                  className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
-                >
-                  <div className="p-5">
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                      {/* Customer Name with Checkbox */}
-                      <div className="md:col-span-2">
-                        <div className="flex items-center gap-2">
+                  {/* Payment Group */}
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-20">Last Pay Date</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-24">Last Pay Amt</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-24">Pay (90d)</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-16"># Pay (90d)</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-gray-200 w-16">Coll Rate (Pay)</th>
+
+                  {/* Sales Group */}
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-orange-500 w-20">Last Sale Date</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-orange-500 w-24">Last Sale Amt</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-orange-500 w-24">Sales (90d)</th>
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-gray-200 w-16"># Sales (90d)</th>
+
+                  <th className="px-1 py-4 text-center text-xs font-bold text-white bg-purple-600 uppercase tracking-wider w-16">Rating</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {table.getRowModel().rows.map((row, index) => {
+                  const customer = row.original;
+                  const collRate = customer.totalDebit > 0 ? ((customer.creditPayments || 0) / customer.totalDebit * 100) : 0;
+                  const rating = calculateDebtRating(customer, closedCustomers);
+
+                  return (
+                    <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="px-1 py-2 text-center text-xs font-medium text-gray-500 border-r border-gray-100">
+                        {index + 1}
+                      </td>
+                      <td className="px-2 py-2 border-r border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap">
+                        <div className="flex items-center justify-center gap-2">
                           <input
                             type="checkbox"
                             checked={selectedCustomersForDownload.has(customer.customerName)}
                             onChange={() => toggleCustomerSelection(customer.customerName)}
                             onClick={(e) => e.stopPropagation()}
-                            className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                            className="w-3 h-3 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 shrink-0"
                           />
                           <button
                             onClick={() => setSelectedCustomer(customer.customerName)}
-                            className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
+                            className="text-xs font-bold text-gray-900 hover:text-blue-600 hover:underline text-center w-full truncate"
+                            title={customer.customerName}
                           >
                             {customer.customerName}
                           </button>
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              // Grab the element BEFORE awaiting (React may null out event fields after await)
-                              const buttonEl = (e.currentTarget as HTMLButtonElement | null);
-                              const originalTitle = buttonEl?.title || 'Copy customer name';
-                              const success = await copyToClipboard(customer.customerName);
-                              if (success) {
-                                if (!buttonEl) return;
-                                buttonEl.title = 'Copied!';
-                                setTimeout(() => {
-                                  buttonEl.title = originalTitle;
-                                }, 2000);
-                              }
-                            }}
-                            className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0"
-                            title="Copy customer name"
-                          >
-                            <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                            <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                          </button>
                         </div>
-                      </div>
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100 truncate">
+                        {(() => {
+                          const val = customer.salesReps;
+                          if (val && val instanceof Set && val.size > 0) return Array.from(val).join(', ');
+                          if (Array.isArray(val) && val.length > 0) return val.join(', ');
+                          return '-';
+                        })()}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">
+                        {customer.netDebt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
 
-                      {/* Net Debit */}
-                      <div className="md:col-span-1">
-                        <button
-                          onClick={() => setSelectedCustomerForMonths(customer.customerName)}
-                          className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0
-                            ? 'text-red-600 hover:text-red-700'
-                            : netDebt < 0
-                              ? 'text-green-600 hover:text-green-700'
-                              : 'text-gray-600 hover:text-gray-700'
-                            }`}
-                          title="Click to view monthly debt breakdown"
-                        >
-                          {netDebt.toLocaleString('en-US')}
-                        </button>
-                      </div>
+                      {/* Payment Columns */}
+                      <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100">
+                        {customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-'}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">
+                        {customer.lastPaymentDate ? (customer.lastPaymentAmount?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || 0) : '-'}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">
+                        {(customer.payments3m || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100">
+                        {customer.paymentsCount3m || 0}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">
+                        {collRate.toFixed(1)}%
+                      </td>
 
-                      {/* OB Amount (Visible only in OB modes) */}
-                      {(mode === 'OB_POS' || mode === 'OB_NEG') && (
-                        <div className="md:col-span-1">
-                          <div className="text-xl font-bold transition-colors w-full text-center">
-                            <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {(customer.openOBAmount || 0).toLocaleString('en-US')}
-                            </span>
-                          </div>
-                        </div>
-                      )}
+                      {/* Sales Columns */}
+                      <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100">
+                        {customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-'}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">
+                        {customer.lastSalesDate ? (customer.lastSalesAmount?.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) || 0) : '-'}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">
+                        {(customer.sales3m || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100">
+                        {customer.salesCount3m || 0}
+                      </td>
 
-                      {/* Collection Rate (Visible only in DEBIT mode) */}
-                      {mode === 'DEBIT' && (
-                        <div className="md:col-span-1">
-                          {customer.netDebt < 0 ? (
-                            <div className="text-center">
-                              <span className="text-gray-500 text-xl font-bold">-</span>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => {
-                                // Disable popup if date filter is active
-                                const isDateFilterActive = filterYear || filterMonth || dateRangeFrom || dateRangeTo;
-                                if (isDateFilterActive) return;
+                      <td className="px-1 py-2 text-center text-xs font-bold border-gray-100">
+                        <span className={`px-2 py-0.5 rounded-full ${rating === 'Good' ? 'bg-green-100 text-green-800' : rating === 'Medium' ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                          {rating}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                <tr>
+                  <td colSpan={3} className="px-6 py-4 text-center text-xs uppercase tracking-wider">Total</td>
+                  <td className="px-1 py-4 text-center text-xs">
+                    {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td colSpan={10}></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      )}
 
-                                // Calculate rankings within the current filtered view
-                                const stats = filteredData.map(c => {
-                                  const denom = c.totalCredit || 0;
-                                  return {
-                                    name: c.customerName,
-                                    collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
-                                    payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
-                                    returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
-                                    discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
-                                  };
-                                });
-
-                                const getRank = (metric: keyof typeof stats[0], val: number) => {
-                                  // Sort descending
-                                  const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
-                                  // Find index (1-based)
-                                  return sorted.findIndex(s => s.name === customer.customerName) + 1;
-                                };
-
-                                const collRank = getRank('collRate', collectionRate);
-                                const payRank = getRank('payRate', payRate);
-                                const returnRank = getRank('returnRate', returnRate);
-                                const discountRank = getRank('discountRate', discountRate);
-
-                                setSelectedCollectionStats({
-                                  customer,
-                                  ranks: {
-                                    collRank,
-                                    payRank,
-                                    returnRank,
-                                    discountRank,
-                                    totalCount: filteredData.length
-                                  },
-                                  rates: {
-                                    payRate,
-                                    returnRate,
-                                    discountRate
-                                  }
-                                });
-                              }}
-                              className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${filterYear || filterMonth || dateRangeFrom || dateRangeTo
-                                ? 'cursor-default'
-                                : 'hover:bg-gray-50 group cursor-pointer'
-                                }`}
-                            >
-                              <div className="flex items-center gap-2">
-                                <span className={`text-xl font-bold ${collectionRate >= 80
-                                  ? 'text-green-600'
-                                  : collectionRate >= 50
-                                    ? 'text-yellow-600'
-                                    : 'text-red-600'
-                                  }`}>
-                                  {collectionRate.toFixed(1)}%
-                                </span>
-                                {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                )}
-                                {!(filterYear || filterMonth || dateRangeFrom || dateRangeTo) && (
-                                  <span className="text-xs text-gray-500">
-                                    ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
-                                  </span>
-                                )}
-                              </div>
-                              <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80
-                                    ? 'bg-green-500'
-                                    : collectionRate >= 50
-                                      ? 'bg-yellow-500'
-                                      : 'bg-red-500'
-                                    }`}
-                                  style={{ width: `${Math.min(collectionRate, 100)}%` }}
-                                />
-                              </div>
-                            </button>
-                          )}
-                        </div>
-                      )}
-
-
-
-                      {/* Debit Rating */}
-                      <div className="md:col-span-1">
-                        <div className="flex justify-center">
-                          <button
-                            onClick={() => {
-                              const breakdown = calculateDebtRating(customer, closedCustomers, true);
-                              setSelectedRatingCustomer(customer);
-                              setRatingBreakdown(breakdown);
-                            }}
-                            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
-                            title="اضغط لعرض تفاصيل التقييم"
-                          >
-                            <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
-                            {rating}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+      {/* Total Summary Card */}
+      < div className="bg-gray-50 rounded-lg border border-gray-200 p-4" >
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+          <div className="md:col-span-2">
+            <p className="text-sm font-semibold text-gray-700">Summary</p>
+          </div>
+          <div className="md:col-span-1">
+            <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
+              ? 'text-red-600'
+              : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
+                ? 'text-green-600'
+                : 'text-gray-600'
+              }`}>
+              {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
+            </p>
+          </div>
+          <div className="md:col-span-1">
+            {(() => {
+              const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+              if (totalNetDebt < 0) {
+                return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
+              }
+              const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
+              const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
+              const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
+              const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
+              return (
+                <p className={`text-xl font-bold text-center ${rateColor}`}>
+                  {avgCollectionRate.toFixed(1)}%
+                </p>
               );
-            })}
+            })()}
           </div>
-        )}
-
-        {/* SUMMARY View */}
-        {viewMode === 'SUMMARY' && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-4 text-left text-sm font-bold text-gray-500 uppercase tracking-wider" rowSpan={2}>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={filteredData.length > 0 && selectedCustomersForDownload.size === filteredData.length}
-                          onChange={toggleSelectAll}
-                          className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                          title="Select All"
-                        />
-                        <span>Customer Name</span>
-                      </div>
-                    </th>
-                    <th className="px-6 py-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider" rowSpan={2}>Net Debit</th>
-                    <th className="px-6 py-2 text-center text-sm font-bold text-gray-500 uppercase tracking-wider bg-green-50/50 border-b border-green-100" colSpan={3}>Last Payment</th>
-                    <th className="px-6 py-2 text-center text-sm font-bold text-gray-500 uppercase tracking-wider bg-blue-50/50 border-b border-blue-100" colSpan={3}>Last Sale</th>
-                  </tr>
-                  <tr>
-                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-green-50/30">Date</th>
-                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-green-50/30">Amount</th>
-                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-green-50/30">Days</th>
-                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-blue-50/30">Date</th>
-                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-blue-50/30">Amount</th>
-                    <th className="px-4 py-2 text-center text-sm font-medium text-gray-500 bg-blue-50/30">Days</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {table.getRowModel().rows.map((row) => {
-                    const customer = row.original;
-                    const now = new Date();
-
-                    // Calculate Days Since Last Payment
-                    let paymentDays = '-';
-                    if (customer.lastPaymentDate) {
-                      const diffTime = Math.abs(now.getTime() - customer.lastPaymentDate.getTime());
-                      paymentDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + ' days';
-                    }
-
-                    // Calculate Days Since Last Sale
-                    let salesDays = '-';
-                    if (customer.lastSalesDate) {
-                      const diffTime = Math.abs(now.getTime() - customer.lastSalesDate.getTime());
-                      salesDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + ' days';
-                    }
-
-                    return (
-                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap border-r border-gray-100">
-                          <div className="flex items-center gap-3">
-                            <input
-                              type="checkbox"
-                              checked={selectedCustomersForDownload.has(customer.customerName)}
-                              onChange={() => toggleCustomerSelection(customer.customerName)}
-                              onClick={(e) => e.stopPropagation()}
-                              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 shrink-0"
-                            />
-                            <button
-                              onClick={() => setSelectedCustomer(customer.customerName)}
-                              className="text-sm font-bold text-blue-600 hover:underline text-left w-full"
-                            >
-                              {customer.customerName}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-center border-r border-gray-100">
-                          <span className={`text-sm font-bold ${customer.netDebt > 0 ? 'text-red-600' : customer.netDebt < 0 ? 'text-green-600' : 'text-gray-900'}`}>
-                            {customer.netDebt.toLocaleString('en-US')}
-                          </span>
-                        </td>
-
-                        {/* Last Payment Columns */}
-                        <td className="px-4 py-4 whitespace-nowrap text-center bg-green-50/5 text-sm font-medium text-gray-900 border-r border-green-50">
-                          {customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-center bg-green-50/5 text-sm font-bold text-green-600 border-r border-green-50">
-                          {customer.lastPaymentDate ? customer.lastPaymentAmount?.toLocaleString('en-US') : '-'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-center bg-green-50/5 text-xs text-gray-500 font-mono border-r border-gray-100">
-                          {customer.lastPaymentDate ? paymentDays : '-'}
-                        </td>
-
-                        {/* Last Sale Columns */}
-                        <td className="px-4 py-4 whitespace-nowrap text-center bg-blue-50/5 text-sm font-medium text-gray-900 border-r border-blue-50">
-                          {customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-center bg-blue-50/5 text-sm font-bold text-blue-600 border-r border-blue-50">
-                          {customer.lastSalesDate ? customer.lastSalesAmount?.toLocaleString('en-US') : '-'}
-                        </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-center bg-blue-50/5 text-xs text-gray-500 font-mono">
-                          {customer.lastSalesDate ? salesDays : '-'}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          <div className="md:col-span-1">
+            <p className="text-xl font-bold text-blue-600 text-center">
+              {filteredData.length}
+            </p>
           </div>
-        )}
-
-        {/* Total Summary Card */}
-        < div className="bg-gray-50 rounded-lg border border-gray-200 p-4" >
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="md:col-span-2">
-              <p className="text-sm font-semibold text-gray-700">Summary</p>
-            </div>
-            <div className="md:col-span-1">
-              <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
-                ? 'text-red-600'
-                : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
-                  ? 'text-green-600'
-                  : 'text-gray-600'
-                }`}>
-                {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
-              </p>
-            </div>
-            <div className="md:col-span-1">
-              {(() => {
-                const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-                if (totalNetDebt < 0) {
-                  return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
-                }
-                const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
-                const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
-                const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
-                const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
-                return (
-                  <p className={`text-xl font-bold text-center ${rateColor}`}>
-                    {avgCollectionRate.toFixed(1)}%
-                  </p>
-                );
-              })()}
-            </div>
-            <div className="md:col-span-1">
-              <p className="text-xl font-bold text-blue-600 text-center">
-                {filteredData.length}
-              </p>
-            </div>
-          </div>
-        </div >
-
-
+        </div>
       </div >
+
+
+
 
       {/* Filter Modal */}
       {
@@ -3543,7 +3539,7 @@ ${debtSectionHtml}
                     className={`w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-all ${activeFilterModalTab === 'DATE' ? 'bg-white text-blue-700 shadow-sm ring-1 ring-blue-100' : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                   >
-                    Date Range
+                    General Filters
                   </button>
                   <button
                     onClick={() => setActiveFilterModalTab('DEBIT')}
@@ -3572,7 +3568,7 @@ ${debtSectionHtml}
                 <div className="flex-1 p-6 overflow-y-auto bg-white">
                   {activeFilterModalTab === 'DATE' && (
                     <div className="space-y-6 max-w-lg">
-                      <h4 className="text-base font-semibold text-gray-800 border-b pb-2">Date Range Settings</h4>
+                      <h4 className="text-base font-semibold text-gray-800 border-b pb-2">General Filters</h4>
                       <div className="space-y-4">
                         <div className="grid grid-cols-2 gap-4">
                           <div>
@@ -3628,6 +3624,61 @@ ${debtSectionHtml}
                             <option value="SAL">Sales (SAL) Only</option>
                           </select>
                           <p className="text-xs text-gray-400 mt-1">Filters the specialized Net Debit calculation when date filters are active.</p>
+                        </div>
+
+                        {/* Moved Dropdowns */}
+                        <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Status</label>
+                            <select
+                              value={matchingFilter}
+                              onChange={(e) => setMatchingFilter(e.target.value)}
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="ALL">All Statuses</option>
+                              <option value="WITH_EMAIL">Customers with Email</option>
+                              <option value="RATING_GOOD">Rating: Good</option>
+                              <option value="RATING_MEDIUM">Rating: Medium</option>
+                              <option value="RATING_BAD">Rating: Bad</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Sales Rep</label>
+                            <select
+                              value={selectedSalesRep}
+                              onChange={(e) => setSelectedSalesRep(e.target.value)}
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="ALL">All Sales Reps</option>
+                              {availableSalesReps.map(rep => (
+                                <option key={rep} value={rep}>{rep}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Closed Status</label>
+                            <select
+                              value={closedFilter}
+                              onChange={(e) => setClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="ALL">Show Closed</option>
+                              <option value="HIDE">Hide Closed</option>
+                              <option value="ONLY">Only Closed</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Semi-Closed</label>
+                            <select
+                              value={semiClosedFilter}
+                              onChange={(e) => setSemiClosedFilter(e.target.value as 'ALL' | 'HIDE' | 'ONLY')}
+                              className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              <option value="ALL">Show Semi-Closed</option>
+                              <option value="HIDE">Hide Semi-Closed</option>
+                              <option value="ONLY">Only Semi-Closed</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                     </div>

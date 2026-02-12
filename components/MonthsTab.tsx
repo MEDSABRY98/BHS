@@ -37,7 +37,7 @@ const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
   if (!isNaN(d.getTime())) return d;
-  
+
   const parts = dateStr.split(/[\/\-]/);
   if (parts.length === 3) {
     const p1 = parseInt(parts[0]);
@@ -72,7 +72,7 @@ const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }
 const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set<string>): 'Good' | 'Medium' | 'Bad' => {
   const customerNameNormalized = customer.customerName.toLowerCase().trim().replace(/\s+/g, ' ');
   const isClosed = closedCustomersSet.has(customerNameNormalized);
-  
+
   if (isClosed) {
     return 'Bad';
   }
@@ -116,7 +116,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     const lastPayDate = new Date(lastPay);
     lastPayDate.setHours(0, 0, 0, 0);
     const daysSinceLastPay = Math.floor((today.getTime() - lastPayDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysSinceLastPay <= 30) {
       score3 = 2;
     } else if (daysSinceLastPay <= 90) {
@@ -144,7 +144,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     const lastSaleDate = new Date(lastSale);
     lastSaleDate.setHours(0, 0, 0, 0);
     const daysSinceLastSale = Math.floor((today.getTime() - lastSaleDate.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (daysSinceLastSale <= 30) {
       score5 = 2;
     } else if (daysSinceLastSale <= 90) {
@@ -159,7 +159,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
   const totalScore = score1 + score2 + score3 + score4 + score5;
 
   let finalRating: 'Good' | 'Medium' | 'Bad';
-  
+
   if (netDebt < 0) {
     finalRating = 'Good';
   } else if (riskFlag1 === 1 || riskFlag2 === 1) {
@@ -214,7 +214,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
 
     data.forEach((row) => {
       let existing = customerMap.get(row.customerName);
-      
+
       if (!existing) {
         existing = {
           customerName: row.customerName,
@@ -238,14 +238,14 @@ export default function MonthsTab({ data }: MonthsTabProps) {
       existing.totalCredit += row.credit;
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
-      
+
       const num = row.number?.toString().toUpperCase() || '';
       if (num.startsWith('SAL')) {
         existing.netSales = (existing.netSales || 0) + row.debit;
       } else if (num.startsWith('RSAL')) {
         existing.netSales = (existing.netSales || 0) - row.credit;
       }
-      
+
       if (row.salesRep && row.salesRep.trim()) {
         existing.salesReps?.add(row.salesRep.trim());
       }
@@ -299,7 +299,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
 
     return Array.from(customerMap.values()).map(c => {
       const customerInvoices = customerInvoicesMap.get(c.customerName) || [];
-      
+
       const sales3m = customerInvoices
         .filter(inv => {
           const num = inv.number?.toString().toUpperCase() || '';
@@ -323,10 +323,10 @@ export default function MonthsTab({ data }: MonthsTabProps) {
         const paymentInvoices = customerInvoices
           .filter(inv => isInLast90(inv.date))
           .filter(inv => isPaymentTxn(inv));
-        
+
         const creditCount = paymentInvoices.filter(inv => (inv.credit || 0) > 0.01).length;
         const debitCount = paymentInvoices.filter(inv => (inv.debit || 0) > 0.01).length;
-        
+
         return creditCount - debitCount;
       })();
 
@@ -356,7 +356,14 @@ export default function MonthsTab({ data }: MonthsTabProps) {
   const monthAnalysis = useMemo(() => {
     const monthMap = new Map<string, MonthAnalysis>();
 
+    // Filter to include only customers with positive Net Debt (Debtors)
+    const debitCustomersSet = new Set(
+      customerAnalysis.filter(c => c.netDebt > 0.01).map(c => c.customerName)
+    );
+
     data.forEach((row) => {
+      // Skip if customer is not a debtor
+      if (!debitCustomersSet.has(row.customerName)) return;
       let year = '';
       let month = '';
 
@@ -409,12 +416,12 @@ export default function MonthsTab({ data }: MonthsTabProps) {
 
     // Calculate collection rate and customer ratings for each month
     const customersByMonth = new Map<string, CustomerAnalysis[]>();
-    
+
     // Group customers by month based on their transactions
     customerAnalysis.forEach((customer) => {
       const customerInvoices = data.filter(row => row.customerName === customer.customerName);
       const monthSet = new Set<string>();
-      
+
       customerInvoices.forEach(inv => {
         const dateObj = new Date(inv.date);
         if (!isNaN(dateObj.getTime())) {
@@ -431,7 +438,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
           }
         }
       });
-      
+
       monthSet.forEach(monthKey => {
         if (!customersByMonth.has(monthKey)) {
           customersByMonth.set(monthKey, []);
@@ -442,15 +449,15 @@ export default function MonthsTab({ data }: MonthsTabProps) {
 
     monthMap.forEach((month, monthKey) => {
       month.collectionRate = month.totalDebit > 0 ? (month.totalCredit / month.totalDebit) * 100 : 0;
-      
+
       // Get customers for this month and calculate ratings
       const monthCustomers = customersByMonth.get(monthKey) || [];
       const uniqueCustomers = Array.from(new Map(monthCustomers.map(c => [c.customerName, c])).values());
-      
+
       let goodCount = 0;
       let mediumCount = 0;
       let badCount = 0;
-      
+
       uniqueCustomers.forEach((customer) => {
         const rating = calculateDebtRating(customer, closedCustomers);
         if (rating === 'Good') {
@@ -461,7 +468,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
           badCount++;
         }
       });
-      
+
       month.goodCustomersCount = goodCount;
       month.mediumCustomersCount = mediumCount;
       month.badCustomersCount = badCount;

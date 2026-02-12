@@ -1354,16 +1354,8 @@ ${debtSectionHtml}
 
   // Prepare aging data
   const agingData = useMemo<AgingSummary>(() => {
-    // 1. Filter for open invoices (Unmatched or Residual holders)
-    const openInvoices = filteredInvoices.filter(inv => {
-      // Keep if no matching ID (Unmatched) AND has balance
-      if (!inv.matching) {
-        return Math.abs(inv.netDebt) > 0.01;
-      }
-
-      // Keep only if it carries the residual (which means it's the main open invoice of an open group)
-      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-    });
+    // 1. Use overdue invoices directly (already filtered to be open/unmatched/residual)
+    const openInvoices = filteredOverdueInvoices;
 
     const summary: AgingSummary = {
       atDate: 0,
@@ -2016,26 +2008,36 @@ ${debtSectionHtml}
       container.style.top = '-9999px';
       container.style.left = '-9999px';
       container.style.width = '1122px'; // A4 Landscape width at 96 DPI
+      container.style.height = '793px';
       container.style.zIndex = '-1000';
       document.body.appendChild(container);
 
-      // Define the Report Component inline to ensure it has access to current scope data
-      // using explicit styles for colors to avoid html2canvas issues with Tailwind v4 (lab/oklch)
-      const AnalyticalReport = () => (
-        <div
-          style={{
-            width: '1122px',
-            height: '793px',
-            fontFamily: 'system-ui, -apple-system, sans-serif',
-            backgroundColor: '#ffffff',
-            padding: '30px',
-            boxSizing: 'border-box',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
+      // Common Style for Report Pages
+      const pageStyle: React.CSSProperties = {
+        width: '1122px',
+        height: '793px',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        backgroundColor: '#ffffff',
+        padding: '30px',
+        boxSizing: 'border-box',
+        display: 'flex',
+        flexDirection: 'column'
+      };
+
+      const headerStyle: React.CSSProperties = {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: '20px',
+        borderBottom: '2px solid #f3f4f6',
+        paddingBottom: '15px'
+      };
+
+      // PAGE 1 COMPONENT
+      const AnalyticalReportPage1 = () => (
+        <div style={pageStyle}>
           {/* Header */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '2px solid #f3f4f6', paddingBottom: '15px' }}>
+          <div style={headerStyle}>
             <div>
               <h1 style={{ fontSize: '32px', fontWeight: '900', color: '#111827', marginBottom: '4px' }}>{customerName}</h1>
               <p style={{ fontSize: '18px', color: '#6b7280', fontWeight: '500' }}>Customer Analysis Report</p>
@@ -2312,15 +2314,181 @@ ${debtSectionHtml}
         </div>
       );
 
-      // Render the component to the temporary container
+      // PAGE 2 COMPONENT (Aging & Monthly Debt)
+      const AnalyticalReportPage2 = () => {
+        // Prepare Monthly Net Debt Data for Chart
+        // Prepare Monthly Net Debt Data for Chart
+        const groupedDebt: { [key: string]: { amount: number; orderDate: number; label: string; isOB: boolean } } = {};
+
+        filteredOverdueInvoices.forEach(inv => {
+          // We only care about positive net debt
+          // For overdue invoices, 'difference' is the remaining amount
+          const debt = inv.difference || inv.netDebt || 0;
+          if (debt <= 0.01) return;
+
+          let key = '';
+          let label = '';
+          let orderDate = 0;
+          let isOB = false;
+
+          // Check for OB
+          if ((inv.number || '').toString().toUpperCase().startsWith('OB')) {
+            key = 'OB';
+            label = 'OB';
+            orderDate = -9999999999999; // Force first
+            isOB = true;
+          } else if (inv.date) {
+            const d = new Date(inv.date);
+            if (!isNaN(d.getTime())) {
+              const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+              const m = monthNames[d.getMonth()];
+              const y = d.getFullYear().toString().substring(2);
+              key = `${d.getFullYear()}-${d.getMonth()}`; // unique key
+              label = `${m}${y}`;
+              // We want strictly chronological grouping. 
+              // Group by Month Start Date
+              orderDate = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+            } else {
+              key = 'Unknown';
+              label = '??';
+              orderDate = 0;
+            }
+          } else {
+            key = 'Unknown';
+            label = '??';
+            orderDate = 0;
+          }
+
+          if (!groupedDebt[key]) {
+            groupedDebt[key] = { amount: 0, orderDate, label, isOB };
+          }
+          groupedDebt[key].amount += debt;
+        });
+
+        const monthlyNetDebtData = Object.values(groupedDebt)
+          .filter(item => item.amount > 0.5) // Filter small amounts
+          .sort((a, b) => a.orderDate - b.orderDate)
+          .map(item => ({
+            monthLabel: item.label,
+            netDebt: item.amount,
+            fillColor: item.isOB ? '#F59E0B' : '#DC2626' // Yellow/Orange for OB, Red for others
+          }));
+
+        // Calculate Aging Percentages
+        const totalAging = dashboardMetrics.pieData.reduce((acc, curr) => acc + curr.value, 0);
+
+        return (
+          <div style={pageStyle}>
+            {/* Header Removed as requested */}
+            <div style={{ flex: 1, display: 'grid', gridTemplateRows: '1fr 1fr', gap: '32px', minHeight: 0 }}>
+              {/* Aging Analysis Chart */}
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#4b5563', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.1em', borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
+                  Aging Analysis (Debt Age)
+                </h3>
+                <div style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={dashboardMetrics.pieData}
+                      margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+                      barSize={60}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#4B5563', fontSize: 12, fontWeight: 700 }}
+                        interval={0}
+                        dy={10}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                        tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                      />
+                      <RechartsTooltip
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                        formatter={(value: number) => [value.toLocaleString('en-US'), 'Amount']}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                      />
+                      <Bar dataKey="value" radius={[8, 8, 0, 0]}>
+                        {dashboardMetrics.pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} />
+                        ))}
+                        <LabelList
+                          dataKey="value"
+                          position="top"
+                          formatter={(value: number) => value.toLocaleString('en-US')}
+                          style={{ fontSize: '12px', fontWeight: '700', fill: '#374151' }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Monthly Net Debt Chart */}
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#4b5563', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.1em', borderLeft: '4px solid #DC2626', paddingLeft: '10px' }}>
+                  Monthly Net Debt History
+                </h3>
+                <div style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyNetDebtData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis
+                        dataKey="monthLabel"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }}
+                        dy={10}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
+                        tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
+                      />
+                      <RechartsTooltip
+                        formatter={(value: number) => [value.toLocaleString('en-US'), 'Net Debt']}
+                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
+                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
+                      />
+                      <Bar dataKey="netDebt" radius={[4, 4, 0, 0]} barSize={40}>
+                        {monthlyNetDebtData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.fillColor} />
+                        ))}
+                        <LabelList
+                          dataKey="netDebt"
+                          position="top"
+                          formatter={(value: any) => {
+                            const num = Number(value);
+                            if (num <= 0) return '';
+                            if (num < 1000) return Math.round(num).toLocaleString();
+                            return Math.round(num / 1000) + 'k';
+                          }}
+                          style={{ fontSize: '11px', fontWeight: '700', fill: '#374151' }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      };
+
+      // 1. Render Page 1
       const root = ReactDOM.createRoot(container);
-      root.render(<AnalyticalReport />);
+      root.render(<AnalyticalReportPage1 />);
+      // Wait for Page 1 charts
+      await new Promise(r => setTimeout(r, 1500));
 
-      // Wait a bit for charts to be fully ready
-      await new Promise(r => setTimeout(r, 1000));
-
-      const canvas = await html2canvas(container, {
-        scale: 2, // Higher quality
+      const canvas1 = await html2canvas(container, {
+        scale: 2,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
@@ -2329,23 +2497,52 @@ ${debtSectionHtml}
         windowWidth: 1122,
         windowHeight: 793
       });
+      const imgData1 = canvas1.toDataURL('image/jpeg', 0.95);
+
+      // 2. Render Page 2
+      // Unmount first to clear
+      root.unmount();
+
+      // Re-mount (using new root, as react 18 roots can't be reused easily after unmount, but let's try just rendering new component if root implies container management)
+      // Actually createRoot on same container might warn if not unmounted. We unmounted.
+      const root2 = ReactDOM.createRoot(container);
+      root2.render(<AnalyticalReportPage2 />);
+      // Wait for Page 2 charts
+      await new Promise(r => setTimeout(r, 1500));
+
+      const canvas2 = await html2canvas(container, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 1122,
+        height: 793,
+        windowWidth: 1122,
+        windowHeight: 793
+      });
+      const imgData2 = canvas2.toDataURL('image/jpeg', 0.95);
 
       // Cleanup
-      root.unmount();
+      root2.unmount();
       document.body.removeChild(container);
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      // 3. Create PDF
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4'
       });
 
-      const imgProps = (pdf as any).getImageProperties(imgData);
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight(); // Fixed A4 height
 
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      // Add Page 1
+      pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
+      // Add Page 2
+      pdf.addPage();
+      pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
       pdf.save(`${customerName.replace(/\s+/g, '_')}_Analysis.pdf`);
     } catch (error) {
       console.error('Error generating analytical PDF:', error);
@@ -2457,13 +2654,14 @@ ${debtSectionHtml}
 
     const averageMonthlySales = netSales / monthsDuration;
 
-    // Aging Data for Pie Chart
+    // Aging Data for Chart
     const pieData = [
       { name: 'Current', value: agingData.atDate, color: '#10B981' }, // Green
       { name: '1-30 Days', value: agingData.oneToThirty, color: '#3B82F6' }, // Blue
       { name: '31-60 Days', value: agingData.thirtyOneToSixty, color: '#F59E0B' }, // Yellow
       { name: '61-90 Days', value: agingData.sixtyOneToNinety, color: '#F97316' }, // Orange
-      { name: '> 90 Days', value: agingData.ninetyOneToOneTwenty + agingData.older, color: '#EF4444' }, // Red
+      { name: '91-120 Days', value: agingData.ninetyOneToOneTwenty, color: '#EF4444' }, // Red
+      { name: 'Older', value: agingData.older, color: '#991B1B' }, // Dark Red
     ].filter(d => d.value > 0.01);
 
     // 90 Days Stats for Rating
