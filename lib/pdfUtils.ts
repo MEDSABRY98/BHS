@@ -350,7 +350,7 @@ export async function generateBulkCustomerStatementsPDF(
   for (let i = 0; i < statements.length; i++) {
     const { customerName, invoices } = statements[i];
     if (i > 0) doc.addPage();
-    const startPage = doc.internal.getNumberOfPages();
+    const startPage = doc.getNumberOfPages();
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
@@ -535,7 +535,7 @@ export async function generateBulkCustomerStatementsPDF(
     doc.setFontSize(14);
     doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
 
-    const endPage = doc.internal.getNumberOfPages();
+    const endPage = doc.getNumberOfPages();
     for (let p = startPage; p <= endPage; p++) {
       doc.setPage(p);
       doc.setFontSize(8);
@@ -571,7 +571,7 @@ export async function generateBulkSupplierStatementsPDF(
   for (let i = 0; i < statements.length; i++) {
     const { supplierName, transactions } = statements[i];
     if (i > 0) doc.addPage();
-    const startPage = doc.internal.getNumberOfPages();
+    const startPage = doc.getNumberOfPages();
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;
@@ -677,7 +677,7 @@ export async function generateBulkSupplierStatementsPDF(
     doc.text(netBalance.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
 
     // Page Numbering
-    const endPage = doc.internal.getNumberOfPages();
+    const endPage = doc.getNumberOfPages();
     for (let p = startPage; p <= endPage; p++) {
       doc.setPage(p);
       doc.setFontSize(8);
@@ -953,7 +953,7 @@ export async function generateAccountStatementPDF(
   doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
 
   // Add Page Numbers
-  const totalPages = doc.internal.getNumberOfPages();
+  const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
@@ -1393,11 +1393,6 @@ export async function generateMonthlySeparatedPDF(
     doc.text(totalNetDebt.toLocaleString('en-US'), totalBoxX + totalBoxWidth / 2, totalBoxY + 12, { align: 'center' });
 
     // Add Page Numbers relative to document but might be good to keep simple
-    const totalPages = doc.internal.getNumberOfPages();
-    doc.setPage(doc.internal.getCurrentPageInfo().pageNumber);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
     // Note: This adds page number to current page being processed in loop. 
     // Ideally page numbers are added at the end for whole doc, but here we do it per page if needed, 
     // or rely on a final pass. For simplicity, we'll skip complex page numbering logic inside the loop 
@@ -1405,7 +1400,7 @@ export async function generateMonthlySeparatedPDF(
   }
 
   // Add Global Page Numbers
-  const totalPages = doc.internal.getNumberOfPages();
+  const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     doc.setFontSize(8);
