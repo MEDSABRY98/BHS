@@ -835,7 +835,7 @@ export default function ChipsyInventoryTab() {
                 doc.line(150, currentY + 10, 190, currentY + 10);
 
                 // Page Number / Footer / Watermark
-                const endPage = doc.internal.getNumberOfPages();
+                const endPage = doc.getNumberOfPages();
                 const totalPagesForSection = endPage - startPage + 1;
 
                 for (let i = startPage; i <= endPage; i++) {
