@@ -315,7 +315,7 @@ export default function ChipsyInventoryTab() {
                         doc.addPage();
                         // Reset font/styles after new page if needed (though usually persists)
                         doc.setFont("Amiri", "normal");
-                        startPage = doc.internal.getNumberOfPages();
+                        startPage = doc.getNumberOfPages();
                     } else {
                         startPage = 1;
                     }
@@ -523,7 +523,7 @@ export default function ChipsyInventoryTab() {
                     doc.line(150, currentY + 10, 190, currentY + 10);
 
                     // Footer: Page Numbers & Label & Watermark
-                    const endPage = doc.internal.getNumberOfPages();
+                    const endPage = doc.getNumberOfPages();
                     const totalPagesForSection = endPage - startPage + 1;
 
                     for (let i = startPage; i <= endPage; i++) {
@@ -643,9 +643,9 @@ export default function ChipsyInventoryTab() {
                     } catch (e) {
                         doc.setFont("Helvetica", "normal");
                     }
-                    startPage = doc.internal.getNumberOfPages();
+                    startPage = doc.getNumberOfPages();
                 } else {
-                    startPage = doc.internal.getNumberOfPages();
+                    startPage = doc.getNumberOfPages();
                 }
 
                 const pageWidth = doc.internal.pageSize.getWidth();
