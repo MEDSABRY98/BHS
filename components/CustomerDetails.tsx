@@ -2410,7 +2410,7 @@ ${debtSectionHtml}
                       />
                       <RechartsTooltip
                         cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                        formatter={(value: number) => [value.toLocaleString('en-US'), 'Amount']}
+                        formatter={(value: any) => [value.toLocaleString('en-US'), 'Amount']}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                       />
                       <Bar dataKey="value" radius={[8, 8, 0, 0]}>
@@ -2420,7 +2420,7 @@ ${debtSectionHtml}
                         <LabelList
                           dataKey="value"
                           position="top"
-                          formatter={(value: number) => value.toLocaleString('en-US')}
+                          formatter={(value: any) => value.toLocaleString('en-US')}
                           style={{ fontSize: '12px', fontWeight: '700', fill: '#374151' }}
                         />
                       </Bar>
@@ -2452,7 +2452,7 @@ ${debtSectionHtml}
                         tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
                       />
                       <RechartsTooltip
-                        formatter={(value: number) => [value.toLocaleString('en-US'), 'Net Debt']}
+                        formatter={(value: any) => [value.toLocaleString('en-US'), 'Net Debt']}
                         cursor={{ fill: 'rgba(0,0,0,0.05)' }}
                         contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
                       />
@@ -2534,14 +2534,22 @@ ${debtSectionHtml}
       });
 
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = pdf.internal.pageSize.getHeight(); // Fixed A4 height
+
+      // Calculate height for Page 1 based on image aspect ratio
+      const imgProps1 = (pdf as any).getImageProperties(imgData1);
+      const pdfHeight1 = (imgProps1.height * pdfWidth) / imgProps1.width;
 
       // Add Page 1
-      pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+      pdf.addImage(imgData1, 'JPEG', 0, 0, pdfWidth, pdfHeight1);
 
       // Add Page 2
       pdf.addPage();
-      pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
+      // Calculate height for Page 2 based on image aspect ratio
+      const imgProps2 = (pdf as any).getImageProperties(imgData2);
+      const pdfHeight2 = (imgProps2.height * pdfWidth) / imgProps2.width;
+
+      pdf.addImage(imgData2, 'JPEG', 0, 0, pdfWidth, pdfHeight2);
 
       pdf.save(`${customerName.replace(/\s+/g, '_')}_Analysis.pdf`);
     } catch (error) {
