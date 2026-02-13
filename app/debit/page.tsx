@@ -15,7 +15,13 @@ import Login from '@/components/Login';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User } from 'lucide-react';
 
-export default function DebitPage() {
+import { Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
+
+function DebitPageContent() {
+  const searchParams = useSearchParams();
+  const initialCustomer = searchParams?.get('customer') || undefined;
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('customers');
@@ -171,7 +177,7 @@ export default function DebitPage() {
 
     switch (activeTab) {
       case 'customers':
-        return <CustomersLanding data={data} />;
+        return <CustomersLanding data={data} initialCustomer={initialCustomer} />;
       case 'all-transactions':
         return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':
@@ -262,6 +268,14 @@ export default function DebitPage() {
         </main>
       </div>
     </div>
+  );
+}
+
+export default function DebitPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-screen"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div></div>}>
+      <DebitPageContent />
+    </Suspense>
   );
 }
 

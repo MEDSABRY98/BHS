@@ -8,10 +8,13 @@ import { Users, CreditCard, TrendingUp, TrendingDown, ArrowLeft, Wallet, FileTex
 
 interface CustomersLandingProps {
     data: InvoiceRow[];
+    initialCustomer?: string;
 }
 
-export default function CustomersLanding({ data }: CustomersLandingProps) {
-    const [view, setView] = useState<'landing' | 'normal' | 'credit' | 'ob_pos' | 'ob_neg'>('landing');
+export default function CustomersLanding({ data, initialCustomer }: CustomersLandingProps) {
+    const [view, setView] = useState<'landing' | 'normal' | 'credit' | 'ob_pos' | 'ob_neg'>(
+        initialCustomer ? 'normal' : 'landing'
+    );
 
     if (view === 'landing') {
         return (
@@ -119,7 +122,7 @@ export default function CustomersLanding({ data }: CustomersLandingProps) {
             </div>
 
             <div>
-                {view === 'normal' && <CustomersTab data={data} mode="DEBIT" />}
+                {view === 'normal' && <CustomersTab data={data} mode="DEBIT" initialCustomer={initialCustomer} />}
                 {view === 'credit' && <CustomersMinsTab data={data} />}
                 {view === 'ob_pos' && <CustomersTab data={data} mode="OB_POS" />}
                 {view === 'ob_neg' && <CustomersTab data={data} mode="OB_NEG" />}

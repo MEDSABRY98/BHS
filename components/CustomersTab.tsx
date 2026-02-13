@@ -18,6 +18,7 @@ interface CustomersTabProps {
   data: InvoiceRow[];
   mode?: 'DEBIT' | 'OB_POS' | 'OB_NEG';
   onBack?: () => void;
+  initialCustomer?: string;
 }
 
 const columnHelper = createColumnHelper<CustomerAnalysis>();
@@ -684,6 +685,10 @@ const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'custome
           doc.text(`Customers Analysis Report - ${rep} (${ratingLabel}) - ${customersInRating.length} Customers - Total Debt: ${formattedDebt}`, 14, 15);
           doc.setFontSize(10);
           doc.text(`Date: ${formatDmy(new Date())}`, 14, 22);
+          doc.setFontSize(8);
+          doc.setTextColor(100);
+          doc.text('Tip: Ctrl+Click (Cmd+Click) on customer names to open in a new tab', 14, 26);
+          doc.setTextColor(0);
 
           const tableRows = customersInRating.map(customer => {
             const ratingInfo = calculateDebtRating(customer, closedCustomersSet, true);
@@ -726,6 +731,15 @@ const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'custome
                 else if (index >= 8 && index <= 11) data.cell.styles.fillColor = [234, 88, 12];
                 else if (index === 12) data.cell.styles.fillColor = [147, 51, 234];
                 else data.cell.styles.fillColor = [22, 163, 74];
+              }
+            },
+            didDrawCell: (data) => {
+              if (data.section === 'body' && data.column.index === 0 && data.row.index < customersInRating.length) {
+                const customer = customersInRating[data.row.index];
+                if (customer && customer.customerName) {
+                  const url = `${window.location.origin}/debit?customer=${encodeURIComponent(customer.customerName)}&action=download_report`;
+                  doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url });
+                }
               }
             }
           });
@@ -949,10 +963,10 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null; d
   return 'Invoice/Txn';
 };
 
-export default function CustomersTab({ data, mode = 'DEBIT', onBack }: CustomersTabProps) {
+export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCustomer }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(initialCustomer || null);
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [initialCustomerTab, setInitialCustomerTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue' | undefined>(undefined);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);

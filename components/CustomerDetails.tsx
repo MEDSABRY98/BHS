@@ -31,6 +31,7 @@ import {
 import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download } from 'lucide-react';
 import { getInvoiceType } from '@/lib/invoiceType';
+import { useSearchParams } from 'next/navigation';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -297,6 +298,10 @@ const blobToBase64 = (blob: Blob): Promise<string> =>
 export default function CustomerDetails({ customerName, invoices, onBack, initialTab = 'dashboard' }: CustomerDetailsProps) {
   const MATCHING_FILTER_ALL_OPEN = 'All Open Matchings';
   const MATCHING_FILTER_ALL_UNMATCHED = 'All Unmatched';
+  const searchParams = useSearchParams();
+  const downloadAction = searchParams?.get('action');
+  const hasDownloadedReport = useRef(false);
+
   const [activeTab, setActiveTab] = useState<'dashboard' | 'invoices' | 'ages' | 'notes' | 'overdue' | 'monthly'>(initialTab);
   const [invoiceSorting, setInvoiceSorting] = useState<SortingState>([]);
   const [overdueSorting, setOverdueSorting] = useState<SortingState>([]);
@@ -2557,6 +2562,37 @@ ${debtSectionHtml}
       alert('Failed to generate PDF. Please try again.');
     }
   };
+  const [isGeneratingAutoReport, setIsGeneratingAutoReport] = useState(!!downloadAction);
+
+  // Trigger auto-download if requested via URL
+  useEffect(() => {
+    if (downloadAction === 'download_report' && !hasDownloadedReport.current && invoices.length > 0) {
+      hasDownloadedReport.current = true;
+
+      const performAutoDownload = async () => {
+        // Wait a bit for everything to stabilize
+        await new Promise(r => setTimeout(r, 1000));
+
+        try {
+          await generateAnalyticalPDF();
+
+          // After successful download, attempt to close or go back
+          setTimeout(() => {
+            if (window.opener) {
+              window.close();
+            } else {
+              window.history.back();
+            }
+          }, 500);
+        } catch (e) {
+          console.error("Auto download failed", e);
+          setIsGeneratingAutoReport(false); // Show UI on error
+        }
+      };
+
+      performAutoDownload();
+    }
+  }, [downloadAction, invoices]);
 
   // Calculate Dashboard Metrics
   const dashboardMetrics = useMemo(() => {
@@ -2759,1582 +2795,1410 @@ ${debtSectionHtml}
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 
   return (
-    <div className="p-6">
-      {/* Payment Details Modal */}
-      {showPaymentModal && dashboardMetrics.lastPaymentInvoice && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4 border-b pb-3">
-              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <span className="text-2xl">💸</span> Payment Details
-              </h3>
-              <button
-                onClick={() => setShowPaymentModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
+    <>
+      {isGeneratingAutoReport && (
+        <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mb-4"></div>
+          <h2 className="text-2xl font-bold text-gray-800">Generating Analysis Report...</h2>
+          <p className="text-gray-500 mt-2">Please wait while we prepare your download.</p>
+        </div>
+      )}
+      <div className={`p-6 ${isGeneratingAutoReport ? 'opacity-0 h-0 overflow-hidden' : ''}`}>
+        {/* Payment Details Modal */}
+        {showPaymentModal && dashboardMetrics.lastPaymentInvoice && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowPaymentModal(false)}>
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <span className="text-2xl">💸</span> Payment Details
+                </h3>
+                <button
+                  onClick={() => setShowPaymentModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
 
-            <div className="space-y-4">
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <p className="text-sm text-gray-500 mb-1">Payment Amount</p>
-                <p className="text-3xl font-bold text-green-600">
-                  {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-1">Payment Amount</p>
+                  <p className="text-3xl font-bold text-green-600">
+                    {dashboardMetrics.lastPaymentAmount.toLocaleString('en-US')}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Date</p>
+                    <p className="font-semibold text-gray-800">
+                      {new Date(dashboardMetrics.lastPaymentInvoice.date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-gray-500 mb-1">Invoice Number</p>
+                    <p className="font-semibold text-gray-800 font-mono break-words overflow-wrap-anywhere text-sm">
+                      {dashboardMetrics.lastPaymentInvoice.number}
+                    </p>
+                  </div>
+                </div>
+
+                {dashboardMetrics.lastPaymentInvoice.matching && (
+                  <div>
+                    <p className="text-sm text-gray-500 mb-1">Matching Reference</p>
+                    <p className="font-medium text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded">
+                      {dashboardMetrics.lastPaymentInvoice.matching}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2">
+                  <button
+                    onClick={() => setShowPaymentModal(false)}
+                    className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Collection Breakdown Modal */}
+        {showCollectionModal && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowCollectionModal(false)}>
+            <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-2xl border border-gray-100 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
+              <div className="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <span className="text-2xl">📈</span> Collection Breakdown
+                </h3>
+                <button
+                  onClick={() => setShowCollectionModal(false)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
+                    <p className="text-xs text-gray-500 uppercase">Payments</p>
+                    <p className="text-lg font-bold text-gray-900">{dashboardMetrics.paymentsAmount.toLocaleString('en-US')}</p>
+                    <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.paymentsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
+                  </div>
+                  <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
+                    <p className="text-xs text-gray-500 uppercase">Returns (RSAL)</p>
+                    <p className="text-lg font-bold text-gray-900">{dashboardMetrics.returnsAmount.toLocaleString('en-US')}</p>
+                    <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.returnsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
+                  </div>
+                  <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
+                    <p className="text-xs text-gray-500 uppercase">Discounts (BIL)</p>
+                    <p className="text-lg font-bold text-gray-900">{dashboardMetrics.discountsAmount.toLocaleString('en-US')}</p>
+                    <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.discountsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="mb-6 flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onBack}
+              className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+              title="Back to Customers"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => {
+                if (isRestrictedUser) {
+                  handleDirectExport();
+                } else {
+                  setExportMode('combined');
+                  setShowExportModal(true);
+                }
+              }}
+              className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
+              title="Export"
+            >
+              <FileText className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => generateAnalyticalPDF()}
+              className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
+              title="Analytical PDF Report"
+            >
+              <BarChart3 className="w-5 h-5" />
+            </button>
+            {!isRestrictedUser && (
+              <button
+                onClick={() => {
+                  setExportMode('separated');
+                  setShowExportModal(true);
+                }}
+                className="p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
+                title="Export Monthly"
+              >
+                <Calendar className="w-5 h-5" />
+              </button>
+            )}
+            {customerEmails.length > 0 && !isRestrictedUser && (
+              <button
+                onClick={handleEmail}
+                className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
+                title="Email"
+              >
+                <Mail className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-3">
+              <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-gray-600">
+              {(() => {
+                const salesReps = new Set<string>();
+                invoices.forEach(inv => {
+                  if (inv.salesRep && inv.salesRep.trim()) {
+                    salesReps.add(inv.salesRep.trim());
+                  }
+                });
+                const salesRepsArray = Array.from(salesReps).sort();
+                return <span>{salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep'}</span>;
+              })()}
+
+
+            </div>
+          </div>
+          {currentUserName === 'Mahmoud Shaker' && (
+            <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse ml-auto">
+              ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
+            </span>
+          )}
+        </div>
+
+        {/* Export Modal */}
+        {showExportModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
+              {/* Header */}
+              <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 bg-gray-50/50">
+                <div>
+                  <h3 className="text-2xl font-bold text-gray-800">Export Options</h3>
+                  <p className="text-sm text-gray-500 mt-1">Configure and download your report</p>
+                </div>
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <span className="text-2xl leading-none">&times;</span>
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                {/* Left Panel: Configuration */}
+                <div className="w-full md:w-1/3 p-6 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/30 overflow-y-auto">
+                  <div className="space-y-8">
+
+                    {/* Export Format */}
+                    <section>
+                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-indigo-500" /> Format
+                      </h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          onClick={() => setExportFormat('pdf')}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${exportFormat === 'pdf'
+                            ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm'
+                            : 'border-transparent bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                          <FileText className="w-6 h-6 mb-2" />
+                          <span className="font-semibold text-sm">PDF</span>
+                        </button>
+                        <button
+                          onClick={() => setExportFormat('excel')}
+                          className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${exportFormat === 'excel'
+                            ? 'border-green-500 bg-green-50 text-green-700 shadow-sm'
+                            : 'border-transparent bg-white text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                          <FileSpreadsheet className="w-6 h-6 mb-2" />
+                          <span className="font-semibold text-sm">Excel</span>
+                        </button>
+                      </div>
+                    </section>
+
+                    {/* Export Scope */}
+                    <section>
+                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <ListFilter className="w-4 h-4 text-indigo-500" /> Scope
+                      </h4>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => setExportScope('custom')}
+                          className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'custom'
+                            ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
+                            : 'border-transparent bg-white hover:bg-gray-50'
+                            }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'custom' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                            {exportScope === 'custom' && <div className="w-2 h-2 rounded-full bg-white" />}
+                          </div>
+                          <div>
+                            <span className="block font-semibold text-gray-700">Custom Selection</span>
+                            <span className="text-xs text-gray-500">Choose specific months</span>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => setExportScope('view')}
+                          className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'view'
+                            ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
+                            : 'border-transparent bg-white hover:bg-gray-50'
+                            }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'view' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                            {exportScope === 'view' && <div className="w-2 h-2 rounded-full bg-white" />}
+                          </div>
+                          <div>
+                            <span className="block font-semibold text-gray-700">Current View</span>
+                            <span className="text-xs text-gray-500">Export active filters</span>
+                          </div>
+                        </button>
+
+                        <button
+                          onClick={() => setExportScope('selection')}
+                          className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'selection'
+                            ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
+                            : 'border-transparent bg-white hover:bg-gray-50'
+                            }`}
+                        >
+                          <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'selection' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
+                            {exportScope === 'selection' && <div className="w-2 h-2 rounded-full bg-white" />}
+                          </div>
+                          <div>
+                            <span className="block font-semibold text-gray-700">Current Selection</span>
+                            <span className="text-xs text-gray-500">Export selected rows</span>
+                          </div>
+                        </button>
+                      </div>
+                    </section>
+
+                    {/* Export Type (Conditional) */}
+                    {(exportScope === 'custom' || exportScope === 'view') && (
+                      <section className="animate-in slide-in-from-left-5 duration-300">
+                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                          <CheckSquare className="w-4 h-4 text-indigo-500" /> Content Type
+                        </h4>
+                        <div className="space-y-2">
+                          <button
+                            onClick={() => setPdfExportType('all')}
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${pdfExportType === 'all'
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                              : 'bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                          >
+                            <span>Full Transactions</span>
+                            {pdfExportType === 'all' && <span className="text-blue-500">●</span>}
+                          </button>
+                          <button
+                            onClick={() => setPdfExportType('net')}
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${pdfExportType === 'net'
+                              ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
+                              : 'bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                          >
+                            <span>Net Only (Unmatched)</span>
+                            {pdfExportType === 'net' && <span className="text-blue-500">●</span>}
+                          </button>
+                        </div>
+                      </section>
+                    )}
+                  </div>
+                </div>
+
+                {/* Right Panel: Selection */}
+                <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-white relative">
+                  {exportScope === 'custom' ? (
+                    <div className="space-y-8 animate-in fade-in duration-300">
+
+                      {/* Section: Select by Year */}
+                      {availableYears.length > 0 && (
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center justify-between">
+                            <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-500" /> Select by Year</span>
+                            <button
+                              onClick={toggleAllMonths}
+                              className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-3 py-1 bg-indigo-50 rounded-full hover:bg-indigo-100 transition-colors"
+                            >
+                              {selectedMonths.length === availableMonths.length ? 'Deselect All' : 'Select All Months'}
+                            </button>
+                          </h4>
+                          <div className="flex flex-wrap gap-3">
+                            {availableYears.map(year => {
+                              const monthsInYear = availableMonths.filter(m => m.endsWith(year));
+                              const isYearSelected = monthsInYear.length > 0 && monthsInYear.every(m => selectedMonths.includes(m));
+                              const isYearPartiallySelected = !isYearSelected && monthsInYear.some(m => selectedMonths.includes(m));
+
+                              return (
+                                <button
+                                  key={year}
+                                  onClick={() => toggleYearSelection(year)}
+                                  className={`group relative px-5 py-2.5 rounded-xl border transition-all duration-200 flex items-center gap-2 ${isYearSelected
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md hover:bg-indigo-700'
+                                    : isYearPartiallySelected
+                                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                                      : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                >
+                                  <span className="text-base font-bold">{year}</span>
+                                  {isYearSelected && <span className="text-white/80 text-xs ml-1">✓</span>}
+                                  {isYearPartiallySelected && <span className="text-indigo-500 text-xs ml-1">•</span>}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Section: Months Grid */}
+                      <div>
+                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Detailed Selection</h4>
+
+                        {availableMonths.length === 0 ? (
+                          <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                            No months available for selection
+                          </div>
+                        ) : (
+                          <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                            {availableMonths.map((month) => {
+                              const isSelected = selectedMonths.includes(month);
+                              return (
+                                <button
+                                  key={month}
+                                  onClick={() => toggleMonthSelection(month)}
+                                  className={`relative px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-200 flex items-center justify-between group ${isSelected
+                                    ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200 z-10'
+                                    : 'bg-white border-gray-100 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                                    }`}
+                                >
+                                  <span>{month}</span>
+                                  {isSelected && (
+                                    <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-in fade-in zoom-in-95 duration-300">
+                      <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
+                        <ListFilter className="w-10 h-10 text-indigo-500" />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-900 mb-2">Export Current View</h3>
+                      <p className="text-gray-500 max-w-sm mb-8">
+                        This will export exactly what you see on the screen, including current search results and active filters.
+                      </p>
+                      <div className="bg-gray-50 rounded-xl p-4 w-full max-w-sm border border-gray-100 text-left">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Summary</p>
+                        <div className="space-y-2 text-sm text-gray-600">
+                          <div className="flex justify-between">
+                            <span>Format:</span>
+                            <span className="font-semibold text-gray-900">{exportFormat.toUpperCase()}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Filter matches:</span>
+                            <span className="font-semibold text-gray-900">{filteredInvoices.length} invoices</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-8 py-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 z-10">
+                <button
+                  onClick={() => setShowExportModal(false)}
+                  className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 hover:text-gray-800 rounded-xl transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExport}
+                  className={`px-8 py-2.5 rounded-xl text-white font-bold shadow-lg shadow-green-200 transition-all transform active:scale-95 flex items-center gap-2 ${selectedMonths.length === 0 && exportScope === 'custom'
+                    ? 'bg-gray-300 cursor-not-allowed shadow-none'
+                    : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
+                    }`}
+                  disabled={selectedMonths.length === 0 && exportScope === 'custom'}
+                >
+                  Export {exportFormat === 'pdf' ? 'PDF' : 'Excel'}
+                  {(exportScope === 'custom' && selectedMonths.length > 0) && (
+                    <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
+                      {selectedMonths.length}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Invoice Details Modal */}
+        {selectedInvoice && (
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50"
+            onClick={() => setSelectedInvoice(null)}
+          >
+            <div
+              className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center mb-4 border-b pb-3">
+                <h3 className="text-xl font-bold text-gray-800">Invoice Number</h3>
+                <button
+                  onClick={() => setSelectedInvoice(null)}
+                  className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <div className="py-6">
+                <p className="text-lg font-bold text-gray-900 text-center break-all">
+                  {selectedInvoice.number || 'N/A'}
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Date</p>
-                  <p className="font-semibold text-gray-800">
-                    {new Date(dashboardMetrics.lastPaymentInvoice.date).toLocaleDateString('en-US', {
-                      weekday: 'short',
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric'
-                    })}
-                  </p>
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm text-gray-500 mb-1">Invoice Number</p>
-                  <p className="font-semibold text-gray-800 font-mono break-words overflow-wrap-anywhere text-sm">
-                    {dashboardMetrics.lastPaymentInvoice.number}
-                  </p>
-                </div>
-              </div>
-
-              {dashboardMetrics.lastPaymentInvoice.matching && (
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Matching Reference</p>
-                  <p className="font-medium text-blue-600 bg-blue-50 inline-block px-2 py-1 rounded">
-                    {dashboardMetrics.lastPaymentInvoice.matching}
-                  </p>
-                </div>
-              )}
-
-              <div className="pt-2">
+              <div className="mt-6 flex justify-end">
                 <button
-                  onClick={() => setShowPaymentModal(false)}
-                  className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium transition-colors"
+                  onClick={() => setSelectedInvoice(null)}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
                 >
                   Close
                 </button>
               </div>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Collection Breakdown Modal */}
-      {showCollectionModal && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50" onClick={() => setShowCollectionModal(false)}>
-          <div className="bg-white rounded-xl p-6 max-w-lg w-full shadow-2xl border border-gray-100 transform transition-all scale-100" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4 border-b pb-3">
-              <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                <span className="text-2xl">📈</span> Collection Breakdown
-              </h3>
-              <button
-                onClick={() => setShowCollectionModal(false)}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-3">
-                <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
-                  <p className="text-xs text-gray-500 uppercase">Payments</p>
-                  <p className="text-lg font-bold text-gray-900">{dashboardMetrics.paymentsAmount.toLocaleString('en-US')}</p>
-                  <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.paymentsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
-                </div>
-                <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
-                  <p className="text-xs text-gray-500 uppercase">Returns (RSAL)</p>
-                  <p className="text-lg font-bold text-gray-900">{dashboardMetrics.returnsAmount.toLocaleString('en-US')}</p>
-                  <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.returnsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
-                </div>
-                <div className="bg-white border border-gray-100 p-3 rounded-lg shadow-sm">
-                  <p className="text-xs text-gray-500 uppercase">Discounts (BIL)</p>
-                  <p className="text-lg font-bold text-gray-900">{dashboardMetrics.discountsAmount.toLocaleString('en-US')}</p>
-                  <p className="text-xs text-gray-500">Share: {dashboardMetrics.totalPaid > 0 ? ((dashboardMetrics.discountsAmount / dashboardMetrics.totalPaid) * 100).toFixed(1) : '0.0'}%</p>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="mb-6 flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="p-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-            title="Back to Customers"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => {
-              if (isRestrictedUser) {
-                handleDirectExport();
-              } else {
-                setExportMode('combined');
-                setShowExportModal(true);
-              }
-            }}
-            className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
-            title="Export"
-          >
-            <FileText className="w-5 h-5" />
-          </button>
-          <button
-            onClick={() => generateAnalyticalPDF()}
-            className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
-            title="Analytical PDF Report"
-          >
-            <BarChart3 className="w-5 h-5" />
-          </button>
-          {!isRestrictedUser && (
-            <button
-              onClick={() => {
-                setExportMode('separated');
-                setShowExportModal(true);
-              }}
-              className="p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
-              title="Export Monthly"
-            >
-              <Calendar className="w-5 h-5" />
-            </button>
-          )}
-          {customerEmails.length > 0 && !isRestrictedUser && (
-            <button
-              onClick={handleEmail}
-              className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
-              title="Email"
-            >
-              <Mail className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-        <div>
-          <div className="flex items-center gap-3">
-            <h2 className="text-2xl font-bold mb-2">{customerName}</h2>
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-gray-600">
-            {(() => {
-              const salesReps = new Set<string>();
-              invoices.forEach(inv => {
-                if (inv.salesRep && inv.salesRep.trim()) {
-                  salesReps.add(inv.salesRep.trim());
-                }
-              });
-              const salesRepsArray = Array.from(salesReps).sort();
-              return <span>{salesRepsArray.length > 0 ? salesRepsArray.join(', ') : 'No Sales Rep'}</span>;
-            })()}
-
-
-          </div>
-        </div>
-        {currentUserName === 'Mahmoud Shaker' && (
-          <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse ml-auto">
-            ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
-          </span>
         )}
-      </div>
 
-      {/* Export Modal */}
-      {showExportModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden">
-            {/* Header */}
-            <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 bg-gray-50/50">
-              <div>
-                <h3 className="text-2xl font-bold text-gray-800">Export Options</h3>
-                <p className="text-sm text-gray-500 mt-1">Configure and download your report</p>
-              </div>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-              >
-                <span className="text-2xl leading-none">&times;</span>
-              </button>
-            </div>
+        {/* Global Filters & Search */}
+        <div className="mb-6 flex flex-col gap-4">
+          <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 sticky top-0 z-20 backdrop-blur-xl bg-white/90 supports-[backdrop-filter]:bg-white/60">
 
-            <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-              {/* Left Panel: Configuration */}
-              <div className="w-full md:w-1/3 p-6 border-b md:border-b-0 md:border-r border-gray-100 bg-gray-50/30 overflow-y-auto">
-                <div className="space-y-8">
-
-                  {/* Export Format */}
-                  <section>
-                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-indigo-500" /> Format
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <button
-                        onClick={() => setExportFormat('pdf')}
-                        className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${exportFormat === 'pdf'
-                          ? 'border-indigo-500 bg-indigo-50 text-indigo-700 shadow-sm'
-                          : 'border-transparent bg-white text-gray-600 hover:bg-gray-100'
-                          }`}
-                      >
-                        <FileText className="w-6 h-6 mb-2" />
-                        <span className="font-semibold text-sm">PDF</span>
-                      </button>
-                      <button
-                        onClick={() => setExportFormat('excel')}
-                        className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all duration-200 ${exportFormat === 'excel'
-                          ? 'border-green-500 bg-green-50 text-green-700 shadow-sm'
-                          : 'border-transparent bg-white text-gray-600 hover:bg-gray-100'
-                          }`}
-                      >
-                        <FileSpreadsheet className="w-6 h-6 mb-2" />
-                        <span className="font-semibold text-sm">Excel</span>
-                      </button>
-                    </div>
-                  </section>
-
-                  {/* Export Scope */}
-                  <section>
-                    <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                      <ListFilter className="w-4 h-4 text-indigo-500" /> Scope
-                    </h4>
-                    <div className="space-y-2">
-                      <button
-                        onClick={() => setExportScope('custom')}
-                        className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'custom'
-                          ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
-                          : 'border-transparent bg-white hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'custom' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
-                          {exportScope === 'custom' && <div className="w-2 h-2 rounded-full bg-white" />}
-                        </div>
-                        <div>
-                          <span className="block font-semibold text-gray-700">Custom Selection</span>
-                          <span className="text-xs text-gray-500">Choose specific months</span>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => setExportScope('view')}
-                        className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'view'
-                          ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
-                          : 'border-transparent bg-white hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'view' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
-                          {exportScope === 'view' && <div className="w-2 h-2 rounded-full bg-white" />}
-                        </div>
-                        <div>
-                          <span className="block font-semibold text-gray-700">Current View</span>
-                          <span className="text-xs text-gray-500">Export active filters</span>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => setExportScope('selection')}
-                        className={`w-full flex items-center p-3 rounded-xl border-2 text-left transition-all duration-200 ${exportScope === 'selection'
-                          ? 'border-indigo-500 bg-white shadow-sm ring-1 ring-indigo-500'
-                          : 'border-transparent bg-white hover:bg-gray-50'
-                          }`}
-                      >
-                        <div className={`w-5 h-5 rounded-full border flex items-center justify-center mr-3 ${exportScope === 'selection' ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
-                          {exportScope === 'selection' && <div className="w-2 h-2 rounded-full bg-white" />}
-                        </div>
-                        <div>
-                          <span className="block font-semibold text-gray-700">Current Selection</span>
-                          <span className="text-xs text-gray-500">Export selected rows</span>
-                        </div>
-                      </button>
-                    </div>
-                  </section>
-
-                  {/* Export Type (Conditional) */}
-                  {(exportScope === 'custom' || exportScope === 'view') && (
-                    <section className="animate-in slide-in-from-left-5 duration-300">
-                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
-                        <CheckSquare className="w-4 h-4 text-indigo-500" /> Content Type
-                      </h4>
-                      <div className="space-y-2">
-                        <button
-                          onClick={() => setPdfExportType('all')}
-                          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${pdfExportType === 'all'
-                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                            : 'bg-white text-gray-600 hover:bg-gray-50'
-                            }`}
-                        >
-                          <span>Full Transactions</span>
-                          {pdfExportType === 'all' && <span className="text-blue-500">●</span>}
-                        </button>
-                        <button
-                          onClick={() => setPdfExportType('net')}
-                          className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all ${pdfExportType === 'net'
-                            ? 'bg-blue-50 text-blue-700 ring-1 ring-blue-200'
-                            : 'bg-white text-gray-600 hover:bg-gray-50'
-                            }`}
-                        >
-                          <span>Net Only (Unmatched)</span>
-                          {pdfExportType === 'net' && <span className="text-blue-500">●</span>}
-                        </button>
-                      </div>
-                    </section>
-                  )}
-                </div>
-              </div>
-
-              {/* Right Panel: Selection */}
-              <div className="flex-1 p-6 md:p-8 overflow-y-auto bg-white relative">
-                {exportScope === 'custom' ? (
-                  <div className="space-y-8 animate-in fade-in duration-300">
-
-                    {/* Section: Select by Year */}
-                    {availableYears.length > 0 && (
-                      <div>
-                        <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4 flex items-center justify-between">
-                          <span className="flex items-center gap-2"><Calendar className="w-4 h-4 text-indigo-500" /> Select by Year</span>
-                          <button
-                            onClick={toggleAllMonths}
-                            className="text-indigo-600 hover:text-indigo-800 text-xs font-semibold px-3 py-1 bg-indigo-50 rounded-full hover:bg-indigo-100 transition-colors"
-                          >
-                            {selectedMonths.length === availableMonths.length ? 'Deselect All' : 'Select All Months'}
-                          </button>
-                        </h4>
-                        <div className="flex flex-wrap gap-3">
-                          {availableYears.map(year => {
-                            const monthsInYear = availableMonths.filter(m => m.endsWith(year));
-                            const isYearSelected = monthsInYear.length > 0 && monthsInYear.every(m => selectedMonths.includes(m));
-                            const isYearPartiallySelected = !isYearSelected && monthsInYear.some(m => selectedMonths.includes(m));
-
-                            return (
-                              <button
-                                key={year}
-                                onClick={() => toggleYearSelection(year)}
-                                className={`group relative px-5 py-2.5 rounded-xl border transition-all duration-200 flex items-center gap-2 ${isYearSelected
-                                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-md hover:bg-indigo-700'
-                                  : isYearPartiallySelected
-                                    ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                    : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                                  }`}
-                              >
-                                <span className="text-base font-bold">{year}</span>
-                                {isYearSelected && <span className="text-white/80 text-xs ml-1">✓</span>}
-                                {isYearPartiallySelected && <span className="text-indigo-500 text-xs ml-1">•</span>}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Section: Months Grid */}
-                    <div>
-                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">Detailed Selection</h4>
-
-                      {availableMonths.length === 0 ? (
-                        <div className="text-center py-12 text-gray-400 bg-gray-50 rounded-xl border border-dashed border-gray-200">
-                          No months available for selection
-                        </div>
-                      ) : (
-                        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                          {availableMonths.map((month) => {
-                            const isSelected = selectedMonths.includes(month);
-                            return (
-                              <button
-                                key={month}
-                                onClick={() => toggleMonthSelection(month)}
-                                className={`relative px-4 py-3 rounded-lg border text-sm font-medium transition-all duration-200 flex items-center justify-between group ${isSelected
-                                  ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm ring-1 ring-blue-200 z-10'
-                                  : 'bg-white border-gray-100 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                                  }`}
-                              >
-                                <span>{month}</span>
-                                {isSelected && (
-                                  <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-
-                  </div>
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-8 animate-in fade-in zoom-in-95 duration-300">
-                    <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
-                      <ListFilter className="w-10 h-10 text-indigo-500" />
-                    </div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Export Current View</h3>
-                    <p className="text-gray-500 max-w-sm mb-8">
-                      This will export exactly what you see on the screen, including current search results and active filters.
-                    </p>
-                    <div className="bg-gray-50 rounded-xl p-4 w-full max-w-sm border border-gray-100 text-left">
-                      <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Summary</p>
-                      <div className="space-y-2 text-sm text-gray-600">
-                        <div className="flex justify-between">
-                          <span>Format:</span>
-                          <span className="font-semibold text-gray-900">{exportFormat.toUpperCase()}</span>
-                        </div>
-                        <div className="flex justify-between">
-                          <span>Filter matches:</span>
-                          <span className="font-semibold text-gray-900">{filteredInvoices.length} invoices</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Footer */}
-            <div className="px-8 py-5 border-t border-gray-100 bg-gray-50 flex justify-end gap-3 z-10">
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="px-6 py-2.5 text-gray-600 font-medium hover:bg-gray-100 hover:text-gray-800 rounded-xl transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleExport}
-                className={`px-8 py-2.5 rounded-xl text-white font-bold shadow-lg shadow-green-200 transition-all transform active:scale-95 flex items-center gap-2 ${selectedMonths.length === 0 && exportScope === 'custom'
-                  ? 'bg-gray-300 cursor-not-allowed shadow-none'
-                  : 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700'
-                  }`}
-                disabled={selectedMonths.length === 0 && exportScope === 'custom'}
-              >
-                Export {exportFormat === 'pdf' ? 'PDF' : 'Excel'}
-                {(exportScope === 'custom' && selectedMonths.length > 0) && (
-                  <span className="bg-white/20 px-2 py-0.5 rounded text-xs">
-                    {selectedMonths.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Invoice Details Modal */}
-      {selectedInvoice && (
-        <div
-          className="fixed inset-0 bg-black/20 backdrop-blur-[2px] flex items-center justify-center z-50"
-          onClick={() => setSelectedInvoice(null)}
-        >
-          <div
-            className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl border border-gray-100 transform transition-all scale-100"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center mb-4 border-b pb-3">
-              <h3 className="text-xl font-bold text-gray-800">Invoice Number</h3>
-              <button
-                onClick={() => setSelectedInvoice(null)}
-                className="text-gray-400 hover:text-gray-600 transition-colors text-2xl leading-none"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="py-6">
-              <p className="text-lg font-bold text-gray-900 text-center break-all">
-                {selectedInvoice.number || 'N/A'}
-              </p>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                onClick={() => setSelectedInvoice(null)}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Global Filters & Search */}
-      <div className="mb-6 flex flex-col gap-4">
-        <div className="bg-white p-3 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row items-center justify-center gap-6 sticky top-0 z-20 backdrop-blur-xl bg-white/90 supports-[backdrop-filter]:bg-white/60">
-
-          {/* Search Input */}
-          <div className="relative w-full md:w-96">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search..."
-              value={invoiceSearchQuery}
-              onChange={(e) => setInvoiceSearchQuery(e.target.value)}
-              className="block w-full pl-11 pr-4 py-2.5 bg-gray-50 border-transparent focus:bg-white border focus:border-blue-500 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-500/10 transition-all font-medium"
-            />
-          </div>
-
-          <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
-
-          {/* Filters Group */}
-          <div className="flex items-center gap-4 w-full md:w-auto justify-center">
-
-            {/* Month Filter */}
-            <div className="relative w-full md:w-56">
-              <button
-                type="button"
-                onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isMonthDropdownOpen || selectedMonthFilter.length > 0
-                  ? 'bg-blue-50 border-blue-200 text-blue-700 ring-2 ring-blue-100'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <Calendar className="w-4 h-4 shrink-0" />
-                  <span className="truncate">
-                    {selectedMonthFilter.length === 0
-                      ? 'All Months'
-                      : selectedMonthFilter.length === 1
-                        ? selectedMonthFilter[0]
-                        : `${selectedMonthFilter.length} Selected`}
-                  </span>
-                </div>
-                <svg className={`w-4 h-4 shrink-0 transition-transform ${isMonthDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            {/* Search Input */}
+            <div className="relative w-full md:w-96">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
                 </svg>
-              </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Search..."
+                value={invoiceSearchQuery}
+                onChange={(e) => setInvoiceSearchQuery(e.target.value)}
+                className="block w-full pl-11 pr-4 py-2.5 bg-gray-50 border-transparent focus:bg-white border focus:border-blue-500 rounded-xl text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-500/10 transition-all font-medium"
+              />
+            </div>
 
-              {isMonthDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setIsMonthDropdownOpen(false)}></div>
-                  <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
-                    <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
-                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
-                        <div className="relative flex items-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedMonthFilter.length === availableMonths.length && availableMonths.length > 0}
-                            onChange={(e) => {
-                              e.target.checked ? setSelectedMonthFilter([...availableMonths]) : setSelectedMonthFilter([]);
-                            }}
-                            className="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                        </div>
-                        <span className="text-sm font-semibold text-gray-700">Select All</span>
-                      </label>
+            <div className="h-8 w-px bg-gray-200 hidden md:block"></div>
+
+            {/* Filters Group */}
+            <div className="flex items-center gap-4 w-full md:w-auto justify-center">
+
+              {/* Month Filter */}
+              <div className="relative w-full md:w-56">
+                <button
+                  type="button"
+                  onClick={() => setIsMonthDropdownOpen(!isMonthDropdownOpen)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isMonthDropdownOpen || selectedMonthFilter.length > 0
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 ring-2 ring-blue-100'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Calendar className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {selectedMonthFilter.length === 0
+                        ? 'All Months'
+                        : selectedMonthFilter.length === 1
+                          ? selectedMonthFilter[0]
+                          : `${selectedMonthFilter.length} Selected`}
+                    </span>
+                  </div>
+                  <svg className={`w-4 h-4 shrink-0 transition-transform ${isMonthDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isMonthDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setIsMonthDropdownOpen(false)}></div>
+                    <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
+                      <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
+                        <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
+                          <div className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedMonthFilter.length === availableMonths.length && availableMonths.length > 0}
+                              onChange={(e) => {
+                                e.target.checked ? setSelectedMonthFilter([...availableMonths]) : setSelectedMonthFilter([]);
+                              }}
+                              className="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-700">Select All</span>
+                        </label>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {availableMonths.map((month) => (
+                          <label key={month} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedMonthFilter.includes(month)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedMonthFilter([...selectedMonthFilter, month]);
+                                else setSelectedMonthFilter(selectedMonthFilter.filter(m => m !== month));
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-600">{month}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                    <div className="p-2 space-y-1">
-                      {availableMonths.map((month) => (
-                        <label key={month} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                  </>
+                )}
+              </div>
+
+              {/* Matching Filter */}
+              <div className="relative w-full md:w-56">
+                <button
+                  type="button"
+                  onClick={() => setIsMatchingDropdownOpen(!isMatchingDropdownOpen)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isMatchingDropdownOpen || selectedMatchingFilter.length > 0
+                    ? 'bg-purple-50 border-purple-200 text-purple-700 ring-2 ring-purple-100'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <ListFilter className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {selectedMatchingFilter.length === 0
+                        ? 'All Matchings'
+                        : selectedMatchingFilter.length === 1
+                          ? selectedMatchingFilter[0]
+                          : `${selectedMatchingFilter.length} Selected`}
+                    </span>
+                  </div>
+                  <svg className={`w-4 h-4 shrink-0 transition-transform ${isMatchingDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isMatchingDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setIsMatchingDropdownOpen(false)}></div>
+                    <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
+                      <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
+                        <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
                           <input
                             type="checkbox"
-                            checked={selectedMonthFilter.includes(month)}
+                            checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) && availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m))}
                             onChange={(e) => {
-                              if (e.target.checked) setSelectedMonthFilter([...selectedMonthFilter, month]);
-                              else setSelectedMonthFilter(selectedMonthFilter.filter(m => m !== month));
+                              if (e.target.checked) setSelectedMatchingFilter([MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
+                              else setSelectedMatchingFilter([]);
+                            }}
+                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span className="text-sm font-semibold text-gray-700">Select All</span>
+                        </label>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors bg-purple-50/50">
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_UNMATCHED]);
+                              else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_UNMATCHED));
+                            }}
+                            className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                          />
+                          <span className="text-sm font-medium text-gray-900">All Unmatched</span>
+                        </label>
+                        <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors bg-blue-50/50">
+                          <input
+                            type="checkbox"
+                            checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN)}
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_OPEN]);
+                              else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_OPEN));
                             }}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                           />
-                          <span className="text-sm text-gray-600">{month}</span>
+                          <span className="text-sm font-medium text-gray-900">All Open Matchings</span>
                         </label>
-                      ))}
+                        <div className="h-px bg-gray-100 my-2"></div>
+                        {availableMatchingsWithResidual.map((matching) => (
+                          <label key={matching} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedMatchingFilter.includes(matching)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, matching]);
+                                else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== matching));
+                              }}
+                              className="rounded border-gray-300 text-gray-600 focus:ring-gray-500"
+                            />
+                            <span className="text-sm text-gray-600 font-mono">{matching}</span>
+                          </label>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Matching Filter */}
-            <div className="relative w-full md:w-56">
-              <button
-                type="button"
-                onClick={() => setIsMatchingDropdownOpen(!isMatchingDropdownOpen)}
-                className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isMatchingDropdownOpen || selectedMatchingFilter.length > 0
-                  ? 'bg-purple-50 border-purple-200 text-purple-700 ring-2 ring-purple-100'
-                  : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
-                  }`}
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <ListFilter className="w-4 h-4 shrink-0" />
-                  <span className="truncate">
-                    {selectedMatchingFilter.length === 0
-                      ? 'All Matchings'
-                      : selectedMatchingFilter.length === 1
-                        ? selectedMatchingFilter[0]
-                        : `${selectedMatchingFilter.length} Selected`}
-                  </span>
-                </div>
-                <svg className={`w-4 h-4 shrink-0 transition-transform ${isMatchingDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {isMatchingDropdownOpen && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setIsMatchingDropdownOpen(false)}></div>
-                  <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
-                    <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
-                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
-                        <input
-                          type="checkbox"
-                          checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN) && availableMatchingsWithResidual.every(m => selectedMatchingFilter.includes(m))}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedMatchingFilter([MATCHING_FILTER_ALL_OPEN, ...availableMatchingsWithResidual]);
-                            else setSelectedMatchingFilter([]);
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="text-sm font-semibold text-gray-700">Select All</span>
-                      </label>
-                    </div>
-                    <div className="p-2 space-y-1">
-                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors bg-purple-50/50">
-                        <input
-                          type="checkbox"
-                          checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_UNMATCHED]);
-                            else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_UNMATCHED));
-                          }}
-                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                        />
-                        <span className="text-sm font-medium text-gray-900">All Unmatched</span>
-                      </label>
-                      <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors bg-blue-50/50">
-                        <input
-                          type="checkbox"
-                          checked={selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN)}
-                          onChange={(e) => {
-                            if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, MATCHING_FILTER_ALL_OPEN]);
-                            else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== MATCHING_FILTER_ALL_OPEN));
-                          }}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-sm font-medium text-gray-900">All Open Matchings</span>
-                      </label>
-                      <div className="h-px bg-gray-100 my-2"></div>
-                      {availableMatchingsWithResidual.map((matching) => (
-                        <label key={matching} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                          <input
-                            type="checkbox"
-                            checked={selectedMatchingFilter.includes(matching)}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedMatchingFilter([...selectedMatchingFilter, matching]);
-                              else setSelectedMatchingFilter(selectedMatchingFilter.filter(m => m !== matching));
-                            }}
-                            className="rounded border-gray-300 text-gray-600 focus:ring-gray-500"
-                          />
-                          <span className="text-sm text-gray-600 font-mono">{matching}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Invoice Type Filters */}
-        <div className="flex justify-center mt-4 px-4 pb-4">
-          <div className="w-full">
-            <div className="flex flex-nowrap gap-2 justify-center items-stretch bg-white p-2 border border-gray-100 rounded-xl shadow-sm">
-              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-purple-50 rounded-lg border border-purple-100 hover:bg-purple-100 transition-all text-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showOB}
-                    onChange={(e) => setShowOB(e.target.checked)}
-                    className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-1 focus:ring-purple-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-gray-700">OB</span>
-                </div>
-                <span className="text-sm font-bold text-purple-700">
-                  {invoiceTypeTotals.ob.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </label>
-              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all text-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showSales}
-                    onChange={(e) => setShowSales(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-gray-700">المبيعات (SAL)</span>
-                </div>
-                <span className="text-sm font-bold text-blue-700">
-                  {invoiceTypeTotals.sales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </label>
-              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-orange-50 rounded-lg border border-orange-100 hover:bg-orange-100 transition-all text-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showReturns}
-                    onChange={(e) => setShowReturns(e.target.checked)}
-                    className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-1 focus:ring-orange-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-gray-700">مرتجعات (RSAL)</span>
-                </div>
-                <span className="text-sm font-bold text-orange-700">
-                  {invoiceTypeTotals.returns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </label>
-              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-green-50 rounded-lg border border-green-100 hover:bg-green-100 transition-all text-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showPayments}
-                    onChange={(e) => setShowPayments(e.target.checked)}
-                    className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-1 focus:ring-green-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-gray-700">الدفعات</span>
-                </div>
-                <span className="text-sm font-bold text-green-700">
-                  {invoiceTypeTotals.payments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </label>
-              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-yellow-50 rounded-lg border border-yellow-100 hover:bg-yellow-100 transition-all text-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showDiscounts}
-                    onChange={(e) => setShowDiscounts(e.target.checked)}
-                    className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-1 focus:ring-yellow-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-gray-700">الخصومات (BIL)</span>
-                </div>
-                <span className="text-sm font-bold text-yellow-700">
-                  {invoiceTypeTotals.discounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </label>
-              <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-indigo-50 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all text-center">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={showJV}
-                    onChange={(e) => setShowJV(e.target.checked)}
-                    className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-                  />
-                  <span className="text-sm font-bold text-gray-700">قيود (JV)</span>
-                </div>
-                <span className="text-sm font-bold text-indigo-700">
-                  {invoiceTypeTotals.jv.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </span>
-              </label>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Tabs Navigation */}_
-      {/* Tabs Navigation */}
-      <div className="mb-6 flex w-full border-b border-gray-200 bg-white shadow-sm rounded-t-xl overflow-hidden">
-        <button
-          onClick={() => setActiveTab('dashboard')}
-          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'dashboard'
-            ? 'text-purple-700 border-purple-600 bg-purple-50'
-            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-        >
-          📊 Dashboard
-        </button>
-        <button
-          onClick={() => setActiveTab('invoices')}
-          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'invoices'
-            ? 'text-blue-700 border-blue-600 bg-blue-50'
-            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-        >
-          Invoices
-        </button>
-        <button
-          onClick={() => setActiveTab('overdue')}
-          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'overdue'
-            ? 'text-blue-700 border-blue-600 bg-blue-50'
-            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-        >
-          Overdue
-        </button>
-
-        <button
-          onClick={() => setActiveTab('ages')}
-          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'ages'
-            ? 'text-blue-700 border-blue-600 bg-blue-50'
-            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-        >
-          Ages
-        </button>
-        <button
-          onClick={() => setActiveTab('monthly')}
-          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'monthly'
-            ? 'text-blue-700 border-blue-600 bg-blue-50'
-            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-        >
-          Monthly
-        </button>
-        <button
-          onClick={() => setActiveTab('notes')}
-          className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'notes'
-            ? 'text-blue-700 border-blue-600 bg-blue-50'
-            : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
-            }`}
-        >
-          Notes <span className="text-red-600">({notes.length})</span>
-        </button>
-      </div>
-
-      {/* Tab Content: Dashboard */}
-      {activeTab === 'dashboard' && (
-        <div className="space-y-6 animate-in fade-in duration-300">
-
-          {/* Section 0: Last Invoices */}
-          <div>
-            <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Last Invoices</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Last Sale Invoice */}
-              {(() => {
-                const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
-                const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
-                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                  return dateB.getTime() - dateA.getTime();
-                })[0] : null;
-
-                const latestDate = latestSale?.parsedDate;
-                const sameDaySales = latestDate ? sales.filter(inv => {
-                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                  return d?.getTime() === latestDate.getTime();
-                }) : [];
-                const totalAmount = sameDaySales.reduce((sum, inv) => sum + inv.debit, 0);
-
-                return (
-                  <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-3 opacity-20">
-                      <span className="text-5xl">🛒</span>
-                    </div>
-                    <h4 className="text-blue-700 text-xs font-bold uppercase tracking-wider mb-2">Last Sale</h4>
-                    {latestSale ? (
-                      <>
-                        <p className="text-sm font-semibold text-blue-900 mb-1">
-                          {sameDaySales.length > 1 ? `${sameDaySales.length} Invoices` : latestSale.number}
-                        </p>
-                        <p className="text-2xl font-bold text-blue-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
-                        <p className="text-xs text-blue-600">
-                          {latestDate?.toLocaleDateString('en-GB') || latestSale.date}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-blue-600 italic">No invoices</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Last Return Invoice */}
-              {(() => {
-                const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
-                const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
-                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                  return dateB.getTime() - dateA.getTime();
-                })[0] : null;
-
-                const latestDate = latestReturn?.parsedDate;
-                const sameDayReturns = latestDate ? returns.filter(inv => {
-                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                  return d?.getTime() === latestDate.getTime();
-                }) : [];
-                const totalAmount = sameDayReturns.reduce((sum, inv) => sum + inv.credit, 0);
-
-                return (
-                  <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-xl shadow-sm border border-orange-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-3 opacity-20">
-                      <span className="text-5xl">↩️</span>
-                    </div>
-                    <h4 className="text-orange-700 text-xs font-bold uppercase tracking-wider mb-2">Last Return</h4>
-                    {latestReturn ? (
-                      <>
-                        <p className="text-sm font-semibold text-orange-900 mb-1">
-                          {sameDayReturns.length > 1 ? `${sameDayReturns.length} Returns` : latestReturn.number}
-                        </p>
-                        <p className="text-2xl font-bold text-orange-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
-                        <p className="text-xs text-orange-600">
-                          {latestDate?.toLocaleDateString('en-GB') || latestReturn.date}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-orange-600 italic">No returns</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Last Payment */}
-              {(() => {
-                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
-                const latestPayment = payments.length > 0 ? [...payments].sort((a, b) => {
-                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                  return dateB.getTime() - dateA.getTime();
-                })[0] : null;
-
-                const latestDate = latestPayment?.parsedDate;
-                const sameDayPayments = latestDate ? payments.filter(inv => {
-                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                  return d?.getTime() === latestDate.getTime();
-                }) : [];
-                const totalAmount = sameDayPayments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
-
-                return (
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-xl shadow-sm border border-green-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-3 opacity-20">
-                      <span className="text-5xl">💸</span>
-                    </div>
-                    <h4 className="text-green-700 text-xs font-bold uppercase tracking-wider mb-2">Last Payment</h4>
-                    {latestPayment ? (
-                      <>
-                        <p className="text-sm font-semibold text-green-900 mb-1">
-                          {sameDayPayments.length > 1 ? `${sameDayPayments.length} Payments` : latestPayment.number}
-                        </p>
-                        <p className="text-2xl font-bold text-green-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
-                        <p className="text-xs text-green-600">
-                          {latestDate?.toLocaleDateString('en-GB') || latestPayment.date}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-green-600 italic">No payments</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Last Discount (BIL) */}
-              {(() => {
-                const discounts = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'));
-                const latestDiscount = discounts.length > 0 ? [...discounts].sort((a, b) => {
-                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                  return dateB.getTime() - dateA.getTime();
-                })[0] : null;
-
-                const latestDate = latestDiscount?.parsedDate;
-                const sameDayDiscounts = latestDate ? discounts.filter(inv => {
-                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                  return d?.getTime() === latestDate.getTime();
-                }) : [];
-                const totalAmount = sameDayDiscounts.reduce((sum, inv) => sum + (inv.credit - inv.debit), 0);
-
-                return (
-                  <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-3 opacity-20">
-                      <span className="text-5xl">🎁</span>
-                    </div>
-                    <h4 className="text-purple-700 text-xs font-bold uppercase tracking-wider mb-2">Last Discount</h4>
-                    {latestDiscount ? (
-                      <>
-                        <p className="text-sm font-semibold text-purple-900 mb-1">
-                          {sameDayDiscounts.length > 1 ? `${sameDayDiscounts.length} Discounts` : latestDiscount.number}
-                        </p>
-                        <p className="text-2xl font-bold text-purple-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
-                        <p className="text-xs text-purple-600">
-                          {latestDate?.toLocaleDateString('en-GB') || latestDiscount.date}
-                        </p>
-                      </>
-                    ) : (
-                      <p className="text-sm text-purple-600 italic">No discounts</p>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          </div>
-
-          {/* Section 1: Debit Overview */}
-          <div>
-            <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Net Debt Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">💰</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Outstanding</h3>
-                <p className={`text-3xl font-bold mt-2 ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                  {totalNetDebt.toLocaleString('en-US')}
-                </p>
-                <p className="text-sm text-gray-400 mt-1">Current Balance</p>
+                  </>
+                )}
               </div>
+            </div>
+          </div>
 
-
-              {/* Total Payments Card */}
-              {(() => {
-                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
-                const totalPayments = payments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
-
-                return (
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <span className="text-6xl">💸</span>
-                    </div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
-                    <p className="text-3xl font-bold mt-2 text-green-600">
-                      {totalPayments.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                    </p>
-                    <p className="text-sm text-gray-400 mt-1">All Time</p>
+          {/* Invoice Type Filters */}
+          <div className="flex justify-center mt-4 px-4 pb-4">
+            <div className="w-full">
+              <div className="flex flex-nowrap gap-2 justify-center items-stretch bg-white p-2 border border-gray-100 rounded-xl shadow-sm">
+                <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-purple-50 rounded-lg border border-purple-100 hover:bg-purple-100 transition-all text-center">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showOB}
+                      onChange={(e) => setShowOB(e.target.checked)}
+                      className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-1 focus:ring-purple-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-700">OB</span>
                   </div>
-                );
-              })()}
-
-              {/* Average Monthly Payment Card */}
-              {(() => {
-                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
-                const totalPayments = payments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
-
-                const paymentsByMonth = new Map<string, number>();
-                payments.forEach(inv => {
-                  if (!inv.date) return;
-                  const d = inv.parsedDate || new Date(inv.date);
-                  if (isNaN(d.getTime())) return;
-                  const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-                  paymentsByMonth.set(key, (paymentsByMonth.get(key) || 0) + getPaymentAmount(inv));
-                });
-                const avgMonthlyPayment = paymentsByMonth.size > 0
-                  ? totalPayments / paymentsByMonth.size
-                  : 0;
-
-                return (
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <span className="text-6xl">📅</span>
-                    </div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg Monthly Payment</h3>
-                    <p className="text-3xl font-bold mt-2 text-blue-600">
-                      {avgMonthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                    </p>
-                    <p className="text-sm text-gray-400 mt-1">{paymentsByMonth.size} Active Months</p>
+                  <span className="text-sm font-bold text-purple-700">
+                    {invoiceTypeTotals.ob.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </label>
+                <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-blue-50 rounded-lg border border-blue-100 hover:bg-blue-100 transition-all text-center">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showSales}
+                      onChange={(e) => setShowSales(e.target.checked)}
+                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-1 focus:ring-blue-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-700">المبيعات (SAL)</span>
                   </div>
-                );
-              })()}
+                  <span className="text-sm font-bold text-blue-700">
+                    {invoiceTypeTotals.sales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </label>
+                <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-orange-50 rounded-lg border border-orange-100 hover:bg-orange-100 transition-all text-center">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showReturns}
+                      onChange={(e) => setShowReturns(e.target.checked)}
+                      className="w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-1 focus:ring-orange-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-700">مرتجعات (RSAL)</span>
+                  </div>
+                  <span className="text-sm font-bold text-orange-700">
+                    {invoiceTypeTotals.returns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </label>
+                <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-green-50 rounded-lg border border-green-100 hover:bg-green-100 transition-all text-center">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showPayments}
+                      onChange={(e) => setShowPayments(e.target.checked)}
+                      className="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-1 focus:ring-green-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-700">الدفعات</span>
+                  </div>
+                  <span className="text-sm font-bold text-green-700">
+                    {invoiceTypeTotals.payments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </label>
+                <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-yellow-50 rounded-lg border border-yellow-100 hover:bg-yellow-100 transition-all text-center">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showDiscounts}
+                      onChange={(e) => setShowDiscounts(e.target.checked)}
+                      className="w-4 h-4 text-yellow-600 border-gray-300 rounded focus:ring-1 focus:ring-yellow-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-700">الخصومات (BIL)</span>
+                  </div>
+                  <span className="text-sm font-bold text-yellow-700">
+                    {invoiceTypeTotals.discounts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </label>
+                <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-indigo-50 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-all text-center">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={showJV}
+                      onChange={(e) => setShowJV(e.target.checked)}
+                      className="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-700">قيود (JV)</span>
+                  </div>
+                  <span className="text-sm font-bold text-indigo-700">
+                    {invoiceTypeTotals.jv.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
 
-              {/* Payment Frequency Card */}
-              {(() => {
-                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+        {/* Tabs Navigation */}_
+        {/* Tabs Navigation */}
+        <div className="mb-6 flex w-full border-b border-gray-200 bg-white shadow-sm rounded-t-xl overflow-hidden">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'dashboard'
+              ? 'text-purple-700 border-purple-600 bg-purple-50'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            📊 Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'invoices'
+              ? 'text-blue-700 border-blue-600 bg-blue-50'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            Invoices
+          </button>
+          <button
+            onClick={() => setActiveTab('overdue')}
+            className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'overdue'
+              ? 'text-blue-700 border-blue-600 bg-blue-50'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            Overdue
+          </button>
 
-                const paymentDates = payments
-                  .map(inv => inv.parsedDate || (inv.date ? new Date(inv.date) : null))
-                  .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-                  .sort((a, b) => a.getTime() - b.getTime());
+          <button
+            onClick={() => setActiveTab('ages')}
+            className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'ages'
+              ? 'text-blue-700 border-blue-600 bg-blue-50'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            Ages
+          </button>
+          <button
+            onClick={() => setActiveTab('monthly')}
+            className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'monthly'
+              ? 'text-blue-700 border-blue-600 bg-blue-50'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            Monthly
+          </button>
+          <button
+            onClick={() => setActiveTab('notes')}
+            className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'notes'
+              ? 'text-blue-700 border-blue-600 bg-blue-50'
+              : 'text-gray-500 border-transparent hover:text-gray-700 hover:bg-gray-50'
+              }`}
+          >
+            Notes <span className="text-red-600">({notes.length})</span>
+          </button>
+        </div>
 
-                let avgDaysBetweenPayments = 0;
-                if (paymentDates.length > 1) {
-                  const daysDiffs: number[] = [];
-                  for (let i = 1; i < paymentDates.length; i++) {
-                    const diff = (paymentDates[i].getTime() - paymentDates[i - 1].getTime()) / (1000 * 60 * 60 * 24);
-                    daysDiffs.push(diff);
+        {/* Tab Content: Dashboard */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+
+            {/* Section 0: Last Invoices */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Last Invoices</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Last Sale Invoice */}
+                {(() => {
+                  const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
+                  const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0] : null;
+
+                  const latestDate = latestSale?.parsedDate;
+                  const sameDaySales = latestDate ? sales.filter(inv => {
+                    const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                    return d?.getTime() === latestDate.getTime();
+                  }) : [];
+                  const totalAmount = sameDaySales.reduce((sum, inv) => sum + inv.debit, 0);
+
+                  return (
+                    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-5 rounded-xl shadow-sm border border-blue-200 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 opacity-20">
+                        <span className="text-5xl">🛒</span>
+                      </div>
+                      <h4 className="text-blue-700 text-xs font-bold uppercase tracking-wider mb-2">Last Sale</h4>
+                      {latestSale ? (
+                        <>
+                          <p className="text-sm font-semibold text-blue-900 mb-1">
+                            {sameDaySales.length > 1 ? `${sameDaySales.length} Invoices` : latestSale.number}
+                          </p>
+                          <p className="text-2xl font-bold text-blue-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
+                          <p className="text-xs text-blue-600">
+                            {latestDate?.toLocaleDateString('en-GB') || latestSale.date}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-blue-600 italic">No invoices</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Last Return Invoice */}
+                {(() => {
+                  const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
+                  const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0] : null;
+
+                  const latestDate = latestReturn?.parsedDate;
+                  const sameDayReturns = latestDate ? returns.filter(inv => {
+                    const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                    return d?.getTime() === latestDate.getTime();
+                  }) : [];
+                  const totalAmount = sameDayReturns.reduce((sum, inv) => sum + inv.credit, 0);
+
+                  return (
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-5 rounded-xl shadow-sm border border-orange-200 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 opacity-20">
+                        <span className="text-5xl">↩️</span>
+                      </div>
+                      <h4 className="text-orange-700 text-xs font-bold uppercase tracking-wider mb-2">Last Return</h4>
+                      {latestReturn ? (
+                        <>
+                          <p className="text-sm font-semibold text-orange-900 mb-1">
+                            {sameDayReturns.length > 1 ? `${sameDayReturns.length} Returns` : latestReturn.number}
+                          </p>
+                          <p className="text-2xl font-bold text-orange-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
+                          <p className="text-xs text-orange-600">
+                            {latestDate?.toLocaleDateString('en-GB') || latestReturn.date}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-orange-600 italic">No returns</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Last Payment */}
+                {(() => {
+                  const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                  const latestPayment = payments.length > 0 ? [...payments].sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0] : null;
+
+                  const latestDate = latestPayment?.parsedDate;
+                  const sameDayPayments = latestDate ? payments.filter(inv => {
+                    const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                    return d?.getTime() === latestDate.getTime();
+                  }) : [];
+                  const totalAmount = sameDayPayments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+                  return (
+                    <div className="bg-gradient-to-br from-green-50 to-green-100 p-5 rounded-xl shadow-sm border border-green-200 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 opacity-20">
+                        <span className="text-5xl">💸</span>
+                      </div>
+                      <h4 className="text-green-700 text-xs font-bold uppercase tracking-wider mb-2">Last Payment</h4>
+                      {latestPayment ? (
+                        <>
+                          <p className="text-sm font-semibold text-green-900 mb-1">
+                            {sameDayPayments.length > 1 ? `${sameDayPayments.length} Payments` : latestPayment.number}
+                          </p>
+                          <p className="text-2xl font-bold text-green-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
+                          <p className="text-xs text-green-600">
+                            {latestDate?.toLocaleDateString('en-GB') || latestPayment.date}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-green-600 italic">No payments</p>
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* Last Discount (BIL) */}
+                {(() => {
+                  const discounts = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'));
+                  const latestDiscount = discounts.length > 0 ? [...discounts].sort((a, b) => {
+                    const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                    const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                    return dateB.getTime() - dateA.getTime();
+                  })[0] : null;
+
+                  const latestDate = latestDiscount?.parsedDate;
+                  const sameDayDiscounts = latestDate ? discounts.filter(inv => {
+                    const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                    return d?.getTime() === latestDate.getTime();
+                  }) : [];
+                  const totalAmount = sameDayDiscounts.reduce((sum, inv) => sum + (inv.credit - inv.debit), 0);
+
+                  return (
+                    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-5 rounded-xl shadow-sm border border-purple-200 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-3 opacity-20">
+                        <span className="text-5xl">🎁</span>
+                      </div>
+                      <h4 className="text-purple-700 text-xs font-bold uppercase tracking-wider mb-2">Last Discount</h4>
+                      {latestDiscount ? (
+                        <>
+                          <p className="text-sm font-semibold text-purple-900 mb-1">
+                            {sameDayDiscounts.length > 1 ? `${sameDayDiscounts.length} Discounts` : latestDiscount.number}
+                          </p>
+                          <p className="text-2xl font-bold text-purple-700 mb-1">{totalAmount.toLocaleString('en-US')}</p>
+                          <p className="text-xs text-purple-600">
+                            {latestDate?.toLocaleDateString('en-GB') || latestDiscount.date}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-sm text-purple-600 italic">No discounts</p>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            {/* Section 1: Debit Overview */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                {/* Net Debt Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">💰</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Outstanding</h3>
+                  <p className={`text-3xl font-bold mt-2 ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {totalNetDebt.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-sm text-gray-400 mt-1">Current Balance</p>
+                </div>
+
+
+                {/* Total Payments Card */}
+                {(() => {
+                  const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                  const totalPayments = payments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+                  return (
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <span className="text-6xl">💸</span>
+                      </div>
+                      <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Payments</h3>
+                      <p className="text-3xl font-bold mt-2 text-green-600">
+                        {totalPayments.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1">All Time</p>
+                    </div>
+                  );
+                })()}
+
+                {/* Average Monthly Payment Card */}
+                {(() => {
+                  const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                  const totalPayments = payments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+                  const paymentsByMonth = new Map<string, number>();
+                  payments.forEach(inv => {
+                    if (!inv.date) return;
+                    const d = inv.parsedDate || new Date(inv.date);
+                    if (isNaN(d.getTime())) return;
+                    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+                    paymentsByMonth.set(key, (paymentsByMonth.get(key) || 0) + getPaymentAmount(inv));
+                  });
+                  const avgMonthlyPayment = paymentsByMonth.size > 0
+                    ? totalPayments / paymentsByMonth.size
+                    : 0;
+
+                  return (
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <span className="text-6xl">📅</span>
+                      </div>
+                      <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg Monthly Payment</h3>
+                      <p className="text-3xl font-bold mt-2 text-blue-600">
+                        {avgMonthlyPayment.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1">{paymentsByMonth.size} Active Months</p>
+                    </div>
+                  );
+                })()}
+
+                {/* Payment Frequency Card */}
+                {(() => {
+                  const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+
+                  const paymentDates = payments
+                    .map(inv => inv.parsedDate || (inv.date ? new Date(inv.date) : null))
+                    .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
+                    .sort((a, b) => a.getTime() - b.getTime());
+
+                  let avgDaysBetweenPayments = 0;
+                  if (paymentDates.length > 1) {
+                    const daysDiffs: number[] = [];
+                    for (let i = 1; i < paymentDates.length; i++) {
+                      const diff = (paymentDates[i].getTime() - paymentDates[i - 1].getTime()) / (1000 * 60 * 60 * 24);
+                      daysDiffs.push(diff);
+                    }
+                    avgDaysBetweenPayments = daysDiffs.reduce((sum, d) => sum + d, 0) / daysDiffs.length;
                   }
-                  avgDaysBetweenPayments = daysDiffs.reduce((sum, d) => sum + d, 0) / daysDiffs.length;
-                }
 
-                return (
-                  <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-4 opacity-10">
-                      <span className="text-6xl">⏱️</span>
+                  return (
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 p-4 opacity-10">
+                        <span className="text-6xl">⏱️</span>
+                      </div>
+                      <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Payment Frequency</h3>
+                      <p className="text-3xl font-bold mt-2 text-purple-600">
+                        {avgDaysBetweenPayments > 0
+                          ? Math.round(avgDaysBetweenPayments)
+                          : '-'
+                        }
+                      </p>
+                      <p className="text-sm text-gray-400 mt-1">
+                        {avgDaysBetweenPayments > 0 ? 'Days Between Payments' : 'N/A'}
+                      </p>
                     </div>
-                    <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Payment Frequency</h3>
-                    <p className="text-3xl font-bold mt-2 text-purple-600">
-                      {avgDaysBetweenPayments > 0
-                        ? Math.round(avgDaysBetweenPayments)
-                        : '-'
-                      }
-                    </p>
-                    <p className="text-sm text-gray-400 mt-1">
-                      {avgDaysBetweenPayments > 0 ? 'Days Between Payments' : 'N/A'}
-                    </p>
+                  );
+                })()}
+
+
+                {/* Collection Rate Card */}
+                <div
+                  className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden"
+                >
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">📈</span>
                   </div>
-                );
-              })()}
-
-
-              {/* Collection Rate Card */}
-              <div
-                className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden"
-              >
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">📈</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Collection Rate</h3>
-                <p className="text-3xl font-bold mt-2 text-blue-600">
-                  {dashboardMetrics.collectionRate.toFixed(1)}%
-                </p>
-                <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                  <div
-                    className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000"
-                    style={{ width: `${Math.min(dashboardMetrics.collectionRate, 100)}%` }}
-                  ></div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Collection Rate</h3>
+                  <p className="text-3xl font-bold mt-2 text-blue-600">
+                    {dashboardMetrics.collectionRate.toFixed(1)}%
+                  </p>
+                  <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                    <div
+                      className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000"
+                      style={{ width: `${Math.min(dashboardMetrics.collectionRate, 100)}%` }}
+                    ></div>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Monthly Payments Trend Chart */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Payments (Last 12 Months)</h3>
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={monthlyPaymentsTrendData}
-                    margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
-                    barCategoryGap="12%"
-                  >
-                    <defs>
-                      <linearGradient id="colorPaymentsPositive" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
-                        <stop offset="50%" stopColor="#34D399" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1} />
-                      </linearGradient>
-                      <linearGradient id="colorPaymentsNegative" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#EC4899" stopOpacity={1} />
-                        <stop offset="50%" stopColor="#F472B6" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
-                    <XAxis
-                      dataKey="monthLabel"
-                      tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#6B7280' }}
-                      tickFormatter={(value) => `${value / 1000}k`}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <RechartsTooltip
-                      formatter={(value: number) => value.toLocaleString('en-US')}
-                      labelFormatter={(label) => `Month: ${label}`}
-                      contentStyle={{
-                        borderRadius: '12px',
-                        border: 'none',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                        padding: '12px',
-                        backgroundColor: 'white'
-                      }}
-                      cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
-                    />
-                    <Bar
-                      dataKey="credit"
-                      name="Payments"
-                      radius={[10, 10, 0, 0]}
-                      barSize={58}
+              {/* Monthly Payments Trend Chart */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Payments (Last 12 Months)</h3>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={monthlyPaymentsTrendData}
+                      margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+                      barCategoryGap="12%"
                     >
-                      {monthlyPaymentsTrendData.map((entry: any, index: number) => {
-                        const isPositive = entry.credit >= 0;
-                        return (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={isPositive ? "url(#colorPaymentsPositive)" : "url(#colorPaymentsNegative)"}
-                            stroke="none"
-                          />
-                        );
-                      })}
-                      <LabelList
+                      <defs>
+                        <linearGradient id="colorPaymentsPositive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                          <stop offset="50%" stopColor="#34D399" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1} />
+                        </linearGradient>
+                        <linearGradient id="colorPaymentsNegative" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#EC4899" stopOpacity={1} />
+                          <stop offset="50%" stopColor="#F472B6" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
+                      <XAxis
+                        dataKey="monthLabel"
+                        tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12, fill: '#6B7280' }}
+                        tickFormatter={(value) => `${value / 1000}k`}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <RechartsTooltip
+                        formatter={(value: number) => value.toLocaleString('en-US')}
+                        labelFormatter={(label) => `Month: ${label}`}
+                        contentStyle={{
+                          borderRadius: '12px',
+                          border: 'none',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          padding: '12px',
+                          backgroundColor: 'white'
+                        }}
+                        cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                      />
+                      <Bar
                         dataKey="credit"
-                        position="top"
-                        formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
-                        style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
-                        offset={10}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                        name="Payments"
+                        radius={[10, 10, 0, 0]}
+                        barSize={58}
+                      >
+                        {monthlyPaymentsTrendData.map((entry: any, index: number) => {
+                          const isPositive = entry.credit >= 0;
+                          return (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={isPositive ? "url(#colorPaymentsPositive)" : "url(#colorPaymentsNegative)"}
+                              stroke="none"
+                            />
+                          );
+                        })}
+                        <LabelList
+                          dataKey="credit"
+                          position="top"
+                          formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
+                          style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
+                          offset={10}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Section 2: Sales & Performance */}
+            {/* Section 2: Sales & Performance */}
+            <div>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales & Performance</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Total Sales Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">🛒</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Sales</h3>
+                  <p className="text-2xl font-bold mt-2 text-blue-600">
+                    {dashboardMetrics.totalSalesSum.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Gross (SAL)</p>
+                </div>
+
+                {/* Total Returns Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">↩️</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Returns</h3>
+                  <p className="text-2xl font-bold mt-2 text-red-500">
+                    {dashboardMetrics.totalReturnsSum.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Returns (RSAL)</p>
+                </div>
+
+                {/* Net Sales Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">💵</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Sales</h3>
+                  <p className="text-2xl font-bold mt-2 text-indigo-600">
+                    {dashboardMetrics.netSalesSum.toLocaleString('en-US')}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Sales - Returns</p>
+                </div>
+
+                {/* Avg Monthly Sales Card */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10">
+                    <span className="text-6xl">📅</span>
+                  </div>
+                  <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg. Monthly</h3>
+                  <p className="text-2xl font-bold mt-2 text-purple-600">
+                    {dashboardMetrics.averageMonthlySales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-1">Net / Active Months</p>
+                </div>
+              </div>
+
+              {/* Monthly Sales Trend - Moved here */}
+              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4">Net Sales (Last 12 Months)</h3>
+                <div className="h-80 w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={monthlySalesTrendData}
+                      margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
+                      barCategoryGap="12%"
+                    >
+                      <defs>
+                        <linearGradient id="colorSalesPositive" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
+                          <stop offset="50%" stopColor="#34D399" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1} />
+                        </linearGradient>
+                        <linearGradient id="colorSalesNegative" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#EC4899" stopOpacity={1} />
+                          <stop offset="50%" stopColor="#F472B6" stopOpacity={1} />
+                          <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1} />
+                        </linearGradient>
+                        <linearGradient id="barGlowPositive" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#10B981" stopOpacity="0.3" />
+                          <stop offset="50%" stopColor="#34D399" stopOpacity="0.5" />
+                          <stop offset="100%" stopColor="#10B981" stopOpacity="0.3" />
+                        </linearGradient>
+                        <linearGradient id="barGlowNegative" x1="0" y1="0" x2="1" y2="0">
+                          <stop offset="0%" stopColor="#EC4899" stopOpacity="0.3" />
+                          <stop offset="50%" stopColor="#F472B6" stopOpacity="0.5" />
+                          <stop offset="100%" stopColor="#EC4899" stopOpacity="0.3" />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
+                      <XAxis
+                        dataKey="monthLabel"
+                        tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12, fill: '#6B7280' }}
+                        tickFormatter={(value) => `${value / 1000}k`}
+                        axisLine={false}
+                        tickLine={false}
+                      />
+                      <RechartsTooltip
+                        formatter={(value: number, name: string, props: any) => {
+                          // Always show the original value in tooltip
+                          const originalValue = props.payload?.originalDebit ?? value;
+                          return originalValue.toLocaleString('en-US');
+                        }}
+                        labelFormatter={(label) => `Month: ${label}`}
+                        contentStyle={{
+                          borderRadius: '12px',
+                          border: 'none',
+                          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+                          padding: '12px',
+                          backgroundColor: 'white'
+                        }}
+                        cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
+                      />
+                      <Bar
+                        dataKey="displayDebit"
+                        name="Sales"
+                        radius={[10, 10, 0, 0]}
+                        barSize={58}
+                      >
+                        {monthlySalesTrendData.map((entry: any, index: number) => {
+                          const isPositive = (entry.originalDebit ?? entry.debit ?? 0) >= 0;
+                          return (
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={isPositive ? "url(#colorSalesPositive)" : "url(#colorSalesNegative)"}
+                              stroke="none"
+                            />
+                          );
+                        })}
+                        <LabelList
+                          dataKey="originalDebit"
+                          position="top"
+                          formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
+                          style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
+                          offset={10}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+
+          </div>
+        )
+        }
+
+        {/* Tab Content: Invoices */}
+        {activeTab === 'invoices' && (
           <div>
-            <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales & Performance</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Total Sales Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">🛒</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Sales</h3>
-                <p className="text-2xl font-bold mt-2 text-blue-600">
-                  {dashboardMetrics.totalSalesSum.toLocaleString('en-US')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Gross (SAL)</p>
-              </div>
-
-              {/* Total Returns Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">↩️</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Total Returns</h3>
-                <p className="text-2xl font-bold mt-2 text-red-500">
-                  {dashboardMetrics.totalReturnsSum.toLocaleString('en-US')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Returns (RSAL)</p>
-              </div>
-
-              {/* Net Sales Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">💵</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Net Sales</h3>
-                <p className="text-2xl font-bold mt-2 text-indigo-600">
-                  {dashboardMetrics.netSalesSum.toLocaleString('en-US')}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Sales - Returns</p>
-              </div>
-
-              {/* Avg Monthly Sales Card */}
-              <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                <div className="absolute top-0 right-0 p-4 opacity-10">
-                  <span className="text-6xl">📅</span>
-                </div>
-                <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Avg. Monthly</h3>
-                <p className="text-2xl font-bold mt-2 text-purple-600">
-                  {dashboardMetrics.averageMonthlySales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">Net / Active Months</p>
-              </div>
-            </div>
-
-            {/* Monthly Sales Trend - Moved here */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">Net Sales (Last 12 Months)</h3>
-              <div className="h-80 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={monthlySalesTrendData}
-                    margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
-                    barCategoryGap="12%"
-                  >
-                    <defs>
-                      <linearGradient id="colorSalesPositive" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#10B981" stopOpacity={1} />
-                        <stop offset="50%" stopColor="#34D399" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#6EE7B7" stopOpacity={1} />
-                      </linearGradient>
-                      <linearGradient id="colorSalesNegative" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#EC4899" stopOpacity={1} />
-                        <stop offset="50%" stopColor="#F472B6" stopOpacity={1} />
-                        <stop offset="100%" stopColor="#F9A8D4" stopOpacity={1} />
-                      </linearGradient>
-                      <linearGradient id="barGlowPositive" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#10B981" stopOpacity="0.3" />
-                        <stop offset="50%" stopColor="#34D399" stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#10B981" stopOpacity="0.3" />
-                      </linearGradient>
-                      <linearGradient id="barGlowNegative" x1="0" y1="0" x2="1" y2="0">
-                        <stop offset="0%" stopColor="#EC4899" stopOpacity="0.3" />
-                        <stop offset="50%" stopColor="#F472B6" stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#EC4899" stopOpacity="0.3" />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" opacity={0.5} />
-                    <XAxis
-                      dataKey="monthLabel"
-                      tick={{ fontSize: 14, fill: '#374151', fontWeight: 700 }}
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 12, fill: '#6B7280' }}
-                      tickFormatter={(value) => `${value / 1000}k`}
-                      axisLine={false}
-                      tickLine={false}
-                    />
-                    <RechartsTooltip
-                      formatter={(value: number, name: string, props: any) => {
-                        // Always show the original value in tooltip
-                        const originalValue = props.payload?.originalDebit ?? value;
-                        return originalValue.toLocaleString('en-US');
-                      }}
-                      labelFormatter={(label) => `Month: ${label}`}
-                      contentStyle={{
-                        borderRadius: '12px',
-                        border: 'none',
-                        boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-                        padding: '12px',
-                        backgroundColor: 'white'
-                      }}
-                      cursor={{ fill: 'rgba(0, 0, 0, 0.05)' }}
-                    />
-                    <Bar
-                      dataKey="displayDebit"
-                      name="Sales"
-                      radius={[10, 10, 0, 0]}
-                      barSize={58}
-                    >
-                      {monthlySalesTrendData.map((entry: any, index: number) => {
-                        const isPositive = (entry.originalDebit ?? entry.debit ?? 0) >= 0;
-                        return (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={isPositive ? "url(#colorSalesPositive)" : "url(#colorSalesNegative)"}
-                            stroke="none"
-                          />
-                        );
-                      })}
-                      <LabelList
-                        dataKey="originalDebit"
-                        position="top"
-                        formatter={(value: any) => typeof value === 'number' ? value.toLocaleString('en-US') : String(value)}
-                        style={{ fontSize: '14px', fill: '#1F2937', fontWeight: 700 }}
-                        offset={10}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          </div>
-
-
-        </div>
-      )
-      }
-
-      {/* Tab Content: Invoices */}
-      {activeTab === 'invoices' && (
-        <div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
-                  {invoiceTable.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => {
-                        const getWidth = () => {
-                          const columnId = header.column.id;
-                          if (columnId === 'select') return '5%';
-                          if (columnId === 'date') return '13%';
-                          if (columnId === 'type') return '10%';
-                          if (columnId === 'number') return '13%';
-                          if (columnId === 'debit') return '13%';
-                          if (columnId === 'credit') return '13%';
-                          if (columnId === 'netDebt') return '13%';
-                          if (columnId === 'matching') return '13%';
-                          if (columnId === 'residual') return '9%';
-                          return '13%';
-                        };
-                        return (
-                          <th
-                            key={header.id}
-                            className="px-6 py-4 text-center text-xs font-extrabold text-gray-800 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
-                            style={{ width: getWidth() }}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            <div className="flex items-center justify-center gap-1">
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              {{
-                                asc: ' ↑',
-                                desc: ' ↓',
-                              }[header.column.getIsSorted() as string] ?? null}
-                            </div>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {invoiceTable.getRowModel().rows.map((row) => (
-                    <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
-                      {row.getVisibleCells().map((cell) => {
-                        const getWidth = () => {
-                          const columnId = cell.column.id;
-                          if (columnId === 'select') return '5%';
-                          if (columnId === 'date') return '13%';
-                          if (columnId === 'type') return '10%';
-                          if (columnId === 'number') return '13%';
-                          if (columnId === 'debit') return '13%';
-                          if (columnId === 'credit') return '13%';
-                          if (columnId === 'netDebt') return '13%';
-                          if (columnId === 'matching') return '13%';
-                          if (columnId === 'residual') return '9%';
-                          return '13%';
-                        };
-                        return (
-                          <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
-                            {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                  <tr className="bg-gray-50 border-t-2 border-gray-200">
-                    <td className="px-6 py-4" style={{ width: '5%' }}></td>
-                    <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
-                    <td className="px-6 py-4" style={{ width: '10%' }}></td>
-                    <td className="px-6 py-4" style={{ width: '13%' }}></td>
-                    <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
-                      {totalDebit.toLocaleString('en-US')}
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
-                      {totalCredit.toLocaleString('en-US')}
-                    </td>
-                    <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '13%' }}>
-                      <span className={`px-3 py-1 rounded-full ${totalNetDebt > 0 ? 'bg-red-100 text-red-700' : totalNetDebt < 0 ? 'bg-green-100 text-green-700' : 'text-gray-600'}`}>
-                        {totalNetDebt.toLocaleString('en-US')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4" style={{ width: '13%' }}></td>
-                    <td className="px-6 py-4" style={{ width: '9%' }}></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            {/* Pagination Controls */}
-            <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
-              <div className="flex justify-between flex-1 sm:hidden">
-                <button
-                  onClick={() => invoiceTable.previousPage()}
-                  disabled={!invoiceTable.getCanPreviousPage()}
-                  className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Previous
-                </button>
-                <button
-                  onClick={() => invoiceTable.nextPage()}
-                  disabled={!invoiceTable.getCanNextPage()}
-                  className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-              <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-                <div className="flex items-center gap-4">
-                  <span className="text-sm text-gray-700">
-                    Page <span className="font-medium">{invoiceTable.getState().pagination.pageIndex + 1}</span> of{' '}
-                    <span className="font-medium">{invoiceTable.getPageCount()}</span>
-                  </span>
-                  <select
-                    value={invoiceTable.getState().pagination.pageSize}
-                    onChange={e => {
-                      invoiceTable.setPageSize(Number(e.target.value))
-                    }}
-                    className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    {[50, 100, 250, 500].map(pageSize => (
-                      <option key={pageSize} value={pageSize}>
-                        Show {pageSize}
-                      </option>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                  <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
+                    {invoiceTable.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => {
+                          const getWidth = () => {
+                            const columnId = header.column.id;
+                            if (columnId === 'select') return '5%';
+                            if (columnId === 'date') return '13%';
+                            if (columnId === 'type') return '10%';
+                            if (columnId === 'number') return '13%';
+                            if (columnId === 'debit') return '13%';
+                            if (columnId === 'credit') return '13%';
+                            if (columnId === 'netDebt') return '13%';
+                            if (columnId === 'matching') return '13%';
+                            if (columnId === 'residual') return '9%';
+                            return '13%';
+                          };
+                          return (
+                            <th
+                              key={header.id}
+                              className="px-6 py-4 text-center text-xs font-extrabold text-gray-800 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                              style={{ width: getWidth() }}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                {{
+                                  asc: ' ↑',
+                                  desc: ' ↓',
+                                }[header.column.getIsSorted() as string] ?? null}
+                              </div>
+                            </th>
+                          );
+                        })}
+                      </tr>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                    <button
-                      onClick={() => invoiceTable.setPageIndex(0)}
-                      disabled={!invoiceTable.getCanPreviousPage()}
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">First</span>
-                      ⟪
-                    </button>
-                    <button
-                      onClick={() => invoiceTable.previousPage()}
-                      disabled={!invoiceTable.getCanPreviousPage()}
-                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Previous</span>
-                      ⟨
-                    </button>
-                    <button
-                      onClick={() => invoiceTable.nextPage()}
-                      disabled={!invoiceTable.getCanNextPage()}
-                      className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Next</span>
-                      ⟩
-                    </button>
-                    <button
-                      onClick={() => invoiceTable.setPageIndex(invoiceTable.getPageCount() - 1)}
-                      disabled={!invoiceTable.getCanNextPage()}
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                    >
-                      <span className="sr-only">Last</span>
-                      ⟫
-                    </button>
-                  </nav>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab Content: Overdue */}
-      {activeTab === 'overdue' && (
-        <div>
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
-                  {overdueTable.getHeaderGroups().map((headerGroup) => (
-                    <tr key={headerGroup.id}>
-                      {headerGroup.headers.map((header) => {
-                        const getWidth = () => {
-                          const columnId = header.column.id;
-                          if (columnId === 'select') return '5%';
-                          if (columnId === 'date') return '13%';
-                          if (columnId === 'type') return '10%';
-                          if (columnId === 'number') return '13%';
-                          if (columnId === 'debit') return '13%';
-                          if (columnId === 'credit') return '13%';
-                          if (columnId === 'difference') return '16%';
-                          if (columnId === 'daysOverdue') return '16%';
-                          return '13%';
-                        };
-                        return (
-                          <th
-                            key={header.id}
-                            className="px-6 py-4 text-center text-xs font-extrabold text-gray-800 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
-                            style={{ width: getWidth() }}
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
-                            <div className="flex items-center justify-center gap-1">
-                              {flexRender(header.column.columnDef.header, header.getContext())}
-                              {{
-                                asc: ' ↑',
-                                desc: ' ↓',
-                              }[header.column.getIsSorted() as string] ?? null}
-                            </div>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody className="divide-y divide-gray-100 bg-white">
-                  {overdueTable.getRowModel().rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-6 py-12 text-center text-gray-500 italic">
-                        <div className="flex flex-col items-center gap-2">
-                          <span className="text-2xl">🎉</span>
-                          <p>No overdue invoices found! </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    overdueTable.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="hover:bg-red-50/20 transition-colors group">
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {invoiceTable.getRowModel().rows.map((row) => (
+                      <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
                             const columnId = cell.column.id;
@@ -4344,8 +4208,9 @@ ${debtSectionHtml}
                             if (columnId === 'number') return '13%';
                             if (columnId === 'debit') return '13%';
                             if (columnId === 'credit') return '13%';
-                            if (columnId === 'difference') return '16%';
-                            if (columnId === 'daysOverdue') return '16%';
+                            if (columnId === 'netDebt') return '13%';
+                            if (columnId === 'matching') return '13%';
+                            if (columnId === 'residual') return '9%';
                             return '13%';
                           };
                           return (
@@ -4355,44 +4220,43 @@ ${debtSectionHtml}
                           );
                         })}
                       </tr>
-                    ))
-                  )}
-                  {overdueTable.getRowModel().rows.length > 0 && (
+                    ))}
                     <tr className="bg-gray-50 border-t-2 border-gray-200">
                       <td className="px-6 py-4" style={{ width: '5%' }}></td>
                       <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
                       <td className="px-6 py-4" style={{ width: '10%' }}></td>
                       <td className="px-6 py-4" style={{ width: '13%' }}></td>
                       <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
-                        {overdueTotalDebit.toLocaleString('en-US')}
+                        {totalDebit.toLocaleString('en-US')}
                       </td>
                       <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
-                        {overdueTotalCredit.toLocaleString('en-US')}
+                        {totalCredit.toLocaleString('en-US')}
                       </td>
-                      <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '16%' }}>
-                        <span className={`px-3 py-1 rounded-full ${overdueTotalDifference > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                          {overdueTotalDifference.toLocaleString('en-US')}
+                      <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '13%' }}>
+                        <span className={`px-3 py-1 rounded-full ${totalNetDebt > 0 ? 'bg-red-100 text-red-700' : totalNetDebt < 0 ? 'bg-green-100 text-green-700' : 'text-gray-600'}`}>
+                          {totalNetDebt.toLocaleString('en-US')}
                         </span>
                       </td>
-                      <td className="px-6 py-4" style={{ width: '16%' }}></td>
+                      <td className="px-6 py-4" style={{ width: '13%' }}></td>
+                      <td className="px-6 py-4" style={{ width: '9%' }}></td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-            {overdueTable.getRowModel().rows.length > 0 && (
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pagination Controls */}
               <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
                 <div className="flex justify-between flex-1 sm:hidden">
                   <button
-                    onClick={() => overdueTable.previousPage()}
-                    disabled={!overdueTable.getCanPreviousPage()}
+                    onClick={() => invoiceTable.previousPage()}
+                    disabled={!invoiceTable.getCanPreviousPage()}
                     className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                   >
                     Previous
                   </button>
                   <button
-                    onClick={() => overdueTable.nextPage()}
-                    disabled={!overdueTable.getCanNextPage()}
+                    onClick={() => invoiceTable.nextPage()}
+                    disabled={!invoiceTable.getCanNextPage()}
                     className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                   >
                     Next
@@ -4401,13 +4265,13 @@ ${debtSectionHtml}
                 <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                   <div className="flex items-center gap-4">
                     <span className="text-sm text-gray-700">
-                      Page <span className="font-medium">{overdueTable.getState().pagination.pageIndex + 1}</span> of{' '}
-                      <span className="font-medium">{overdueTable.getPageCount()}</span>
+                      Page <span className="font-medium">{invoiceTable.getState().pagination.pageIndex + 1}</span> of{' '}
+                      <span className="font-medium">{invoiceTable.getPageCount()}</span>
                     </span>
                     <select
-                      value={overdueTable.getState().pagination.pageSize}
+                      value={invoiceTable.getState().pagination.pageSize}
                       onChange={e => {
-                        overdueTable.setPageSize(Number(e.target.value))
+                        invoiceTable.setPageSize(Number(e.target.value))
                       }}
                       className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                     >
@@ -4421,316 +4285,497 @@ ${debtSectionHtml}
                   <div>
                     <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
                       <button
-                        onClick={() => overdueTable.setPageIndex(0)}
-                        disabled={!overdueTable.getCanPreviousPage()}
+                        onClick={() => invoiceTable.setPageIndex(0)}
+                        disabled={!invoiceTable.getCanPreviousPage()}
                         className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <span className="sr-only">First</span>
-                        «
+                        ⟪
                       </button>
                       <button
-                        onClick={() => overdueTable.previousPage()}
-                        disabled={!overdueTable.getCanPreviousPage()}
+                        onClick={() => invoiceTable.previousPage()}
+                        disabled={!invoiceTable.getCanPreviousPage()}
                         className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <span className="sr-only">Previous</span>
-                        ‹
+                        ⟨
                       </button>
                       <button
-                        onClick={() => overdueTable.nextPage()}
-                        disabled={!overdueTable.getCanNextPage()}
+                        onClick={() => invoiceTable.nextPage()}
+                        disabled={!invoiceTable.getCanNextPage()}
                         className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <span className="sr-only">Next</span>
-                        ›
+                        ⟩
                       </button>
                       <button
-                        onClick={() => overdueTable.setPageIndex(overdueTable.getPageCount() - 1)}
-                        disabled={!overdueTable.getCanNextPage()}
+                        onClick={() => invoiceTable.setPageIndex(invoiceTable.getPageCount() - 1)}
+                        disabled={!invoiceTable.getCanNextPage()}
                         className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
                       >
                         <span className="sr-only">Last</span>
-                        »
+                        ⟫
                       </button>
                     </nav>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Tab Content: Monthly Debt */}
-      {activeTab === 'monthly' && (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Month</th>
-                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Debit (Sales)</th>
-                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Credit (Paid)</th>
-                  <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Discounts (BIL)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyDebt.length === 0 ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                      No monthly data available.
-                    </td>
-                  </tr>
-                ) : (
-                  monthlyDebt.map((row, index) => (
-                    <tr key={`${row.year}-${row.month}`} className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-3 text-center text-lg font-medium">
-                        {row.month} {row.year}
-                      </td>
-                      <td className="px-4 py-3 text-center text-lg text-blue-600">
-                        {row.debit.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-3 text-center text-lg text-green-600">
-                        {row.credit.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-3 text-center text-lg text-yellow-600 font-bold">
-                        {row.discounts.toLocaleString('en-US')}
-                      </td>
-                    </tr>
-                  ))
-                )}
-                {monthlyDebt.length > 0 && (
-                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                    <td className="px-4 py-3 text-center text-lg">Total</td>
-                    <td className="px-4 py-3 text-center text-lg">
-                      {monthlyDebt.reduce((sum, r) => sum + r.debit, 0).toLocaleString('en-US')}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg">
-                      {monthlyDebt.reduce((sum, r) => sum + r.credit, 0).toLocaleString('en-US')}
-                    </td>
-                    <td className="px-4 py-3 text-center text-lg text-yellow-700">
-                      {monthlyDebt.reduce((sum, r) => sum + r.discounts, 0).toLocaleString('en-US')}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}      {/* Tab Content: Ages */}
-      {activeTab === 'ages' && (
-        <div>
-          {agingData.total <= 0 ? (
-            <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
-              <p className="text-lg">No outstanding debt to display aging information.</p>
             </div>
-          ) : (
-            <div className="bg-white rounded-lg shadow overflow-hidden">
+          </div>
+        )}
+
+        {/* Tab Content: Overdue */}
+        {activeTab === 'overdue' && (
+          <div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="overflow-x-auto">
                 <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>AT DATE</th>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>1 - 30</th>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>31 - 60</th>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>61 - 90</th>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>91 - 120</th>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>OLDER</th>
-                      <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '16%' }}>TOTAL</th>
-                    </tr>
+                  <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
+                    {overdueTable.getHeaderGroups().map((headerGroup) => (
+                      <tr key={headerGroup.id}>
+                        {headerGroup.headers.map((header) => {
+                          const getWidth = () => {
+                            const columnId = header.column.id;
+                            if (columnId === 'select') return '5%';
+                            if (columnId === 'date') return '13%';
+                            if (columnId === 'type') return '10%';
+                            if (columnId === 'number') return '13%';
+                            if (columnId === 'debit') return '13%';
+                            if (columnId === 'credit') return '13%';
+                            if (columnId === 'difference') return '16%';
+                            if (columnId === 'daysOverdue') return '16%';
+                            return '13%';
+                          };
+                          return (
+                            <th
+                              key={header.id}
+                              className="px-6 py-4 text-center text-xs font-extrabold text-gray-800 uppercase tracking-wider cursor-pointer hover:bg-gray-200 transition-colors"
+                              style={{ width: getWidth() }}
+                              onClick={header.column.getToggleSortingHandler()}
+                            >
+                              <div className="flex items-center justify-center gap-1">
+                                {flexRender(header.column.columnDef.header, header.getContext())}
+                                {{
+                                  asc: ' ↑',
+                                  desc: ' ↓',
+                                }[header.column.getIsSorted() as string] ?? null}
+                              </div>
+                            </th>
+                          );
+                        })}
+                      </tr>
+                    ))}
                   </thead>
-                  <tbody>
-                    <tr className="border-b hover:bg-gray-50">
-                      <td className="px-4 py-4 text-center text-lg text-green-600 font-semibold">
-                        {agingData.atDate.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-4 text-center text-lg">
-                        {agingData.oneToThirty.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-4 text-center text-lg">
-                        {agingData.thirtyOneToSixty.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-4 text-center text-lg">
-                        {agingData.sixtyOneToNinety.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-4 text-center text-lg">
-                        {agingData.ninetyOneToOneTwenty.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-4 text-center text-lg text-red-600 font-semibold">
-                        {agingData.older.toLocaleString('en-US')}
-                      </td>
-                      <td className="px-4 py-4 text-center text-lg font-bold bg-gray-50">
-                        {agingData.total.toLocaleString('en-US')}
-                      </td>
-                    </tr>
+                  <tbody className="divide-y divide-gray-100 bg-white">
+                    {overdueTable.getRowModel().rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500 italic">
+                          <div className="flex flex-col items-center gap-2">
+                            <span className="text-2xl">🎉</span>
+                            <p>No overdue invoices found! </p>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      overdueTable.getRowModel().rows.map((row) => (
+                        <tr key={row.id} className="hover:bg-red-50/20 transition-colors group">
+                          {row.getVisibleCells().map((cell) => {
+                            const getWidth = () => {
+                              const columnId = cell.column.id;
+                              if (columnId === 'select') return '5%';
+                              if (columnId === 'date') return '13%';
+                              if (columnId === 'type') return '10%';
+                              if (columnId === 'number') return '13%';
+                              if (columnId === 'debit') return '13%';
+                              if (columnId === 'credit') return '13%';
+                              if (columnId === 'difference') return '16%';
+                              if (columnId === 'daysOverdue') return '16%';
+                              return '13%';
+                            };
+                            return (
+                              <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    )}
+                    {overdueTable.getRowModel().rows.length > 0 && (
+                      <tr className="bg-gray-50 border-t-2 border-gray-200">
+                        <td className="px-6 py-4" style={{ width: '5%' }}></td>
+                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
+                        <td className="px-6 py-4" style={{ width: '10%' }}></td>
+                        <td className="px-6 py-4" style={{ width: '13%' }}></td>
+                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
+                          {overdueTotalDebit.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
+                          {overdueTotalCredit.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '16%' }}>
+                          <span className={`px-3 py-1 rounded-full ${overdueTotalDifference > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                            {overdueTotalDifference.toLocaleString('en-US')}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4" style={{ width: '16%' }}></td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Tab Content: Notes */}
-      {activeTab === 'notes' && (
-        <div className="max-w-4xl mx-auto">
-          <div className="mb-6 bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-bold mb-4">Add New Note</h3>
-            <div className="flex gap-4">
-              <textarea
-                ref={newNoteRef}
-                value={newNote}
-                onChange={(e) => {
-                  setNewNote(e.target.value);
-                  autoResizeTextarea(e.currentTarget);
-                }}
-                placeholder="Type your note here..."
-                className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-24 max-h-[360px]"
-              />
-              <button
-                onClick={handleAddNote}
-                disabled={!newNote.trim()}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
-              >
-                Add Note
-              </button>
-            </div>
-          </div>
-
-          {loadingNotes ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {notes.length === 0 ? (
-                <p className="text-center text-gray-500 py-8">No notes found for this customer.</p>
-              ) : (
-                notes.map((note, index) => {
-                  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
-                  // Robust comparison: check if names exist and match (ignoring case/whitespace)
-                  // Permission Check: ONLY "MED Sabry" can edit/delete/mark solved
-                  const canManageNotes = currentUser?.name?.trim().toLowerCase() === 'med sabry';
-
-                  return (
-                    <div key={index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-gray-900">{note.user}</span>
-                            <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">User</span>
-                          </div>
-                          {note.timestamp && (
-                            <span className="text-sm text-gray-500">
-                              {new Date(note.timestamp).toLocaleString('en-US', {
-                                dateStyle: 'medium',
-                                timeStyle: 'short'
-                              })}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4">
-                          {/* Solved Status */}
-                          {note.isSolved ? (
-                            <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded text-sm font-medium border border-green-200">
-                              ✓ Solved
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 text-yellow-600 bg-yellow-50 px-2 py-1 rounded text-sm font-medium border border-yellow-200">
-                              ⏳ Pending
-                            </span>
-                          )}
-
-                          {canManageNotes && editingNoteId !== note.rowIndex && (
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  setEditingNoteId(note.rowIndex);
-                                  setEditingNoteContent(note.content);
-                                }}
-                                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={() => handleDeleteNote(note.rowIndex)}
-                                className="text-red-600 hover:text-red-800 text-sm font-medium"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {editingNoteId === note.rowIndex ? (
-                        <div className="mt-2">
-                          <textarea
-                            ref={editNoteRef}
-                            value={editingNoteContent}
-                            onChange={(e) => {
-                              setEditingNoteContent(e.target.value);
-                              autoResizeTextarea(e.currentTarget);
-                            }}
-                            className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-24 max-h-[360px] mb-2"
-                          />
-                          <div className="flex justify-between items-center">
-                            <label className="flex items-center gap-2 cursor-pointer text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded transition-colors border border-gray-200">
-                              <input
-                                type="checkbox"
-                                checked={note.isSolved || false}
-                                onChange={(e) => handleUpdateNote(note.rowIndex, editingNoteContent, e.target.checked)}
-                                className="w-4 h-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-                              />
-                              <span className="font-medium">Mark as Solved</span>
-                            </label>
-
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => {
-                                  setEditingNoteId(null);
-                                  setEditingNoteContent('');
-                                  requestAnimationFrame(() => autoResizeTextarea(editNoteRef.current));
-                                }}
-                                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                onClick={() => handleUpdateNote(note.rowIndex, editingNoteContent, note.isSolved)}
-                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-                              >
-                                Save Changes
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex justify-between items-start gap-4">
-                          <div className="text-gray-700 whitespace-pre-wrap text-lg flex-1">
-                            {renderNoteWithLinks(note.content)}
-                          </div>
-                          {/* Quick Toggle for Solved Status (even if not editing content) */}
-                          {canManageNotes && (
-                            <label className="flex items-center gap-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" title="Toggle Status">
-                              <input
-                                type="checkbox"
-                                checked={note.isSolved || false}
-                                onChange={(e) => handleUpdateNote(note.rowIndex, note.content, e.target.checked)}
-                                className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-                              />
-                            </label>
-                          )}
-                        </div>
-                      )}
+              {overdueTable.getRowModel().rows.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
+                  <div className="flex justify-between flex-1 sm:hidden">
+                    <button
+                      onClick={() => overdueTable.previousPage()}
+                      disabled={!overdueTable.getCanPreviousPage()}
+                      className="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      onClick={() => overdueTable.nextPage()}
+                      disabled={!overdueTable.getCanNextPage()}
+                      className="relative ml-3 inline-flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                    >
+                      Next
+                    </button>
+                  </div>
+                  <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-gray-700">
+                        Page <span className="font-medium">{overdueTable.getState().pagination.pageIndex + 1}</span> of{' '}
+                        <span className="font-medium">{overdueTable.getPageCount()}</span>
+                      </span>
+                      <select
+                        value={overdueTable.getState().pagination.pageSize}
+                        onChange={e => {
+                          overdueTable.setPageSize(Number(e.target.value))
+                        }}
+                        className="block w-full py-2 px-3 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      >
+                        {[50, 100, 250, 500].map(pageSize => (
+                          <option key={pageSize} value={pageSize}>
+                            Show {pageSize}
+                          </option>
+                        ))}
+                      </select>
                     </div>
-                  );
-                })
+                    <div>
+                      <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        <button
+                          onClick={() => overdueTable.setPageIndex(0)}
+                          disabled={!overdueTable.getCanPreviousPage()}
+                          className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <span className="sr-only">First</span>
+                          «
+                        </button>
+                        <button
+                          onClick={() => overdueTable.previousPage()}
+                          disabled={!overdueTable.getCanPreviousPage()}
+                          className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <span className="sr-only">Previous</span>
+                          ‹
+                        </button>
+                        <button
+                          onClick={() => overdueTable.nextPage()}
+                          disabled={!overdueTable.getCanNextPage()}
+                          className="relative inline-flex items-center px-2 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <span className="sr-only">Next</span>
+                          ›
+                        </button>
+                        <button
+                          onClick={() => overdueTable.setPageIndex(overdueTable.getPageCount() - 1)}
+                          disabled={!overdueTable.getCanNextPage()}
+                          className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+                        >
+                          <span className="sr-only">Last</span>
+                          »
+                        </button>
+                      </nav>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
-          )}
-        </div>
-      )}
-    </div>
+          </div>
+        )}
+
+        {/* Tab Content: Monthly Debt */}
+        {activeTab === 'monthly' && (
+          <div className="bg-white rounded-lg shadow overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Month</th>
+                    <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Debit (Sales)</th>
+                    <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Credit (Paid)</th>
+                    <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Discounts (BIL)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyDebt.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
+                        No monthly data available.
+                      </td>
+                    </tr>
+                  ) : (
+                    monthlyDebt.map((row, index) => (
+                      <tr key={`${row.year}-${row.month}`} className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-3 text-center text-lg font-medium">
+                          {row.month} {row.year}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg text-blue-600">
+                          {row.debit.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg text-green-600">
+                          {row.credit.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-3 text-center text-lg text-yellow-600 font-bold">
+                          {row.discounts.toLocaleString('en-US')}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                  {monthlyDebt.length > 0 && (
+                    <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                      <td className="px-4 py-3 text-center text-lg">Total</td>
+                      <td className="px-4 py-3 text-center text-lg">
+                        {monthlyDebt.reduce((sum, r) => sum + r.debit, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg">
+                        {monthlyDebt.reduce((sum, r) => sum + r.credit, 0).toLocaleString('en-US')}
+                      </td>
+                      <td className="px-4 py-3 text-center text-lg text-yellow-700">
+                        {monthlyDebt.reduce((sum, r) => sum + r.discounts, 0).toLocaleString('en-US')}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}      {/* Tab Content: Ages */}
+        {activeTab === 'ages' && (
+          <div>
+            {agingData.total <= 0 ? (
+              <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
+                <p className="text-lg">No outstanding debt to display aging information.</p>
+              </div>
+            ) : (
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>AT DATE</th>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>1 - 30</th>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>31 - 60</th>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>61 - 90</th>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>91 - 120</th>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '14%' }}>OLDER</th>
+                        <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '16%' }}>TOTAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="border-b hover:bg-gray-50">
+                        <td className="px-4 py-4 text-center text-lg text-green-600 font-semibold">
+                          {agingData.atDate.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-4 text-center text-lg">
+                          {agingData.oneToThirty.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-4 text-center text-lg">
+                          {agingData.thirtyOneToSixty.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-4 text-center text-lg">
+                          {agingData.sixtyOneToNinety.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-4 text-center text-lg">
+                          {agingData.ninetyOneToOneTwenty.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-4 text-center text-lg text-red-600 font-semibold">
+                          {agingData.older.toLocaleString('en-US')}
+                        </td>
+                        <td className="px-4 py-4 text-center text-lg font-bold bg-gray-50">
+                          {agingData.total.toLocaleString('en-US')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Tab Content: Notes */}
+        {activeTab === 'notes' && (
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6 bg-white p-6 rounded-lg shadow">
+              <h3 className="text-lg font-bold mb-4">Add New Note</h3>
+              <div className="flex gap-4">
+                <textarea
+                  ref={newNoteRef}
+                  value={newNote}
+                  onChange={(e) => {
+                    setNewNote(e.target.value);
+                    autoResizeTextarea(e.currentTarget);
+                  }}
+                  placeholder="Type your note here..."
+                  className="flex-1 p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-24 max-h-[360px]"
+                />
+                <button
+                  onClick={handleAddNote}
+                  disabled={!newNote.trim()}
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-end"
+                >
+                  Add Note
+                </button>
+              </div>
+            </div>
+
+            {loadingNotes ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {notes.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">No notes found for this customer.</p>
+                ) : (
+                  notes.map((note, index) => {
+                    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+                    // Robust comparison: check if names exist and match (ignoring case/whitespace)
+                    // Permission Check: ONLY "MED Sabry" can edit/delete/mark solved
+                    const canManageNotes = currentUser?.name?.trim().toLowerCase() === 'med sabry';
+
+                    return (
+                      <div key={index} className="bg-white p-6 rounded-lg shadow hover:shadow-md transition-shadow">
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-gray-900">{note.user}</span>
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded-full">User</span>
+                            </div>
+                            {note.timestamp && (
+                              <span className="text-sm text-gray-500">
+                                {new Date(note.timestamp).toLocaleString('en-US', {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short'
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-4">
+                            {/* Solved Status */}
+                            {note.isSolved ? (
+                              <span className="flex items-center gap-1 text-green-600 bg-green-50 px-2 py-1 rounded text-sm font-medium border border-green-200">
+                                ✓ Solved
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1 text-yellow-600 bg-yellow-50 px-2 py-1 rounded text-sm font-medium border border-yellow-200">
+                                ⏳ Pending
+                              </span>
+                            )}
+
+                            {canManageNotes && editingNoteId !== note.rowIndex && (
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingNoteId(note.rowIndex);
+                                    setEditingNoteContent(note.content);
+                                  }}
+                                  className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteNote(note.rowIndex)}
+                                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {editingNoteId === note.rowIndex ? (
+                          <div className="mt-2">
+                            <textarea
+                              ref={editNoteRef}
+                              value={editingNoteContent}
+                              onChange={(e) => {
+                                setEditingNoteContent(e.target.value);
+                                autoResizeTextarea(e.currentTarget);
+                              }}
+                              className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-y min-h-24 max-h-[360px] mb-2"
+                            />
+                            <div className="flex justify-between items-center">
+                              <label className="flex items-center gap-2 cursor-pointer text-gray-700 hover:bg-gray-50 px-3 py-1.5 rounded transition-colors border border-gray-200">
+                                <input
+                                  type="checkbox"
+                                  checked={note.isSolved || false}
+                                  onChange={(e) => handleUpdateNote(note.rowIndex, editingNoteContent, e.target.checked)}
+                                  className="w-4 h-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                                />
+                                <span className="font-medium">Mark as Solved</span>
+                              </label>
+
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    setEditingNoteId(null);
+                                    setEditingNoteContent('');
+                                    requestAnimationFrame(() => autoResizeTextarea(editNoteRef.current));
+                                  }}
+                                  className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg text-sm"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => handleUpdateNote(note.rowIndex, editingNoteContent, note.isSolved)}
+                                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                                >
+                                  Save Changes
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-start gap-4">
+                            <div className="text-gray-700 whitespace-pre-wrap text-lg flex-1">
+                              {renderNoteWithLinks(note.content)}
+                            </div>
+                            {/* Quick Toggle for Solved Status (even if not editing content) */}
+                            {canManageNotes && (
+                              <label className="flex items-center gap-2 cursor-pointer opacity-50 hover:opacity-100 transition-opacity" title="Toggle Status">
+                                <input
+                                  type="checkbox"
+                                  checked={note.isSolved || false}
+                                  onChange={(e) => handleUpdateNote(note.rowIndex, note.content, e.target.checked)}
+                                  className="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                                />
+                              </label>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }
