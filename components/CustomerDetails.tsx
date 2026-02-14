@@ -2393,7 +2393,7 @@ ${debtSectionHtml}
                         cornerRadius={6}
                         isAnimationActive={false}
                         labelLine={false}
-                        label={({ cx, cy, midAngle, innerRadius, outerRadius, value, fill, percent, name }) => {
+                        label={({ cx, cy, midAngle = 0, innerRadius, outerRadius, value, fill, percent = 0, name }) => {
                           const RADIAN = Math.PI / 180;
                           const radius = outerRadius + 35;
                           const x = cx + radius * Math.cos(-midAngle * RADIAN);
