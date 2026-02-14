@@ -18,7 +18,7 @@ export default function CustomersLanding({ data, initialCustomer }: CustomersLan
 
     if (view === 'landing') {
         return (
-            <div className="p-6 md:p-10 min-h-[600px] flex flex-col items-center justify-center bg-gradient-to-br from-slate-50 to-white">
+            <div className="p-6 md:p-10 min-h-[600px] flex flex-col items-center justify-center bg-white">
                 <div className="text-center mb-12">
                     <h2 className="text-4xl font-black text-slate-800 mb-4 tracking-tight">Customer Analysis Hub</h2>
 
@@ -28,7 +28,7 @@ export default function CustomersLanding({ data, initialCustomer }: CustomersLan
                     {/* Tile 1: Normal Customers (Debit) */}
                     <button
                         onClick={() => setView('normal')}
-                        className="group relative p-8 bg-white rounded-3xl border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-blue-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
+                        className="group relative p-8 bg-white rounded-xl border border-slate-200 shadow-xl hover:shadow-2xl hover:border-blue-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
                     >
                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
                             <Users className="w-40 h-40 text-blue-600" />
@@ -45,7 +45,7 @@ export default function CustomersLanding({ data, initialCustomer }: CustomersLan
                     {/* Tile 2: Credit Balances */}
                     <button
                         onClick={() => setView('credit')}
-                        className="group relative p-8 bg-white rounded-3xl border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-emerald-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
+                        className="group relative p-8 bg-white rounded-xl border border-slate-200 shadow-xl hover:shadow-2xl hover:border-emerald-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
                     >
                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
                             <Wallet className="w-40 h-40 text-emerald-600" />
@@ -62,7 +62,7 @@ export default function CustomersLanding({ data, initialCustomer }: CustomersLan
                     {/* Tile 3: Open OB (Positive) */}
                     <button
                         onClick={() => setView('ob_pos')}
-                        className="group relative p-8 bg-white rounded-3xl border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-amber-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
+                        className="group relative p-8 bg-white rounded-xl border border-slate-200 shadow-xl hover:shadow-2xl hover:border-amber-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
                     >
                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
                             <TrendingUp className="w-40 h-40 text-amber-600" />
@@ -79,7 +79,7 @@ export default function CustomersLanding({ data, initialCustomer }: CustomersLan
                     {/* Tile 4: Open OB (Negative) */}
                     <button
                         onClick={() => setView('ob_neg')}
-                        className="group relative p-8 bg-white rounded-3xl border-2 border-slate-100 shadow-xl hover:shadow-2xl hover:border-purple-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
+                        className="group relative p-8 bg-white rounded-xl border border-slate-200 shadow-xl hover:shadow-2xl hover:border-purple-200 transition-all duration-300 text-left overflow-hidden hover:-translate-y-1"
                     >
                         <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity transform group-hover:scale-110 duration-500">
                             <TrendingDown className="w-40 h-40 text-purple-600" />
@@ -100,9 +100,9 @@ export default function CustomersLanding({ data, initialCustomer }: CustomersLan
     const handleBack = () => setView('landing');
 
     return (
-        <div className="relative min-h-screen bg-slate-50">
+        <div className="relative min-h-screen bg-white">
             {/* Sticky Sub-Header for Back Navigation */}
-            <div className="sticky top-0 z-30 bg-slate-50/95 backdrop-blur-sm px-4 py-1 flex items-center gap-4 transition-all">
+            <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm px-4 py-1 flex items-center gap-4 transition-all">
                 <button
                     onClick={handleBack}
                     className="group flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold px-3 py-1.5 rounded-xl hover:bg-blue-50 transition-all border border-transparent hover:border-blue-100"

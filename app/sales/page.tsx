@@ -321,18 +321,32 @@ export default function SalesPage() {
               ref={tabsRef}
               className="grid grid-cols-4 md:grid-cols-8 gap-2 w-fit h-[42px] overflow-y-auto no-scrollbar scroll-smooth"
             >
-              {allTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`w-36 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap text-center ${activeTab === tab.id
-                    ? 'bg-green-600 text-white shadow-md shadow-green-200'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                    }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+              {allTabs.map((tab) => {
+                // Check for dynamic JSON permission structure
+                try {
+                  const perms = JSON.parse(currentUser?.role || '{}');
+                  if (perms.sales && currentUser?.name !== 'MED Sabry') {
+                    if (!perms.sales.includes(tab.id)) {
+                      return null;
+                    }
+                  }
+                } catch (e) {
+                  // Default to full access
+                }
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`w-36 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap text-center ${activeTab === tab.id
+                      ? 'bg-green-600 text-white shadow-md shadow-green-200'
+                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                      }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex flex-col gap-1 shrink-0">

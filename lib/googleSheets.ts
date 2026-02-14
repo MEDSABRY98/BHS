@@ -3137,3 +3137,39 @@ export async function getSpiData(): Promise<SpiEntry[]> {
     return [];
   }
 }
+
+export async function updateUserRole(name: string, newRole: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Users!A:A`,
+    });
+
+    const names = response.data.values;
+    if (!names) return { success: false, error: 'Users sheet not found' };
+
+    const rowIndex = names.findIndex(row => row[0]?.toString().trim() === name.trim());
+    if (rowIndex === -1) return { success: false, error: 'User not found' };
+
+    const sheetRow = rowIndex + 1;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Users!B${sheetRow}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [[newRole]] },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    throw error;
+  }
+}

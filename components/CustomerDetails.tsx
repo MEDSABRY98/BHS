@@ -349,9 +349,6 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
 
-  // Users with restricted access
-  const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-  const isRestrictedUser = restrictedUsers.includes(currentUserName);
   const [customerEmails, setCustomerEmails] = useState<string[]>([]);
   const [emailCustomers, setEmailCustomers] = useState<string[]>([]);
 
@@ -1357,10 +1354,20 @@ ${debtSectionHtml}
     });
   }, [last12MonthsBase]);
 
-  // Prepare aging data
   const agingData = useMemo<AgingSummary>(() => {
-    // 1. Use overdue invoices directly (already filtered to be open/unmatched/residual)
-    const openInvoices = filteredOverdueInvoices;
+    // 1. Use bills with net debt directly
+    const openInvoices = buildInvoicesWithNetDebt(invoices);
+
+    // Condensed open invoices logic - matches "Net Only" export logic
+    const condensedOpen = openInvoices.filter(inv => {
+      if (!inv.matching) return (inv.debit - inv.credit) > 0.01;
+      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+    }).map(inv => {
+      if (inv.matching && inv.residual !== undefined) {
+        return { ...inv, netDebt: inv.residual };
+      }
+      return { ...inv, netDebt: inv.debit - inv.credit };
+    });
 
     const summary: AgingSummary = {
       atDate: 0,
@@ -1372,35 +1379,22 @@ ${debtSectionHtml}
       total: 0
     };
 
-    openInvoices.forEach(inv => {
-      let amount = inv.netDebt;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
 
-      if (inv.matching && inv.residual !== undefined) {
-        // It's a condensed open invoice, use residual as amount
-        amount = inv.residual;
-      }
+    condensedOpen.forEach(inv => {
+      const amount = inv.netDebt;
+      if (amount <= 0.01) return;
 
-      // Calculate days overdue
+      let targetDate = parseInvoiceDate(inv.date);
       let daysOverdue = 0;
-      // Try Due Date first
-      let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
-
-      // If Due Date is invalid, fallback to Invoice Date
-      if (!targetDate || isNaN(targetDate.getTime())) {
-        if (inv.date) {
-          targetDate = new Date(inv.date);
-        }
-      }
 
       if (targetDate && !isNaN(targetDate.getTime())) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
         targetDate.setHours(0, 0, 0, 0);
         const diffTime = today.getTime() - targetDate.getTime();
         daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
 
-      // Add to appropriate bucket
       if (daysOverdue <= 0) {
         summary.atDate += amount;
       } else if (daysOverdue <= 30) {
@@ -1419,7 +1413,7 @@ ${debtSectionHtml}
     });
 
     return summary;
-  }, [filteredInvoices]);
+  }, [invoices]);
 
 
   // Invoice columns - Order: CHECKBOX, DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
@@ -2879,12 +2873,8 @@ ${debtSectionHtml}
             </button>
             <button
               onClick={() => {
-                if (isRestrictedUser) {
-                  handleDirectExport();
-                } else {
-                  setExportMode('combined');
-                  setShowExportModal(true);
-                }
+                setExportMode('combined');
+                setShowExportModal(true);
               }}
               className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
               title="Export"
@@ -2898,19 +2888,17 @@ ${debtSectionHtml}
             >
               <BarChart3 className="w-5 h-5" />
             </button>
-            {!isRestrictedUser && (
-              <button
-                onClick={() => {
-                  setExportMode('separated');
-                  setShowExportModal(true);
-                }}
-                className="p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
-                title="Export Monthly"
-              >
-                <Calendar className="w-5 h-5" />
-              </button>
-            )}
-            {customerEmails.length > 0 && !isRestrictedUser && (
+            <button
+              onClick={() => {
+                setExportMode('separated');
+                setShowExportModal(true);
+              }}
+              className="p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
+              title="Export Monthly"
+            >
+              <Calendar className="w-5 h-5" />
+            </button>
+            {customerEmails.length > 0 && (
               <button
                 onClick={handleEmail}
                 className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
@@ -2939,11 +2927,6 @@ ${debtSectionHtml}
 
             </div>
           </div>
-          {currentUserName === 'Mahmoud Shaker' && (
-            <span className="text-red-600 font-extrabold text-lg bg-yellow-100 px-3 py-1 rounded border border-red-200 animate-pulse ml-auto">
-              ⚠️ يا محمود اتاكد من ان رقم المديونية مطابق للسيستم دايما متنساش
-            </span>
-          )}
         </div>
 
         {/* Export Modal */}
@@ -3883,6 +3866,103 @@ ${debtSectionHtml}
                 </div>
               </div>
 
+              {/* Aging Analysis Section - New Requested UI */}
+              <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100 mt-6 relative overflow-hidden group">
+
+                <div className="flex flex-col md:flex-row items-center gap-12">
+                  {/* Header Title */}
+                  <div className="absolute top-6 left-8 flex items-center gap-3">
+                    <div className="w-1.5 h-5 bg-blue-500 rounded-full"></div>
+                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-[0.2em]">Aging Analysis</h3>
+                  </div>
+
+
+                  {/* Left Column: Donut Chart */}
+                  <div className="w-full md:w-[320px] h-[320px] flex items-center justify-center mt-12 md:mt-6">
+                    <div className="relative w-full h-full">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={[
+                              { name: 'Due', value: agingData.atDate || 0, color: '#4285F4' },
+                              { name: '1-30', value: agingData.oneToThirty || 0, color: '#9162E4' },
+                              { name: '31-60', value: agingData.thirtyOneToSixty || 0, color: '#F4A100' },
+                              { name: '61-90', value: agingData.sixtyOneToNinety || 0, color: '#F06536' },
+                              { name: '91-120', value: agingData.ninetyOneToOneTwenty || 0, color: '#D9434E' },
+                              { name: '120+', value: agingData.older || 0, color: '#991B1B' }
+                            ].filter(d => d.value > 0.01)}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={75}
+                            outerRadius={105}
+                            paddingAngle={4}
+                            dataKey="value"
+                            stroke="none"
+                          >
+                            {[
+                              { color: '#4285F4' },
+                              { color: '#9162E4' },
+                              { color: '#F4A100' },
+                              { color: '#F06536' },
+                              { color: '#D9434E' },
+                              { color: '#991B1B' }
+                            ].map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                          </Pie>
+                        </PieChart>
+                      </ResponsiveContainer>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <span className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Total</span>
+                        <span className="text-4xl font-black text-slate-800 tabular-nums">
+                          {Math.round(agingData.total).toLocaleString('en-US')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Right Column: Bucket Details & Bars */}-
+                  <div className="flex-1 w-full space-y-7 mt-6">
+                    {[
+                      { label: '0 - Due Date', value: agingData.atDate, color: '#4285F4' },
+                      { label: '1 - 30 Days', value: agingData.oneToThirty, color: '#9162E4' },
+                      { label: '31 - 60 Days', value: agingData.thirtyOneToSixty, color: '#F4A100' },
+                      { label: '61 - 90 Days', value: agingData.sixtyOneToNinety, color: '#F06536' },
+                      { label: '91 - 120 Days', value: agingData.ninetyOneToOneTwenty, color: '#D9434E' },
+                      { label: 'Older (120+ Days)', value: agingData.older, color: '#991B1B' }
+                    ].map((bucket, idx) => {
+                      const percentage = agingData.total > 0 ? (bucket.value / agingData.total) * 100 : 0;
+                      return (
+                        <div key={idx} className="group/bar relative">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-4 h-4 rounded-full" style={{ backgroundColor: bucket.color }}></div>
+                              <span className="text-lg font-bold text-slate-600">{bucket.label}</span>
+                            </div>
+                            <div className="flex items-center gap-6">
+                              <span className="text-sm font-bold text-slate-400">{percentage.toFixed(1)}%</span>
+                              <span className="text-xl font-black tabular-nums text-slate-800 w-[140px] text-right">
+                                {bucket.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="relative h-2.5 w-full bg-slate-50 rounded-full overflow-hidden border border-slate-100 flex items-center">
+                            <div
+                              className="h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(0,0,0,0.05)]"
+                              style={{
+                                width: `${percentage}%`,
+                                backgroundColor: bucket.color,
+                                boxShadow: `0 0 10px ${bucket.color}20`
+                              }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
               {/* Monthly Payments Trend Chart */}
               <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 mt-6">
                 <h3 className="text-lg font-bold text-gray-800 mb-4">Payments (Last 12 Months)</h3>
@@ -3963,7 +4043,7 @@ ${debtSectionHtml}
 
             {/* Section 2: Sales & Performance */}
             <div>
-              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales & Performance</h3>
+              <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Sales Overview</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Total Sales Card */}
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">

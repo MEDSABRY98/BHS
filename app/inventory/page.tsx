@@ -98,42 +98,35 @@ export default function InventoryPage() {
           {/* Tab Switcher - Centered */}
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="flex bg-slate-100 p-1 rounded-xl">
-              <button
-                onClick={() => setActiveTab('orders')}
-                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'orders'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Orders Tracker
-              </button>
-              <button
-                onClick={() => setActiveTab('notification')}
-                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'notification'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Notification Order
-              </button>
-              <button
-                onClick={() => setActiveTab('make')}
-                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'make'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Make Orders
-              </button>
-              <button
-                onClick={() => setActiveTab('quotation')}
-                className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === 'quotation'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                Purchase Quotation
-              </button>
+              {[
+                { id: 'orders', label: 'Orders Tracker' },
+                { id: 'notification', label: 'Notification Order' },
+                { id: 'make', label: 'Make Orders' },
+                { id: 'quotation', label: 'Purchase Quotation' }
+              ].map(tab => {
+                // Check permissions
+                try {
+                  const savedUser = localStorage.getItem('currentUser');
+                  const currentUser = savedUser ? JSON.parse(savedUser) : null;
+                  const perms = JSON.parse(currentUser?.role || '{}');
+                  if (perms.inventory && currentUser?.name !== 'MED Sabry') {
+                    if (!perms.inventory.includes(tab.id)) return null;
+                  }
+                } catch (e) { }
+
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`w-40 py-2 rounded-lg text-sm font-bold transition-all text-center ${activeTab === tab.id
+                      ? 'bg-white text-blue-600 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                  >
+                    {tab.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -56,20 +56,7 @@ function DebitPageContent() {
     }
   }, [isAuthenticated]);
 
-  // Redirect restricted users away from restricted tabs
-  useEffect(() => {
-    const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-    if (isAuthenticated && restrictedUsers.includes(currentUser?.name)) {
-      const restrictedTabs = [
-        'customers-open-matches',
-        'all-notes'
-      ];
-
-      if (restrictedTabs.includes(activeTab)) {
-        setActiveTab('customers');
-      }
-    }
-  }, [isAuthenticated, currentUser, activeTab]);
+  // No longer redirect based on hardcoded lists
 
   // Reset scroll position when tab changes
   useEffect(() => {
@@ -162,16 +149,16 @@ function DebitPageContent() {
       );
     }
 
-    // Restrict access for restricted users
-    const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-    const restrictedTabs = [
-      'customers-open-matches',
-      'all-notes'
-    ];
-
-    if (restrictedUsers.includes(currentUser?.name) && restrictedTabs.includes(activeTab)) {
-      // Redirect to customers tab if trying to access restricted tab
-      return <CustomersTab data={data} />;
+    // Check for dynamic JSON permission structure
+    try {
+      const perms = JSON.parse(currentUser?.role || '{}');
+      if (perms.debit_tabs && currentUser?.name !== 'MED Sabry') {
+        if (!perms.debit_tabs.includes(activeTab)) {
+          return <CustomersTab data={data} />;
+        }
+      }
+    } catch (e) {
+      // Default to full access if not JSON
     }
 
     switch (activeTab) {
@@ -218,7 +205,7 @@ function DebitPageContent() {
   return (
     <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-100 selection:text-blue-900 pb-12">
       <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-        <div className="max-w-[98%] mx-auto px-4 py-3 flex flex-col xl:flex-row items-center justify-between gap-4 min-h-[5rem]">
+        <div className="max-w-[98%] mx-auto px-4 py-3 flex flex-col xl:flex-row items-center justify-between gap-4 min-h-[5rem] relative">
 
           {/* Logo & Back */}
           <div className="flex items-center gap-4 shrink-0 w-full xl:w-auto justify-between xl:justify-start">
@@ -233,7 +220,6 @@ function DebitPageContent() {
                 <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200">
                   <Wallet className="w-6 h-6" />
                 </div>
-                <h1 className="text-xl font-black text-slate-800 tracking-tight hidden md:block">Debit Analysis</h1>
               </div>
             </div>
 
@@ -241,14 +227,19 @@ function DebitPageContent() {
           </div>
 
           {/* Wrapped Tabs - Center */}
-          <div className="w-full xl:flex-1">
-            <div className="grid grid-cols-8 gap-2 w-fit mx-auto h-[42px] overflow-y-auto no-scrollbar">
+          <div className="w-full xl:absolute xl:left-1/2 xl:-translate-x-1/2 flex justify-center xl:w-auto">
+            <div className="flex items-center justify-center gap-2 h-[42px] overflow-x-auto no-scrollbar">
               {allTabs.map((tab) => {
-                // Check if tab is restricted
-                const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-                const restrictedTabs = ['customers-open-matches', 'all-notes'];
-                if (restrictedUsers.includes(currentUser?.name) && restrictedTabs.includes(tab.id)) {
-                  return null;
+                // Check for dynamic JSON permission structure
+                try {
+                  const perms = JSON.parse(currentUser?.role || '{}');
+                  if (perms.debit_tabs && currentUser?.name !== 'MED Sabry') {
+                    if (!perms.debit_tabs.includes(tab.id)) {
+                      return null;
+                    }
+                  }
+                } catch (e) {
+                  // Default to full access
                 }
 
                 return (

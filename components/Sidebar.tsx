@@ -25,33 +25,19 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
     { id: 'all-notes', label: 'All Notes', icon: '📝' },
   ];
 
-  // Users with restricted access
-  const restrictedUsers = ['Mahmoud Shaker', 'Mr. Shady'];
-
-  // Tabs to hide for restricted users
-  const restrictedTabs = [
-    'customers-open-matches',
-    'all-notes'
-  ];
-
-  // Tabs visible only for MED Sabry
-  const medSabryOnlyTabs = [
-    'all-transactions',
-    'customers-open-matches',
-    'all-notes'
-  ];
-
   // Filter tabs based on user
   let tabs = allTabs;
 
-  // Hide restricted tabs for restricted users
-  if (restrictedUsers.includes(currentUser?.name)) {
-    tabs = allTabs.filter(tab => !restrictedTabs.includes(tab.id));
-  }
-
-  // Show MED Sabry only tabs only for MED Sabry
-  if (currentUser?.name !== 'MED Sabry') {
-    tabs = tabs.filter(tab => !medSabryOnlyTabs.includes(tab.id));
+  // Check for dynamic JSON permission structure
+  try {
+    const perms = JSON.parse(currentUser?.role || '{}');
+    // If role contains specific debit_tabs, filter by them
+    // Otherwise, and for MED Sabry, show all tabs
+    if (perms.debit_tabs && currentUser?.name !== 'MED Sabry') {
+      tabs = allTabs.filter(tab => perms.debit_tabs.includes(tab.id));
+    }
+  } catch (e) {
+    // If not JSON or error, show all tabs (Full Access by default)
   }
 
   return (

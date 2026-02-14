@@ -1,6 +1,8 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft } from 'lucide-react';
+import { useState } from 'react';
+import AdminPanel from './AdminPanel';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -124,10 +126,46 @@ const SystemCard = ({ title, icon: Icon, onClick, color, delay = 0 }: SystemCard
 };
 
 export default function HomeSelection({ currentUser, onLogout }: HomeSelectionProps) {
+  const [activeView, setActiveView] = useState<'selection' | 'admin'>('selection');
+
   // Navigation Handlers
   const nav = (path: string) => () => window.location.href = path;
 
+  const isSystemAllowed = (systemId: string) => {
+    if (currentUser?.name === 'MED Sabry') return true;
+    try {
+      const perms = JSON.parse(currentUser?.role || '{}');
+      // If the user has dynamic permissions set (JSON role), follow them
+      // If no permissions are set yet, grant full access by default as requested
+      if (perms.systems) {
+        return perms.systems.includes(systemId);
+      }
+    } catch (e) {
+      // Not JSON or error, full access by default
+    }
+    return true;
+  };
 
+  if (activeView === 'admin') {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setActiveView('selection')}
+              className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all"
+              title="Back to Dashboard"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <div className="h-6 w-px bg-slate-200" />
+            <h1 className="text-xl font-bold text-slate-900">Admin Control Center</h1>
+          </div>
+        </div>
+        <AdminPanel />
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen bg-slate-50 relative selection:bg-blue-100 selection:text-blue-900 overflow-hidden flex flex-col items-center justify-start pt-10">
@@ -172,189 +210,47 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         {/* Dashboard Grid */}
         <div className="flex flex-wrap justify-center gap-4 w-full max-w-[1400px]">
 
-          {/* MED SABRY & MONAI - ALL ACCESS */}
-          {(currentUser?.name === 'MED Sabry' || currentUser?.name === 'Monai') && (
-            <>
-              <SystemCard
-                title="Cash Receipt"
-                icon={Receipt}
-                onClick={nav('/cash-receipt')}
-                color="teal"
-                delay={100}
-              />
-              <SystemCard
-                title="Petty Cash"
-                icon={Wallet}
-                onClick={nav('/petty-cash')}
-                color="cyan"
-                delay={150}
-              />
-              <SystemCard
-                title="Debit Analysis"
-                icon={DollarSign}
-                onClick={nav('/debit')}
-                color="red"
-                delay={200}
-              />
-              <SystemCard
-                title="Discount Tracker"
-                icon={TrendingUp}
-                onClick={nav('/discount-tracker')}
-                color="yellow"
-                delay={250}
-              />
-              <SystemCard
-                title="Sales Analysis"
-                icon={LayoutGrid}
-                onClick={nav('/sales')}
-                color="green"
-                delay={300}
-              />
-              <SystemCard
-                title="Inventory"
-                icon={Package}
-                onClick={nav('/inventory')}
-                color="indigo"
-                delay={350}
-              />
-              <SystemCard
-                title="Chipsy Inventory"
-                icon={Layers}
-                onClick={nav('/chipsy-inventory')}
-                color="orange"
-                delay={400}
-              />
-              <SystemCard
-                title="Employee Overtime"
-                icon={Clock}
-                onClick={nav('/employee-overtime')}
-                color="blue"
-                delay={450}
-              />
-              <SystemCard
-                title="Water - Delivery Note"
-                icon={FileText}
-                onClick={nav('/water-delivery-note')}
-                color="violet"
-                delay={500}
-              />
-              <SystemCard
-                title="Suppliers"
-                icon={Truck}
-                onClick={nav('/suppliers')}
-                color="emerald"
-                delay={550}
-              />
-              <SystemCard
-                title="Purchase Quotation"
-                icon={FileSpreadsheet}
-                onClick={nav('/purchase-quotation')}
-                color="pink"
-                delay={600}
-              />
-            </>
-          )}
-
-          {/* MR. ALI FAROUK */}
-          {currentUser?.name === 'Mr. Ali Farouk' && (
-            <>
-              <SystemCard
-                title="Sales Analysis"
-                icon={LayoutGrid}
-                onClick={nav('/sales')}
-                color="green"
-                delay={100}
-              />
-              <SystemCard
-                title="Debit Analysis"
-                icon={DollarSign}
-                onClick={nav('/debit')}
-                color="red"
-                delay={150}
-              />
-            </>
-          )}
-
-          {/* MAHMOUD SHAKER */}
-          {currentUser?.name === 'Mahmoud Shaker' && (
-            <>
-              <SystemCard
-                title="Debit Analysis"
-                icon={DollarSign}
-                onClick={nav('/debit')}
-                color="red"
-                delay={100}
-              />
-              <SystemCard
-                title="Sales Analysis"
-                icon={LayoutGrid}
-                onClick={nav('/sales')}
-                color="green"
-                delay={150}
-              />
-            </>
-          )}
-
-          {/* OVERTIME EXPORT */}
-          {currentUser?.name === 'Overtime Export' && (
+          {/* ADMIN CARD - ONLY FOR MED SABRY */}
+          {currentUser?.name === 'MED Sabry' && (
             <SystemCard
-              title="Employee Overtime"
-              icon={Clock}
-              onClick={nav('/employee-overtime')}
-              color="blue"
+              title="Admin Control"
+              icon={Shield}
+              onClick={() => setActiveView('admin')}
+              color="indigo"
               delay={100}
             />
           )}
 
-          {/* SALAH GAMAL */}
-          {currentUser?.name === 'Salah Gamal' && (
-            <SystemCard
-              title="Water - Delivery Note"
-              icon={FileText}
-              onClick={nav('/water-delivery-note')}
-              color="violet"
-              delay={100}
-            />
+          {/* DYNAMIC SYSTEMS - BASED ON PERMISSIONS */}
+          {isSystemAllowed('cash-receipt') && (
+            <SystemCard title="Cash Receipt" icon={Receipt} onClick={nav('/cash-receipt')} color="teal" delay={150} />
           )}
-
-          {/* RAMADAN GOMAA */}
-          {currentUser?.name === 'Ramadan Gomaa' && (
-            <>
-              <SystemCard
-                title="Chipsy Inventory"
-                icon={Layers}
-                onClick={nav('/chipsy-inventory')}
-                color="orange"
-                delay={100}
-              />
-              <SystemCard
-                title="Inventory"
-                icon={Package}
-                onClick={nav('/inventory')}
-                color="indigo"
-                delay={150}
-              />
-            </>
+          {isSystemAllowed('petty-cash') && (
+            <SystemCard title="Petty Cash" icon={Wallet} onClick={nav('/petty-cash')} color="cyan" delay={200} />
           )}
-
-          {/* MR. SADIQ AKANDI */}
-          {currentUser?.name === 'Mr. Sadiq Akandi' && (
-            <>
-              <SystemCard
-                title="Inventory"
-                icon={Package}
-                onClick={nav('/inventory')}
-                color="indigo"
-                delay={100}
-              />
-              <SystemCard
-                title="Purchase Quotation"
-                icon={FileSpreadsheet}
-                onClick={nav('/purchase-quotation')}
-                color="pink"
-                delay={150}
-              />
-            </>
+          {isSystemAllowed('debit') && (
+            <SystemCard title="Debit Analysis" icon={DollarSign} onClick={nav('/debit')} color="red" delay={250} />
+          )}
+          {isSystemAllowed('discount-tracker') && (
+            <SystemCard title="Discount Tracker" icon={TrendingUp} onClick={nav('/discount-tracker')} color="yellow" delay={300} />
+          )}
+          {isSystemAllowed('sales') && (
+            <SystemCard title="Sales Analysis" icon={LayoutGrid} onClick={nav('/sales')} color="green" delay={350} />
+          )}
+          {isSystemAllowed('inventory') && (
+            <SystemCard title="Inventory" icon={Package} onClick={nav('/inventory')} color="indigo" delay={400} />
+          )}
+          {isSystemAllowed('chipsy-inventory') && (
+            <SystemCard title="Chipsy Inventory" icon={Layers} onClick={nav('/chipsy-inventory')} color="orange" delay={450} />
+          )}
+          {isSystemAllowed('employee-overtime') && (
+            <SystemCard title="Employee Overtime" icon={Clock} onClick={nav('/employee-overtime')} color="blue" delay={500} />
+          )}
+          {isSystemAllowed('water-delivery-note') && (
+            <SystemCard title="Water - Delivery Note" icon={FileText} onClick={nav('/water-delivery-note')} color="violet" delay={550} />
+          )}
+          {isSystemAllowed('suppliers') && (
+            <SystemCard title="Suppliers" icon={Truck} onClick={nav('/suppliers')} color="emerald" delay={600} />
           )}
 
         </div>
