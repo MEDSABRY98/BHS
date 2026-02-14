@@ -2379,49 +2379,64 @@ ${debtSectionHtml}
                 <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#4b5563', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.1em', borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
                   Aging Analysis (Debt Age)
                 </h3>
-                <div style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart margin={{ top: 50, right: 100, left: 100, bottom: 50 }}>
-                      <Pie
-                        data={dashboardMetrics.pieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={110}
-                        outerRadius={160}
-                        paddingAngle={4}
-                        dataKey="value"
-                        cornerRadius={6}
-                        isAnimationActive={false}
-                        labelLine={false}
-                        label={({ cx, cy, midAngle = 0, innerRadius, outerRadius, value, fill, percent = 0, name }) => {
-                          const RADIAN = Math.PI / 180;
-                          const radius = outerRadius + 35;
-                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
-                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
-                          const textAnchor = x > cx ? 'start' : 'end';
+                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '80px' }}>
+                  {/* Left: Donut Chart with Center Text */}
+                  <div style={{ position: 'relative', width: '400px', height: '400px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={dashboardMetrics.pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={120}
+                          outerRadius={180}
+                          paddingAngle={2}
+                          dataKey="value"
+                          cornerRadius={6}
+                          isAnimationActive={false}
+                          labelLine={false}
+                          label={false}
+                        >
+                          {dashboardMetrics.pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                    {/* Center Text */}
+                    <div style={{
+                      position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none'
+                    }}>
+                      <span style={{ fontSize: '18px', fontWeight: '500', color: '#9ca3af', letterSpacing: '0.05em' }}>TOTAL</span>
+                      <span style={{ fontSize: '32px', fontWeight: '500', color: '#1f2937' }}>
+                        {dashboardMetrics.pieData.reduce((acc, curr) => acc + curr.value, 0).toLocaleString('en-US')}
+                      </span>
+                    </div>
+                  </div>
 
-                          return (
-                            <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central">
-                              <tspan x={x} dy="-1.4em" style={{ fontSize: '20px', fontWeight: '900', fill: fill }}>{value.toLocaleString('en-US')}</tspan>
-                              <tspan x={x} dy="1.6em" style={{ fontSize: '14px', fontWeight: '700', fill: '#6B7280' }}>{`${(percent * 100).toFixed(1)}%`}</tspan>
-                              <tspan x={x} dy="1.4em" style={{ fontSize: '14px', fontWeight: '800', fill: '#111827' }}>{name}</tspan>
-                            </text>
-                          );
-                        }}
-                      >
-                        {dashboardMetrics.pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
-                        ))}
-                      </Pie>
-                      <Legend
-                        verticalAlign="bottom"
-                        height={40}
-                        iconType="circle"
-                        wrapperStyle={{ fontSize: '16px', fontWeight: 700, paddingTop: '20px' }}
-                        formatter={(value, entry: any) => <span style={{ color: '#374151', marginLeft: '8px' }}>{value}</span>}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
+                  {/* Right: Custom Legend details */}
+                  <div style={{ minWidth: '350px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '30px' }}>
+                    {dashboardMetrics.pieData.map((entry, index) => {
+                      const total = dashboardMetrics.pieData.reduce((acc, curr) => acc + curr.value, 0);
+                      const percent = total > 0 ? (entry.value / total * 100).toFixed(1) : '0.0';
+
+                      return (
+                        <div key={index} style={{ borderBottom: index !== dashboardMetrics.pieData.length - 1 ? '1px solid #f3f4f6' : 'none', paddingBottom: '20px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+                            <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: entry.color }}></div>
+                            <span style={{ fontSize: '28px', fontWeight: '500', color: entry.color, lineHeight: 1 }}>
+                              {entry.value.toLocaleString('en-US')}
+                            </span>
+                          </div>
+                          <div style={{ paddingLeft: '32px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ fontSize: '18px', fontWeight: '500', color: '#6b7280' }}>{percent}%</span>
+                            <span style={{ fontSize: '18px', fontWeight: '400', color: '#374151' }}>{entry.name}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>

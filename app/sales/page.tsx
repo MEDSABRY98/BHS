@@ -11,12 +11,14 @@ import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function SalesPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('sales-overview');
   const [data, setData] = useState<SalesInvoice[]>([]);
@@ -48,7 +50,11 @@ export default function SalesPage() {
         setIsAuthenticated(true);
       } catch (e) {
         localStorage.removeItem('currentUser');
+      } finally {
+        setIsChecking(false);
       }
+    } else {
+      setIsChecking(false);
     }
   }, []);
 
@@ -216,14 +222,7 @@ export default function SalesPage() {
 
   const renderTabContent = () => {
     if (loading) {
-      return (
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Load Sales Analysis Data...</p>
-          </div>
-        </div>
-      );
+      return <Loading message="Loading Sales Analysis Data..." />;
     }
 
     if (error) {
@@ -266,6 +265,10 @@ export default function SalesPage() {
         return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
     }
   };
+
+  if (isChecking) {
+    return <Loading />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;

@@ -21,37 +21,22 @@ interface SupplierSummary {
     transactions: SupplierTransaction[];
 }
 
-export default function SuppliersTab() {
-    const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
-    const [loading, setLoading] = useState(true);
+interface SuppliersTabProps {
+    data: SupplierTransaction[];
+}
+
+export default function SuppliersTab({ data }: SuppliersTabProps) {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterYear, setFilterYear] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
     const [selectedSuppliers, setSelectedSuppliers] = useState<Set<string>>(new Set());
     const [isGenerating, setIsGenerating] = useState(false);
 
-    useEffect(() => {
-        fetchData();
-    }, []);
 
-    const fetchData = async () => {
-        try {
-            setLoading(true);
-            const res = await fetch('/api/suppliers');
-            const json = await res.json();
-            if (json.data) {
-                setTransactions(json.data);
-            }
-        } catch (e) {
-            console.error('Failed to fetch suppliers', e);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const processedData = useMemo(() => {
         // 1. Filter Transactions First
-        let filteredTx = transactions;
+        let filteredTx = data;
 
         if (filterYear) {
             const y = filterYear.trim();
@@ -108,7 +93,7 @@ export default function SuppliersTab() {
         }
 
         return summaries;
-    }, [transactions, filterYear, filterMonth, searchQuery]);
+    }, [data, filterYear, filterMonth, searchQuery]);
 
     const toggleSelectAll = () => {
         if (selectedSuppliers.size === processedData.length) {
@@ -199,16 +184,7 @@ export default function SuppliersTab() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[calc(100vh-10rem)]">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Load Suppliers Data...</p>
-                </div>
-            </div>
-        );
-    }
+
 
     return (
         <div className="p-6">

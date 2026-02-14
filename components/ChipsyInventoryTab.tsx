@@ -1369,11 +1369,7 @@ export default function ChipsyInventoryTab() {
             )}
 
             {/* Content */}
-            {loading && (
-                <div className="py-20 flex justify-center">
-                    <Loading message="Loading Chipsy System..." />
-                </div>
-            )}
+            {loading && <Loading message="Loading Chipsy System..." />}
 
             {!loading && activeTab === 'inventory' && (
                 <div className="space-y-4">

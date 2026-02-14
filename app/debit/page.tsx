@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 
 import CustomersTab from '@/components/CustomersTab';
 import CustomersLanding from '@/components/CustomersLanding';
-import CustomersOpenMatchesTab from '@/components/CustomersOpenMatchesTab';
+import OpenTransactionsTab from '@/components/OpenTransactionsTab';
 import AllTransactionsTab from '@/components/AllTransactionsTab';
 import PaymentTrackerTab from '@/components/PaymentTrackerTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
@@ -12,6 +12,7 @@ import HistoryTab from '@/components/HistoryTab';
 import AgesTab from '@/components/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User } from 'lucide-react';
 
@@ -23,6 +24,7 @@ function DebitPageContent() {
   const initialCustomer = searchParams?.get('customer') || undefined;
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('customers');
   const [data, setData] = useState<InvoiceRow[]>([]);
@@ -40,7 +42,11 @@ function DebitPageContent() {
         setIsAuthenticated(true);
       } catch (e) {
         localStorage.removeItem('currentUser');
+      } finally {
+        setIsChecking(false);
       }
+    } else {
+      setIsChecking(false);
     }
   }, []);
 
@@ -136,14 +142,7 @@ function DebitPageContent() {
 
   const renderTabContent = () => {
     if (loading) {
-      return (
-        <div className="flex items-center justify-center h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Load Debit Analysis Data...</p>
-          </div>
-        </div>
-      );
+      return <Loading message="Loading Debit Analysis Data..." />;
     }
 
     if (error) {
@@ -181,7 +180,7 @@ function DebitPageContent() {
       case 'all-transactions':
         return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':
-        return <CustomersOpenMatchesTab data={data} />;
+        return <OpenTransactionsTab data={data} />;
       case 'payment-tracker':
         return <PaymentTrackerTab data={data} />;
       case 'salesreps':
@@ -198,6 +197,10 @@ function DebitPageContent() {
   };
 
   const isAutoDownload = initialCustomer && searchParams?.get('action') === 'download_report';
+
+  if (isChecking) {
+    return <Loading />;
+  }
 
   if (!isAuthenticated && !isAutoDownload) {
     return <Login onLogin={handleLogin} />;

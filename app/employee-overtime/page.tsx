@@ -3,16 +3,18 @@
 import { useState, useEffect } from 'react';
 import EmployeeOvertimeTab from '@/components/EmployeeOvertimeTab';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 
 export default function EmployeeOvertimePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
     const validateAndSetUser = async () => {
       const savedUser = localStorage.getItem('currentUser');
       const savedPassword = localStorage.getItem('userPassword');
-      
+
       if (savedUser && savedPassword) {
         try {
           const userData = JSON.parse(savedUser);
@@ -30,7 +32,7 @@ export default function EmployeeOvertimePage() {
             });
 
             const result = await response.json();
-            
+
             if (response.ok && result.success) {
               // User still exists and credentials are valid
               setCurrentUser(result.user);
@@ -46,10 +48,14 @@ export default function EmployeeOvertimePage() {
         } catch (e) {
           localStorage.removeItem('currentUser');
           localStorage.removeItem('userPassword');
+        } finally {
+          setIsChecking(false);
         }
+      } else {
+        setIsChecking(false);
       }
     };
-    
+
     validateAndSetUser();
   }, []);
 
@@ -59,6 +65,10 @@ export default function EmployeeOvertimePage() {
     localStorage.setItem('currentUser', JSON.stringify(user));
     localStorage.setItem('userPassword', user.password);
   };
+
+  if (isChecking) {
+    return <Loading message="Authenticating..." />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;

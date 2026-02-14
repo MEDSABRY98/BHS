@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/lib/invoiceType';
-import { generatePaymentAnalysisPDF } from '@/lib/analysisPdf';
+import { generatePaymentAnalysisPDF } from '@/lib/Pdfpaymentanalysis';
 import {
   BarChart,
   Bar,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { User, ChevronDown } from 'lucide-react';
+import { User, Lock, ChevronDown, Check, Loader2, ArrowRight } from 'lucide-react';
 
 interface LoginProps {
   onLogin: (user: any) => void;
@@ -17,23 +17,18 @@ export default function Login({ onLogin }: LoginProps) {
   const [openUserDropdown, setOpenUserDropdown] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
         setOpenUserDropdown(false);
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   useEffect(() => {
     fetchUsers();
-    // Auto-login if user exists in localStorage
     autoLoginIfSaved();
   }, []);
 
@@ -41,39 +36,27 @@ export default function Login({ onLogin }: LoginProps) {
     try {
       const savedUser = localStorage.getItem('currentUser');
       const savedPassword = localStorage.getItem('userPassword');
-      
       if (savedUser && savedPassword) {
         const userData = JSON.parse(savedUser);
-        if (userData && userData.name) {
-          // Try to auto-login with saved credentials
+        if (userData?.name) {
           const response = await fetch('/api/users', {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: userData.name,
-              password: savedPassword,
-            }),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: userData.name, password: savedPassword }),
           });
-
           const result = await response.json();
-          
           if (response.ok && result.success) {
-            // User still exists and credentials are valid, auto-login
             onLogin(result.user);
-            // Save password again to ensure it's up to date
             localStorage.setItem('userPassword', savedPassword);
             return;
-          } else {
-            // User deleted or password changed, clear localStorage
+          }
+          else {
             localStorage.removeItem('currentUser');
             localStorage.removeItem('userPassword');
           }
         }
       }
     } catch (err) {
-      // If auto-login fails, just clear localStorage and show login page
       localStorage.removeItem('currentUser');
       localStorage.removeItem('userPassword');
     }
@@ -83,10 +66,7 @@ export default function Login({ onLogin }: LoginProps) {
     try {
       const response = await fetch('/api/users');
       const data = await response.json();
-      if (data.users) {
-        setUsers(data.users);
-        // Don't auto-select first user, let user choose
-      }
+      if (data.users) setUsers(data.users);
     } catch (err) {
       console.error('Error fetching users:', err);
       setError('Failed to load users');
@@ -98,37 +78,26 @@ export default function Login({ onLogin }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    
     if (!selectedUser) {
-      setError('Please select a user');
+      setError('Please select a user account');
       return;
     }
-    
     setLoading(true);
-
     try {
       const response = await fetch('/api/users', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: selectedUser,
-          password: password,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: selectedUser, password: password }),
       });
-
       const result = await response.json();
-
       if (response.ok && result.success) {
-        // Save password to localStorage for auto-login
         localStorage.setItem('userPassword', password);
-        onLogin(result.user);
+        setTimeout(() => onLogin(result.user), 500);
       } else {
         setError(result.error || 'Invalid credentials');
       }
     } catch (err) {
-      setError('An error occurred during login');
+      setError('Connection error. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -137,148 +106,136 @@ export default function Login({ onLogin }: LoginProps) {
   if (fetchingUsers) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading system...</p>
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 text-indigo-600 animate-spin" />
+          <p className="text-gray-400 font-medium tracking-wide text-xs">LOADING...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white py-12 px-4 sm:px-6 lg:px-8" dir="ltr">
-      <div className="max-w-md w-full space-y-8 bg-white p-10 rounded-2xl shadow-xl transform transition-all hover:shadow-2xl">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 bg-blue-600 rounded-xl flex items-center justify-center mb-4 shadow-lg">
-            <svg className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-            </svg>
+    <div className="min-h-screen flex w-full bg-white overflow-hidden" dir="ltr">
+
+      {/* Left Side: Brand / Visuals */}
+      <div className="hidden lg:flex lg:w-1/2 relative bg-[#0f172a] items-center justify-center overflow-hidden">
+        {/* Abstract geometric shapes */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-30">
+          <div className="absolute top-[-20%] right-[-10%] w-[600px] h-[600px] rounded-full bg-blue-600 blur-[120px] mix-blend-screen animate-pulse" style={{ animationDuration: '8s' }}></div>
+          <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] rounded-full bg-indigo-600 blur-[100px] mix-blend-screen animate-pulse" style={{ animationDuration: '10s', animationDelay: '1s' }}></div>
+        </div>
+
+        <div className="relative z-10 text-center px-12">
+          <div className="mb-8 inline-flex items-center justify-center w-24 h-24 rounded-3xl bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl">
+            <span className="text-4xl font-extrabold text-white tracking-tighter">BH</span>
           </div>
-          <h2 className="text-3xl font-extrabold text-gray-900 tracking-tight">
-            Welcome Back
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Please sign in to access the dashboard
+          <h1 className="text-5xl font-bold text-white mb-6 tracking-tight leading-tight">
+            Financial <span className="text-blue-400">Excellence</span> <br /> redefined.
+          </h1>
+          <p className="text-lg text-slate-400 max-w-md mx-auto leading-relaxed">
+            Secure access to Al Marai Al Arabia Trading's advanced financial management system.
           </p>
         </div>
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div className="rounded-md shadow-sm space-y-4">
-            <div className="relative" ref={userDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <User className="w-4 h-4 text-blue-600" />
-                Select User
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenUserDropdown(!openUserDropdown)}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${
-                    openUserDropdown
-                      ? 'border-blue-500 ring-2 ring-blue-500/20'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <span className={selectedUser ? 'text-gray-800' : 'text-gray-400'}>
-                    {selectedUser || 'Select a user'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${
-                      openUserDropdown ? 'transform rotate-180' : ''
-                    }`}
-                  />
-                </button>
-                {openUserDropdown && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setSelectedUser('');
-                        setOpenUserDropdown(false);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${
-                        selectedUser === ''
-                          ? 'bg-blue-50 text-blue-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                      }`}
-                    >
-                      Select User
-                    </div>
-                    {users.map((user, index) => (
-                      <div
-                        key={user.name}
-                        onClick={() => {
-                          setSelectedUser(user.name);
-                          setOpenUserDropdown(false);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${
-                          selectedUser === user.name
-                            ? 'bg-blue-50 text-blue-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                      >
-                        {user.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+
+        <div className="absolute bottom-10 left-0 w-full text-center">
+          <p className="text-slate-600 text-sm font-medium">© {new Date().getFullYear()} BH Group. All rights reserved.</p>
+        </div>
+      </div>
+
+      {/* Right Side: Login Form */}
+      <div className="w-full lg:w-1/2 flex flex-col items-center justify-center p-8 sm:p-12 lg:p-24 bg-white relative">
+        <div className="w-full max-w-md space-y-10">
+
+          <div className="text-center lg:text-left">
+            <div className="lg:hidden mb-6 inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-slate-900 shadow-lg">
+              <span className="text-2xl font-bold text-white tracking-tighter">BH</span>
             </div>
-            
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1 ml-1">
-                Password
-              </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                className="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg placeholder-gray-400 text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 ease-in-out bg-gray-50 hover:bg-white"
-                placeholder="Enter your password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+              Welcome back
+            </h2>
+            <p className="mt-3 text-slate-500 text-lg">
+              Please enter your credentials to access your account.
+            </p>
           </div>
 
-          {error && (
-            <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
+          <form className="space-y-6" onSubmit={handleSubmit}>
+            <div className="space-y-5">
+              {/* Account Selection */}
+              <div ref={userDropdownRef} className="space-y-1.5">
+                <label className="text-sm font-semibold text-slate-700 ml-1">Account</label>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setOpenUserDropdown(!openUserDropdown)}
+                    className={`w-full h-14 px-4 bg-slate-50 border-2 rounded-xl flex items-center justify-between transition-all duration-200 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 ${openUserDropdown ? 'border-indigo-600 ring-4 ring-indigo-500/10' : 'border-slate-100'}`}
+                  >
+                    <span className={`text-base font-medium ${selectedUser ? 'text-slate-900' : 'text-slate-400'}`}>
+                      {selectedUser || 'Select your account'}
+                    </span>
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${openUserDropdown ? 'rotate-180 text-indigo-600' : ''}`} />
+                  </button>
+
+                  {openUserDropdown && (
+                    <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
+                      <div className="p-2 space-y-1">
+                        {users.map((user) => (
+                          <button
+                            key={user.name}
+                            type="button"
+                            onClick={() => { setSelectedUser(user.name); setOpenUserDropdown(false); }}
+                            className={`w-full px-4 py-3.5 rounded-lg flex items-center justify-between text-base transition-colors ${selectedUser === user.name ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${selectedUser === user.name ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                                {user.name.charAt(0).toUpperCase()}
+                              </div>
+                              {user.name}
+                            </div>
+                            {selectedUser === user.name && <Check className="w-5 h-5 text-indigo-600" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700 font-medium">{error}</p>
+              </div>
+
+              {/* Password Input */}
+              <div className="space-y-1.5">
+                <label className="text-sm font-semibold text-slate-700 ml-1">Password</label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="block w-full h-14 px-4 bg-slate-50 border-2 border-slate-100 rounded-xl text-slate-900 placeholder-slate-400 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 transition-all duration-200 outline-none text-base font-medium"
+                    placeholder="••••••••"
+                  />
                 </div>
               </div>
             </div>
-          )}
 
-          <div>
+            {error && (
+              <div className="p-4 bg-red-50 border border-red-100 rounded-xl flex items-center gap-3 text-red-600 animate-in fade-in slide-in-from-top-2">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                <p className="text-sm font-medium">{error}</p>
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
-              className={`group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200 ease-in-out shadow-md hover:shadow-lg transform hover:-translate-y-0.5 ${
-                loading ? 'opacity-75 cursor-not-allowed' : ''
-              }`}
+              className="w-full h-14 bg-slate-900 hover:bg-slate-800 text-white text-base font-bold rounded-xl transition-all duration-200 shadow-xl shadow-slate-900/20 hover:shadow-slate-900/30 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed disabled:transform-none flex items-center justify-center gap-2"
             >
-              {loading ? (
-                <span className="flex items-center">
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Signing in...
-                </span>
-              ) : (
-                'Sign In'
-              )}
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Sign In <ArrowRight className="w-5 h-5" /></>}
             </button>
+          </form>
+
+          <div className="pt-8 border-t border-slate-100 text-center lg:text-left">
+            <p className="text-slate-500 font-medium mb-1">Having trouble accessing?</p>
+            <p className="text-lg font-bold text-slate-900">Contact Mohamed Sabry</p>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

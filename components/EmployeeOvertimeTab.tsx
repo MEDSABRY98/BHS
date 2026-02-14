@@ -601,16 +601,18 @@ export default function EmployeeOvertimeTab() {
       return new Date(a.date).getTime() - new Date(b.date).getTime();
     });
 
-    // 3. Map to Excel Format
-    const data = filtered.map(rec => {
+    const workbook = XLSX.utils.book_new();
+
+    // Helper to format a record for Excel
+    const formatRecord = (rec: any) => {
       let otDisplay = (rec.overtimeHours || rec.hours || 0) > 0 ? `${rec.overtimeHours || rec.hours}` : '0';
       let dedDisplay = (rec.deductionHours || 0) > 0 ? `${rec.deductionHours}` : '0';
 
       // Re-calculate
       if (rec.shiftStart && rec.shiftEnd) {
         const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
-        const std = parseFloat(rec.shiftHours) || 9;
-        const diff = dur - std;
+        const standard = parseFloat(rec.shiftHours) || 9;
+        const diff = dur - standard;
 
         if (diff > 0.001) otDisplay = decimalToTime(diff);
         else if (diff < -0.001) dedDisplay = decimalToTime(Math.abs(diff));
@@ -627,11 +629,70 @@ export default function EmployeeOvertimeTab() {
         'Deduction (Hours)': dedDisplay,
         'Description': rec.description || ''
       };
+    };
+
+    // 3. Main Sheet (All Records)
+    const allData = filtered.map(formatRecord);
+    const mainSheet = XLSX.utils.json_to_sheet(allData);
+    XLSX.utils.book_append_sheet(workbook, mainSheet, 'All Records');
+
+    // 4. Individual Employee Sheets
+    const employeeGroups: Record<string, any[]> = {};
+    filtered.forEach(rec => {
+      const name = rec.employeeName || 'Unknown';
+      if (!employeeGroups[name]) employeeGroups[name] = [];
+      employeeGroups[name].push(rec);
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Overtime Records');
+    // Sort employees by name
+    const sortedEmployeeNames = Object.keys(employeeGroups).sort();
+
+    // Analyze First Names to detect duplicates
+    const firstNamesMap = new Map<string, number>();
+    sortedEmployeeNames.forEach(fullName => {
+      const firstName = fullName.trim().split(' ')[0].toLowerCase();
+      firstNamesMap.set(firstName, (firstNamesMap.get(firstName) || 0) + 1);
+    });
+
+    sortedEmployeeNames.forEach(name => {
+      const records = employeeGroups[name];
+      // Sort employee records by date
+      records.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      const employeeData = records.map(formatRecord);
+      const employeeSheet = XLSX.utils.json_to_sheet(employeeData);
+
+      // Determine Sheet Name
+      const parts = name.trim().split(/\s+/); // Split by any whitespace
+      const firstName = parts[0];
+      const firstNameLower = firstName.toLowerCase();
+
+      // Start with First Name
+      let sheetNameString = firstName;
+
+      // If first name is shared (duplicate) AND we have a second name, append it
+      if ((firstNamesMap.get(firstNameLower) || 0) > 1 && parts.length > 1) {
+        sheetNameString = `${firstName} ${parts[1]}`;
+      }
+
+      // Sanitize specifically for Excel sheet names (remove : \ / ? * [ ])
+      let sheetName = sheetNameString.replace(/[:\\\/?*\[\]]/g, '');
+
+      // Excel limit check (31 chars max)
+      if (sheetName.length > 28) sheetName = sheetName.substring(0, 28);
+
+      // Ensure unique sheet name (Final Fallback)
+      let uniqueSheetName = sheetName;
+      let counter = 1;
+      // Check against current sheet names in the workbook to avoid collisions
+      while (workbook.Sheets[uniqueSheetName]) {
+        uniqueSheetName = `${sheetName} ${counter}`;
+        counter++;
+      }
+
+      XLSX.utils.book_append_sheet(workbook, employeeSheet, uniqueSheetName);
+    });
+
     XLSX.writeFile(workbook, `Overtime_Records_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
@@ -1042,7 +1103,7 @@ export default function EmployeeOvertimeTab() {
                                 onClick={() => openEditModal(rec)}
                               >
                                 <td className="px-6 py-4">
-                                  <div className="flex items-center justify-center gap-3">
+                                  <div className="flex items-center justify-start gap-3">
                                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xs">
                                       {rec.employeeName.charAt(0)}
                                     </div>

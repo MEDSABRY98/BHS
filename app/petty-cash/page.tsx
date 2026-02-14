@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import PettyCashTab from '@/components/PettyCashTab';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 
 export default function PettyCashPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -68,14 +69,7 @@ export default function PettyCashPage() {
   };
 
   if (isChecking) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Load Petty Cash Data...</p>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading Petty Cash Data..." />;
   }
 
   if (!isAuthenticated) {

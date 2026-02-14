@@ -46,7 +46,7 @@ const parseDate = (dateStr: string): Date | null => {
   return null;
 };
 
-export default function CustomersOpenMatchesTab({ data }: CustomersOpenMatchesTabProps) {
+export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');

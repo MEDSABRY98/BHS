@@ -3,11 +3,23 @@
 import { useState, useEffect } from 'react';
 import SuppliersTab from '@/components/SuppliersTab';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 import { ArrowLeft, Package } from 'lucide-react';
+
+interface SupplierTransaction {
+    date: string;
+    number: string;
+    supplierName: string;
+    amount: number;
+    type: 'Purchase' | 'Refund';
+}
 
 export default function SuppliersPage() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isChecking, setIsChecking] = useState(true);
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         const savedUser = localStorage.getItem('currentUser');
@@ -17,15 +29,44 @@ export default function SuppliersPage() {
                 setIsAuthenticated(true);
             } catch (e) {
                 localStorage.removeItem('currentUser');
+            } finally {
+                setIsChecking(false);
             }
+        } else {
+            setIsChecking(false);
         }
     }, []);
+
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchData();
+        }
+    }, [isAuthenticated]);
+
+    const fetchData = async () => {
+        try {
+            setLoading(true);
+            const res = await fetch('/api/suppliers');
+            const json = await res.json();
+            if (json.data) {
+                setTransactions(json.data);
+            }
+        } catch (e) {
+            console.error('Failed to fetch suppliers', e);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleLogin = (user: any) => {
         setIsAuthenticated(true);
         setCurrentUser(user);
         localStorage.setItem('currentUser', JSON.stringify(user));
     };
+
+    if (isChecking || (isAuthenticated && loading)) {
+        return <Loading message={loading ? "Loading Suppliers Data..." : "Authenticating..."} />;
+    }
 
     if (!isAuthenticated) {
         return <Login onLogin={handleLogin} />;
@@ -57,7 +98,7 @@ export default function SuppliersPage() {
 
             <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
                 <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
-                    <SuppliersTab />
+                    <SuppliersTab data={transactions} />
                 </main>
             </div>
         </div>

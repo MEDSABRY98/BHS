@@ -7,11 +7,13 @@ import NotificationOrderTab from '@/components/NotificationOrderTab';
 import ProductOrdersMakeTab, { OrderItem } from '@/components/ProductOrdersMakeTab';
 import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
   const [activeTab, setActiveTab] = useState<'orders' | 'notification' | 'make' | 'quotation'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   // Shared state for Orders
   const [poNumber, setPoNumber] = useState('');
@@ -46,7 +48,12 @@ export default function InventoryPage() {
         setIsAuthenticated(true);
       } catch (e) {
         localStorage.removeItem('currentUser');
+      } finally {
+        setIsChecking(false);
       }
+    } else {
+      // If no user found in local storage, stop checking
+      setIsChecking(false);
     }
   }, []);
 
@@ -59,6 +66,10 @@ export default function InventoryPage() {
     setQuotationItems(items);
     setActiveTab('quotation');
   };
+
+  if (isChecking) {
+    return <Loading />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;

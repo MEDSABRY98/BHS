@@ -1022,16 +1022,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             doc.setFontSize(14);
             doc.setTextColor(30, 41, 59);
             doc.setFont('helvetica', 'bold');
-            doc.text(`${customers}`, x + (w / 2) - (custTrendVal !== undefined ? 10 : 0), statsY + 11.5, { align: 'center' });
-
-            if (custTrendVal !== undefined) {
-                const isPos = custTrendVal >= 0;
-                doc.setFillColor(isPos ? 220 : 254, isPos ? 252 : 226, isPos ? 231 : 226);
-                doc.roundedRect(x + w - 32, statsY + 4.5, 22, 9, 2, 2, 'F');
-                doc.setFontSize(8);
-                doc.setTextColor(isPos ? 22 : 220, isPos ? 163 : 38, isPos ? 74 : 38);
-                doc.text(`${isPos ? '+' : ''}${custTrendVal.toFixed(1)}%`, x + w - 21, statsY + 11, { align: 'center' });
-            }
+            doc.text(`${customers}`, x + (w / 2), statsY + 11.5, { align: 'center' });
 
             // Transactions Row
             const transY = statsY + 22;
@@ -1045,16 +1036,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             doc.setFontSize(14);
             doc.setTextColor(30, 41, 59);
             doc.setFont('helvetica', 'bold');
-            doc.text(`${transactions}`, x + (w / 2) - (countTrendVal !== undefined ? 10 : 0), transY + 11.5, { align: 'center' });
-
-            if (countTrendVal !== undefined) {
-                const isPos = countTrendVal >= 0;
-                doc.setFillColor(isPos ? 220 : 254, isPos ? 252 : 226, isPos ? 231 : 226);
-                doc.roundedRect(x + w - 32, transY + 4.5, 22, 9, 2, 2, 'F');
-                doc.setFontSize(8);
-                doc.setTextColor(isPos ? 22 : 220, isPos ? 163 : 38, isPos ? 74 : 38);
-                doc.text(`${isPos ? '+' : ''}${countTrendVal.toFixed(1)}%`, x + w - 21, transY + 11, { align: 'center' });
-            }
+            doc.text(`${transactions}`, x + (w / 2), transY + 11.5, { align: 'center' });
         };
 
         // Draw Big Cards
@@ -1617,8 +1599,9 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 bodyStyles: { halign: 'center', valign: 'middle' },
                 margin: { left: 8, right: 8 },
                 columnStyles: {
-                    1: { halign: 'center', cellWidth: 60 }, // Customer Name
-                    2: { halign: 'center', cellWidth: 35 }  // Sales Rep
+                    1: { halign: 'center', cellWidth: 80 }, // Customer Name (Increased)
+                    2: { halign: 'center', cellWidth: 35 }, // Sales Rep
+                    5: { halign: 'center', cellWidth: 50 }  // Payment Dates (Fixed Width to prevent expansion)
                 }
             });
 

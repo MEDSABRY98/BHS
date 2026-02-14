@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Login from '@/components/Login';
 import DiscountTrackerTab from '@/components/DiscountTrackerTab';
+import Loading from '@/components/Loading';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Tag } from 'lucide-react';
 
@@ -11,6 +12,7 @@ export default function DiscountTrackerPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [data, setData] = useState<InvoiceRow[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isChecking, setIsChecking] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -23,6 +25,7 @@ export default function DiscountTrackerPage() {
                 localStorage.removeItem('currentUser');
             }
         }
+        setIsChecking(false);
     }, []);
 
     useEffect(() => {
@@ -65,6 +68,10 @@ export default function DiscountTrackerPage() {
             setLoading(false);
         }
     };
+
+    if (isChecking || (isAuthenticated && loading)) {
+        return <Loading message={loading ? "Loading Discount Tracker Data..." : "Authenticating..."} />;
+    }
 
     if (!isAuthenticated) {
         return <Login onLogin={handleLogin} />;
@@ -111,7 +118,7 @@ export default function DiscountTrackerPage() {
                             </div>
                         </div>
                     ) : (
-                        <DiscountTrackerTab data={data} isLoading={loading} />
+                        <DiscountTrackerTab data={data} isLoading={false} />
                     )}
                 </main>
             </div>

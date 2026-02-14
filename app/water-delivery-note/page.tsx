@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X } from 'lucide-react';
 import { generateWaterDeliveryNotePDF } from '@/lib/pdfUtils';
 import { NotificationContainer, NotificationType } from '@/components/Notification';
+import Loading from '@/components/Loading';
 
 interface WaterDeliveryNoteItem {
   itemName: string;
@@ -312,14 +313,7 @@ export default function WaterDeliveryNotePage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Load Water - Delivery Note Data...</p>
-        </div>
-      </div>
-    );
+    return <Loading message="Loading Water Delivery Note Data..." />;
   }
 
   return (
@@ -361,8 +355,8 @@ export default function WaterDeliveryNotePage() {
                   onClick={handleSearch}
                   disabled={isSearching || isEditing}
                   className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSearching || isEditing
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
                     }`}
                 >
                   {isSearching ? (
@@ -505,8 +499,8 @@ export default function WaterDeliveryNotePage() {
                 onClick={handleUpdate}
                 disabled={saving}
                 className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${saving
-                    ? 'bg-green-400 text-white cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700'
+                  ? 'bg-green-400 text-white cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700'
                   }`}
               >
                 {saving ? (
@@ -526,8 +520,8 @@ export default function WaterDeliveryNotePage() {
                 onClick={handlePrint}
                 disabled={saving}
                 className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${saving
-                    ? 'bg-blue-400 text-white cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                  ? 'bg-blue-400 text-white cursor-not-allowed'
+                  : 'bg-blue-600 text-white hover:bg-blue-700'
                   }`}
               >
                 {saving ? (
