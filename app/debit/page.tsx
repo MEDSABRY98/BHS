@@ -197,8 +197,19 @@ function DebitPageContent() {
     }
   };
 
-  if (!isAuthenticated) {
+  const isAutoDownload = initialCustomer && searchParams?.get('action') === 'download_report';
+
+  if (!isAuthenticated && !isAutoDownload) {
     return <Login onLogin={handleLogin} />;
+  }
+
+  // If we are just downloading a report, don't show the full program UI (sidebar, header, etc.)
+  if (initialCustomer && searchParams?.get('action') === 'download_report') {
+    return (
+      <div className="min-h-screen bg-white">
+        {renderTabContent()}
+      </div>
+    );
   }
 
   return (

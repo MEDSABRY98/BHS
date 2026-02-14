@@ -2039,285 +2039,273 @@ ${debtSectionHtml}
       };
 
       // PAGE 1 COMPONENT
-      const AnalyticalReportPage1 = () => (
-        <div style={pageStyle}>
-          {/* Header */}
-          <div style={headerStyle}>
-            <div>
-              <h1 style={{ fontSize: '32px', fontWeight: '900', color: '#111827', marginBottom: '4px' }}>{customerName}</h1>
-              <p style={{ fontSize: '18px', color: '#6b7280', fontWeight: '500' }}>Customer Analysis Report</p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#15803d', textTransform: 'uppercase', letterSpacing: '-0.025em' }}>Al Marai Al Arabia</h2>
-              <p style={{ color: '#9ca3af', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', fontSize: '12px' }}>Sole Proprietorship L.L.C</p>
-              <p style={{ color: '#6b7280', marginTop: '4px', fontWeight: '600', fontSize: '14px' }}>Date: {new Date().toLocaleDateString('en-GB')}</p>
-            </div>
-          </div>
+      const AnalyticalReportPage1 = () => {
+        // Calculate date range
+        const dates = filteredInvoices
+          .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
+          .filter(t => t > 0);
+        const minDate = dates.length > 0 ? new Date(Math.min(...dates)) : null;
+        const maxDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+        const periodString = minDate && maxDate
+          ? `${minDate.toLocaleDateString('en-GB')} - ${maxDate.toLocaleDateString('en-GB')}`
+          : 'All Time';
 
-          {/* Top Cards: Last Transactions */}
-          <div className="grid grid-cols-4 gap-5 mb-6">
-            {/* Last Sale */}
-            {(() => {
-              const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
-              const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
-                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                return dateB.getTime() - dateA.getTime();
-              })[0] : null;
-
-              const latestDate = latestSale?.parsedDate;
-              const sameDaySales = latestDate ? sales.filter(inv => {
-                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                return d?.getTime() === latestDate.getTime();
-              }) : [];
-              const totalAmount = sameDaySales.reduce((sum, inv) => sum + inv.debit, 0);
-
-              return (
-                <div style={{ backgroundColor: '#eff6ff', padding: '16px', borderRadius: '12px', border: '1px solid #dbeafe' }}>
-                  <p style={{ color: '#2563eb', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Sale</p>
-                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#1d4ed8', marginBottom: '2px' }}>
-                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
-                  </p>
-                  <p style={{ fontSize: '13px', color: '#3b82f6', fontWeight: '700' }}>
-                    {latestDate?.toLocaleDateString('en-GB') || '—'}
-                  </p>
-                </div>
-              );
-            })()}
-
-            {/* Last Return */}
-            {(() => {
-              const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
-              const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
-                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                return dateB.getTime() - dateA.getTime();
-              })[0] : null;
-
-              const latestDate = latestReturn?.parsedDate;
-              const sameDayReturns = latestDate ? returns.filter(inv => {
-                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                return d?.getTime() === latestDate.getTime();
-              }) : [];
-              const totalAmount = sameDayReturns.reduce((sum, inv) => sum + inv.credit, 0);
-
-              return (
-                <div style={{ backgroundColor: '#fff7ed', padding: '16px', borderRadius: '12px', border: '1px solid #ffedd5' }}>
-                  <p style={{ color: '#ea580c', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Return</p>
-                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#c2410c', marginBottom: '2px' }}>
-                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
-                  </p>
-                  <p style={{ fontSize: '13px', color: '#f97316', fontWeight: '700' }}>
-                    {latestDate?.toLocaleDateString('en-GB') || '—'}
-                  </p>
-                </div>
-              );
-            })()}
-
-            {/* Last Payment */}
-            {(() => {
-              const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
-              const latestPayment = payments.length > 0 ? [...payments].sort((a, b) => {
-                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                return dateB.getTime() - dateA.getTime();
-              })[0] : null;
-
-              const latestDate = latestPayment?.parsedDate;
-              const sameDayPayments = latestDate ? payments.filter(inv => {
-                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                return d?.getTime() === latestDate.getTime();
-              }) : [];
-              const totalAmount = sameDayPayments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
-
-              return (
-                <div style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
-                  <p style={{ color: '#16a34a', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Payment</p>
-                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#15803d', marginBottom: '2px' }}>
-                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
-                  </p>
-                  <p style={{ fontSize: '13px', color: '#22c55e', fontWeight: '700' }}>
-                    {latestDate?.toLocaleDateString('en-GB') || '—'}
-                  </p>
-                </div>
-              );
-            })()}
-
-            {/* Last Discount */}
-            {(() => {
-              const discounts = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('BIL'));
-              const latestDiscount = discounts.length > 0 ? [...discounts].sort((a, b) => {
-                const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
-                const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
-                return dateB.getTime() - dateA.getTime();
-              })[0] : null;
-
-              const latestDate = latestDiscount?.parsedDate;
-              const sameDayDiscounts = latestDate ? discounts.filter(inv => {
-                const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
-                return d?.getTime() === latestDate.getTime();
-              }) : [];
-              const totalAmount = sameDayDiscounts.reduce((sum, inv) => sum + (inv.credit - inv.debit), 0);
-
-              return (
-                <div style={{ backgroundColor: '#faf5ff', padding: '16px', borderRadius: '12px', border: '1px solid #f3e8ff' }}>
-                  <p style={{ color: '#9333ea', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Discount</p>
-                  <p style={{ fontSize: '26px', fontWeight: '900', color: '#7e22ce', marginBottom: '2px' }}>
-                    {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
-                  </p>
-                  <p style={{ fontSize: '13px', color: '#a855f7', fontWeight: '700' }}>
-                    {latestDate?.toLocaleDateString('en-GB') || '—'}
-                  </p>
-                </div>
-              );
-            })()}
-          </div>
-
-          {/* Stats Row */}
-          <div className="grid grid-cols-5 gap-5 mb-6">
-            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
-              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Net Outstanding</p>
-              <p style={{ fontSize: '22px', fontWeight: '900', color: totalNetDebt > 0 ? '#dc2626' : '#16a34a' }}>
-                {totalNetDebt.toLocaleString('en-US')}
-              </p>
-            </div>
-            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
-              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Collection Rate</p>
-              <p style={{ fontSize: '22px', fontWeight: '900', color: '#2563eb' }}>{dashboardMetrics.collectionRate.toFixed(1)}%</p>
-            </div>
-            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
-              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Total Payments</p>
-              <p style={{ fontSize: '22px', fontWeight: '900', color: '#16a34a' }}>
-                {filteredInvoices.filter(inv => isPaymentTxn(inv)).reduce((sum, inv) => sum + (inv.credit || 0), 0).toLocaleString('en-US')}
-              </p>
-            </div>
-            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
-              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Avg Payment Cycle</p>
-              <p style={{ fontSize: '22px', fontWeight: '900', color: '#8b5cf6' }}>
-                {(() => {
-                  const payments = filteredInvoices
-                    .filter(inv => isPaymentTxn(inv))
-                    .sort((a, b) => {
-                      const dateA = a.parsedDate ? a.parsedDate.getTime() : (a.date ? new Date(a.date).getTime() : 0);
-                      const dateB = b.parsedDate ? b.parsedDate.getTime() : (b.date ? new Date(b.date).getTime() : 0);
-                      return dateA - dateB;
-                    });
-
-                  if (payments.length < 2) return '0 Days';
-
-                  const start = payments[0].parsedDate || (payments[0].date ? new Date(payments[0].date) : new Date());
-                  const end = payments[payments.length - 1].parsedDate || (payments[payments.length - 1].date ? new Date(payments[payments.length - 1].date) : new Date());
-
-                  const diffTime = Math.abs(end.getTime() - start.getTime());
-                  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                  const avgDays = Math.round(diffDays / (payments.length - 1));
-
-                  return `${avgDays} Days`;
-                })()}
-              </p>
-            </div>
-            <div style={{ backgroundColor: '#ffffff', padding: '16px', borderRadius: '12px', border: '1px solid #f3f4f6', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center' }}>
-              <p style={{ color: '#9ca3af', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Net Sales</p>
-              <p style={{ fontSize: '22px', fontWeight: '900', color: '#111827' }}>
-                {filteredInvoices.reduce((sum, inv) => {
-                  const num = (inv.number || '').toString().toUpperCase();
-                  if (num.startsWith('SAL')) return sum + inv.debit;
-                  if (num.startsWith('RSAL')) return sum - inv.credit;
-                  return sum;
-                }, 0).toLocaleString('en-US')}
-              </p>
-            </div>
-          </div>
-
-          {/* Charts Section */}
-          <div className="grid grid-cols-2 gap-6 flex-1 min-h-0">
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#4b5563', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Payments Trend (12M)</h3>
-              <div style={{ flex: 1, minHeight: 0, backgroundColor: 'rgba(249, 250, 251, 0.3)', borderRadius: '12px', border: '1px solid #f3f4f6', padding: '12px', maxHeight: '340px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyPaymentsTrendData} margin={{ top: 25, right: 5, left: 5, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis
-                      dataKey="monthLabel"
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                      tick={(props) => {
-                        const { x, y, payload } = props;
-                        const label = payload.value || '';
-                        // Assuming format starts with letters and ends with numbers (e.g. APR25)
-                        const month = label.replace(/[0-9]/g, '');
-                        const year = label.replace(/[^0-9]/g, '');
-                        return (
-                          <g transform={`translate(${x},${y})`}>
-                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#6B7280" fontSize={10} fontWeight={700}>
-                              {month}
-                            </text>
-                            <text x={0} y={0} dy={22} textAnchor="middle" fill="#9CA3AF" fontSize={9} fontWeight={500}>
-                              {year}
-                            </text>
-                          </g>
-                        );
-                      }}
-                    />
-                    <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                    <Bar dataKey="credit" fill="#10B981" radius={[4, 4, 0, 0]} barSize={24}>
-                      <LabelList
-                        dataKey="credit"
-                        position="top"
-                        formatter={(value: any) => Number(value) > 0 ? Math.round(Number(value)).toLocaleString() : ''}
-                        style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+        return (
+          <div style={pageStyle}>
+            {/* Header */}
+            <div style={headerStyle}>
+              <div>
+                <h1 style={{ fontSize: '24px', fontWeight: '900', color: '#111827', marginBottom: '4px' }}>{customerName}</h1>
+                <p style={{ fontSize: '18px', color: '#6b7280', fontWeight: '500' }}>Customer Analysis Report</p>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <p style={{ color: '#6b7280', marginTop: '4px', fontWeight: '600', fontSize: '14px' }}>Date: {new Date().toLocaleDateString('en-GB')}</p>
+                <p style={{ color: '#6b7280', marginTop: '2px', fontWeight: '600', fontSize: '14px' }}>Period: {periodString}</p>
               </div>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-              <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#4b5563', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Net Sales Trend (12M)</h3>
-              <div style={{ flex: 1, minHeight: 0, backgroundColor: 'rgba(249, 250, 251, 0.3)', borderRadius: '12px', border: '1px solid #f3f4f6', padding: '12px', maxHeight: '340px' }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlySalesTrendData} margin={{ top: 25, right: 5, left: 5, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                    <XAxis
-                      dataKey="monthLabel"
-                      axisLine={false}
-                      tickLine={false}
-                      interval={0}
-                      tick={(props) => {
-                        const { x, y, payload } = props;
-                        const label = payload.value || '';
-                        const month = label.replace(/[0-9]/g, '');
-                        const year = label.replace(/[^0-9]/g, '');
-                        return (
-                          <g transform={`translate(${x},${y})`}>
-                            <text x={0} y={0} dy={12} textAnchor="middle" fill="#6B7280" fontSize={10} fontWeight={700}>
-                              {month}
-                            </text>
-                            <text x={0} y={0} dy={22} textAnchor="middle" fill="#9CA3AF" fontSize={9} fontWeight={500}>
-                              {year}
-                            </text>
-                          </g>
-                        );
-                      }}
-                    />
-                    <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
-                    <Bar dataKey="originalDebit" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={24}>
-                      <LabelList
-                        dataKey="originalDebit"
-                        position="top"
-                        formatter={(value: any) => Number(value) > 0 ? Math.round(Number(value)).toLocaleString() : ''}
-                        style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
-                      />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+
+            {/* Top Cards: Last Transactions */}
+            <div className="grid grid-cols-3 gap-5 mb-6">
+              {/* Last Sale */}
+              {(() => {
+                const sales = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('SAL'));
+                const latestSale = sales.length > 0 ? [...sales].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestSale?.parsedDate;
+                const sameDaySales = latestDate ? sales.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDaySales.reduce((sum, inv) => sum + inv.debit, 0);
+
+                return (
+                  <div style={{ backgroundColor: '#eff6ff', padding: '16px', borderRadius: '12px', border: '1px solid #dbeafe' }}>
+                    <p style={{ color: '#2563eb', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Sale</p>
+                    <p style={{ fontSize: '26px', fontWeight: '900', color: '#1d4ed8', marginBottom: '2px' }}>
+                      {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#3b82f6', fontWeight: '700' }}>
+                      {latestDate?.toLocaleDateString('en-GB') || '—'}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Last Return */}
+              {(() => {
+                const returns = filteredInvoices.filter(inv => (inv.number || '').toString().toUpperCase().startsWith('RSAL'));
+                const latestReturn = returns.length > 0 ? [...returns].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestReturn?.parsedDate;
+                const sameDayReturns = latestDate ? returns.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDayReturns.reduce((sum, inv) => sum + inv.credit, 0);
+
+                return (
+                  <div style={{ backgroundColor: '#fff7ed', padding: '16px', borderRadius: '12px', border: '1px solid #ffedd5' }}>
+                    <p style={{ color: '#ea580c', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Return</p>
+                    <p style={{ fontSize: '26px', fontWeight: '900', color: '#c2410c', marginBottom: '2px' }}>
+                      {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#f97316', fontWeight: '700' }}>
+                      {latestDate?.toLocaleDateString('en-GB') || '—'}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* Last Payment */}
+              {(() => {
+                const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
+                const latestPayment = payments.length > 0 ? [...payments].sort((a, b) => {
+                  const dateA = a.parsedDate || (a.date ? new Date(a.date) : new Date(0));
+                  const dateB = b.parsedDate || (b.date ? new Date(b.date) : new Date(0));
+                  return dateB.getTime() - dateA.getTime();
+                })[0] : null;
+
+                const latestDate = latestPayment?.parsedDate;
+                const sameDayPayments = latestDate ? payments.filter(inv => {
+                  const d = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+                  return d?.getTime() === latestDate.getTime();
+                }) : [];
+                const totalAmount = sameDayPayments.reduce((sum, inv) => sum + getPaymentAmount(inv), 0);
+
+                return (
+                  <div style={{ backgroundColor: '#f0fdf4', padding: '16px', borderRadius: '12px', border: '1px solid #dcfce7' }}>
+                    <p style={{ color: '#16a34a', fontSize: '11px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Last Payment</p>
+                    <p style={{ fontSize: '26px', fontWeight: '900', color: '#15803d', marginBottom: '2px' }}>
+                      {totalAmount > 0 ? totalAmount.toLocaleString('en-US') : '0'}
+                    </p>
+                    <p style={{ fontSize: '13px', color: '#22c55e', fontWeight: '700' }}>
+                      {latestDate?.toLocaleDateString('en-GB') || '—'}
+                    </p>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Stats Row */}
+            <div className="grid grid-cols-6 gap-5 mb-6">
+              <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Net Outstanding</p>
+                <p style={{ fontSize: '20px', fontWeight: '900', color: totalNetDebt > 0 ? '#dc2626' : '#16a34a', wordBreak: 'break-all', lineHeight: '1.2' }}>
+                  {totalNetDebt.toLocaleString('en-US')}
+                </p>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Collection Rate</p>
+                <p style={{ fontSize: '20px', fontWeight: '900', color: '#2563eb', wordBreak: 'break-all', lineHeight: '1.2' }}>{dashboardMetrics.collectionRate.toFixed(1)}%</p>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Total Payments</p>
+                <p style={{ fontSize: '20px', fontWeight: '900', color: '#16a34a', wordBreak: 'break-all', lineHeight: '1.2' }}>
+                  {filteredInvoices.filter(inv => isPaymentTxn(inv)).reduce((sum, inv) => sum + (inv.credit || 0), 0).toLocaleString('en-US')}
+                </p>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Avg Payment Cycle</p>
+                <p style={{ fontSize: '20px', fontWeight: '900', color: '#8b5cf6', wordBreak: 'break-all', lineHeight: '1.2' }}>
+                  {(() => {
+                    const payments = filteredInvoices
+                      .filter(inv => isPaymentTxn(inv))
+                      .sort((a, b) => {
+                        const dateA = a.parsedDate ? a.parsedDate.getTime() : (a.date ? new Date(a.date).getTime() : 0);
+                        const dateB = b.parsedDate ? b.parsedDate.getTime() : (b.date ? new Date(b.date).getTime() : 0);
+                        return dateA - dateB;
+                      });
+
+                    if (payments.length < 2) return '0 Days';
+
+                    const start = payments[0].parsedDate || (payments[0].date ? new Date(payments[0].date) : new Date());
+                    const end = payments[payments.length - 1].parsedDate || (payments[payments.length - 1].date ? new Date(payments[payments.length - 1].date) : new Date());
+
+                    const diffTime = Math.abs(end.getTime() - start.getTime());
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                    const avgDays = Math.round(diffDays / (payments.length - 1));
+
+                    return `${avgDays} Days`;
+                  })()}
+                </p>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Net Sales</p>
+                <p style={{ fontSize: '20px', fontWeight: '900', color: '#111827', wordBreak: 'break-all', lineHeight: '1.2' }}>
+                  {filteredInvoices.reduce((sum, inv) => {
+                    const num = (inv.number || '').toString().toUpperCase();
+                    if (num.startsWith('SAL')) return sum + inv.debit;
+                    if (num.startsWith('RSAL')) return sum - inv.credit;
+                    return sum;
+                  }, 0).toLocaleString('en-US')}
+                </p>
+              </div>
+              <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Avg Monthly Net Sales</p>
+                <p style={{ fontSize: '20px', fontWeight: '900', color: '#0891b2', wordBreak: 'break-all', lineHeight: '1.2' }}>
+                  {dashboardMetrics.averageMonthlySales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+                </p>
               </div>
             </div>
-          </div>
 
-        </div>
-      );
+            {/* Charts Section */}
+            <div className="grid grid-cols-2 gap-6 flex-1 min-h-0">
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#4b5563', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Payments Trend (12M)</h3>
+                <div style={{ flex: 1, minHeight: 0, backgroundColor: 'rgba(249, 250, 251, 0.3)', borderRadius: '12px', border: '1px solid #f3f4f6', padding: '12px', maxHeight: '340px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyPaymentsTrendData} margin={{ top: 25, right: 5, left: 5, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis
+                        dataKey="monthLabel"
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                        tick={(props) => {
+                          const { x, y, payload } = props;
+                          const label = payload.value || '';
+                          // Assuming format starts with letters and ends with numbers (e.g. APR25)
+                          const month = label.replace(/[0-9]/g, '');
+                          const year = label.replace(/[^0-9]/g, '');
+                          return (
+                            <g transform={`translate(${x},${y})`}>
+                              <text x={0} y={0} dy={12} textAnchor="middle" fill="#6B7280" fontSize={10} fontWeight={700}>
+                                {month}
+                              </text>
+                              <text x={0} y={0} dy={22} textAnchor="middle" fill="#9CA3AF" fontSize={9} fontWeight={500}>
+                                {year}
+                              </text>
+                            </g>
+                          );
+                        }}
+                      />
+                      <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                      <Bar dataKey="credit" fill="#10B981" radius={[4, 4, 0, 0]} barSize={24}>
+                        <LabelList
+                          dataKey="credit"
+                          position="top"
+                          formatter={(value: any) => Number(value) > 0 ? Math.round(Number(value)).toLocaleString() : ''}
+                          style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <h3 style={{ fontSize: '12px', fontWeight: '900', color: '#4b5563', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Net Sales Trend (12M)</h3>
+                <div style={{ flex: 1, minHeight: 0, backgroundColor: 'rgba(249, 250, 251, 0.3)', borderRadius: '12px', border: '1px solid #f3f4f6', padding: '12px', maxHeight: '340px' }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlySalesTrendData} margin={{ top: 25, right: 5, left: 5, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                      <XAxis
+                        dataKey="monthLabel"
+                        axisLine={false}
+                        tickLine={false}
+                        interval={0}
+                        tick={(props) => {
+                          const { x, y, payload } = props;
+                          const label = payload.value || '';
+                          const month = label.replace(/[0-9]/g, '');
+                          const year = label.replace(/[^0-9]/g, '');
+                          return (
+                            <g transform={`translate(${x},${y})`}>
+                              <text x={0} y={0} dy={12} textAnchor="middle" fill="#6B7280" fontSize={10} fontWeight={700}>
+                                {month}
+                              </text>
+                              <text x={0} y={0} dy={22} textAnchor="middle" fill="#9CA3AF" fontSize={9} fontWeight={500}>
+                                {year}
+                              </text>
+                            </g>
+                          );
+                        }}
+                      />
+                      <YAxis tick={{ fontSize: 9, fill: '#9CA3AF' }} axisLine={false} tickLine={false} tickFormatter={(v) => `${v / 1000}k`} />
+                      <Bar dataKey="originalDebit" fill="#3B82F6" radius={[4, 4, 0, 0]} barSize={24}>
+                        <LabelList
+                          dataKey="originalDebit"
+                          position="top"
+                          formatter={(value: any) => Number(value) > 0 ? Math.round(Number(value)).toLocaleString() : ''}
+                          style={{ fontSize: '9px', fontWeight: '700', fill: '#374151' }}
+                        />
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        );
+      };
 
       // PAGE 2 COMPONENT (Aging & Monthly Debt)
       const AnalyticalReportPage2 = () => {
@@ -2385,7 +2373,7 @@ ${debtSectionHtml}
         return (
           <div style={pageStyle}>
             {/* Header Removed as requested */}
-            <div style={{ flex: 1, display: 'grid', gridTemplateRows: '1fr 1fr', gap: '32px', minHeight: 0 }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '32px', minHeight: 0, justifyContent: 'center' }}>
               {/* Aging Analysis Chart */}
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#4b5563', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.1em', borderLeft: '4px solid #3B82F6', paddingLeft: '10px' }}>
@@ -2393,91 +2381,46 @@ ${debtSectionHtml}
                 </h3>
                 <div style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={dashboardMetrics.pieData}
-                      margin={{ top: 30, right: 30, left: 20, bottom: 5 }}
-                      barSize={60}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis
-                        dataKey="name"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#4B5563', fontSize: 12, fontWeight: 700 }}
-                        interval={0}
-                        dy={10}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                        tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
-                      />
-                      <RechartsTooltip
-                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                        formatter={(value: any) => [value.toLocaleString('en-US'), 'Amount']}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                      />
-                      <Bar dataKey="value" radius={[8, 8, 0, 0]}>
-                        {dashboardMetrics.pieData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.color} />
-                        ))}
-                        <LabelList
-                          dataKey="value"
-                          position="top"
-                          formatter={(value: any) => value.toLocaleString('en-US')}
-                          style={{ fontSize: '12px', fontWeight: '700', fill: '#374151' }}
-                        />
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
+                    <PieChart margin={{ top: 50, right: 100, left: 100, bottom: 50 }}>
+                      <Pie
+                        data={dashboardMetrics.pieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={110}
+                        outerRadius={160}
+                        paddingAngle={4}
+                        dataKey="value"
+                        cornerRadius={6}
+                        isAnimationActive={false}
+                        labelLine={false}
+                        label={({ cx, cy, midAngle, innerRadius, outerRadius, value, fill, percent, name }) => {
+                          const RADIAN = Math.PI / 180;
+                          const radius = outerRadius + 35;
+                          const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                          const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                          const textAnchor = x > cx ? 'start' : 'end';
 
-              {/* Monthly Net Debt Chart */}
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-                <h3 style={{ fontSize: '16px', fontWeight: '900', color: '#4b5563', marginBottom: '16px', textTransform: 'uppercase', letterSpacing: '0.1em', borderLeft: '4px solid #DC2626', paddingLeft: '10px' }}>
-                  Monthly Net Debt History
-                </h3>
-                <div style={{ flex: 1, backgroundColor: '#f9fafb', borderRadius: '16px', border: '1px solid #e5e7eb', padding: '20px' }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={monthlyNetDebtData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                      <XAxis
-                        dataKey="monthLabel"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#6B7280', fontSize: 12, fontWeight: 600 }}
-                        dy={10}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fill: '#9CA3AF', fontSize: 11 }}
-                        tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : v}
-                      />
-                      <RechartsTooltip
-                        formatter={(value: any) => [value.toLocaleString('en-US'), 'Net Debt']}
-                        cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}
-                      />
-                      <Bar dataKey="netDebt" radius={[4, 4, 0, 0]} barSize={40}>
-                        {monthlyNetDebtData.map((entry, index) => (
-                          <Cell key={`cell-${index}`} fill={entry.fillColor} />
+                          return (
+                            <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central">
+                              <tspan x={x} dy="-1.4em" style={{ fontSize: '20px', fontWeight: '900', fill: fill }}>{value.toLocaleString('en-US')}</tspan>
+                              <tspan x={x} dy="1.6em" style={{ fontSize: '14px', fontWeight: '700', fill: '#6B7280' }}>{`${(percent * 100).toFixed(1)}%`}</tspan>
+                              <tspan x={x} dy="1.4em" style={{ fontSize: '14px', fontWeight: '800', fill: '#111827' }}>{name}</tspan>
+                            </text>
+                          );
+                        }}
+                      >
+                        {dashboardMetrics.pieData.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.color} stroke="none" />
                         ))}
-                        <LabelList
-                          dataKey="netDebt"
-                          position="top"
-                          formatter={(value: any) => {
-                            const num = Number(value);
-                            if (num <= 0) return '';
-                            if (num < 1000) return Math.round(num).toLocaleString();
-                            return Math.round(num / 1000) + 'k';
-                          }}
-                          style={{ fontSize: '11px', fontWeight: '700', fill: '#374151' }}
-                        />
-                      </Bar>
-                    </BarChart>
+                      </Pie>
+                      <Legend
+                        verticalAlign="bottom"
+                        height={40}
+                        iconType="circle"
+                        wrapperStyle={{ fontSize: '16px', fontWeight: 700, paddingTop: '20px' }}
+                        formatter={(value, entry: any) => <span style={{ color: '#374151', marginLeft: '8px' }}>{value}</span>}
+                      />
+                    </PieChart>
                   </ResponsiveContainer>
                 </div>
               </div>
@@ -2702,10 +2645,10 @@ ${debtSectionHtml}
     const pieData = [
       { name: 'Current', value: agingData.atDate, color: '#10B981' }, // Green
       { name: '1-30 Days', value: agingData.oneToThirty, color: '#3B82F6' }, // Blue
-      { name: '31-60 Days', value: agingData.thirtyOneToSixty, color: '#F59E0B' }, // Yellow
-      { name: '61-90 Days', value: agingData.sixtyOneToNinety, color: '#F97316' }, // Orange
-      { name: '91-120 Days', value: agingData.ninetyOneToOneTwenty, color: '#EF4444' }, // Red
-      { name: 'Older', value: agingData.older, color: '#991B1B' }, // Dark Red
+      { name: '31-60 Days', value: agingData.thirtyOneToSixty, color: '#8B5CF6' }, // Purple
+      { name: '61-90 Days', value: agingData.sixtyOneToNinety, color: '#F59E0B' }, // Yellow/Amber
+      { name: '91-120 Days', value: agingData.ninetyOneToOneTwenty, color: '#F97316' }, // Orange
+      { name: 'Older', value: agingData.older, color: '#EF4444' }, // Red
     ].filter(d => d.value > 0.01);
 
     // 90 Days Stats for Rating

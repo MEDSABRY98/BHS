@@ -173,16 +173,6 @@ export async function generateBulkDebitSummaryPDF(
       9: { cellWidth: 15 }, // Days
     },
     margin: { left: 10, right: 10 },
-    didDrawCell: (data: any) => {
-      // Add link to customer name column (index 1) for customer rows (exclude total row)
-      if (data.section === 'body' && data.column.index === 1 && data.row.index < sortedCustomers.length) {
-        const customer = sortedCustomers[data.row.index];
-        if (customer && customer.customerName) {
-          const url = `${window.location.origin}/debit?customer=${encodeURIComponent(customer.customerName)}&action=download_report`;
-          doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url });
-        }
-      }
-    },
     didParseCell: (data: any) => {
       if (data.row.index === tableData.length - 1) {
         data.cell.styles.fontStyle = 'bold';
