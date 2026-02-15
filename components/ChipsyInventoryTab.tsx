@@ -49,6 +49,16 @@ type TabView = 'inventory' | 'transfers' | 'new_transaction' | 'people_inventory
 export default function ChipsyInventoryTab() {
 
     const [activeTab, setActiveTab] = useState<TabView>('inventory');
+    const [currentUser, setCurrentUser] = useState<any>(null);
+
+    useEffect(() => {
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+            try {
+                setCurrentUser(JSON.parse(savedUser));
+            } catch (e) { }
+        }
+    }, []);
     const [products, setProducts] = useState<ChipsyProduct[]>([]);
     const [transfers, setTransfers] = useState<ChipsyTransfer[]>([]);
     const [mainCustomers, setMainCustomers] = useState<string[]>([]);
@@ -1327,12 +1337,22 @@ export default function ChipsyInventoryTab() {
                             </button>
                         )}
 
-                        <button
-                            onClick={() => { setActiveTab('new_transaction'); }}
-                            className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 shadow-sm transition-all font-medium"
-                        >
-                            <Plus className="w-5 h-5" /> New Transaction
-                        </button>
+                        {(() => {
+                            try {
+                                const perms = JSON.parse(currentUser?.role || '{}');
+                                if (perms['chipsy-inventory'] && currentUser?.name !== 'MED Sabry') {
+                                    if (!perms['chipsy-inventory'].includes('new_transaction')) return null;
+                                }
+                            } catch (e) { }
+                            return (
+                                <button
+                                    onClick={() => { setActiveTab('new_transaction'); }}
+                                    className="flex items-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 shadow-sm transition-all font-medium"
+                                >
+                                    <Plus className="w-5 h-5" /> New Transaction
+                                </button>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -1341,30 +1361,28 @@ export default function ChipsyInventoryTab() {
             {/* Tabs (Hide when in transaction mode) */}
             {activeTab !== 'new_transaction' && activeTab !== 'person_details' && (
                 <div className="flex w-full bg-white rounded-xl shadow-sm p-1 border border-gray-200">
-                    <button
-                        onClick={() => setActiveTab('inventory')}
-                        className={`flex-1 pb-3 pt-2 font-medium transition-colors border-b-2 text-center ${activeTab === 'inventory' ? 'border-orange-500 text-orange-600 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                    >
-                        Current Inventory
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('people_inventory')}
-                        className={`flex-1 pb-3 pt-2 font-medium transition-colors border-b-2 text-center ${activeTab === 'people_inventory' ? 'border-orange-500 text-orange-600 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                    >
-                        People Inventory
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('transfers')}
-                        className={`flex-1 pb-3 pt-2 font-medium transition-colors border-b-2 text-center ${activeTab === 'transfers' ? 'border-orange-500 text-orange-600 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                    >
-                        History Logs
-                    </button>
-                    <button
-                        onClick={() => setActiveTab('reprint')}
-                        className={`flex-1 pb-3 pt-2 font-medium transition-colors border-b-2 text-center ${activeTab === 'reprint' ? 'border-orange-500 text-orange-600 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
-                    >
-                        Reprint
-                    </button>
+                    {[
+                        { id: 'inventory', label: 'Current Inventory' },
+                        { id: 'people_inventory', label: 'People Inventory' },
+                        { id: 'transfers', label: 'History Logs' },
+                        { id: 'reprint', label: 'Reprint' }
+                    ].filter(tab => {
+                        try {
+                            const perms = JSON.parse(currentUser?.role || '{}');
+                            if (perms['chipsy-inventory'] && currentUser?.name !== 'MED Sabry') {
+                                return perms['chipsy-inventory'].includes(tab.id);
+                            }
+                        } catch (e) { }
+                        return true;
+                    }).map(tab => (
+                        <button
+                            key={tab.id}
+                            onClick={() => setActiveTab(tab.id as any)}
+                            className={`flex-1 pb-3 pt-2 font-medium transition-colors border-b-2 text-center ${activeTab === tab.id ? 'border-orange-500 text-orange-600 bg-orange-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}
+                        >
+                            {tab.label}
+                        </button>
+                    ))}
                 </div>
             )}
 

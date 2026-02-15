@@ -725,7 +725,15 @@ export default function EmployeeOvertimeTab() {
                 { id: 'view', label: 'View Records', icon: List },
                 { id: 'statistics', label: 'Statistics', icon: BarChart3 },
                 { id: 'absence', label: 'Absence', icon: User }
-              ].map(tab => (
+              ].filter(tab => {
+                try {
+                  const perms = JSON.parse(currentUser?.role || '{}');
+                  if (perms['employee-overtime'] && currentUser?.name !== 'MED Sabry') {
+                    return perms['employee-overtime'].includes(tab.id);
+                  }
+                } catch (e) { }
+                return true;
+              }).map(tab => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}

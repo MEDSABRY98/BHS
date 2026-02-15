@@ -49,6 +49,29 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'notification', label: 'Notification Order' },
         { id: 'make', label: 'Make Orders' },
         { id: 'quotation', label: 'Purchase Quotation' }
+    ],
+    'cash-receipt': [
+        { id: 'new', label: 'New Receipt' },
+        { id: 'saved', label: 'Saved Receipts' }
+    ],
+    'petty-cash': [
+        { id: 'receipts', label: 'Receipts' },
+        { id: 'expenses', label: 'Expenses' },
+        { id: 'voucher', label: 'Voucher' },
+        { id: 'stats', label: 'Statistics' }
+    ],
+    'chipsy-inventory': [
+        { id: 'inventory', label: 'Inventory Balance' },
+        { id: 'transfers', label: 'Transfers History' },
+        { id: 'new_transaction', label: 'New Transaction' },
+        { id: 'people_inventory', label: 'People Inventory' },
+        { id: 'reprint', label: 'Reprint' }
+    ],
+    'employee-overtime': [
+        { id: 'register', label: 'Register' },
+        { id: 'view', label: 'View Records' },
+        { id: 'statistics', label: 'Statistics' },
+        { id: 'absence', label: 'Absence' }
     ]
 };
 

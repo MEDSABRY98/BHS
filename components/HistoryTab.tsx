@@ -18,8 +18,8 @@ export default function HistoryTab({ data }: HistoryTabProps) {
                     <button
                         onClick={() => setActiveSubTab('years')}
                         className={`px-6 py-2 rounded-md font-semibold transition-all ${activeSubTab === 'years'
-                                ? 'bg-white text-blue-600 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-blue-600 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         Years
@@ -27,8 +27,8 @@ export default function HistoryTab({ data }: HistoryTabProps) {
                     <button
                         onClick={() => setActiveSubTab('months')}
                         className={`px-6 py-2 rounded-md font-semibold transition-all ${activeSubTab === 'months'
-                                ? 'bg-white text-blue-600 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-blue-600 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         Months

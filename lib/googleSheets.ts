@@ -3173,3 +3173,79 @@ export async function updateUserRole(name: string, newRole: string) {
     throw error;
   }
 }
+
+export async function getSuppliersMatchingData() {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Suppliers Matching'!A:C`, // Supplier ID, Supplier NAME, Months Matching
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    return rows.slice(1).map(row => ({
+      id: row[0] || '',
+      name: row[1] || '',
+      months: row[2] || '',
+    }));
+  } catch (error) {
+    console.error('Error fetching suppliers matching data:', error);
+    return [];
+  }
+}
+
+export async function saveSuppliersMatchingData(supplierId: string, supplierName: string, months: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Find existing row or append new
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Suppliers Matching'!A:B`,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex(row => row[1]?.toString().trim().toLowerCase() === supplierName.trim().toLowerCase());
+
+    if (rowIndex !== -1) {
+      // Update existing row - Only update Column C (Months Matching)
+      const sheetRow = rowIndex + 1;
+      await sheets.spreadsheets.values.update({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'Suppliers Matching'!C${sheetRow}`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[months]],
+        },
+      });
+    } else {
+      // Append new row - Only write to Column B (Name) and Column C (Months)
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'Suppliers Matching'!B:C`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: [[supplierName, months]],
+        },
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error saving suppliers matching data:', error);
+    throw error;
+  }
+}

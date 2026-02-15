@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock } from 'lucide-react';
+import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock, Save, RotateCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Receipt {
@@ -25,6 +25,17 @@ interface Expense {
 }
 
 export default function PettyCashTab() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) { }
+    }
+  }, []);
+
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats' | 'voucher'>('receipts');
@@ -53,13 +64,9 @@ export default function PettyCashTab() {
     paid: 'No',
     date: new Date().toISOString().split('T')[0]
   });
-  const [expenseFormData, setExpenseFormData] = useState({
-    amount: '',
-    source: '',
-    description: '',
-    paid: 'No',
-    date: new Date().toISOString().split('T')[0]
-  });
+  const [expenseCart, setExpenseCart] = useState([
+    { amount: '', source: '', description: '', paid: 'No', date: new Date().toISOString().split('T')[0] }
+  ]);
 
   const [voucherFormData, setVoucherFormData] = useState({
     amount: '',
@@ -115,39 +122,51 @@ export default function PettyCashTab() {
     window.location.href = '/';
   };
 
-  const handleSubmit = async (type: 'receipt' | 'expense') => {
-    const currentFormData = type === 'receipt' ? receiptFormData : expenseFormData;
+  const addExpenseRow = () => {
+    const lastDate = expenseCart[expenseCart.length - 1]?.date || new Date().toISOString().split('T')[0];
+    setExpenseCart([...expenseCart, { amount: '', source: '', description: '', paid: 'No', date: lastDate }]);
+  };
 
-    if (!currentFormData.amount || !currentFormData.source || !currentFormData.description) {
-      alert('Please fill all fields');
+  const removeExpenseRow = (index: number) => {
+    if (expenseCart.length === 1) {
+      setExpenseCart([{ amount: '', source: '', description: '', paid: 'No', date: new Date().toISOString().split('T')[0] }]);
       return;
     }
+    const newCart = [...expenseCart];
+    newCart.splice(index, 1);
+    setExpenseCart(newCart);
+  };
 
+  const updateExpenseRow = (index: number, field: string, value: any) => {
+    const newCart = [...expenseCart];
+    (newCart[index] as any)[field] = value;
+    setExpenseCart(newCart);
+  };
+
+  const handleSubmit = async (type: 'receipt' | 'expense') => {
     try {
       setLoading(true);
-      const response = await fetch('/api/petty-cash', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          date: currentFormData.date,
-          type: type === 'receipt' ? 'Receipt' : 'Expense',
-          amount: parseFloat(currentFormData.amount),
-          name: currentFormData.source,
-          description: currentFormData.description,
-          paid: currentFormData.paid,
-        }),
-      });
 
-      const data = await response.json();
+      if (type === 'receipt') {
+        if (!receiptFormData.amount || !receiptFormData.source || !receiptFormData.description) {
+          alert('Please fill all fields');
+          return;
+        }
 
-      if (response.ok && data.success) {
-        // Refresh records from server
-        await fetchRecords();
+        const response = await fetch('/api/petty-cash', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: receiptFormData.date,
+            type: 'Receipt',
+            amount: parseFloat(receiptFormData.amount),
+            name: receiptFormData.source,
+            description: receiptFormData.description,
+            paid: receiptFormData.paid,
+          }),
+        });
 
-        // Reset the appropriate form
-        if (type === 'receipt') {
+        if (response.ok) {
           setReceiptFormData({
             amount: '',
             source: '',
@@ -155,21 +174,51 @@ export default function PettyCashTab() {
             paid: 'No',
             date: new Date().toISOString().split('T')[0]
           });
-        } else {
-          setExpenseFormData({
-            amount: '',
-            source: '',
-            description: '',
-            paid: 'No',
-            date: new Date().toISOString().split('T')[0]
-          });
+          await fetchRecords();
         }
       } else {
-        alert(data.error || 'Failed to save entry');
+        // Bulk Expenses
+        const validRows = expenseCart.filter(row => row.amount && row.source && row.description);
+
+        if (validRows.length === 0) {
+          alert('Please fill at least one complete expense row');
+          return;
+        }
+
+        // Execute sequentially to avoid rate limits or sheet concurrency issues
+        let successCount = 0;
+        for (const row of validRows) {
+          try {
+            const response = await fetch('/api/petty-cash', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                date: row.date,
+                type: 'Expense',
+                amount: parseFloat(row.amount as string),
+                name: row.source,
+                description: row.description,
+                paid: row.paid,
+              }),
+            });
+            if (response.ok) successCount++;
+          } catch (e) {
+            console.error('Failed to save row:', row, e);
+          }
+        }
+
+        if (successCount > 0) {
+          setExpenseCart([{ amount: '', source: '', description: '', paid: 'No', date: new Date().toISOString().split('T')[0] }]);
+          await fetchRecords();
+          setActiveTab('stats');
+          setStatsSubTab('expenses');
+        } else {
+          alert('Failed to save expenses. Please check your connection.');
+        }
       }
     } catch (error) {
-      console.error('Error saving entry:', error);
-      alert('Failed to save entry');
+      console.error('Error submitting:', error);
+      alert('Error saving records');
     } finally {
       setLoading(false);
     }
@@ -433,7 +482,7 @@ export default function PettyCashTab() {
   const tabs = [
     { id: 'receipts' as const, name: 'Receipts', icon: TrendingUp },
     { id: 'expenses' as const, name: 'Expenses', icon: TrendingDown },
-    { id: 'voucher' as const, name: 'Voucher (Print)', icon: FileText },
+    { id: 'voucher' as const, name: 'Voucher', icon: FileText },
     { id: 'stats' as const, name: 'Statistics', icon: BarChart3 }
   ];
 
@@ -463,7 +512,15 @@ export default function PettyCashTab() {
           </div>
 
           <nav className="space-y-2 mb-8">
-            {tabs.map(tab => {
+            {tabs.filter(tab => {
+              try {
+                const perms = JSON.parse(currentUser?.role || '{}');
+                if (perms['petty-cash'] && currentUser?.name !== 'MED Sabry') {
+                  return perms['petty-cash'].includes(tab.id);
+                }
+              } catch (e) { }
+              return true;
+            }).map(tab => {
               const Icon = tab.icon;
               return (
                 <button
@@ -615,85 +672,147 @@ export default function PettyCashTab() {
 
           {/* Expenses Tab */}
           {activeTab === 'expenses' && (
-            <div className="max-w-7xl mx-auto">
+            <div className="max-w-[98%] mx-auto">
               <div className="space-y-6">
                 {/* Form Card */}
                 <div>
-                  <div className="bg-white rounded-2xl shadow-lg p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                      <div className="bg-black text-white p-2 rounded-lg">
-                        <Plus className="w-5 h-5" />
+                  <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-100">
+                    <div className="bg-gray-900 px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3 text-white">
+                        <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
+                          <TrendingDown className="w-5 h-5" />
+                        </div>
+                        <h3 className="text-xl font-bold uppercase tracking-wider">New Expenses</h3>
                       </div>
-                      <h3 className="text-xl font-bold">New Expense</h3>
+                      <div className="flex gap-4">
+                        <button
+                          onClick={addExpenseRow}
+                          disabled={loading}
+                          className="bg-white/10 hover:bg-white/20 text-white px-4 py-2 rounded-lg font-bold transition-all flex items-center gap-2 border border-white/20"
+                        >
+                          <Plus className="w-4 h-4" /> Add Row
+                        </button>
+                      </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-4 gap-3">
-                        <div>
-                          <label className="block font-semibold mb-2 text-sm text-gray-700">Date</label>
-                          <input
-                            type="date"
-                            value={expenseFormData.date}
-                            onChange={(e) => setExpenseFormData({ ...expenseFormData, date: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
-                          />
-                        </div>
+                    <div className="p-0 overflow-x-auto">
+                      <table className="w-full min-w-[1000px]">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-100">
+                            <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-[160px]">Date</th>
+                            <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-[140px]">AED</th>
+                            <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-[280px]">Recipient</th>
+                            <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest min-w-[350px]">Description</th>
+                            <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-[120px]">Paid?</th>
+                            <th className="px-6 py-4 w-[60px]"></th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50">
+                          {expenseCart.map((row, index) => (
+                            <tr key={index} className="hover:bg-gray-50/50 transition-colors group">
+                              <td className="px-6 py-3 text-center">
+                                <input
+                                  type="date"
+                                  value={row.date}
+                                  onChange={(e) => updateExpenseRow(index, 'date', e.target.value)}
+                                  className="w-full border-2 border-transparent hover:border-gray-200 focus:border-black focus:bg-white bg-transparent rounded-lg px-3 py-2 text-sm transition-all outline-none text-center"
+                                />
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  value={row.amount}
+                                  onChange={(e) => updateExpenseRow(index, 'amount', e.target.value)}
+                                  placeholder="0.00"
+                                  className="w-full border-2 border-transparent hover:border-gray-200 focus:border-black focus:bg-white bg-transparent rounded-lg px-3 py-2 text-sm font-bold text-red-600 transition-all outline-none text-center"
+                                />
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <input
+                                  type="text"
+                                  value={row.source}
+                                  onChange={(e) => updateExpenseRow(index, 'source', e.target.value)}
+                                  placeholder="Recipient name"
+                                  className="w-full border-2 border-transparent hover:border-gray-200 focus:border-black focus:bg-white bg-transparent rounded-lg px-3 py-2 text-sm font-semibold transition-all outline-none text-center"
+                                />
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <input
+                                  type="text"
+                                  value={row.description}
+                                  onChange={(e) => updateExpenseRow(index, 'description', e.target.value)}
+                                  placeholder="Expense details..."
+                                  className="w-full border-2 border-transparent hover:border-gray-200 focus:border-black focus:bg-white bg-transparent rounded-lg px-3 py-2 text-sm transition-all outline-none text-center"
+                                />
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <select
+                                  value={row.paid}
+                                  onChange={(e) => updateExpenseRow(index, 'paid', e.target.value)}
+                                  className={`px-3 py-2 rounded-lg text-xs font-black transition-all outline-none border-2 border-transparent ${row.paid === 'Yes'
+                                    ? 'bg-green-100 text-green-700 hover:border-green-300'
+                                    : 'bg-red-100 text-red-700 hover:border-red-300'
+                                    }`}
+                                >
+                                  <option value="No">UNPAID</option>
+                                  <option value="Yes">PAID</option>
+                                </select>
+                              </td>
+                              <td className="px-6 py-3 text-center">
+                                <button
+                                  onClick={() => removeExpenseRow(index)}
+                                  className="p-2 text-gray-300 hover:text-red-500 transition-colors"
+                                  title="Remove Row"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
 
+                    <div className="bg-gray-50 px-6 py-6 border-t border-gray-100 flex flex-col md:flex-row items-center justify-between gap-6">
+                      <div className="flex gap-8">
                         <div>
-                          <label className="block font-semibold mb-2 text-sm text-gray-700">Amount</label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            value={expenseFormData.amount}
-                            onChange={(e) => setExpenseFormData({ ...expenseFormData, amount: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
-                            placeholder="0.00"
-                          />
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Total Rows</p>
+                          <p className="text-xl font-bold text-gray-700">{expenseCart.length}</p>
                         </div>
-
                         <div>
-                          <label className="block font-semibold mb-2 text-sm text-gray-700">Recipient</label>
-                          <input
-                            type="text"
-                            value={expenseFormData.source}
-                            onChange={(e) => setExpenseFormData({ ...expenseFormData, source: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
-                            placeholder="Recipient name"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block font-semibold mb-2 text-sm text-gray-700">Paid?</label>
-                          <select
-                            value={expenseFormData.paid}
-                            onChange={(e) => setExpenseFormData({ ...expenseFormData, paid: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
-                          >
-                            <option value="No">No</option>
-                            <option value="Yes">Yes</option>
-                          </select>
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Accumulated Amount</p>
+                          <p className="text-xl font-bold text-red-600">
+                            {expenseCart.reduce((sum, r) => sum + (parseFloat(r.amount as string) || 0), 0).toFixed(2)} <span className="text-xs">AED</span>
+                          </p>
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block font-semibold mb-2 text-sm text-gray-700">Description</label>
-                        <textarea
-                          value={expenseFormData.description}
-                          onChange={(e) => setExpenseFormData({ ...expenseFormData, description: e.target.value })}
-                          className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors resize-none"
-                          rows={3}
-                          placeholder="Expense description"
-                        />
+                      <div className="flex gap-3 w-full md:w-auto">
+                        <button
+                          onClick={() => setExpenseCart([{ amount: '', source: '', description: '', paid: 'No', date: new Date().toISOString().split('T')[0] }])}
+                          className="flex-1 md:flex-none px-6 py-3 text-gray-500 font-bold hover:bg-gray-200 rounded-xl transition-all"
+                        >
+                          Clear All
+                        </button>
+                        <button
+                          onClick={() => handleSubmit('expense')}
+                          disabled={loading}
+                          className="flex-1 md:flex-none px-10 py-3 bg-black text-white font-black rounded-xl hover:bg-gray-800 disabled:opacity-50 shadow-xl shadow-gray-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                        >
+                          {loading ? (
+                            <>
+                              <RotateCw className="w-5 h-5 animate-spin" />
+                              Saving Records...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-5 h-5" />
+                              SAVE ALL
+                            </>
+                          )}
+                        </button>
                       </div>
-
-                      <button
-                        onClick={() => handleSubmit('expense')}
-                        disabled={loading}
-                        className="w-1/2 mx-auto bg-black text-white font-bold py-4 px-4 rounded-xl hover:bg-gray-800 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Plus className="w-5 h-5" />
-                        {loading ? 'Saving...' : 'Add Expense'}
-                      </button>
                     </div>
                   </div>
                 </div>

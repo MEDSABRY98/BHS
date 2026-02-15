@@ -6,6 +6,17 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export default function CashReceiptTab() {
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    const savedUser = localStorage.getItem('currentUser');
+    if (savedUser) {
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) { }
+    }
+  }, []);
+
   const [formData, setFormData] = useState({
     receivedFrom: '',
     sendBy: '',
@@ -248,26 +259,30 @@ export default function CashReceiptTab() {
         </div>
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-          <button
-            onClick={() => setActiveTab('new')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'new'
-              ? 'bg-black text-white shadow-lg'
-              : 'text-gray-500 hover:bg-gray-50'
-              }`}
-          >
-            <PlusCircle className="w-5 h-5" />
-            New Receipt
-          </button>
-          <button
-            onClick={() => setActiveTab('saved')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === 'saved'
-              ? 'bg-black text-white shadow-lg'
-              : 'text-gray-500 hover:bg-gray-50'
-              }`}
-          >
-            <List className="w-5 h-5" />
-            Saved Receipts
-          </button>
+          {[
+            { id: 'new', label: 'New Receipt', icon: PlusCircle },
+            { id: 'saved', label: 'Saved Receipts', icon: List }
+          ].filter(tab => {
+            try {
+              const perms = JSON.parse(currentUser?.role || '{}');
+              if (perms['cash-receipt'] && currentUser?.name !== 'MED Sabry') {
+                return perms['cash-receipt'].includes(tab.id);
+              }
+            } catch (e) { }
+            return true;
+          }).map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === tab.id
+                ? 'bg-black text-white shadow-lg'
+                : 'text-gray-500 hover:bg-gray-50'
+                }`}
+            >
+              <tab.icon className="w-5 h-5" />
+              {tab.label}
+            </button>
+          ))}
 
           {activeTab === 'saved' && (
             <div className="mt-6 pt-6 border-t border-gray-100 space-y-4">

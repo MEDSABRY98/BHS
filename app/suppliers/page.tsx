@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import SuppliersTab from '@/components/SuppliersTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
-import { ArrowLeft, Package } from 'lucide-react';
+import { ArrowLeft, Package, FileText, CheckSquare } from 'lucide-react';
 
 interface SupplierTransaction {
     date: string;
@@ -20,6 +20,7 @@ export default function SuppliersPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);
     const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
     const [loading, setLoading] = useState(true);
+    const [activeTab, setActiveTab] = useState<'statements' | 'matching'>('statements');
 
     useEffect(() => {
         const savedUser = localStorage.getItem('currentUser');
@@ -91,6 +92,31 @@ export default function SuppliersPage() {
                         </div>
                     </div>
 
+                    <div className="flex-1 flex justify-center">
+                        <div className="flex p-1 bg-slate-100/50 rounded-2xl border border-slate-200">
+                            <button
+                                onClick={() => setActiveTab('statements')}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'statements'
+                                        ? 'bg-white text-teal-600 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <FileText className="w-4 h-4" />
+                                Statements
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('matching')}
+                                className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'matching'
+                                        ? 'bg-white text-teal-600 shadow-sm'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                    }`}
+                            >
+                                <CheckSquare className="w-4 h-4" />
+                                Matching
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="flex items-center gap-4">
                     </div>
                 </div>
@@ -98,7 +124,7 @@ export default function SuppliersPage() {
 
             <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
                 <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
-                    <SuppliersTab data={transactions} />
+                    <SuppliersTab data={transactions} activeTab={activeTab} />
                 </main>
             </div>
         </div>

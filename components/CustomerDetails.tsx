@@ -29,7 +29,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download } from 'lucide-react';
+import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X } from 'lucide-react';
 import { getInvoiceType } from '@/lib/invoiceType';
 import { useSearchParams } from 'next/navigation';
 
@@ -320,6 +320,8 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
   const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string[]>([]);
   const [isMatchingDropdownOpen, setIsMatchingDropdownOpen] = useState(false);
+  const [startDateFilter, setStartDateFilter] = useState('');
+  const [endDateFilter, setEndDateFilter] = useState('');
 
   // Selected invoices for checkboxes (using originalIndex as unique identifier)
   const [selectedInvoiceIds, setSelectedInvoiceIds] = useState<Set<number>>(new Set());
@@ -925,6 +927,29 @@ ${debtSectionHtml}
       });
     }
 
+    // Date Range Filter
+    if (startDateFilter || endDateFilter) {
+      filtered = filtered.filter((inv) => {
+        const date = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+        if (!date || isNaN(date.getTime())) return false;
+
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+
+        if (startDateFilter) {
+          const start = new Date(startDateFilter);
+          start.setHours(0, 0, 0, 0);
+          if (d < start) return false;
+        }
+        if (endDateFilter) {
+          const end = new Date(endDateFilter);
+          end.setHours(0, 0, 0, 0);
+          if (d > end) return false;
+        }
+        return true;
+      });
+    }
+
     // Matching Filter
     if (selectedMatchingFilter.length > 0) {
       const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
@@ -977,7 +1002,7 @@ ${debtSectionHtml}
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
     );
-  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV]);
+  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
   // Calculate totals for each invoice type based on current filters (excluding type filters)
   const invoiceTypeTotals = useMemo(() => {
@@ -1061,7 +1086,7 @@ ${debtSectionHtml}
       discounts: discountsTotal,
       jv: jvTotal,
     };
-  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual]);
+  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual, startDateFilter, endDateFilter]);
 
   // Filter overdue invoices based on selected month filter, matching filter, and search query
   const filteredOverdueInvoices = useMemo(() => {
@@ -1075,6 +1100,29 @@ ${debtSectionHtml}
         if (isNaN(date.getTime())) return false;
         const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         return selectedMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Date Range Filter
+    if (startDateFilter || endDateFilter) {
+      filtered = filtered.filter((inv) => {
+        const date = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+        if (!date || isNaN(date.getTime())) return false;
+
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+
+        if (startDateFilter) {
+          const start = new Date(startDateFilter);
+          start.setHours(0, 0, 0, 0);
+          if (d < start) return false;
+        }
+        if (endDateFilter) {
+          const end = new Date(endDateFilter);
+          end.setHours(0, 0, 0, 0);
+          if (d > end) return false;
+        }
+        return true;
       });
     }
 
@@ -1131,7 +1179,7 @@ ${debtSectionHtml}
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
     );
-  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV]);
+  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
   // Prepare monthly debt data
   const monthlyDebt = useMemo(() => {
@@ -1355,20 +1403,7 @@ ${debtSectionHtml}
   }, [last12MonthsBase]);
 
   const agingData = useMemo<AgingSummary>(() => {
-    // 1. Use bills with net debt directly
-    const openInvoices = buildInvoicesWithNetDebt(invoices);
-
-    // Condensed open invoices logic - matches "Net Only" export logic
-    const condensedOpen = openInvoices.filter(inv => {
-      if (!inv.matching) return (inv.debit - inv.credit) > 0.01;
-      return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-    }).map(inv => {
-      if (inv.matching && inv.residual !== undefined) {
-        return { ...inv, netDebt: inv.residual };
-      }
-      return { ...inv, netDebt: inv.debit - inv.credit };
-    });
-
+    // Use filteredOverdueInvoices to ensure aging respects filters and includes credits
     const summary: AgingSummary = {
       atDate: 0,
       oneToThirty: 0,
@@ -1379,19 +1414,21 @@ ${debtSectionHtml}
       total: 0
     };
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    filteredOverdueInvoices.forEach(inv => {
+      // Use difference which represents the open balance (residual)
+      const amount = inv.difference;
+      if (Math.abs(amount) < 0.01) return;
 
-    condensedOpen.forEach(inv => {
-      const amount = inv.netDebt;
-      if (amount <= 0.01) return;
-
-      let targetDate = parseInvoiceDate(inv.date);
+      // Use targetDate consistent with overdueInvoices preparation
+      let targetDate = parseInvoiceDate(inv.dueDate) || inv.parsedDate;
       let daysOverdue = 0;
 
       if (targetDate && !isNaN(targetDate.getTime())) {
-        targetDate.setHours(0, 0, 0, 0);
-        const diffTime = today.getTime() - targetDate.getTime();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const refDate = new Date(targetDate);
+        refDate.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - refDate.getTime();
         daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       }
 
@@ -1413,7 +1450,7 @@ ${debtSectionHtml}
     });
 
     return summary;
-  }, [invoices]);
+  }, [filteredOverdueInvoices]);
 
 
   // Invoice columns - Order: CHECKBOX, DATE, NUMBER, DEBIT, CREDIT, Net Debt, Matching, Residual
@@ -3265,6 +3302,44 @@ ${debtSectionHtml}
             {/* Filters Group */}
             <div className="flex items-center gap-4 w-full md:w-auto justify-center">
 
+              {/* Date Range Filter */}
+              <div className="flex items-center bg-white border border-gray-200 rounded-xl shadow-sm hover:border-gray-300 transition-all focus-within:ring-4 focus-within:ring-blue-500/10 focus-within:border-blue-500 overflow-hidden group px-2">
+                <style dangerouslySetInnerHTML={{
+                  __html: `
+                  .hide-date-icon::-webkit-calendar-picker-indicator {
+                    display: none !important;
+                    -webkit-appearance: none;
+                  }
+                `}} />
+                <div className="flex items-center">
+                  <input
+                    type="date"
+                    value={startDateFilter}
+                    onChange={(e) => setStartDateFilter(e.target.value)}
+                    className="hide-date-icon bg-transparent border-none text-sm font-bold text-gray-700 focus:ring-0 py-2.5 px-3 cursor-pointer w-[125px]"
+                  />
+                  <div className="w-px h-5 bg-gray-200 mx-1"></div>
+                  <input
+                    type="date"
+                    value={endDateFilter}
+                    onChange={(e) => setEndDateFilter(e.target.value)}
+                    className="hide-date-icon bg-transparent border-none text-sm font-bold text-gray-700 focus:ring-0 py-2.5 px-3 cursor-pointer w-[125px]"
+                  />
+                </div>
+                {(startDateFilter || endDateFilter) && (
+                  <button
+                    onClick={() => {
+                      setStartDateFilter('');
+                      setEndDateFilter('');
+                    }}
+                    className="mr-3 ml-1 p-1 hover:bg-red-50 text-gray-400 hover:text-red-500 rounded-lg transition-all"
+                    title="Clear Dates"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+
               {/* Month Filter */}
               <div className="relative w-full md:w-56">
                 <button
@@ -3893,8 +3968,8 @@ ${debtSectionHtml}
                             ].filter(d => d.value > 0.01)}
                             cx="50%"
                             cy="50%"
-                            innerRadius={75}
-                            outerRadius={105}
+                            innerRadius={85}
+                            outerRadius={125}
                             paddingAngle={4}
                             dataKey="value"
                             stroke="none"
@@ -3913,8 +3988,8 @@ ${debtSectionHtml}
                         </PieChart>
                       </ResponsiveContainer>
                       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <span className="text-sm font-black text-slate-400 uppercase tracking-widest mb-1">Total</span>
-                        <span className="text-4xl font-black text-slate-800 tabular-nums">
+                        <span className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Total</span>
+                        <span className="text-3xl font-black text-slate-800 tabular-nums">
                           {Math.round(agingData.total).toLocaleString('en-US')}
                         </span>
                       </div>
@@ -3940,7 +4015,7 @@ ${debtSectionHtml}
                               <span className="text-lg font-bold text-slate-600">{bucket.label}</span>
                             </div>
                             <div className="flex items-center gap-6">
-                              <span className="text-sm font-bold text-slate-400">{percentage.toFixed(1)}%</span>
+                              <span className="text-lg font-bold text-sky-500">{percentage.toFixed(1)}%</span>
                               <span className="text-xl font-black tabular-nums text-slate-800 w-[140px] text-right">
                                 {bucket.value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                               </span>
