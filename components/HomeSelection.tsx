@@ -231,26 +231,29 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {isSystemAllowed('debit') && (
             <SystemCard title="Debit Analysis" icon={DollarSign} onClick={nav('/debit')} color="red" delay={250} />
           )}
+          {isSystemAllowed('visit-customers') && (
+            <SystemCard title="Visit Customers" icon={Users} onClick={nav('/visit-customers')} color="pink" delay={300} />
+          )}
           {isSystemAllowed('discount-tracker') && (
-            <SystemCard title="Discount Tracker" icon={TrendingUp} onClick={nav('/discount-tracker')} color="yellow" delay={300} />
+            <SystemCard title="Discount Tracker" icon={TrendingUp} onClick={nav('/discount-tracker')} color="yellow" delay={350} />
           )}
           {isSystemAllowed('sales') && (
-            <SystemCard title="Sales Analysis" icon={LayoutGrid} onClick={nav('/sales')} color="green" delay={350} />
+            <SystemCard title="Sales Analysis" icon={LayoutGrid} onClick={nav('/sales')} color="green" delay={400} />
           )}
           {isSystemAllowed('inventory') && (
-            <SystemCard title="Inventory" icon={Package} onClick={nav('/inventory')} color="indigo" delay={400} />
+            <SystemCard title="Inventory" icon={Package} onClick={nav('/inventory')} color="indigo" delay={450} />
           )}
           {isSystemAllowed('chipsy-inventory') && (
-            <SystemCard title="Chipsy Inventory" icon={Layers} onClick={nav('/chipsy-inventory')} color="orange" delay={450} />
+            <SystemCard title="Chipsy Inventory" icon={Layers} onClick={nav('/chipsy-inventory')} color="orange" delay={500} />
           )}
           {isSystemAllowed('employee-overtime') && (
-            <SystemCard title="Employee Overtime" icon={Clock} onClick={nav('/employee-overtime')} color="blue" delay={500} />
+            <SystemCard title="Employee Overtime" icon={Clock} onClick={nav('/employee-overtime')} color="blue" delay={550} />
           )}
           {isSystemAllowed('water-delivery-note') && (
-            <SystemCard title="Water - Delivery Note" icon={FileText} onClick={nav('/water-delivery-note')} color="violet" delay={550} />
+            <SystemCard title="Water - Delivery Note" icon={FileText} onClick={nav('/water-delivery-note')} color="violet" delay={600} />
           )}
           {isSystemAllowed('suppliers') && (
-            <SystemCard title="Suppliers" icon={Truck} onClick={nav('/suppliers')} color="emerald" delay={600} />
+            <SystemCard title="Suppliers" icon={Truck} onClick={nav('/suppliers')} color="emerald" delay={650} />
           )}
 
         </div>

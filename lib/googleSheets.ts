@@ -1,7 +1,7 @@
 import { google } from 'googleapis';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { DiscountTrackerEntry } from '@/types';
+import { DiscountTrackerEntry, VisitCustomerEntry } from '@/types';
 
 export const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || '1s1G42Qd0FNDyvz42qi_6SPoKMAy8Kvx8eMm7iyR8pds';
 const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Invoices';
@@ -3246,6 +3246,72 @@ export async function saveSuppliersMatchingData(supplierId: string, supplierName
     return { success: true };
   } catch (error) {
     console.error('Error saving suppliers matching data:', error);
+    throw error;
+  }
+}
+
+export async function getVisitCustomersData(): Promise<VisitCustomerEntry[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Visit Customers'!A:G`, // DATE, CUSTOMER NAME, CITY, SALESREP NAME, COLLECT MONEY?, HOW MUCH COLLECT MONEY?, NOTES
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header
+    return rows.slice(1).map(row => ({
+      date: row[0] || '',
+      customerName: row[1] || '',
+      city: row[2] || '',
+      salesRepName: row[3] || '',
+      collectMoney: row[4] || '',
+      howMuchCollectMoney: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
+      notes: row[6] || ''
+    })).filter(e => e.customerName);
+  } catch (error) {
+    console.error('Error fetching Visit Customers data:', error);
+    return [];
+  }
+}
+
+export async function addVisitCustomerEntry(entries: VisitCustomerEntry | VisitCustomerEntry[]) {
+  try {
+    const entryList = Array.isArray(entries) ? entries : [entries];
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Visit Customers'!A:G`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: entryList.map(entry => [
+          entry.date,
+          entry.customerName,
+          entry.city,
+          entry.salesRepName,
+          entry.collectMoney,
+          entry.howMuchCollectMoney,
+          entry.notes
+        ]),
+      },
+    });
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding Visit Customer entries:', error);
     throw error;
   }
 }

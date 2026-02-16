@@ -105,3 +105,13 @@ export interface DiscountTrackerEntry {
   qRent?: string;
   bRent?: string;
 }
+
+export interface VisitCustomerEntry {
+  date: string;
+  customerName: string;
+  city: string;
+  salesRepName: string;
+  collectMoney: string;
+  howMuchCollectMoney: number;
+  notes: string;
+}

@@ -19,7 +19,8 @@ const SYSTEMS = [
     { id: 'chipsy-inventory', label: 'Chipsy Inventory' },
     { id: 'employee-overtime', label: 'Employee Overtime' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
-    { id: 'suppliers', label: 'Suppliers' }
+    { id: 'suppliers', label: 'Suppliers' },
+    { id: 'visit-customers', label: 'Visit Customers' }
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -72,6 +73,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'view', label: 'View Records' },
         { id: 'statistics', label: 'Statistics' },
         { id: 'absence', label: 'Absence' }
+    ],
+    'visit-customers': [
+        { id: 'registration', label: 'Registration' },
+        { id: 'customer-reports', label: 'Customer Reports' },
+        { id: 'rep-reports', label: 'Rep Reports' }
     ]
 };
 

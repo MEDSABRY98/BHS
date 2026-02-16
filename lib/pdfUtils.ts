@@ -1724,3 +1724,314 @@ export async function generateAgesPDF(
 
   return doc.output('blob');
 }
+export async function generateSalesRepReportPDF(data: {
+  repName: string;
+  period: string;
+  totalVisits: number;
+  totalCollected: number;
+  collectedVisits: number;
+  noCollectionVisits: number;
+  avgPerDay: string;
+  chartData: any[];
+  visits: any[];
+}) {
+  const jsPDFModule = await import('jspdf');
+  const jsPDF = jsPDFModule.default;
+  const autoTableModule = await import('jspdf-autotable');
+  const autoTable = autoTableModule.default || autoTableModule;
+
+  const doc = new jsPDF('p', 'mm', 'a4');
+  await addArabicFont(doc);
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 15;
+  let y = 15;
+
+  // --- PAGE 1: PREMIUM DESIGN ---
+  const colors = {
+    black: [10, 10, 10] as [number, number, number],
+    cyan: [0, 229, 255] as [number, number, number],
+    red: [255, 23, 68] as [number, number, number],
+    gray100: [245, 245, 245] as [number, number, number],
+    gray200: [224, 224, 224] as [number, number, number],
+    gray400: [158, 158, 158] as [number, number, number],
+    white: [255, 255, 255] as [number, number, number]
+  };
+
+  const marginX = 20;
+
+  // HEADER (Black Background)
+  const headerHeight = 42;
+  doc.setFillColor(...colors.black);
+  doc.rect(0, 0, pageWidth, headerHeight, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(28);
+
+  const titleY = 22;
+  const t1 = 'SALES ';
+  const t2 = 'REP ';
+  const t3 = 'REPORT';
+
+  const w1 = doc.getTextWidth(t1);
+  const w2 = doc.getTextWidth(t2);
+  const w3 = doc.getTextWidth(t3);
+  const totalTitleW = w1 + w2 + w3;
+
+  let startTxtX = (pageWidth - totalTitleW) / 2;
+
+  doc.setTextColor(...colors.white);
+  doc.text(t1, startTxtX, titleY);
+  startTxtX += w1;
+
+  doc.setTextColor(...colors.cyan);
+  doc.text(t2, startTxtX, titleY);
+  startTxtX += w2;
+
+  doc.setTextColor(...colors.white);
+  doc.text(t3, startTxtX, titleY);
+
+  // Divider
+  doc.setLineWidth(0.8);
+  const divY = titleY + 4;
+  const centerX = pageWidth / 2;
+  doc.setDrawColor(...colors.red);
+  doc.line(centerX - 12, divY, centerX, divY);
+  doc.setDrawColor(...colors.cyan);
+  doc.line(centerX, divY, centerX + 12, divY);
+
+  // Meta (Badge & Name) - Centered
+  doc.setFontSize(10);
+  const pText = data.period.toUpperCase();
+  const bW = doc.getTextWidth(pText) + 10;
+
+  doc.setFont('Amiri', 'normal');
+  doc.setFontSize(18);
+  const nW = doc.getTextWidth(data.repName);
+
+  const mGap = 8;
+  const tMetaW = bW + mGap + nW;
+  let mX = (pageWidth - tMetaW) / 2;
+  const mY = titleY + 14;
+
+  // Badge
+  doc.setDrawColor(...colors.cyan);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(mX, mY - 5, bW, 7, 3.5, 3.5, 'D');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...colors.cyan);
+  doc.text(pText, mX + bW / 2, mY - 0.5, { align: 'center' });
+
+  // Name
+  doc.setTextColor(...colors.white);
+  doc.setFont('Amiri', 'normal');
+  doc.setFontSize(18);
+  doc.text(data.repName, mX + bW + mGap, mY + 0.5);
+
+  y = headerHeight + 12;
+
+  // Key Metrics Label
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(...colors.gray400);
+  doc.text('KEY METRICS', marginX, y);
+  doc.setDrawColor(...colors.gray200);
+  doc.line(marginX + 30, y - 1, pageWidth - marginX, y - 1);
+  y += 15;
+
+  // STATS GRID (3 Columns)
+  const gridGap = 6;
+  const cols = 3;
+  const statW = (pageWidth - (marginX * 2) - (gridGap * (cols - 1))) / cols;
+  const statH = 32;
+
+  const uniqueCount = new Set(data.visits.map(v => v.customerName)).size;
+
+  const drawStatCard = (label: string, value: string, xPos: number, yPos: number, topColor: [number, number, number]) => {
+    doc.setFillColor(...colors.white);
+    doc.setDrawColor(...colors.gray200);
+    doc.setLineWidth(0.4);
+    doc.roundedRect(xPos, yPos, statW, statH, 4, 4, 'FD');
+
+    doc.setFillColor(...topColor);
+    doc.rect(xPos, yPos, statW, 1.8, 'F');
+
+    const midX = xPos + (statW / 2);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...colors.black);
+    doc.text(label.toUpperCase(), midX, yPos + 11, { align: 'center' });
+
+    doc.setFontSize(26);
+    doc.setTextColor(...topColor);
+    doc.text(value, midX, yPos + 27, { align: 'center' });
+  };
+
+  const dashboardStats = [
+    { label: 'Total Customers', val: uniqueCount.toString(), col: colors.cyan },
+    { label: 'Total Visits', val: data.totalVisits.toString(), col: colors.black },
+    { label: 'Total Collected', val: data.totalCollected.toLocaleString(), col: colors.cyan },
+    { label: 'Success Rate', val: `${((data.collectedVisits / (data.totalVisits || 1)) * 100).toFixed(0)}%`, col: colors.red },
+    { label: 'Collected', val: data.collectedVisits.toString(), col: colors.cyan },
+    { label: 'No Collection', val: data.noCollectionVisits.toString(), col: colors.red },
+    { label: 'Avg Daily Visits', val: data.avgPerDay.toString(), col: colors.black }
+  ];
+
+  dashboardStats.forEach((s, idx) => {
+    const cx = idx % 3;
+    const rx = Math.floor(idx / 3);
+    const cardX = marginX + (cx * (statW + gridGap));
+    const cardY = y + (rx * (statH + gridGap));
+    drawStatCard(s.label, s.val, cardX, cardY, s.col);
+    if (idx === dashboardStats.length - 1) y = cardY + statH + 15;
+  });
+
+  // CHART SECTION
+  doc.setDrawColor(...colors.gray200);
+  doc.roundedRect(marginX, y, pageWidth - (marginX * 2), 95, 6, 6, 'D');
+
+  // Chart Title
+  doc.setFontSize(13);
+  doc.setTextColor(...colors.black);
+  doc.setFont('helvetica', 'bold');
+  const fullTitle = `PERFORMANCE - ${data.period.toUpperCase()}`;
+  doc.text(fullTitle, marginX + 10, y + 15);
+
+  // Legend
+  const legendX = pageWidth - marginX - 60;
+  doc.setFontSize(9);
+  doc.setTextColor(...colors.gray400);
+
+  doc.setFillColor(...colors.red);
+  doc.circle(legendX, y + 12, 1.5, 'F');
+  doc.text('Amount', legendX + 5, y + 13.5);
+
+  doc.setFillColor(...colors.black);
+  doc.circle(legendX + 25, y + 12, 1.5, 'F');
+  doc.text('Visits', legendX + 30, y + 13.5);
+
+  y += 25;
+  const chartHeightValue = 45;
+  const chartWidthValue = pageWidth - (marginX * 2) - 40;
+  const chartDataToShowArr = data.chartData.slice(0, 7);
+  const activeDaysCount = Math.max(chartDataToShowArr.filter(d => d.visits > 0 || d.amount > 0).length, 1);
+
+  const maxVisitsVal = Math.max(...chartDataToShowArr.map(d => d.visits), 1);
+  const maxAmountVal = Math.max(...chartDataToShowArr.map(d => d.amount), 1);
+
+  const groupW = chartWidthValue / activeDaysCount;
+  const barW = groupW * 0.3;
+  const barGapVal = 4;
+  const chartStartX = marginX + 20;
+
+  let displayIdx = 0;
+  chartDataToShowArr.forEach((d) => {
+    if (d.visits > 0 || d.amount > 0) {
+      const gx = chartStartX + (displayIdx * groupW);
+
+      // Amount Bar (Red)
+      const hAmt = (d.amount / maxAmountVal) * chartHeightValue;
+      if (d.amount > 0) {
+        doc.setFillColor(...colors.red);
+        doc.roundedRect(gx, y + chartHeightValue - hAmt, barW, hAmt, 1, 1, 'F');
+        doc.setFontSize(11);
+        doc.setTextColor(...colors.black);
+        doc.text(d.amount.toLocaleString(), gx + barW / 2, y + chartHeightValue - hAmt - 2, { align: 'center' });
+      } else {
+        doc.setFillColor(...colors.gray100);
+        doc.rect(gx, y + chartHeightValue - 2, barW, 2, 'F');
+      }
+
+      // Visits Bar (Black)
+      const hVis = (d.visits / (maxVisitsVal * 2)) * chartHeightValue; // Scale visits to 50% max height
+      doc.setFillColor(...colors.black);
+      doc.roundedRect(gx + barW + barGapVal, y + chartHeightValue - hVis, barW, hVis, 1, 1, 'F');
+      doc.setFontSize(11);
+      doc.setTextColor(...colors.black);
+      doc.text(d.visits.toString(), gx + barW + barGapVal + barW / 2, y + chartHeightValue - hVis - 2, { align: 'center' });
+
+      // Tag
+      doc.setFontSize(10);
+      doc.setTextColor(...colors.black);
+
+      let tagStr = '';
+      if (d.name) {
+        tagStr = String(d.name);
+      } else if (d.date) {
+        const dateObj = new Date(d.date);
+        const weekdayShort = dateObj.toLocaleDateString('en-GB', { weekday: 'short' });
+        const datePartStr = d.date.split('-').slice(1).reverse().join('/');
+        tagStr = `${weekdayShort} ${datePartStr}`;
+      }
+      doc.text(tagStr, gx + (barW * 2 + barGapVal) / 2, y + chartHeightValue + 8, { align: 'center' });
+
+      displayIdx++;
+    }
+  });
+
+  y += chartHeightValue + 35;
+
+  // --- PAGE 2: VISIT DETAILS (LANDSCAPE) ---
+  doc.addPage('a4', 'landscape');
+  const landscapeWidth = doc.internal.pageSize.getWidth();
+  const landscapeMargin = 15;
+  y = 20;
+
+  // Centered header
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Detailed Visit Logs', landscapeWidth / 2, y, { align: 'center' });
+  y += 10;
+
+  const tableData = data.visits.map(v => [
+    v.date.split('-').reverse().join('-'),
+    v.customerName,
+    v.city || v.area || '-',
+    v.collectMoney,
+    v.howMuchCollectMoney > 0 ? v.howMuchCollectMoney.toLocaleString() : '-',
+    v.notes || '-'
+  ]);
+
+  const tableOptions: any = {
+    startY: y,
+    head: [['Date', 'Customer Name', 'City', 'Collected?', 'Amount', 'Notes']],
+    body: tableData,
+    theme: 'striped',
+    headStyles: {
+      fillColor: [15, 23, 42],
+      textColor: [255, 255, 255],
+      fontSize: 10,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [0, 0, 0],
+      halign: 'center',
+      valign: 'middle',
+      font: 'Amiri'
+    },
+    columnStyles: {
+      0: { cellWidth: 30, font: 'helvetica', halign: 'center' },
+      1: { cellWidth: 60, halign: 'center' },
+      2: { cellWidth: 40, halign: 'center', font: 'helvetica' },
+      3: { cellWidth: 30, font: 'helvetica', halign: 'center' },
+      4: { cellWidth: 30, font: 'helvetica', halign: 'center' },
+      5: { halign: 'center' }
+    },
+    margin: { left: landscapeMargin, right: landscapeMargin }
+  };
+
+  if (typeof (doc as any).autoTable === 'function') {
+    (doc as any).autoTable(tableOptions);
+  } else {
+    autoTable(doc, tableOptions);
+  }
+
+  return doc.output('blob');
+}
+
