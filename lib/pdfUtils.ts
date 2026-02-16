@@ -1897,8 +1897,7 @@ export async function generateSalesRepReportPDF(data: {
   doc.setFontSize(13);
   doc.setTextColor(...colors.black);
   doc.setFont('helvetica', 'bold');
-  const fullTitle = `PERFORMANCE - ${data.period.toUpperCase()}`;
-  doc.text(fullTitle, marginX + 10, y + 15);
+  doc.text('PERFORMANCE', marginX + 10, y + 15);
 
   // Legend
   const legendX = pageWidth - marginX - 60;

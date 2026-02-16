@@ -25,7 +25,9 @@ import {
     Activity,
     ArrowRight,
     FileDown,
-    FileSpreadsheet
+    FileSpreadsheet,
+    AlertTriangle,
+    Info
 } from 'lucide-react';
 import {
     BarChart,
@@ -124,6 +126,15 @@ export default function VisitCustomersTab() {
     const [customers, setCustomers] = useState<string[]>([]);
     const [salesReps, setSalesReps] = useState<string[]>([]);
     const [selectedRep, setSelectedRep] = useState<string | null>(null);
+    const [notification, setNotification] = useState<{ message: string, type: 'error' | 'success' | 'info' } | null>(null);
+
+    const showNotification = (message: string, type: 'error' | 'success' | 'info' = 'error') => {
+        setNotification({ message, type });
+        // Auto hide success/info after 5s, errors stay until closed
+        if (type !== 'error') {
+            setTimeout(() => setNotification(null), 5000);
+        }
+    };
 
     const getTodayDate = () => {
         const d = new Date();
@@ -231,9 +242,17 @@ export default function VisitCustomersTab() {
         e.preventDefault();
 
         // Validation
-        const invalidRows = entries.some(e => !e.customerName || !e.salesRepName);
-        if (invalidRows) {
-            alert('Please ensure all rows have a Customer and a Sales Representative selected.');
+        const incompleteRows = entries.some(e => !e.customerName || !e.salesRepName || !e.city);
+        if (incompleteRows) {
+            showNotification('Please ensure all rows have a Customer, Sales Representative, and City selected.', 'error');
+            return;
+        }
+
+        const missingAmounts = entries.some(e =>
+            e.collectMoney === 'Yes' && (!e.howMuchCollectMoney || parseFloat(e.howMuchCollectMoney) <= 0)
+        );
+        if (missingAmounts) {
+            showNotification('Please enter a collection amount for all rows where "Collect Money" is Yes.', 'error');
             return;
         }
 
@@ -249,6 +268,7 @@ export default function VisitCustomersTab() {
             });
 
             if (response.ok) {
+                showNotification('Records saved successfully!', 'success');
                 setEntries([
                     {
                         date: getTodayDate(),
@@ -262,11 +282,11 @@ export default function VisitCustomersTab() {
                 ]);
                 fetchData();
             } else {
-                throw new Error('Failed to save records');
+                showNotification('Failed to save records. Please try again.', 'error');
             }
         } catch (error) {
             console.error('Error saving records:', error);
-            alert('Error saving records. Please try again.');
+            showNotification('Error saving records. Please try again.', 'error');
         } finally {
             setLoading(false);
         }
@@ -275,7 +295,7 @@ export default function VisitCustomersTab() {
     const handleDownloadRepReport = async (repName: string) => {
         const repVisits = filteredData.filter(v => v.salesRepName === repName);
         if (repVisits.length === 0) {
-            alert('No data available for this representative in the selected period.');
+            showNotification('No data available for this representative in the selected period.', 'info');
             return;
         }
 
@@ -760,7 +780,18 @@ export default function VisitCustomersTab() {
                             </form>
                         </div>
                     ) : selectedRep ? (
-                        <SalesRepDetailView details={repDetails} onBack={() => setSelectedRep(null)} />
+                        <SalesRepDetailView
+                            details={repDetails}
+                            period={
+                                fromDateFilter && toDateFilter ? `${fromDateFilter} to ${toDateFilter}` :
+                                    fromDateFilter ? `From ${fromDateFilter}` :
+                                        toDateFilter ? `Until ${toDateFilter}` :
+                                            yearFilter && monthFilter ? `${monthFilter}/${yearFilter}` :
+                                                yearFilter ? yearFilter : "All Time"
+                            }
+                            onBack={() => setSelectedRep(null)}
+                            showNotification={showNotification}
+                        />
                     ) : (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
                             {filteredData.length > 0 ? (
@@ -905,11 +936,47 @@ export default function VisitCustomersTab() {
                   body { background: white !important; }
                 }
             `}</style>
+
+            {/* Custom Premium Notification */}
+            {notification && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-8 max-w-sm w-full text-center space-y-6 animate-in zoom-in-95 duration-300">
+                        <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${notification.type === 'error' ? 'bg-rose-50 text-rose-500' :
+                            notification.type === 'success' ? 'bg-emerald-50 text-emerald-500' :
+                                'bg-blue-50 text-blue-500'
+                            }`}>
+                            {notification.type === 'error' && <AlertTriangle className="w-10 h-10" />}
+                            {notification.type === 'success' && <CheckCircle2 className="w-10 h-10" />}
+                            {notification.type === 'info' && <Info className="w-10 h-10" />}
+                        </div>
+
+                        <div className="space-y-2">
+                            <h3 className="text-xl font-black text-slate-900 leading-tight">
+                                {notification.type === 'error' ? 'Something went wrong' :
+                                    notification.type === 'success' ? 'Perfect!' : 'Notice'}
+                            </h3>
+                            <p className="text-slate-500 font-bold text-sm leading-relaxed">
+                                {notification.message}
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={() => setNotification(null)}
+                            className={`w-full py-4 rounded-2xl font-black text-white transition-all transform active:scale-95 shadow-lg ${notification.type === 'error' ? 'bg-rose-500 shadow-rose-200' :
+                                notification.type === 'success' ? 'bg-emerald-500 shadow-emerald-200' :
+                                    'bg-slate-900 shadow-slate-200'
+                                }`}
+                        >
+                            Understood
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
 
-function SalesRepDetailView({ details, onBack }: { details: any; onBack: () => void }) {
+function SalesRepDetailView({ details, onBack, period, showNotification }: { details: any; onBack: () => void; period: string; showNotification: (m: string, t?: any) => void }) {
     if (!details) return null;
 
     const handleDownloadPDF = async (details: any) => {
@@ -917,7 +984,7 @@ function SalesRepDetailView({ details, onBack }: { details: any; onBack: () => v
             const { generateSalesRepReportPDF } = await import('@/lib/pdfUtils');
             const pdfBlob = await generateSalesRepReportPDF({
                 repName: details.name,
-                period: 'All Time', // You can make this dynamic based on filters
+                period: period,
                 totalVisits: details.totalVisits,
                 totalCollected: details.totalCollected,
                 collectedVisits: details.collectedVisits,
@@ -935,7 +1002,7 @@ function SalesRepDetailView({ details, onBack }: { details: any; onBack: () => v
             window.URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Error generating PDF:', error);
-            alert('Failed to generate PDF report.');
+            showNotification('Failed to generate PDF report.', 'error');
         }
     };
 
