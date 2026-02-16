@@ -197,23 +197,30 @@ export default function EmployeeOvertimeTab() {
   const formatDateForInput = (dateStr: string) => {
     if (!dateStr) return '';
     try {
+      // Handle cases like "30-Jan-2026" manually
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const months: Record<string, string> = {
+          'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
+          'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+        };
+        const day = parts[0].padStart(2, '0');
+        const month = months[parts[1]] || '01';
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+      }
+
+      // Try parsing as regular date
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) {
-        // Handle cases like "30-Jan-2026" manually if Date fails
-        const parts = dateStr.split('-');
-        if (parts.length === 3) {
-          const months: Record<string, string> = {
-            'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04', 'May': '05', 'Jun': '06',
-            'Jul': '07', 'Aug': '08', 'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
-          };
-          const day = parts[0].padStart(2, '0');
-          const month = months[parts[1]] || '01';
-          const year = parts[2];
-          return `${year}-${month}-${day}`;
-        }
         return '';
       }
-      return d.toISOString().split('T')[0];
+
+      // Use local date to avoid timezone issues
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     } catch (e) {
       return '';
     }
@@ -702,7 +709,7 @@ export default function EmployeeOvertimeTab() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
         <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row md:items-center justify-between py-4 gap-4">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-1 items-center gap-4">
               <button
                 onClick={() => window.location.href = '/'}
                 className="p-2 -ml-2 hover:bg-gray-100 rounded-full transition-colors"
@@ -718,35 +725,40 @@ export default function EmployeeOvertimeTab() {
               </div>
             </div>
 
-            {/* Navigation Tabs */}
-            <div className="flex flex-nowrap bg-gray-100 p-1 rounded-xl self-start md:self-auto overflow-x-auto">
-              {[
-                { id: 'register', label: 'Register', icon: Plus },
-                { id: 'view', label: 'View Records', icon: List },
-                { id: 'statistics', label: 'Statistics', icon: BarChart3 },
-                { id: 'absence', label: 'Absence', icon: User }
-              ].filter(tab => {
-                try {
-                  const perms = JSON.parse(currentUser?.role || '{}');
-                  if (perms['employee-overtime'] && currentUser?.name !== 'MED Sabry') {
-                    return perms['employee-overtime'].includes(tab.id);
-                  }
-                } catch (e) { }
-                return true;
-              }).map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex flex-1 items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap ${activeTab === tab.id
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-700'
-                    }`}
-                >
-                  <tab.icon className="w-4 h-4" />
-                  {tab.label}
-                </button>
-              ))}
+            {/* Navigation Tabs - Centered & Equal Widths */}
+            <div className="flex-1 flex justify-center">
+              <div className="flex bg-gray-100 p-1 rounded-xl min-w-[500px]">
+                {[
+                  { id: 'register', label: 'Register', icon: Plus },
+                  { id: 'view', label: 'View Records', icon: List },
+                  { id: 'statistics', label: 'Statistics', icon: BarChart3 },
+                  { id: 'absence', label: 'Absence', icon: User }
+                ].filter(tab => {
+                  try {
+                    const perms = JSON.parse(currentUser?.role || '{}');
+                    if (perms['employee-overtime'] && currentUser?.name !== 'MED Sabry') {
+                      return perms['employee-overtime'].includes(tab.id);
+                    }
+                  } catch (e) { }
+                  return true;
+                }).map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap ${activeTab === tab.id
+                      ? 'bg-white text-gray-900 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    <tab.icon className="w-4 h-4" />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {/* Spacer to balance the title */}
+            <div className="hidden md:block flex-1"></div>
           </div>
         </div>
       </header>
