@@ -6,12 +6,13 @@ import ProductOrdersTab from '@/components/ProductOrdersTab';
 import NotificationOrderTab from '@/components/NotificationOrderTab';
 import ProductOrdersMakeTab, { OrderItem } from '@/components/ProductOrdersMakeTab';
 import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
+import ItemCodeTab from '@/components/ItemCodeTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'notification' | 'make' | 'quotation'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'notification' | 'make' | 'quotation' | 'item_code'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
@@ -102,7 +103,8 @@ export default function InventoryPage() {
                 { id: 'orders', label: 'Orders Tracker' },
                 { id: 'notification', label: 'Notification Order' },
                 { id: 'make', label: 'Make Orders' },
-                { id: 'quotation', label: 'Purchase Quotation' }
+                { id: 'quotation', label: 'Purchase Quotation' },
+                { id: 'item_code', label: 'Item Code' }
               ].map(tab => {
                 // Check permissions
                 try {
@@ -151,6 +153,9 @@ export default function InventoryPage() {
         </div>
         <div className={activeTab === 'quotation' ? 'block' : 'hidden'}>
           <PurchaseQuotationTab initialItems={quotationItems} />
+        </div>
+        <div className={activeTab === 'item_code' ? 'block' : 'hidden'}>
+          <ItemCodeTab />
         </div>
       </div>
     </div>
