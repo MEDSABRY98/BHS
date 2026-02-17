@@ -16,7 +16,6 @@ const SYSTEMS = [
     { id: 'discount-tracker', label: 'Discount Tracker' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
-    { id: 'chipsy-inventory', label: 'Chipsy Inventory' },
     { id: 'wh20-items', label: 'WH/20 Items' },
     { id: 'employee-overtime', label: 'Employee Overtime' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
@@ -61,13 +60,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'expenses', label: 'Expenses' },
         { id: 'voucher', label: 'Voucher' },
         { id: 'stats', label: 'Statistics' }
-    ],
-    'chipsy-inventory': [
-        { id: 'inventory', label: 'Inventory Balance' },
-        { id: 'transfers', label: 'Transfers History' },
-        { id: 'new_transaction', label: 'New Transaction' },
-        { id: 'people_inventory', label: 'People Inventory' },
-        { id: 'reprint', label: 'Reprint' }
     ],
     'employee-overtime': [
         { id: 'register', label: 'Register' },

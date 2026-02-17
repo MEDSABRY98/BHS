@@ -295,36 +295,37 @@ const TYPE_BADGE_COLORS: Record<
 };
 
 export async function addArabicFont(doc: any): Promise<void> {
-  try {
-    // Load Amiri Arabic font from GitHub raw content (reliable CORS-wise usually)
-    const fontUrl = 'https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf';
+  const fontUrls = [
+    'https://raw.githubusercontent.com/google/fonts/main/ofl/amiri/Amiri-Regular.ttf',
+    'https://cdn.jsdelivr.net/gh/google/fonts@main/ofl/amiri/Amiri-Regular.ttf'
+  ];
 
-    const response = await fetch(fontUrl);
-    if (!response.ok) {
-      throw new Error('Failed to fetch Arabic font');
+  for (const url of fontUrls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`Status ${response.status}`);
+
+      const fontArrayBuffer = await response.arrayBuffer();
+      let binary = '';
+      const bytes = new Uint8Array(fontArrayBuffer);
+      const len = bytes.byteLength;
+      for (let i = 0; i < len; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const fontBase64 = btoa(binary);
+
+      doc.addFileToVFS('Amiri-Regular.ttf', fontBase64);
+      doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
+      doc.setFont('Amiri');
+
+      console.log(`Arabic font loaded from ${url}`);
+      return;
+    } catch (e) {
+      console.warn(`Failed to load font from ${url}`, e);
     }
-
-    const fontArrayBuffer = await response.arrayBuffer();
-
-    // Convert to Base64
-    // In browser environment, we can use btoa with Uint8Array
-    let binary = '';
-    const bytes = new Uint8Array(fontArrayBuffer);
-    const len = bytes.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    const fontBase64 = btoa(binary);
-
-    // Add font to jsPDF
-    doc.addFileToVFS('Amiri-Regular.ttf', fontBase64);
-    doc.addFont('Amiri-Regular.ttf', 'Amiri', 'normal');
-    doc.setFont('Amiri');
-
-    console.log('Arabic font (Amiri) loaded successfully');
-  } catch (error) {
-    console.warn('Failed to load Arabic font:', error);
   }
+
+  throw new Error('Failed to load Arabic font from all sources');
 }
 
 export async function generateBulkCustomerStatementsPDF(

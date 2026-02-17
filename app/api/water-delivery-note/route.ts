@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getWaterDeliveryNoteData, saveWaterDeliveryNote, getNextDeliveryNoteNumber, getWaterDeliveryNoteByNumber, updateWaterDeliveryNote } from '@/lib/googleSheets';
+import { getWaterDeliveryNoteData, saveWaterDeliveryNote, getNextDeliveryNoteNumber, getWaterDeliveryNoteByNumber, updateWaterDeliveryNote, getAllWaterDeliveryNotes } from '@/lib/googleSheets';
 
 export async function GET(request: Request) {
   try {
@@ -11,6 +11,12 @@ export async function GET(request: Request) {
     if (action === 'next-number') {
       const nextNumber = await getNextDeliveryNoteNumber();
       return NextResponse.json({ nextNumber });
+    }
+
+    // If action is 'all', return all delivery notes for daily output
+    if (action === 'all') {
+      const allData = await getAllWaterDeliveryNotes();
+      return NextResponse.json({ data: allData });
     }
 
     // If number parameter is provided, search for that delivery note
@@ -93,9 +99,9 @@ export async function PUT(request: Request) {
     console.error('Error updating water delivery note:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to update water delivery note';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to update water delivery note',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );

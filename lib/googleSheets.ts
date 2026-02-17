@@ -1598,17 +1598,15 @@ export async function updateWaterDeliveryNote(
 
     // Add new rows if we have more items than existing rows
     if (newItems.length > existingRowIndices.length) {
-      const additionalValues = values.slice(existingRowIndices.length);
-      if (additionalValues.length > 0) {
-        await sheets.spreadsheets.values.append({
-          spreadsheetId: SPREADSHEET_ID,
-          range: `Water - Delivery Note!C:F`,
-          valueInputOption: 'USER_ENTERED',
-          requestBody: {
-            values: additionalValues
-          }
-        });
-      }
+      const newRows = values.slice(existingRowIndices.length);
+      await sheets.spreadsheets.values.append({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `Water - Delivery Note!C:F`,
+        valueInputOption: 'USER_ENTERED',
+        requestBody: {
+          values: newRows
+        }
+      });
     }
 
     // Execute delete requests if any
@@ -1625,6 +1623,37 @@ export async function updateWaterDeliveryNote(
   } catch (error) {
     console.error('Error updating water delivery note:', error);
     throw error;
+  }
+}
+
+// Get all Water Delivery Notes grouped by date and product
+export async function getAllWaterDeliveryNotes(): Promise<any[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `Water - Delivery Note!C:F`, // Date, DN Number, Item Name, Quantity
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header and process data
+    return rows.slice(1).map(row => ({
+      date: row[0]?.toString().trim() || '',
+      deliveryNoteNumber: row[1]?.toString().trim() || '',
+      itemName: row[2]?.toString().trim() || '',
+      quantity: parseFloat(row[3]?.toString() || '0') || 0
+    })).filter(entry => entry.date && entry.itemName);
+  } catch (error) {
+    console.error('Error fetching all water delivery notes:', error);
+    return [];
   }
 }
 
@@ -2850,204 +2879,12 @@ export async function getNextPONumber(): Promise<string> {
   }
 }
 
-// --- CHIPSY INVENTORY SYSTEM ---
 
-export interface ChipsyProduct {
-  rowIndex: number;
-  barcode: string;
-  productName: string;
-  qtyPcs: number;     // Current Stock in Pieces
-  pcsInCtn: number;   // Pieces per Carton
-  price: number;      // Price per Piece
-}
-
-export interface ChipsyTransfer {
-  number: string; // New Transaction Number (e.g., TRX-001)
-  user: string;
-  date: string;
-  locFrom: string; // Was Type
-  locTo: string;   // Was PersonName
-  customerName: string;
-  receiverName?: string;
-  barcode: string;
-  productName: string;
-  qtyPcs: number;
-  price?: number;
-  total?: number;
-  description?: string;
-}
-
-export async function getChipsyInventory(): Promise<ChipsyProduct[]> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - Chipsy'!A:E`, // BARCODE, PRODUCT, PCS QTY, PCS IN CTN, PRICE
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) return [];
-
-    // Skip header (Row 1) -> Start from Row 2 (index 1)
-    return rows.slice(1).map((row, index) => {
-      return {
-        rowIndex: index + 2, // 1-based index for updates
-        barcode: row[0]?.toString() || '',
-        productName: row[1]?.toString() || '',
-        qtyPcs: parseInt(row[2]?.toString().replace(/,/g, '') || '0'),
-        pcsInCtn: parseInt(row[3]?.toString().replace(/,/g, '') || '1'), // Default to 1 if missing
-        price: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-      };
-    }).filter(p => p.productName); // Filter empty rows
-  } catch (error) {
-    console.error('Error fetching Chipsy inventory:', error);
-    return [];
-  }
-}
-
-export async function getChipsyTransfers(): Promise<ChipsyTransfer[]> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    // A: User, B: Number, C: Date, D: Loc From, E: Loc To, F: Customer, G: Receiver, H: Barcode, I: Product, J: Qty, K: Price, L: Total, M: Description
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:M`,
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) return [];
-
-    // Skip header
-    return rows.slice(1).map(row => ({
-      user: row[0]?.toString() || '',
-      number: row[1]?.toString() || '',
-      date: row[2]?.toString() || '',
-      locFrom: row[3]?.toString() || 'MAIN', // Default to MAIN if empty
-      locTo: row[4]?.toString() || 'MAIN',   // Default to MAIN if empty
-      customerName: row[5]?.toString() || '',
-      receiverName: row[6]?.toString() || '',
-      barcode: row[7]?.toString() || '',
-      productName: row[8]?.toString() || '',
-      qtyPcs: parseInt(row[9]?.toString().replace(/,/g, '') || '0'),
-      price: parseFloat(row[10]?.toString().replace(/,/g, '') || '0'),
-      total: parseFloat(row[11]?.toString().replace(/,/g, '') || '0'),
-      description: row[12]?.toString() || '',
-    })).reverse(); // Show newest first
-  } catch (error) {
-    console.error('Error fetching Chipsy transfers:', error);
-    return [];
-  }
-}
-
-export async function getNextChipsyTransactionNumber(prefix: string = 'TRX'): Promise<string> {
-  try {
-    const transfers = await getChipsyTransfers();
-    let max = 0;
-
-    // Create regex based on the requested prefix
-    // e.g., /^TRX-(\d+)$/ or /^OT-(\d+)$/
-    const pattern = new RegExp(`^${prefix}-(\\d+)$`);
-
-    for (const t of transfers) {
-      if (!t.number) continue;
-      const match = t.number.match(pattern);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        if (!isNaN(num) && num > max) {
-          max = num;
-        }
-      }
-    }
-    const next = max + 1;
-    return `${prefix}-${next.toString().padStart(4, '0')}`;
-  } catch (error) {
-    return `${prefix}-0001`;
-  }
-}
-
-export async function addChipsyBulkTransfers(transfers: ChipsyTransfer[]) {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const values = transfers.map(t => [
-      t.user,
-      t.number,
-      t.date,
-      t.locFrom,
-      t.locTo,
-      t.customerName,
-      t.receiverName || '',
-      t.barcode,
-      t.productName,
-      t.qtyPcs,
-      t.price || 0,
-      t.total || 0,
-      t.description || ''
-    ]);
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - Chipsy'!A:M`,
-      valueInputOption: 'USER_ENTERED',
-      insertDataOption: 'OVERWRITE',
-      requestBody: { values },
-    });
-    return { success: true };
-  } catch (error) {
-    console.error('Error adding Chipsy bulk transfers:', error);
-    throw error;
-  }
-}
-
-// Keep single add for backward compatibility if needed, but updated for new structure
-export async function addChipsyTransfer(transfer: ChipsyTransfer) {
-  return addChipsyBulkTransfers([transfer]);
-}
-
-export async function updateChipsyInventoryQty(rowIndex: number, newQtyPcs: number) {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - Chipsy'!C${rowIndex}`, // Column C is PCS QTY
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[newQtyPcs]],
-      },
-    });
-    return { success: true };
-  } catch (error) {
-    console.error('Error updating Chipsy inventory:', error);
-    throw error;
-  }
-}
 
 export interface Wh20Item {
   barcode: string;
   product: string;
+  tags: string;
   ctn: number;
   pcs: number;
   qty: number;
@@ -3067,7 +2904,7 @@ export async function getWh20Items(): Promise<Wh20Item[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'WH/20 ITEMS'!A:F`, // BARCODE, PRODUCT, CTN, PCS, QTY, PRICE
+      range: `'WH/20 ITEMS'!A:G`, // BARCODE, PRODUCT, TAGS, CTN, PCS, QTY, PRICE
     });
 
     const rows = response.data.values;
@@ -3077,10 +2914,11 @@ export async function getWh20Items(): Promise<Wh20Item[]> {
     return rows.slice(1).map((row, index) => ({
       barcode: row[0]?.toString().trim() || '',
       product: row[1]?.toString().trim() || '',
-      ctn: parseFloat(row[2]?.toString().replace(/,/g, '') || '0'),
-      pcs: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
-      qty: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-      price: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
+      tags: row[2]?.toString().trim() || '',
+      ctn: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
+      pcs: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+      qty: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
+      price: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
       rowIndex: index + 2
     })).filter(item => item.product); // Filter out empty rows
   } catch (error) {
@@ -3093,9 +2931,9 @@ export interface Wh20Transfer {
   user: string;
   number: string;
   date: string;
+  operationType: string;
   recipientName: string;
   destination: string;
-  reason: string;
   barcode: string;
   product: string;
   qty: number;
@@ -3159,9 +2997,9 @@ export async function addWh20Transfers(transfers: Wh20Transfer[]) {
       t.user,
       t.number,
       t.date,
+      t.operationType,
       t.recipientName,
       t.destination,
-      t.reason,
       t.barcode,
       t.product,
       t.qty,
@@ -3197,7 +3035,7 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!D:E`, // D: Recipient Name, E: Destination
+      range: `'TRANSFERS - WH/20 ITEMS'!E:F`, // E: Recipient Name, F: Destination
     });
 
     const rows = response.data.values;
@@ -3220,6 +3058,53 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
   } catch (error) {
     console.error('Error fetching WH/20 autocomplete data:', error);
     return { recipients: [], destinations: [] };
+  }
+}
+
+export async function getWh20History(limit?: number): Promise<Wh20Transfer[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - WH/20 ITEMS'!A:L`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    // Parse all rows first
+    const transfers = rows.slice(1).map(row => ({
+      user: row[0] || '',
+      number: row[1] || '',
+      date: row[2] || '',
+      operationType: row[3] || '',
+      recipientName: row[4] || '',
+      destination: row[5] || '',
+      barcode: row[6] || '',
+      product: row[7] || '',
+      qty: parseFloat(row[8] || '0'),
+      type: row[9] || 'CTN',
+      price: parseFloat(row[10] || '0'),
+      total: parseFloat(row[11] || '0')
+    })).reverse(); // Newest first
+
+    if (limit) {
+      // Get unique transaction numbers up to the limit to ensure we return complete transactions
+      const uniqueTransactionNumbers = Array.from(new Set(transfers.map(t => t.number))).slice(0, limit);
+      // Filter transfers that belong to these transactions
+      return transfers.filter(t => uniqueTransactionNumbers.includes(t.number));
+    }
+
+    return transfers;
+  } catch (error) {
+    console.error('Error fetching WH/20 history:', error);
+    return [];
   }
 }
 
@@ -3247,9 +3132,9 @@ export async function getWh20TransferByNumber(transactionNumber: string): Promis
       user: row[0]?.toString() || '',
       number: row[1]?.toString() || '',
       date: row[2]?.toString() || '',
-      recipientName: row[3]?.toString() || '',
-      destination: row[4]?.toString() || '',
-      reason: row[5]?.toString() || '',
+      operationType: row[3]?.toString() || '',
+      recipientName: row[4]?.toString() || '',
+      destination: row[5]?.toString() || '',
       barcode: row[6]?.toString() || '',
       product: row[7]?.toString() || '',
       qty: parseFloat(row[8]?.toString().replace(/,/g, '') || '0'),

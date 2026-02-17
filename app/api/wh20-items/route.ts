@@ -1,10 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getWh20Items, getNextWh20TransactionNumber, addWh20Transfers, Wh20Transfer, getWh20AutocompleteData } from '@/lib/googleSheets';
+import { getWh20Items, getNextWh20TransactionNumber, addWh20Transfers, Wh20Transfer, getWh20AutocompleteData, getWh20History } from '@/lib/googleSheets';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const { searchParams } = new URL(request.url);
+        const action = searchParams.get('action');
+
+        if (action === 'history') {
+            const limit = searchParams.get('limit');
+            const history = await getWh20History(limit ? parseInt(limit) : undefined);
+            return NextResponse.json({ history });
+        }
+
         const [items, autocomplete] = await Promise.all([
             getWh20Items(),
             getWh20AutocompleteData()
@@ -35,7 +44,7 @@ export async function POST(request: Request) {
             date: header.date || dateStr,
             recipientName: header.receiverName,
             destination: header.destination,
-            reason: header.reason,
+            operationType: header.operationType,
             barcode: row.barcode,
             product: row.productName,
             qty: parseFloat(row.qty),
