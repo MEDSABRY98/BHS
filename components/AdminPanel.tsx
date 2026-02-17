@@ -17,6 +17,7 @@ const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'chipsy-inventory', label: 'Chipsy Inventory' },
+    { id: 'wh20-items', label: 'WH/20 Items' },
     { id: 'employee-overtime', label: 'Employee Overtime' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
