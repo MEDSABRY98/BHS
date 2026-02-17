@@ -3045,6 +3045,227 @@ export async function updateChipsyInventoryQty(rowIndex: number, newQtyPcs: numb
   }
 }
 
+export interface Wh20Item {
+  barcode: string;
+  product: string;
+  ctn: number;
+  pcs: number;
+  qty: number;
+  price: number;
+  rowIndex: number;
+}
+
+
+export async function getWh20Items(): Promise<Wh20Item[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'WH/20 ITEMS'!A:F`, // BARCODE, PRODUCT, CTN, PCS, QTY, PRICE
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) return [];
+
+    // Skip header
+    return rows.slice(1).map((row, index) => ({
+      barcode: row[0]?.toString().trim() || '',
+      product: row[1]?.toString().trim() || '',
+      ctn: parseFloat(row[2]?.toString().replace(/,/g, '') || '0'),
+      pcs: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
+      qty: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+      price: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
+      rowIndex: index + 2
+    })).filter(item => item.product); // Filter out empty rows
+  } catch (error) {
+    console.error('Error fetching WH/20 ITEMS:', error);
+    return [];
+  }
+}
+
+export interface Wh20Transfer {
+  user: string;
+  number: string;
+  date: string;
+  recipientName: string;
+  destination: string;
+  reason: string;
+  barcode: string;
+  product: string;
+  qty: number;
+  type: string; // CTN or PCS
+  price: number;
+  total: number;
+}
+
+export async function getNextWh20TransactionNumber(): Promise<string> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - WH/20 ITEMS'!B:B`, // Column B is NUMBER
+    });
+
+    const rows = response.data.values;
+    let max = 0;
+
+    if (rows && rows.length > 1) { // Skip header
+      const pattern = /^WH20-(\d+)$/;
+      rows.slice(1).forEach(row => {
+        const numStr = row[0]?.toString().trim();
+        if (numStr) {
+          const match = numStr.match(pattern);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (!isNaN(num) && num > max) {
+              max = num;
+            }
+          }
+        }
+      });
+    }
+
+    const next = max + 1;
+    return `WH20-${next.toString().padStart(4, '0')}`;
+  } catch (error) {
+    console.error('Error getting next WH20 number:', error);
+    return 'WH20-0001';
+  }
+}
+
+export async function addWh20Transfers(transfers: Wh20Transfer[]) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // USER, NUMBER, DATE, Recipient Name, Destination, Reason, BARCODE, PRODUCT, QTY, TYPE (CTN/PCS)?, PRICE, TOTAL
+    const values = transfers.map(t => [
+      t.user,
+      t.number,
+      t.date,
+      t.recipientName,
+      t.destination,
+      t.reason,
+      t.barcode,
+      t.product,
+      t.qty,
+      t.type,
+      t.price,
+      t.total
+    ]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - WH/20 ITEMS'!A:L`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'OVERWRITE',
+      requestBody: { values },
+    });
+
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding WH/20 transfers:', error);
+    throw error;
+  }
+}
+
+export async function getWh20AutocompleteData(): Promise<{ recipients: string[], destinations: string[] }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - WH/20 ITEMS'!D:E`, // D: Recipient Name, E: Destination
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) return { recipients: [], destinations: [] };
+
+    // Skip header and collect unique values
+    const recipients = new Set<string>();
+    const destinations = new Set<string>();
+
+    rows.slice(1).forEach(row => {
+      if (row[0] && row[0].trim()) recipients.add(row[0].trim());
+      if (row[1] && row[1].trim()) destinations.add(row[1].trim());
+    });
+
+    return {
+      recipients: Array.from(recipients).sort(),
+      destinations: Array.from(destinations).sort()
+    };
+
+  } catch (error) {
+    console.error('Error fetching WH/20 autocomplete data:', error);
+    return { recipients: [], destinations: [] };
+  }
+}
+
+export async function getWh20TransferByNumber(transactionNumber: string): Promise<Wh20Transfer[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'TRANSFERS - WH/20 ITEMS'!A:L`, // All columns
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    // USER, NUMBER (Col B, index 1), ...
+    const transferRows = rows.slice(1).filter(row => row[1]?.toString().trim() === transactionNumber);
+
+    return transferRows.map(row => ({
+      user: row[0]?.toString() || '',
+      number: row[1]?.toString() || '',
+      date: row[2]?.toString() || '',
+      recipientName: row[3]?.toString() || '',
+      destination: row[4]?.toString() || '',
+      reason: row[5]?.toString() || '',
+      barcode: row[6]?.toString() || '',
+      product: row[7]?.toString() || '',
+      qty: parseFloat(row[8]?.toString().replace(/,/g, '') || '0'),
+      type: row[9]?.toString() || 'CTN',
+      price: parseFloat(row[10]?.toString().replace(/,/g, '') || '0'),
+      total: parseFloat(row[11]?.toString().replace(/,/g, '') || '0')
+    }));
+
+  } catch (error) {
+    console.error('Error fetching WH/20 transfer by number:', error);
+    return [];
+  }
+}
+
+
+
 export async function getEmployeeSalaries(): Promise<Record<string, number>> {
   try {
     const credentials = getServiceAccountCredentials();

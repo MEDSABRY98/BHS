@@ -1734,6 +1734,7 @@ export async function generateSalesRepReportPDF(data: {
   avgPerDay: string;
   chartData: any[];
   visits: any[];
+  customerBalances?: Record<string, number>;
 }) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
@@ -1990,6 +1991,7 @@ export async function generateSalesRepReportPDF(data: {
     v.date.split('-').reverse().join('-'),
     v.customerName,
     v.city || v.area || '-',
+    data.customerBalances?.[v.customerName] !== undefined ? data.customerBalances[v.customerName].toLocaleString() : '-',
     v.collectMoney,
     v.howMuchCollectMoney > 0 ? v.howMuchCollectMoney.toLocaleString() : '-',
     v.notes || '-'
@@ -1997,7 +1999,7 @@ export async function generateSalesRepReportPDF(data: {
 
   const tableOptions: any = {
     startY: y,
-    head: [['Date', 'Customer Name', 'City', 'Collected?', 'Amount', 'Notes']],
+    head: [['Date', 'Customer Name', 'City', 'Balance', 'Collected?', 'Amount', 'Notes']],
     body: tableData,
     theme: 'striped',
     headStyles: {
@@ -2015,12 +2017,13 @@ export async function generateSalesRepReportPDF(data: {
       font: 'Amiri'
     },
     columnStyles: {
-      0: { cellWidth: 30, font: 'helvetica', halign: 'center' },
-      1: { cellWidth: 60, halign: 'center' },
-      2: { cellWidth: 40, halign: 'center', font: 'helvetica' },
+      0: { cellWidth: 25, font: 'helvetica', halign: 'center' },
+      1: { cellWidth: 55, halign: 'center' },
+      2: { cellWidth: 35, halign: 'center', font: 'helvetica' },
       3: { cellWidth: 30, font: 'helvetica', halign: 'center' },
-      4: { cellWidth: 30, font: 'helvetica', halign: 'center' },
-      5: { halign: 'center' }
+      4: { cellWidth: 25, font: 'helvetica', halign: 'center' },
+      5: { cellWidth: 25, font: 'helvetica', halign: 'center' },
+      6: { halign: 'center' }
     },
     margin: { left: landscapeMargin, right: landscapeMargin }
   };

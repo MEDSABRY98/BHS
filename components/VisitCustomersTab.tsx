@@ -126,6 +126,7 @@ export default function VisitCustomersTab() {
     const [customers, setCustomers] = useState<string[]>([]);
     const [salesReps, setSalesReps] = useState<string[]>([]);
     const [selectedRep, setSelectedRep] = useState<string | null>(null);
+    const [customerBalances, setCustomerBalances] = useState<Record<string, number>>({});
     const [notification, setNotification] = useState<{ message: string, type: 'error' | 'success' | 'info' } | null>(null);
 
     const showNotification = (message: string, type: 'error' | 'success' | 'info' = 'error') => {
@@ -199,6 +200,17 @@ export default function VisitCustomersTab() {
 
                 const uniqueCustomers = Array.from(new Set(sheetData.map((row: any) => row.customerName))).sort() as string[];
                 setCustomers(uniqueCustomers);
+
+                // Calculate balances
+                const balances: Record<string, number> = {};
+                sheetData.forEach((row: any) => {
+                    if (row.customerName) {
+                        const debit = row.debit || 0;
+                        const credit = row.credit || 0;
+                        balances[row.customerName] = (balances[row.customerName] || 0) + (debit - credit);
+                    }
+                });
+                setCustomerBalances(balances);
 
                 // Reps are now handled in fetchData from the visit history
             }
@@ -401,17 +413,28 @@ export default function VisitCustomersTab() {
                     totalVisits: 0,
                     totalCollected: 0,
                     lastVisit: '0000-00-00',
-                    visitsWithCollection: 0
+                    visitsWithCollection: 0,
+                    uniqueCustomers: new Set<string>()
                 };
             }
             acc[key].totalVisits += 1;
             acc[key].totalCollected += curr.howMuchCollectMoney || 0;
             if (curr.date > acc[key].lastVisit) acc[key].lastVisit = curr.date;
             if (curr.collectMoney === 'Yes') acc[key].visitsWithCollection += 1;
+            if (curr.customerName) acc[key].uniqueCustomers.add(curr.customerName);
             return acc;
         }, {});
-        return Object.values(grouped).sort((a: any, b: any) => b.totalVisits - a.totalVisits);
-    }, [filteredData, activeTab]);
+        return Object.values(grouped).map((row: any) => {
+            let totalDebt = 0;
+            row.uniqueCustomers.forEach((c: string) => {
+                totalDebt += (customerBalances[c] || 0);
+            });
+            return {
+                ...row,
+                totalCustomerDebt: totalDebt
+            };
+        }).sort((a: any, b: any) => b.totalVisits - a.totalVisits);
+    }, [filteredData, activeTab, customerBalances]);
 
     const repDetails = useMemo(() => {
         if (!selectedRep) return null;
@@ -454,6 +477,12 @@ export default function VisitCustomersTab() {
             });
         }
 
+        const uniqueCustomersInRepDetail = new Set(repVisits.map(v => v.customerName).filter(Boolean));
+        let repTotalCustomerDebt = 0;
+        uniqueCustomersInRepDetail.forEach((c: any) => {
+            repTotalCustomerDebt += (customerBalances[c] || 0);
+        });
+
         return {
             name: selectedRep,
             totalVisits,
@@ -462,9 +491,10 @@ export default function VisitCustomersTab() {
             noCollectionVisits,
             avgPerDay,
             chartData,
-            visits: sortedVisits
+            visits: sortedVisits,
+            totalCustomerDebt: repTotalCustomerDebt
         };
-    }, [selectedRep, filteredData]);
+    }, [selectedRep, filteredData, customerBalances]);
 
     return (
         <div className="min-h-screen bg-slate-50">
@@ -791,6 +821,7 @@ export default function VisitCustomersTab() {
                             }
                             onBack={() => setSelectedRep(null)}
                             showNotification={showNotification}
+                            customerBalances={customerBalances}
                         />
                     ) : (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -818,7 +849,14 @@ export default function VisitCustomersTab() {
                                                                     <span className="text-sm font-black text-slate-900">{entry.date}</span>
                                                                 </td>
                                                                 <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <span className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">{entry.customerName}</span>
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">{entry.customerName}</span>
+                                                                        {customerBalances[entry.customerName] !== undefined && (
+                                                                            <span className={`text-xs font-black ${customerBalances[entry.customerName] > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                                                Balance: AED {customerBalances[entry.customerName].toLocaleString()}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
                                                                 </td>
                                                                 <td className="px-6 py-5 whitespace-nowrap">
                                                                     <span className="text-sm font-black text-slate-600">{entry.city || '---'}</span>
@@ -976,7 +1014,7 @@ export default function VisitCustomersTab() {
     );
 }
 
-function SalesRepDetailView({ details, onBack, period, showNotification }: { details: any; onBack: () => void; period: string; showNotification: (m: string, t?: any) => void }) {
+function SalesRepDetailView({ details, onBack, period, showNotification, customerBalances }: { details: any; onBack: () => void; period: string; showNotification: (m: string, t?: any) => void; customerBalances: Record<string, number> }) {
     if (!details) return null;
 
     const handleDownloadPDF = async (details: any) => {
@@ -991,7 +1029,8 @@ function SalesRepDetailView({ details, onBack, period, showNotification }: { det
                 noCollectionVisits: details.noCollectionVisits,
                 avgPerDay: details.avgPerDay,
                 chartData: details.chartData,
-                visits: details.visits
+                visits: details.visits,
+                customerBalances: customerBalances
             });
 
             const url = window.URL.createObjectURL(pdfBlob as Blob);
@@ -1056,7 +1095,9 @@ function SalesRepDetailView({ details, onBack, period, showNotification }: { det
                         Back to Summary
                     </button>
                     <div className="w-px h-8 bg-slate-200 hidden md:block" />
-                    <h2 className="text-2xl font-black text-slate-900">SalesRep Stats: <span className="text-pink-600">{details.name}</span></h2>
+                    <div className="flex flex-col">
+                        <h2 className="text-2xl font-black text-slate-900">SalesRep Stats: <span className="text-pink-600">{details.name}</span></h2>
+                    </div>
                 </div>
                 <div className="flex items-center gap-3">
                     <button
@@ -1197,14 +1238,23 @@ function SalesRepDetailView({ details, onBack, period, showNotification }: { det
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">City</th>
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Status</th>
                                 <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Amount</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400 text-right">Notes</th>
+                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Notes</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {details.visits.map((v: any, i: number) => (
                                 <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{v.date}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{v.customerName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">
+                                        <div className="flex flex-col items-center">
+                                            <span className="text-sm font-black text-slate-900">{v.customerName}</span>
+                                            {customerBalances[v.customerName] !== undefined && (
+                                                <span className={`text-xs font-black ${customerBalances[v.customerName] > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                    Balance: AED {customerBalances[v.customerName].toLocaleString()}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-500">{v.city || '---'}</td>
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${v.collectMoney === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
@@ -1214,8 +1264,8 @@ function SalesRepDetailView({ details, onBack, period, showNotification }: { det
                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-pink-600">
                                         {v.howMuchCollectMoney > 0 ? `AED ${v.howMuchCollectMoney.toLocaleString()}` : '---'}
                                     </td>
-                                    <td className="px-6 py-4 text-right">
-                                        <p className="text-xs font-bold text-slate-500 max-w-xs">{v.notes || '---'}</p>
+                                    <td className="px-6 py-4">
+                                        <p className="text-sm font-bold text-slate-700 max-w-xs mx-auto">{v.notes || '---'}</p>
                                     </td>
                                 </tr>
                             ))}

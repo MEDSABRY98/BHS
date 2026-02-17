@@ -246,6 +246,9 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {isSystemAllowed('chipsy-inventory') && (
             <SystemCard title="Chipsy Inventory" icon={Layers} onClick={nav('/chipsy-inventory')} color="orange" delay={500} />
           )}
+          {isSystemAllowed('wh20-items') && (
+            <SystemCard title="WH/20 ITEMS" icon={Package} onClick={nav('/wh20-items')} color="emerald" delay={525} />
+          )}
           {isSystemAllowed('employee-overtime') && (
             <SystemCard title="Employee Overtime" icon={Clock} onClick={nav('/employee-overtime')} color="blue" delay={550} />
           )}
