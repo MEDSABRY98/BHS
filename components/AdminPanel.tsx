@@ -49,7 +49,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'orders', label: 'Orders Tracker' },
         { id: 'notification', label: 'Notification Order' },
         { id: 'make', label: 'Make Orders' },
-        { id: 'quotation', label: 'Purchase Quotation' }
+        { id: 'quotation', label: 'Purchase Quotation' },
+        { id: 'item_code', label: 'Item Code' }
     ],
     'cash-receipt': [
         { id: 'new', label: 'New Receipt' },
@@ -71,6 +72,21 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'registration', label: 'Registration' },
         { id: 'customer-reports', label: 'Customer Reports' },
         { id: 'rep-reports', label: 'Rep Reports' }
+    ],
+    'wh20-items': [
+        { id: 'entry', label: 'Entry' },
+        { id: 'search', label: 'Search' },
+        { id: 'history', label: 'History' },
+        { id: 'people', label: 'People Inventory' }
+    ],
+    'suppliers': [
+        { id: 'statements', label: 'Statements' },
+        { id: 'matching', label: 'Matching' }
+    ],
+    'water-delivery-note': [
+        { id: 'entry', label: 'Entry' },
+        { id: 'search', label: 'Search' },
+        { id: 'daily', label: 'Daily Output' }
     ]
 };
 

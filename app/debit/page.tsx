@@ -152,8 +152,8 @@ function DebitPageContent() {
     // Check for dynamic JSON permission structure
     try {
       const perms = JSON.parse(currentUser?.role || '{}');
-      if (perms.debit_tabs && currentUser?.name !== 'MED Sabry') {
-        if (!perms.debit_tabs.includes(activeTab)) {
+      if (perms.debit && currentUser?.name !== 'MED Sabry') {
+        if (!perms.debit.includes(activeTab)) {
           return <CustomersTab data={data} />;
         }
       }
@@ -233,8 +233,8 @@ function DebitPageContent() {
                 // Check for dynamic JSON permission structure
                 try {
                   const perms = JSON.parse(currentUser?.role || '{}');
-                  if (perms.debit_tabs && currentUser?.name !== 'MED Sabry') {
-                    if (!perms.debit_tabs.includes(tab.id)) {
+                  if (perms.debit && currentUser?.name !== 'MED Sabry') {
+                    if (!perms.debit.includes(tab.id)) {
                       return null;
                     }
                   }

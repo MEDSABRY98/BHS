@@ -524,7 +524,16 @@ export default function VisitCustomersTab() {
                             { id: 'registration', label: 'Registration', icon: PlusCircle },
                             { id: 'customer-reports', label: 'Customer Reports', icon: LayoutGrid },
                             { id: 'rep-reports', label: 'SalesRep Reports', icon: BarChart3 }
-                        ].map(tab => (
+                        ].filter(tab => {
+                            if (!currentUser || currentUser.name === 'MED Sabry') return true;
+                            try {
+                                const perms = JSON.parse(currentUser.role || '{}');
+                                if (perms['visit-customers']) {
+                                    return perms['visit-customers'].includes(tab.id);
+                                }
+                            } catch (e) { }
+                            return true;
+                        }).map(tab => (
                             <button
                                 key={tab.id}
                                 onClick={() => {

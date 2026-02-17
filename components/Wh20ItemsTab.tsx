@@ -39,6 +39,7 @@ export default function Wh20ItemsTab() {
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [inventory, setInventory] = useState<Wh20Item[]>([]);
+    const [currentUser, setCurrentUser] = useState<any>(null);
 
     // Header Data
     const [header, setHeader] = useState({
@@ -203,6 +204,24 @@ export default function Wh20ItemsTab() {
     const fetchInventory = async () => {
         setLoading(true);
         try {
+            // Load user permissions
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                const user = JSON.parse(savedUser);
+                setCurrentUser(user);
+
+                // Set initial tab based on permissions
+                try {
+                    const perms = JSON.parse(user.role || '{}');
+                    if (perms['wh20-items'] && user.name !== 'MED Sabry') {
+                        const allowed = perms['wh20-items'];
+                        if (allowed.length > 0 && !allowed.includes('entry')) {
+                            setActiveTab(allowed[0] as any);
+                        }
+                    }
+                } catch (e) { }
+            }
+
             const res = await fetch('/api/wh20-items');
             const data = await res.json();
 
@@ -705,7 +724,16 @@ export default function Wh20ItemsTab() {
                         { id: 'search', label: 'Search' },
                         { id: 'history', label: 'History' },
                         { id: 'people', label: 'People Inventory' }
-                    ].map((tab) => (
+                    ].filter(tab => {
+                        if (!currentUser || currentUser.name === 'MED Sabry') return true;
+                        try {
+                            const perms = JSON.parse(currentUser.role || '{}');
+                            if (perms['wh20-items']) {
+                                return perms['wh20-items'].includes(tab.id);
+                            }
+                        } catch (e) { }
+                        return true;
+                    }).map((tab) => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id as any)}

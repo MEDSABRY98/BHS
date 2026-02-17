@@ -22,6 +22,7 @@ export default function WaterDeliveryNotePage() {
   const [items, setItems] = useState<WaterDeliveryNoteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Entry Tab states (for new entries only)
   const [lines, setLines] = useState<DeliveryNoteLine[]>([
@@ -59,6 +60,24 @@ export default function WaterDeliveryNotePage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Load user permissions
+        const savedUser = localStorage.getItem('currentUser');
+        if (savedUser) {
+          const user = JSON.parse(savedUser);
+          setCurrentUser(user);
+
+          // Set initial tab based on permissions
+          try {
+            const perms = JSON.parse(user.role || '{}');
+            if (perms['water-delivery-note'] && user.name !== 'MED Sabry') {
+              const allowed = perms['water-delivery-note'];
+              if (allowed.length > 0 && !allowed.includes('entry')) {
+                setActiveTab(allowed[0] as any);
+              }
+            }
+          } catch (e) { }
+        }
+
         // Fetch items
         const itemsResponse = await fetch('/api/water-delivery-note');
         const itemsData = await itemsResponse.json();
@@ -376,33 +395,31 @@ export default function WaterDeliveryNotePage() {
         {/* Tab Navigation */}
         <div className="mb-6 flex justify-center">
           <div className="inline-flex bg-white rounded-xl shadow-sm border border-gray-200 p-1">
-            <button
-              onClick={() => setActiveTab('entry')}
-              className={`w-40 px-8 py-3 rounded-lg font-bold transition-all ${activeTab === 'entry'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-            >
-              Entry
-            </button>
-            <button
-              onClick={() => setActiveTab('search')}
-              className={`w-40 px-8 py-3 rounded-lg font-bold transition-all ${activeTab === 'search'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-            >
-              Search
-            </button>
-            <button
-              onClick={() => setActiveTab('daily')}
-              className={`w-40 px-8 py-3 rounded-lg font-bold transition-all ${activeTab === 'daily'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                }`}
-            >
-              Daily Output
-            </button>
+            {[
+              { id: 'entry', label: 'Entry' },
+              { id: 'search', label: 'Search' },
+              { id: 'daily', label: 'Daily Output' }
+            ].filter(tab => {
+              if (!currentUser || currentUser.name === 'MED Sabry') return true;
+              try {
+                const perms = JSON.parse(currentUser.role || '{}');
+                if (perms['water-delivery-note']) {
+                  return perms['water-delivery-note'].includes(tab.id);
+                }
+              } catch (e) { }
+              return true;
+            }).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`w-40 px-8 py-3 rounded-lg font-bold transition-all ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white shadow-md'
+                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                  }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 

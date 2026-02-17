@@ -26,8 +26,20 @@ export default function SuppliersPage() {
         const savedUser = localStorage.getItem('currentUser');
         if (savedUser) {
             try {
-                setCurrentUser(JSON.parse(savedUser));
+                const user = JSON.parse(savedUser);
+                setCurrentUser(user);
                 setIsAuthenticated(true);
+
+                // Set initial tab based on permissions
+                try {
+                    const perms = JSON.parse(user.role || '{}');
+                    if (perms['suppliers'] && user.name !== 'MED Sabry') {
+                        const allowed = perms['suppliers'];
+                        if (allowed.length > 0 && !allowed.includes('statements')) {
+                            setActiveTab(allowed[0] as any);
+                        }
+                    }
+                } catch (e) { }
             } catch (e) {
                 localStorage.removeItem('currentUser');
             } finally {
@@ -94,26 +106,31 @@ export default function SuppliersPage() {
 
                     <div className="flex-1 flex justify-center">
                         <div className="flex p-1 bg-slate-100/50 rounded-2xl border border-slate-200">
-                            <button
-                                onClick={() => setActiveTab('statements')}
-                                className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'statements'
+                            {[
+                                { id: 'statements', label: 'Statements', icon: <FileText className="w-4 h-4" /> },
+                                { id: 'matching', label: 'Matching', icon: <CheckSquare className="w-4 h-4" /> }
+                            ].filter(tab => {
+                                if (!currentUser || currentUser.name === 'MED Sabry') return true;
+                                try {
+                                    const perms = JSON.parse(currentUser.role || '{}');
+                                    if (perms['suppliers']) {
+                                        return perms['suppliers'].includes(tab.id);
+                                    }
+                                } catch (e) { }
+                                return true;
+                            }).map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => setActiveTab(tab.id as any)}
+                                    className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id
                                         ? 'bg-white text-teal-600 shadow-sm'
                                         : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                            >
-                                <FileText className="w-4 h-4" />
-                                Statements
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('matching')}
-                                className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === 'matching'
-                                        ? 'bg-white text-teal-600 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                    }`}
-                            >
-                                <CheckSquare className="w-4 h-4" />
-                                Matching
-                            </button>
+                                        }`}
+                                >
+                                    {tab.icon}
+                                    {tab.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
