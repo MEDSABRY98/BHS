@@ -918,29 +918,8 @@ export default function Wh20ItemsTab() {
                                     placeholder="e.g. Warehouse 3, Item usage..."
                                     value={header.destination}
                                     onChange={(e) => setHeader({ ...header, destination: e.target.value })}
-                                    onFocus={() => setShowDestinationDropdown(true)}
-                                    onBlur={() => setTimeout(() => setShowDestinationDropdown(false), 200)}
                                     className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                                 />
-                                {showDestinationDropdown && suggestions.destinations.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
-                                        {suggestions.destinations
-                                            .filter(d => d.toLowerCase().includes(header.destination.toLowerCase()))
-                                            .map((d, i) => (
-                                                <button
-                                                    key={i}
-                                                    type="button"
-                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0"
-                                                    onMouseDown={() => {
-                                                        setHeader({ ...header, destination: d });
-                                                        setShowDestinationDropdown(false);
-                                                    }}
-                                                >
-                                                    {d}
-                                                </button>
-                                            ))}
-                                    </div>
-                                )}
                             </div>
 
 
