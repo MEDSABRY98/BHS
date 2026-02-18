@@ -769,7 +769,7 @@ export default function Wh20ItemsTab() {
                             </div>
                         </div>
 
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 bg-slate-50/50 rounded-b-2xl">
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 bg-slate-50/50 rounded-b-2xl">
                             {/* Date Input */}
                             <div className="space-y-2">
                                 <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
@@ -847,7 +847,7 @@ export default function Wh20ItemsTab() {
                                 </button>
 
                                 {showTypeDropdown && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden">
+                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto">
                                         {[
                                             'Cash Sale',
                                             'Credit Sale',
@@ -909,7 +909,7 @@ export default function Wh20ItemsTab() {
                             </div>
 
                             {/* Destination Input */}
-                            <div className="space-y-2 relative">
+                            <div className="space-y-2 relative md:col-span-2 lg:col-span-4">
                                 <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
                                     <MapPin className="w-4 h-4 text-indigo-500" /> Destination & Description
                                 </label>
@@ -948,8 +948,8 @@ export default function Wh20ItemsTab() {
                     </div>
 
                     {/* Items Table */}
-                    <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-slate-200 relative">
-                        <div className="overflow-x-auto">
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 relative">
+                        <div className="overflow-visible min-h-[300px]">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-slate-50 border-b border-slate-200">
@@ -985,7 +985,14 @@ export default function Wh20ItemsTab() {
                                                             className="fixed inset-0 z-10"
                                                             onClick={() => setActiveDropdown(null)}
                                                         />
-                                                        <div className="absolute left-6 right-6 mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 z-20 overflow-hidden max-h-60 overflow-y-auto">
+                                                        <div
+                                                            className={`absolute left-6 right-6 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden max-h-60 overflow-y-auto ${
+                                                                // Show upwards if it's one of the last 2 rows and there are enough rows
+                                                                (rows.length > 2 && index >= rows.length - 2)
+                                                                    ? 'bottom-full mb-2 origin-bottom'
+                                                                    : 'top-full mt-2 origin-top'
+                                                                }`}
+                                                        >
                                                             {filteredInventory(row.searchTerm).length > 0 ? (
                                                                 filteredInventory(row.searchTerm).map((item) => (
                                                                     <button
@@ -1007,14 +1014,20 @@ export default function Wh20ItemsTab() {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4">
-                                                <select
-                                                    value={row.unit}
-                                                    onChange={(e) => updateRow(index, 'unit', e.target.value as 'CTN' | 'PCS')}
-                                                    className="w-full px-3 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all appearance-none cursor-pointer"
+                                                <div
+                                                    onClick={() => updateRow(index, 'unit', row.unit === 'CTN' ? 'PCS' : 'CTN')}
+                                                    className="relative flex items-center bg-slate-100 p-1.5 rounded-2xl cursor-pointer select-none w-32 mx-auto h-11 border border-slate-200/50 group/unit hover:border-indigo-100 transition-all shadow-inner"
                                                 >
-                                                    <option value="CTN">CTN</option>
-                                                    <option value="PCS">PCS</option>
-                                                </select>
+                                                    <div
+                                                        className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-[0.9rem] shadow-md transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) transform ${row.unit === 'PCS' ? 'translate-x-[calc(100%)]' : 'translate-x-0'}`}
+                                                    />
+                                                    <div className={`relative z-10 flex-1 text-center text-xs font-black tracking-widest transition-all duration-500 ${row.unit === 'CTN' ? 'text-indigo-600 scale-110' : 'text-slate-400 group-hover/unit:text-slate-500'}`}>
+                                                        CTN
+                                                    </div>
+                                                    <div className={`relative z-10 flex-1 text-center text-xs font-black tracking-widest transition-all duration-500 ${row.unit === 'PCS' ? 'text-indigo-600 scale-110' : 'text-slate-400 group-hover/unit:text-slate-500'}`}>
+                                                        PCS
+                                                    </div>
+                                                </div>
                                             </td>
                                             <td className="px-6 py-4">
                                                 <input
@@ -1138,22 +1151,22 @@ export default function Wh20ItemsTab() {
                             </button>
                         </div>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-left">
+                            <table className="w-full text-left table-fixed">
                                 <thead className="bg-slate-50 text-slate-600 font-semibold border-b">
                                     <tr>
-                                        <th className="px-4 py-3 rounded-tl-lg text-center">Number</th>
-                                        <th className="px-4 py-3 text-center">Date</th>
-                                        <th className="px-4 py-3 text-center">Recipient</th>
-                                        <th className="px-4 py-3 text-center">Total Amount</th>
-                                        <th className="px-4 py-3 rounded-tr-lg text-center">Action</th>
+                                        <th className="px-4 py-3 rounded-tl-lg text-center w-[15%]">Number</th>
+                                        <th className="px-4 py-3 text-center w-[15%]">Date</th>
+                                        <th className="px-4 py-3 text-center w-[40%]">Recipient</th>
+                                        <th className="px-4 py-3 text-center w-[20%]">Total Amount</th>
+                                        <th className="px-4 py-3 rounded-tr-lg text-center w-[10%]">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                     {recentTransactions.map((tx) => (
                                         <tr key={tx.number} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-4 py-3 font-mono text-sm font-medium text-slate-700 text-center">{tx.number}</td>
+                                            <td className="px-4 py-3 font-mono text-sm font-medium text-slate-700 text-center truncate" title={tx.number}>{tx.number}</td>
                                             <td className="px-4 py-3 text-sm text-slate-600 text-center">{tx.date}</td>
-                                            <td className="px-4 py-3 text-sm font-medium text-slate-800 text-center">{tx.recipientName}</td>
+                                            <td className="px-4 py-3 text-sm font-medium text-slate-800 text-center truncate" title={tx.recipientName}>{tx.recipientName}</td>
                                             <td className="px-4 py-3 text-sm font-bold text-indigo-600 text-center">{tx.total?.toLocaleString()} AED</td>
                                             <td className="px-4 py-3 text-center">
                                                 <button
@@ -1193,31 +1206,31 @@ export default function Wh20ItemsTab() {
                         </button>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left">
+                        <table className="w-full text-left table-fixed">
                             <thead className="bg-slate-50 text-slate-600 font-semibold border-b">
                                 <tr>
-                                    <th className="px-4 py-3 rounded-tl-lg text-center">Number</th>
-                                    <th className="px-4 py-3 text-center">Date</th>
-                                    <th className="px-4 py-3 text-center">Type</th>
-                                    <th className="px-4 py-3 text-center">Recipient</th>
-                                    <th className="px-4 py-3 text-center">Destination & Description</th>
-                                    <th className="px-4 py-3 text-center">Total Amount</th>
-                                    <th className="px-4 py-3 rounded-tr-lg text-center">Action</th>
+                                    <th className="px-2 py-3 rounded-tl-lg text-center w-[12%]">Number</th>
+                                    <th className="px-2 py-3 text-center w-[10%]">Date</th>
+                                    <th className="px-2 py-3 text-center w-[10%]">Type</th>
+                                    <th className="px-2 py-3 text-center w-[18%]">Recipient</th>
+                                    <th className="px-2 py-3 text-center w-[30%]">Destination & Description</th>
+                                    <th className="px-2 py-3 text-center w-[14%]">Total Amount</th>
+                                    <th className="px-2 py-3 rounded-tr-lg text-center w-[6%]">Action</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {historyData.map((tx) => (
                                     <tr key={tx.number} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-4 py-3 font-mono text-sm font-medium text-slate-700 text-center">{tx.number}</td>
-                                        <td className="px-4 py-3 text-sm text-slate-600 text-center">{tx.date}</td>
-                                        <td className="px-4 py-3 text-sm text-slate-600 text-center">{translateOpType(tx.operationType)}</td>
-                                        <td className="px-4 py-3 text-sm font-medium text-slate-800 text-center">{tx.recipientName}</td>
-                                        <td className="px-4 py-3 text-sm text-slate-600 text-center">{tx.destination}</td>
-                                        <td className="px-4 py-3 text-sm font-bold text-indigo-600 text-center">{tx.total?.toLocaleString()} AED</td>
-                                        <td className="px-4 py-3 text-center">
+                                        <td className="px-2 py-3 font-mono text-xs font-medium text-slate-700 text-center truncate" title={tx.number}>{tx.number}</td>
+                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.date}>{tx.date}</td>
+                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={translateOpType(tx.operationType)}>{translateOpType(tx.operationType)}</td>
+                                        <td className="px-2 py-3 text-sm font-medium text-slate-800 text-center truncate" title={tx.recipientName}>{tx.recipientName}</td>
+                                        <td className="px-2 py-3 text-sm text-slate-600 text-center truncate px-2" title={tx.destination}>{tx.destination}</td>
+                                        <td className="px-2 py-3 text-sm font-bold text-indigo-600 text-center truncate">{tx.total?.toLocaleString()} AED</td>
+                                        <td className="px-2 py-3 text-center">
                                             <button
                                                 onClick={() => handleReprint(tx.number)}
-                                                className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                className="p-1 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                                 title="Reprint PDF"
                                             >
                                                 <Printer className="w-4 h-4" />
