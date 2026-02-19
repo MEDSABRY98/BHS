@@ -14,6 +14,7 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts';
+import PaymentDefinitionTab from '@/components/PaymentDefinitionTab';
 
 interface PaymentTrackerTabProps {
   data: InvoiceRow[];
@@ -124,7 +125,7 @@ const formatPeriodLabel = (key: string, periodType: 'daily' | 'weekly' | 'monthl
 };
 
 export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
-  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period' | 'area' | 'analysis'>('dashboard');
+  const [activeSubTab, setActiveSubTab] = useState<'dashboard' | 'customer' | 'period' | 'area' | 'analysis' | 'definition'>('dashboard');
   const [periodType, setPeriodType] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('daily');
   const [chartPeriodType, setChartPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('monthly');
   const [chartYear, setChartYear] = useState<string>('');
@@ -2273,6 +2274,20 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
         >
           Payment by Area
         </button>
+        <button
+          onClick={() => {
+            setActiveSubTab('definition');
+            setDetailMode('none');
+            setSelectedCustomer(null);
+            setSelectedPeriod(null);
+          }}
+          className={`flex-1 py-3 font-semibold border-b-2 transition-colors text-center ${activeSubTab === 'definition'
+            ? 'border-blue-600 text-blue-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+        >
+          Definitions
+        </button>
 
 
       </div>
@@ -3227,6 +3242,12 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
       }
 
       {/* Analysis Tab Content */}
+
+      {
+        activeSubTab === 'definition' && (
+          <PaymentDefinitionTab />
+        )
+      }
 
 
     </div >

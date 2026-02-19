@@ -306,17 +306,40 @@ export default function NotificationOrderTab() {
                     </span>
                 </h2>
 
-                <div className="relative w-full md:w-96 group">
-                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                        <Search className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+                <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto flex-1 justify-center">
+                    {/* Category Dropdown */}
+                    <div className="relative min-w-[200px]">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Package className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <select
+                            value={activeTag}
+                            onChange={(e) => setActiveTag(e.target.value)}
+                            className="w-full pl-10 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer hover:bg-gray-100 transition-colors appearance-none shadow-sm"
+                        >
+                            {tags.map(tag => (
+                                <option key={tag} value={tag}>
+                                    {tag === 'All' ? 'All Categories' : tag}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                        </div>
                     </div>
-                    <input
-                        type="text"
-                        className="block w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
-                        placeholder="Search alerts..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
+
+                    <div className="relative w-full md:w-96 group">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+                        </div>
+                        <input
+                            type="text"
+                            className="block w-full pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all shadow-sm"
+                            placeholder="Search alerts..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                    </div>
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -358,21 +381,7 @@ export default function NotificationOrderTab() {
                 </div>
             </div>
 
-            {/* Tags Tabs */}
-            <div className="flex flex-wrap gap-2">
-                {tags.map(tag => (
-                    <button
-                        key={tag}
-                        onClick={() => setActiveTag(tag)}
-                        className={`min-w-[120px] px-4 py-2 rounded-lg text-sm font-medium transition-all ${activeTag === tag
-                            ? 'bg-blue-600 text-white shadow-md'
-                            : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
-                            }`}
-                    >
-                        {tag}
-                    </button>
-                ))}
-            </div>
+
 
             {/* Table */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">

@@ -3421,3 +3421,78 @@ export async function addVisitCustomerEntry(entries: VisitCustomerEntry | VisitC
     throw error;
   }
 }
+
+export interface PaymentDefinitionEntry {
+  customerId: string;
+  customerName: string;
+  date: string;
+  invoiceNumber: string;
+  amount: number;
+  monthsClosed: string;
+  rowIndex: number;
+}
+
+export async function getPaymentDefinitions() {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Definition-PAYMENT'!A:F`,
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    return rows.slice(1).map((row, index) => ({
+      customerId: row[0]?.toString() || '',
+      customerName: row[1]?.toString() || '',
+      date: row[2]?.toString() || '',
+      invoiceNumber: row[3]?.toString() || '',
+      amount: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+      monthsClosed: row[5]?.toString() || '',
+      rowIndex: index + 2 // 1-based index (header is 1)
+    }));
+  } catch (error) {
+    console.error('Error fetching payment definitions:', error);
+    throw error;
+  }
+}
+
+export async function updatePaymentDefinition(rowIndex: number, monthsClosed: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Ensure we are updating column F (index 5, but A1 notation matches column letters)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Definition-PAYMENT'!F${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[monthsClosed]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating payment definition:', error);
+    throw error;
+  }
+}

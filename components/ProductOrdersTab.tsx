@@ -55,9 +55,10 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
     const [sortField, setSortField] = useState<keyof ProductOrder>('qtyFreeToUse');
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
-    const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'out_of_stock' | 'low_stock'>('all');
+    const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'out_of_stock' | 'negative_stock'>('all');
     const [packSizes, setPackSizes] = useState<Record<string, string>>({});
     const [limits, setLimits] = useState<Record<string, { min: string, max: string }>>({});
+    const [activeTag, setActiveTag] = useState<string>('All');
 
     // Modal State
     const [selectedProductForAnalysis, setSelectedProductForAnalysis] = useState<ProductOrder | null>(null);
@@ -102,14 +103,37 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
 
     const stats = useMemo(() => {
         const totalProducts = products.length;
-        const lowStock = products.filter(p => p.qtyFreeToUse > 0 && p.qtyFreeToUse < (p.salesQty || 0) * 0.25).length;
-        const outOfStock = products.filter(p => p.qtyFreeToUse <= 0).length;
+        const negativeStock = products.filter(p => p.qtyFreeToUse < 0).length;
+        const outOfStock = products.filter(p => p.qtyFreeToUse === 0).length;
 
-        return { totalProducts, lowStock, outOfStock };
+        return { totalProducts, negativeStock, outOfStock };
+    }, [products]);
+
+    const tags = useMemo(() => {
+        const uniqueTags = new Set<string>();
+        uniqueTags.add('All');
+        products.forEach(p => {
+            if (p.tags) {
+                const tag = p.tags.trim();
+                if (tag) uniqueTags.add(tag);
+            } else {
+                uniqueTags.add('Uncategorized');
+            }
+        });
+        return Array.from(uniqueTags).sort();
     }, [products]);
 
     const filteredAndSortedProducts = useMemo(() => {
         let result = [...products];
+
+        // Filter by Tag
+        if (activeTag !== 'All') {
+            if (activeTag === 'Uncategorized') {
+                result = result.filter(p => !p.tags || !p.tags.trim());
+            } else {
+                result = result.filter(p => p.tags && p.tags.trim() === activeTag);
+            }
+        }
 
         // Filter by Search Query
         if (searchQuery.trim()) {
@@ -125,8 +149,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
         // Filter by Status
         if (statusFilter !== 'all') {
             result = result.filter(p => {
-                if (statusFilter === 'out_of_stock') return p.qtyFreeToUse <= 0;
-                if (statusFilter === 'low_stock') return p.qtyFreeToUse > 0 && p.qtyFreeToUse < (p.salesQty || 0) * 0.25;
+                if (statusFilter === 'out_of_stock') return p.qtyFreeToUse === 0;
+                if (statusFilter === 'negative_stock') return p.qtyFreeToUse < 0;
                 if (statusFilter === 'in_stock') return p.qtyFreeToUse > 0;
                 return true;
             });
@@ -148,7 +172,7 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
         });
 
         return result;
-    }, [products, searchQuery, statusFilter, sortField, sortDirection]);
+    }, [products, searchQuery, statusFilter, sortField, sortDirection, activeTag]);
 
     const handleSort = (field: keyof ProductOrder) => {
         if (sortField === field) {
@@ -310,21 +334,42 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                     color="blue"
                 />
                 <StatCard
-                    title="Low Stock Warning"
-                    value={stats.lowStock}
-                    icon={AlertCircle}
+                    title="Out of Stock (Zero)"
+                    value={stats.outOfStock}
+                    icon={ShoppingCart}
                     color="amber"
                 />
                 <StatCard
-                    title="Out of Stock"
-                    value={stats.outOfStock}
-                    icon={ShoppingCart}
+                    title="Negative Stock"
+                    value={stats.negativeStock}
+                    icon={AlertCircle}
                     color="red"
                 />
             </div>
 
             <div className="relative flex flex-col md:flex-row justify-center items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
-                <div className="relative w-full max-w-xl group flex gap-2">
+                <div className="relative w-full max-w-6xl group flex flex-col md:flex-row gap-2">
+                    {/* Category Dropdown */}
+                    <div className="relative min-w-[200px]">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Package className="h-5 w-5 text-gray-400" />
+                        </div>
+                        <select
+                            value={activeTag}
+                            onChange={(e) => setActiveTag(e.target.value)}
+                            className="w-full pl-10 pr-8 py-3 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer hover:bg-gray-100 transition-colors appearance-none"
+                        >
+                            {tags.map(tag => (
+                                <option key={tag} value={tag}>
+                                    {tag === 'All' ? 'All Categories' : tag}
+                                </option>
+                            ))}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                            <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                        </div>
+                    </div>
+
                     <div className="relative flex-1">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                             <Search className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
@@ -344,8 +389,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                     >
                         <option value="all">All Status</option>
                         <option value="in_stock">In Stock</option>
-                        <option value="out_of_stock">Out of Stock</option>
-                        <option value="low_stock">Low Stock</option>
+                        <option value="out_of_stock">Out of Stock (Zero)</option>
+                        <option value="negative_stock">Negative Stock</option>
                     </select>
                 </div>
 
@@ -354,8 +399,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                         onClick={handleExportExcel}
                         disabled={filteredAndSortedProducts.length === 0}
                         className={`p-2 rounded-lg transition-colors ${filteredAndSortedProducts.length === 0
-                                ? 'text-gray-300 cursor-not-allowed'
-                                : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
+                            ? 'text-gray-300 cursor-not-allowed'
+                            : 'text-gray-500 hover:text-green-600 hover:bg-green-50'
                             }`}
                         title="Export to Excel"
                     >
@@ -371,6 +416,8 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
                     </button>
                 </div>
             </div>
+
+
 
             {/* Table */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -534,14 +581,16 @@ export default function ProductOrdersTab({ orderItems, setOrderItems }: Props) {
             </div>
 
             {/* Analysis Modal */}
-            {selectedProductForAnalysis && (
-                <ProductSalesAnalysisModal
-                    product={selectedProductForAnalysis}
-                    isOpen={!!selectedProductForAnalysis}
-                    onClose={() => setSelectedProductForAnalysis(null)}
-                    packSize={parseFloat(packSizes[selectedProductForAnalysis.productId]) || 1}
-                />
-            )}
-        </div>
+            {
+                selectedProductForAnalysis && (
+                    <ProductSalesAnalysisModal
+                        product={selectedProductForAnalysis}
+                        isOpen={!!selectedProductForAnalysis}
+                        onClose={() => setSelectedProductForAnalysis(null)}
+                        packSize={parseFloat(packSizes[selectedProductForAnalysis.productId]) || 1}
+                    />
+                )
+            }
+        </div >
     );
 }
