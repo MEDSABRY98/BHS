@@ -1607,18 +1607,18 @@ export async function generateAgesPDF(
     let yPosition = 20;
 
     // --- Header ---
+    // Company Name
+    doc.setFontSize(12);
+    doc.setTextColor(0, 155, 77); // Green color
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
+    doc.setTextColor(0, 0, 0);
+    yPosition += 7;
+
     // Title with City
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text(`Aging Report | ${city}`, pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 7;
-
-    // Company Name
-    doc.setFontSize(12);
-    doc.setTextColor(0, 155, 77);
-    doc.setFont('helvetica', 'bold');
-    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
-    doc.setTextColor(0, 0, 0);
     yPosition += 10;
 
     // Date and Filter
