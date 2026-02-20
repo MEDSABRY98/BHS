@@ -15,7 +15,7 @@ export async function GET() {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `'Item Code'!A:B`, // ITEM CODE, BARCODE
+            range: `'Item Code'!A:C`, // TAGS, ITEM CODE, BARCODE
         });
 
         const rows = response.data.values;
@@ -25,8 +25,9 @@ export async function GET() {
 
         // Skip header row
         const data = rows.slice(1).map(row => ({
-            itemCode: row[0]?.toString().trim() || '',
-            barcode: row[1]?.toString().trim() || ''
+            tags: row[0]?.toString().trim() || '',
+            itemCode: row[1]?.toString().trim() || '',
+            barcode: row[2]?.toString().trim() || ''
         })).filter(entry => entry.itemCode || entry.barcode);
 
         return NextResponse.json({ data });

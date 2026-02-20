@@ -87,7 +87,18 @@ export default function Wh20ItemsTab() {
     // Reprint State
     const [reprintNumber, setReprintNumber] = useState('');
     const [isReprinting, setIsReprinting] = useState(false);
+    const [historySearchQuery, setHistorySearchQuery] = useState('');
     const [historyLoading, setHistoryLoading] = useState(false);
+
+    const filteredHistoryData = useMemo(() => {
+        if (!historySearchQuery) return historyData;
+        const query = historySearchQuery.toLowerCase().trim();
+        return historyData.filter(tx =>
+            tx.number.toLowerCase().includes(query) ||
+            (tx.recipientName && tx.recipientName.toLowerCase().includes(query)) ||
+            (tx.destination && tx.destination.toLowerCase().includes(query))
+        );
+    }, [historyData, historySearchQuery]);
 
     // UI state for dropdowns
     const [activeDropdown, setActiveDropdown] = useState<number | null>(null);
@@ -282,9 +293,7 @@ export default function Wh20ItemsTab() {
     };
 
     useEffect(() => {
-        if (activeTab === 'search') {
-            fetchHistory(6);
-        } else if (activeTab === 'history' || activeTab === 'people') {
+        if (activeTab === 'history' || activeTab === 'people') {
             fetchHistory();
         }
     }, [activeTab]);
@@ -721,7 +730,6 @@ export default function Wh20ItemsTab() {
                 <div className="flex bg-slate-100 p-1 rounded-xl">
                     {[
                         { id: 'entry', label: 'Entry' },
-                        { id: 'search', label: 'Search' },
                         { id: 'history', label: 'History' },
                         { id: 'people', label: 'People Inventory' }
                     ].filter(tab => {
@@ -1088,101 +1096,47 @@ export default function Wh20ItemsTab() {
                 </>
             )}
 
-            {/* Search Tab Content */}
-            {activeTab === 'search' && (
-                <div className="space-y-6">
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <h3 className="text-lg font-bold text-slate-700 mb-4 flex items-center gap-2">
-                            <Search className="w-5 h-5 text-indigo-500" />
-                            Search Transaction
-                        </h3>
-                        <div className="flex gap-4">
-                            <input
-                                type="text"
-                                placeholder="Enter Transaction Number (e.g. WH20-0001)"
-                                value={reprintNumber}
-                                onChange={(e) => setReprintNumber(e.target.value)}
-                                className="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none"
-                            />
-                            <button
-                                onClick={() => handleReprint()}
-                                disabled={isReprinting || !reprintNumber}
-                                className="px-6 py-2 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-2 transition-colors"
-                            >
-                                {isReprinting ? <RefreshCw className="animate-spin w-4 h-4" /> : <Printer className="w-4 h-4" />}
-                                Print PDF
-                            </button>
-                        </div>
-                    </div>
 
-                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <div className="flex items-center justify-between mb-4">
-                            <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
-                                <RefreshCw className="w-5 h-5 text-indigo-500" />
-                                Recent Transactions (Last 6)
-                            </h3>
-                            <button
-                                onClick={() => fetchHistory(6)}
-                                disabled={historyLoading}
-                                className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 disabled:opacity-50"
-                            >
-                                <RefreshCw className={`w-3 h-3 ${historyLoading ? 'animate-spin' : ''}`} /> Refresh
-                            </button>
-                        </div>
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left table-fixed">
-                                <thead className="bg-slate-50 text-slate-600 font-semibold border-b">
-                                    <tr>
-                                        <th className="px-4 py-3 rounded-tl-lg text-center w-[15%]">Number</th>
-                                        <th className="px-4 py-3 text-center w-[15%]">Date</th>
-                                        <th className="px-4 py-3 text-center w-[40%]">Recipient</th>
-                                        <th className="px-4 py-3 text-center w-[20%]">Total Amount</th>
-                                        <th className="px-4 py-3 rounded-tr-lg text-center w-[10%]">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {recentTransactions.map((tx) => (
-                                        <tr key={tx.number} className="hover:bg-slate-50 transition-colors">
-                                            <td className="px-4 py-3 font-mono text-sm font-medium text-slate-700 text-center truncate" title={tx.number}>{tx.number}</td>
-                                            <td className="px-4 py-3 text-sm text-slate-600 text-center">{tx.date}</td>
-                                            <td className="px-4 py-3 text-sm font-medium text-slate-800 text-center truncate" title={tx.recipientName}>{tx.recipientName}</td>
-                                            <td className="px-4 py-3 text-sm font-bold text-indigo-600 text-center">{tx.total?.toLocaleString()} AED</td>
-                                            <td className="px-4 py-3 text-center">
-                                                <button
-                                                    onClick={() => handleReprint(tx.number)}
-                                                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                    title="Reprint PDF"
-                                                >
-                                                    <Printer className="w-4 h-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                    {recentTransactions.length === 0 && (
-                                        <tr><td colSpan={5} className="text-center py-8 text-slate-500">No recent transactions found</td></tr>
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            )}
 
             {/* History Tab Content */}
             {activeTab === 'history' && (
                 <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                    <div className="flex items-center justify-between mb-6">
-                        <h3 className="text-lg font-bold text-slate-700 flex items-center gap-2">
-                            <FileText className="w-5 h-5 text-indigo-500" />
-                            Transaction History
-                        </h3>
-                        <button
-                            onClick={() => fetchHistory()}
-                            disabled={historyLoading}
-                            className="text-sm text-indigo-600 hover:text-indigo-700 flex items-center gap-1 disabled:opacity-50"
-                        >
-                            <RefreshCw className={`w-3 h-3 ${historyLoading ? 'animate-spin' : ''}`} /> Refresh
-                        </button>
+                    <div className="flex flex-col md:flex-row items-center justify-between gap-6 mb-8">
+                        {/* Title - Left Side */}
+                        <div className="flex-1">
+                            <h3 className="text-xl font-black text-slate-800 flex items-center gap-3">
+                                <div className="p-2 bg-indigo-50 rounded-lg">
+                                    <FileText className="w-5 h-5 text-indigo-600" />
+                                </div>
+                                History
+                            </h3>
+                        </div>
+
+                        {/* Search Bar - Centered */}
+                        <div className="flex-[2] w-full max-w-xl">
+                            <div className="relative group">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                <input
+                                    type="text"
+                                    placeholder="Search by number, recipient or destination..."
+                                    value={historySearchQuery}
+                                    onChange={(e) => setHistorySearchQuery(e.target.value)}
+                                    className="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-medium focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Refresh Button - Right Side */}
+                        <div className="flex-1 flex justify-end">
+                            <button
+                                onClick={() => fetchHistory()}
+                                disabled={historyLoading}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-50 hover:border-indigo-200 hover:text-indigo-600 transition-all active:scale-95 disabled:opacity-50 shadow-sm"
+                            >
+                                <RefreshCw className={`w-4 h-4 ${historyLoading ? 'animate-spin' : ''}`} />
+                                Refresh
+                            </button>
+                        </div>
                     </div>
                     <div className="overflow-x-auto">
                         <table className="w-full text-left table-fixed">
@@ -1198,7 +1152,7 @@ export default function Wh20ItemsTab() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {historyData.map((tx) => (
+                                {filteredHistoryData.map((tx) => (
                                     <tr key={tx.number} className="hover:bg-slate-50 transition-colors">
                                         <td className="px-2 py-3 font-mono text-xs font-medium text-slate-700 text-center truncate" title={tx.number}>{tx.number}</td>
                                         <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.date}>{tx.date}</td>
@@ -1217,7 +1171,7 @@ export default function Wh20ItemsTab() {
                                         </td>
                                     </tr>
                                 ))}
-                                {historyData.length === 0 && (
+                                {filteredHistoryData.length === 0 && (
                                     <tr><td colSpan={7} className="text-center py-12 text-slate-500">No history found</td></tr>
                                 )}
                             </tbody>
