@@ -721,9 +721,13 @@ const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'custome
             head: [tableColumn],
             body: tableRows,
             startY: 30,
-            styles: { fontSize: 7, cellPadding: 2, halign: 'center', textColor: 0, fontStyle: 'bold' },
+            styles: { fontSize: 9, cellPadding: 1.5, halign: 'center', textColor: 0, fontStyle: 'normal' },
             headStyles: { fillColor: [75, 85, 99], halign: 'center', valign: 'middle', textColor: 255 },
             alternateRowStyles: { fillColor: [229, 231, 235] },
+            margin: { left: 5, right: 5 },
+            columnStyles: {
+              0: { cellWidth: 70, halign: 'center' },
+            },
             didParseCell: (data) => {
               if (data.section === 'head') {
                 const index = data.column.index;
