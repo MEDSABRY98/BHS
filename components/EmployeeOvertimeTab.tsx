@@ -231,7 +231,7 @@ export default function EmployeeOvertimeTab() {
     setEditingRecord({
       date: formatDateForInput(record.date),
       employeeName: record.employeeName,
-      shiftHours: record.shiftHours || '9',
+      shiftHours: record.shiftHours != null && record.shiftHours !== '' ? record.shiftHours : '9',
       shiftStart: record.shiftStart || '',
       shiftStartAmPm: record.shiftStartAmPm || 'AM',
       shiftEnd: record.shiftEnd || '',
@@ -359,9 +359,10 @@ export default function EmployeeOvertimeTab() {
           const sAmPm = field === 'shiftStartAmPm' ? value : row.shiftStartAmPm;
           const end = field === 'shiftEnd' ? value : row.shiftEnd;
           const eAmPm = field === 'shiftEndAmPm' ? value : row.shiftEndAmPm;
-          const standard = parseFloat(field === 'shiftHours' ? value : row.shiftHours) || 0;
+          const standardStr = field === 'shiftHours' ? value : row.shiftHours;
+          const standard = !isNaN(parseFloat(standardStr)) ? parseFloat(standardStr) : 0;
 
-          if (start && end && standard > 0) {
+          if (start && end && standard >= 0) {
             const duration = calculateDuration(start, sAmPm, end, eAmPm);
             if (duration >= 0) {
               const diff = duration - standard;
@@ -483,7 +484,7 @@ export default function EmployeeOvertimeTab() {
       // 1. Try On-the-fly calculation (Most Accurate)
       if (rec.shiftStart && rec.shiftEnd) {
         const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
-        const std = parseFloat(rec.shiftHours) || 9;
+        const std = !isNaN(parseFloat(rec.shiftHours)) ? parseFloat(rec.shiftHours) : 9;
         const diff = dur - std;
         if (diff > 0.001) ot = diff;
         else if (diff < -0.001) ded = Math.abs(diff);
@@ -618,7 +619,7 @@ export default function EmployeeOvertimeTab() {
       // Re-calculate
       if (rec.shiftStart && rec.shiftEnd) {
         const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
-        const standard = parseFloat(rec.shiftHours) || 9;
+        const standard = !isNaN(parseFloat(rec.shiftHours)) ? parseFloat(rec.shiftHours) : 9;
         const diff = dur - standard;
 
         if (diff > 0.001) otDisplay = decimalToTime(diff);
@@ -629,7 +630,7 @@ export default function EmployeeOvertimeTab() {
       return {
         'Date': rec.date,
         'Employee Name': rec.employeeName,
-        'Shift Hours': rec.shiftHours || '9',
+        'Shift Hours': rec.shiftHours != null && rec.shiftHours !== '' ? rec.shiftHours : '9',
         'Start Time': rec.shiftStart ? `${rec.shiftStart} ${rec.shiftStartAmPm}` : (rec.timeFrom || ''),
         'End Time': rec.shiftEnd ? `${rec.shiftEnd} ${rec.shiftEndAmPm}` : (rec.timeTo || ''),
         'Overtime (Hours)': otDisplay,
@@ -976,21 +977,21 @@ export default function EmployeeOvertimeTab() {
                 </table>
               </div>
 
-              <div className="mt-6 flex gap-4">
+              <div className="mt-8 flex justify-center gap-6">
                 <button
                   onClick={addNewRow}
-                  className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium shadow-sm"
+                  className="flex items-center justify-center gap-2 w-48 py-3 bg-white border-2 border-slate-200 text-slate-700 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-all text-sm font-bold shadow-sm active:scale-95"
                 >
-                  <Plus className="w-4 h-4" />
+                  <Plus className="w-5 h-5" />
                   Add Row
                 </button>
                 <button
                   onClick={saveAllRecords}
                   disabled={loading}
-                  className="flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium shadow-sm disabled:opacity-50 ml-auto"
+                  className="flex items-center justify-center gap-2 w-48 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md shadow-blue-200 disabled:opacity-70 active:scale-95"
                 >
-                  <Save className="w-4 h-4" />
-                  {loading ? 'Saving...' : 'Save All Records'}
+                  <Save className="w-5 h-5" />
+                  {loading ? 'Saving...' : 'Save'}
                 </button>
               </div>
             </div>
@@ -1081,7 +1082,6 @@ export default function EmployeeOvertimeTab() {
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[25%]">Date / Employee</th>
-                        <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[10%]">Shift</th>
                         <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider w-[15%]">In / Out</th>
                         <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider text-green-600 w-[10%]">Overtime</th>
                         <th className="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider text-red-600 w-[10%]">Deduction</th>
@@ -1102,7 +1102,7 @@ export default function EmployeeOvertimeTab() {
                               className={`cursor-pointer transition-colors ${isSunday ? 'bg-yellow-50 hover:bg-yellow-100 border-l-4 border-l-yellow-400' : 'bg-gray-50/50 hover:bg-gray-100'}`}
                               onClick={() => toggleDate(date)}
                             >
-                              <td colSpan={6} className="px-6 py-3">
+                              <td colSpan={5} className="px-6 py-3">
                                 <div className="flex items-center justify-between w-full pr-4">
                                   <div className="flex items-center gap-2">
                                     {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-500" /> : <ChevronRight className="w-4 h-4 text-gray-500" />}
@@ -1130,9 +1130,7 @@ export default function EmployeeOvertimeTab() {
                                     <span className="font-medium text-gray-900">{rec.employeeName}</span>
                                   </div>
                                 </td>
-                                <td className="px-6 py-4 text-sm text-gray-600 text-center">
-                                  {rec.shiftHours || '-'} hrs
-                                </td>
+
                                 <td className="px-6 py-4 text-sm text-gray-600 text-center">
                                   <div className="font-bold">
                                     {rec.shiftStart || rec.timeFrom || '-'}
@@ -1148,7 +1146,7 @@ export default function EmployeeOvertimeTab() {
                                     // 1. Try on-the-fly calculation for consistent formatting (H.MM)
                                     if (rec.shiftStart && rec.shiftEnd) {
                                       const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
-                                      const std = parseFloat(rec.shiftHours) || 9;
+                                      const std = !isNaN(parseFloat(rec.shiftHours)) ? parseFloat(rec.shiftHours) : 9;
                                       const diff = dur - std;
                                       if (diff > 0.001) return `${decimalToTime(diff)}h`;
                                     }
@@ -1161,7 +1159,7 @@ export default function EmployeeOvertimeTab() {
                                     // 1. Try on-the-fly calculation
                                     if (rec.shiftStart && rec.shiftEnd) {
                                       const dur = calculateDuration(rec.shiftStart, rec.shiftStartAmPm || 'AM', rec.shiftEnd, rec.shiftEndAmPm || 'PM');
-                                      const std = parseFloat(rec.shiftHours) || 9;
+                                      const std = !isNaN(parseFloat(rec.shiftHours)) ? parseFloat(rec.shiftHours) : 9;
                                       const diff = dur - std;
                                       if (diff < -0.001) return `${decimalToTime(Math.abs(diff))}h`;
                                     }

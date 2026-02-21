@@ -1858,11 +1858,12 @@ export async function saveEmployeeOvertime(data: {
       split.hasOvertime ? split.ovStart.timeStr : '', // K: OVS - TIME
       split.hasOvertime ? split.ovEnd.amPm : '',   // L: OVE - AM/PM
       split.hasOvertime ? split.ovEnd.timeStr : '',   // M: OVE - TIME
+      data.overtimeHours || '0', // N: TOTAL OVERTIME HOURS
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Employee Overtime'!A:M`,
+      range: `'Employee Overtime'!A:N`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rowValues] },
     });
@@ -1897,7 +1898,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A:M`, // Read up to M
+      range: `Employee Overtime!A:N`, // Read up to N
     });
 
     const rows = response.data.values;
@@ -1920,6 +1921,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
       const ovsStart = row[10] || '';
       const oveAmPm = row[11] || '';
       const oveEnd = row[12] || '';
+      const storedTotalOvertime = row[13] || ''; // Column N
 
       // Reconstruct for Frontend
       // Shift Start = SD Start
@@ -1940,9 +1942,9 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
       // Let's assume standard is 9 for calculation purposes if we must, 
       // OR just report Overtime based on OV columns.
 
-      let otHours = '0';
+      let otHours = storedTotalOvertime || '0';
 
-      if (ovsStart && oveEnd) {
+      if (!storedTotalOvertime && ovsStart && oveEnd) {
         // Calculate duration between OVS and OVE
         // Reuse calculation logic? We need simple duration.
         const parse = (t: string, ap: string) => {
@@ -2042,11 +2044,12 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
       split.hasOvertime ? split.ovStart.timeStr : '', // K
       split.hasOvertime ? split.ovEnd.amPm : '',   // L
       split.hasOvertime ? split.ovEnd.timeStr : '',   // M
+      data.overtimeHours || '0',  // N
     ];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A${rowIndex}:M${rowIndex}`,
+      range: `Employee Overtime!A${rowIndex}:N${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rowValues] },
     });
