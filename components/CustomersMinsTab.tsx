@@ -52,26 +52,35 @@ const copyToClipboard = async (text: string): Promise<boolean> => {
   }
 };
 
-const parseDate = (dateStr: string): Date | null => {
+const parseDate = (dateStr?: string | null): Date | null => {
   if (!dateStr) return null;
-  const d = new Date(dateStr);
-  if (!isNaN(d.getTime())) return d;
 
-  // Fallback for DD/MM/YYYY
-  const parts = dateStr.split(/[\/\-]/);
+  // Try to parse DD/MM/YYYY or DD-MM-YYYY explicitly first
+  const parts = dateStr.trim().split(/[\/\-]/);
   if (parts.length === 3) {
-    const p1 = parseInt(parts[0]);
-    const p2 = parseInt(parts[1]);
-    const p3 = parseInt(parts[2]);
-    // Assuming DD/MM/YYYY if first part > 12 or generally preferred
-    if (p1 > 12 || (p3 > 31)) { // rudimentary check
-      return new Date(p3, p2 - 1, p1);
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    const p3 = parseInt(parts[2], 10);
+
+    if (!isNaN(p1) && !isNaN(p2) && !isNaN(p3)) {
+      if (p3 > 1000) {
+        // Format: DD/MM/YYYY
+        const parsed = new Date(p3, p2 - 1, p1);
+        if (!isNaN(parsed.getTime())) return parsed;
+      } else if (p1 > 1000) {
+        // Format: YYYY/MM/DD
+        const parsed = new Date(p1, p2 - 1, p3);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
     }
-    // If ambiguous, maybe try standard MM/DD/YYYY? 
-    // Let's stick to what new Date() couldn't parse.
   }
+
+  // Fallback to JS native parser
+  const direct = new Date(dateStr);
+  if (!isNaN(direct.getTime())) return direct;
+
   return null;
-}
+};
 
 const formatDmy = (date?: Date | null) => {
   if (!date) return '';

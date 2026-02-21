@@ -28,6 +28,36 @@ interface CustomerAgingSummary {
   total: number;
 }
 
+const parseInvoiceDate = (dateStr?: string | null): Date | null => {
+  if (!dateStr) return null;
+
+  // Try to parse DD/MM/YYYY or DD-MM-YYYY explicitly first
+  const parts = dateStr.trim().split(/[\/\-]/);
+  if (parts.length === 3) {
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    const p3 = parseInt(parts[2], 10);
+
+    if (!isNaN(p1) && !isNaN(p2) && !isNaN(p3)) {
+      if (p3 > 1000) {
+        // Format: DD/MM/YYYY
+        const parsed = new Date(p3, p2 - 1, p1);
+        if (!isNaN(parsed.getTime())) return parsed;
+      } else if (p1 > 1000) {
+        // Format: YYYY/MM/DD
+        const parsed = new Date(p1, p2 - 1, p3);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    }
+  }
+
+  // Fallback to JS native parser
+  const direct = new Date(dateStr);
+  if (!isNaN(direct.getTime())) return direct;
+
+  return null;
+};
+
 const columnHelper = createColumnHelper<CustomerAgingSummary>();
 
 export default function AgesTab({ data }: AgesTabProps) {
@@ -152,13 +182,7 @@ export default function AgesTab({ data }: AgesTabProps) {
         if (shouldAge) {
           // Calculate days overdue
           let daysOverdue = 0;
-          let targetDate = inv.dueDate ? new Date(inv.dueDate) : null;
-
-          if (!targetDate || isNaN(targetDate.getTime())) {
-            if (inv.date) {
-              targetDate = new Date(inv.date);
-            }
-          }
+          let targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
 
           if (targetDate && !isNaN(targetDate.getTime())) {
             targetDate.setHours(0, 0, 0, 0);

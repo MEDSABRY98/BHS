@@ -115,18 +115,31 @@ const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }
 // Parse dates from Google Sheets while preserving original order for invalid dates
 const parseInvoiceDate = (dateStr?: string | null): Date | null => {
   if (!dateStr) return null;
+
+  // Try to parse DD/MM/YYYY or DD-MM-YYYY explicitly first
+  const parts = dateStr.trim().split(/[\/\-]/);
+  if (parts.length === 3) {
+    const p1 = parseInt(parts[0], 10);
+    const p2 = parseInt(parts[1], 10);
+    const p3 = parseInt(parts[2], 10);
+
+    if (!isNaN(p1) && !isNaN(p2) && !isNaN(p3)) {
+      if (p3 > 1000) {
+        // Format: DD/MM/YYYY
+        const parsed = new Date(p3, p2 - 1, p1);
+        if (!isNaN(parsed.getTime())) return parsed;
+      } else if (p1 > 1000) {
+        // Format: YYYY/MM/DD
+        const parsed = new Date(p1, p2 - 1, p3);
+        if (!isNaN(parsed.getTime())) return parsed;
+      }
+    }
+  }
+
+  // Fallback to JS native parser for strings like "25-Jan-2025"
   const direct = new Date(dateStr);
   if (!isNaN(direct.getTime())) return direct;
 
-  // Fallback for DD/MM/YYYY or DD-MM/YYYY
-  const parts = dateStr.split(/[\/\-]/);
-  if (parts.length === 3) {
-    const [p1, p2, p3] = parts.map((p) => parseInt(p, 10));
-    if (p1 > 12 || p3 > 31) {
-      const parsed = new Date(p3, (p2 || 1) - 1, p1);
-      if (!isNaN(parsed.getTime())) return parsed;
-    }
-  }
   return null;
 };
 
@@ -1419,7 +1432,7 @@ ${debtSectionHtml}
       const amount = inv.difference;
       if (Math.abs(amount) < 0.01) return;
 
-      // Use targetDate consistent with overdueInvoices preparation
+      // Try Due Date first, then Invoice Date
       let targetDate = parseInvoiceDate(inv.dueDate) || inv.parsedDate;
       let daysOverdue = 0;
 
