@@ -1503,6 +1503,31 @@ export default function EmployeeOvertimeTab() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Shift Hours</label>
+                <input
+                  type="number"
+                  value={editingRecord.shiftHours}
+                  onChange={e => {
+                    const newShiftHours = e.target.value;
+                    const duration = calculateDuration(editingRecord.shiftStart, editingRecord.shiftStartAmPm, editingRecord.shiftEnd, editingRecord.shiftEndAmPm);
+                    const standard = !isNaN(parseFloat(newShiftHours)) ? parseFloat(newShiftHours) : 0;
+                    let diff = 0;
+                    if (editingRecord.shiftStart && editingRecord.shiftEnd && standard >= 0) {
+                      diff = duration - standard;
+                    }
+                    setEditingRecord({
+                      ...editingRecord,
+                      shiftHours: newShiftHours,
+                      overtimeHours: diff > 0.001 ? decimalToTime(diff) : '0',
+                      deductionHours: diff < -0.001 ? decimalToTime(Math.abs(diff)) : '0'
+                    });
+                  }}
+                  className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold text-slate-700"
+                  placeholder="e.g. 9"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">Start Time</label>
@@ -1513,7 +1538,7 @@ export default function EmployeeOvertimeTab() {
                       onChange={e => {
                         const newStart = e.target.value;
                         const duration = calculateDuration(newStart, editingRecord.shiftStartAmPm, editingRecord.shiftEnd, editingRecord.shiftEndAmPm);
-                        const standard = parseFloat(editingRecord.shiftHours) || 9;
+                        const standard = !isNaN(parseFloat(editingRecord.shiftHours)) ? parseFloat(editingRecord.shiftHours) : 0;
                         const diff = duration - standard;
                         setEditingRecord({
                           ...editingRecord,
@@ -1529,7 +1554,7 @@ export default function EmployeeOvertimeTab() {
                       onChange={e => {
                         const newAmPm = e.target.value;
                         const duration = calculateDuration(editingRecord.shiftStart, newAmPm, editingRecord.shiftEnd, editingRecord.shiftEndAmPm);
-                        const standard = parseFloat(editingRecord.shiftHours) || 9;
+                        const standard = !isNaN(parseFloat(editingRecord.shiftHours)) ? parseFloat(editingRecord.shiftHours) : 0;
                         const diff = duration - standard;
                         setEditingRecord({
                           ...editingRecord,
@@ -1554,7 +1579,7 @@ export default function EmployeeOvertimeTab() {
                       onChange={e => {
                         const newEnd = e.target.value;
                         const duration = calculateDuration(editingRecord.shiftStart, editingRecord.shiftStartAmPm, newEnd, editingRecord.shiftEndAmPm);
-                        const standard = parseFloat(editingRecord.shiftHours) || 9;
+                        const standard = !isNaN(parseFloat(editingRecord.shiftHours)) ? parseFloat(editingRecord.shiftHours) : 0;
                         const diff = duration - standard;
                         setEditingRecord({
                           ...editingRecord,
@@ -1570,7 +1595,7 @@ export default function EmployeeOvertimeTab() {
                       onChange={e => {
                         const newAmPm = e.target.value;
                         const duration = calculateDuration(editingRecord.shiftStart, editingRecord.shiftStartAmPm, editingRecord.shiftEnd, newAmPm);
-                        const standard = parseFloat(editingRecord.shiftHours) || 9;
+                        const standard = !isNaN(parseFloat(editingRecord.shiftHours)) ? parseFloat(editingRecord.shiftHours) : 0;
                         const diff = duration - standard;
                         setEditingRecord({
                           ...editingRecord,
