@@ -2339,6 +2339,90 @@ export async function getPettyCashRecords(): Promise<Array<{
   }
 }
 
+// Save Voucher entry to "Voucher Payment" sheet
+// Columns: A (DATE), B (VOUCHER NUMBER), C (RECEIPT NAME), D (AMOUNT), E (DESCRIPTION)
+export async function saveVoucher(data: {
+  date: string;
+  voucherNumber: string;
+  receiptName: string;
+  amount: number;
+  description: string;
+}): Promise<{ success: boolean; rowIndex?: number }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const rowValues = [
+      data.date.trim(),           // A: DATE
+      data.voucherNumber.trim(),  // B: VOUCHER NUMBER
+      data.receiptName.trim(),    // C: RECEIPT NAME
+      data.amount.toString(),     // D: AMOUNT
+      data.description.trim()     // E: DESCRIPTION
+    ];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Voucher Payment'!A:E`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [rowValues],
+      },
+    });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Voucher Payment'!A:E`,
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.length;
+
+    return { success: true, rowIndex };
+  } catch (error) {
+    console.error('Error saving voucher:', error);
+    throw error;
+  }
+}
+
+// Get Vouchers from "Voucher Payment" sheet
+export async function getVouchers(): Promise<any[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Voucher Payment'!A:E`,
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length <= 1) return [];
+
+    return rows.slice(1).map((row, index) => {
+      const [date, number, receiptName, amount, description] = row;
+      return {
+        rowIndex: index + 2,
+        date: date?.toString() || '',
+        number: number?.toString() || '',
+        receiptName: receiptName?.toString() || '',
+        amount: parseFloat(amount?.toString() || '0'),
+        description: description?.toString() || ''
+      };
+    });
+  } catch (error) {
+    console.error('Error fetching vouchers:', error);
+    return [];
+  }
+}
+
 // Update Petty Cash record in "Petty Cash" sheet
 // Columns: A (DATE), B (TYPE), C (AMOUNT), D (NAME), E (DESCRIPTION), F (PAID?)
 export async function updatePettyCash(rowIndex: number, data: {

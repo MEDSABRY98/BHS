@@ -74,11 +74,56 @@ export default function PettyCashTab() {
     description: '',
     date: new Date().toISOString().split('T')[0]
   });
+  const [nextVoucherNumber, setNextVoucherNumber] = useState('V-0001');
+
+  const [voucherSubTab, setVoucherSubTab] = useState<'add' | 'reprint'>('add');
+  const [voucherHistory, setVoucherHistory] = useState<any[]>([]);
+  const [voucherSearchQuery, setVoucherSearchQuery] = useState('');
 
   // Fetch records from Google Sheets on component mount
   useEffect(() => {
     fetchRecords();
+    fetchNextVoucherNumber();
+    fetchVoucherHistory();
   }, []);
+
+  const fetchVoucherHistory = async () => {
+    try {
+      const response = await fetch('/api/vouchers');
+      const data = await response.json();
+      if (response.ok && data.vouchers) {
+        setVoucherHistory(data.vouchers.reverse()); // Show newest first
+      }
+    } catch (error) {
+      console.error('Error fetching voucher history:', error);
+    }
+  };
+
+  const fetchNextVoucherNumber = async () => {
+    try {
+      const response = await fetch('/api/vouchers');
+      const data = await response.json();
+      if (response.ok && data.vouchers) {
+        if (data.vouchers.length === 0) {
+          setNextVoucherNumber('V-0001');
+          return;
+        }
+
+        // Get the last voucher number
+        const lastVoucher = data.vouchers[data.vouchers.length - 1];
+        const lastNum = lastVoucher.number; // e.g., "V-0001"
+        if (lastNum && lastNum.includes('-')) {
+          const numPart = parseInt(lastNum.split('-')[1]);
+          if (!isNaN(numPart)) {
+            const nextNum = (numPart + 1).toString().padStart(4, '0');
+            setNextVoucherNumber(`V-${nextNum}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching next voucher number:', error);
+    }
+  };
 
   const fetchRecords = async () => {
     try {
@@ -486,16 +531,70 @@ export default function PettyCashTab() {
     { id: 'stats' as const, name: 'Statistics', icon: BarChart3 }
   ];
 
-  const handlePrintOnlyVoucher = () => {
+  const handlePrintOnlyVoucher = async () => {
     if (!voucherFormData.amount || !voucherFormData.source || !voucherFormData.description) {
       alert('Please fill all fields');
       return;
     }
 
-    // Direct print in the same window using an iframe approach or temporary div + print()
-    // A clean way is window.print() with CSS hiding everything else.
-    window.print();
+    try {
+      setLoading(true);
+      // Save to Google Sheets first
+      const response = await fetch('/api/vouchers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: voucherFormData.date,
+          voucherNumber: nextVoucherNumber,
+          receiptName: voucherFormData.source,
+          amount: parseFloat(voucherFormData.amount),
+          description: voucherFormData.description,
+        }),
+      });
+
+      if (response.ok) {
+        // Direct print in the same window
+        window.print();
+
+        // Reset form and refresh number
+        setVoucherFormData({
+          amount: '',
+          source: '',
+          description: '',
+          date: new Date().toISOString().split('T')[0]
+        });
+        await fetchNextVoucherNumber();
+      } else {
+        alert('Failed to save voucher to Google Sheets');
+      }
+    } catch (error) {
+      console.error('Error saving voucher:', error);
+      alert('Error saving voucher');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleReprintVoucher = (voucher: any) => {
+    setVoucherFormData({
+      amount: voucher.amount.toString(),
+      source: voucher.receiptName,
+      description: voucher.description,
+      date: voucher.date
+    });
+    setNextVoucherNumber(voucher.number);
+    // Wait for state to update then print
+    setTimeout(() => {
+      window.print();
+      // After printing, refresh next voucher number to be safe
+      fetchNextVoucherNumber();
+    }, 100);
+  };
+
+  const filteredVouchers = voucherHistory.filter(v =>
+    v.number.toLowerCase().includes(voucherSearchQuery.toLowerCase()) ||
+    v.receiptName.toLowerCase().includes(voucherSearchQuery.toLowerCase())
+  );
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
@@ -569,6 +668,26 @@ export default function PettyCashTab() {
           <h2 className="text-2xl font-bold text-gray-800">
             {tabs.find(t => t.id === activeTab)?.name}
           </h2>
+
+          {activeTab === 'voucher' && (
+            <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl ml-4 border border-gray-100">
+              <button
+                onClick={() => setVoucherSubTab('add')}
+                className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${voucherSubTab === 'add' ? 'bg-white text-cyan-600 shadow-xl shadow-cyan-50' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Add New
+              </button>
+              <button
+                onClick={() => {
+                  setVoucherSubTab('reprint');
+                  fetchVoucherHistory();
+                }}
+                className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${voucherSubTab === 'reprint' ? 'bg-white text-cyan-600 shadow-xl shadow-cyan-50' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Reprint
+              </button>
+            </div>
+          )}
           {activeTab === 'stats' && (
             <button
               onClick={exportToExcel}
@@ -632,14 +751,22 @@ export default function PettyCashTab() {
 
                         <div>
                           <label className="block font-semibold mb-2 text-sm text-gray-700">Paid?</label>
-                          <select
-                            value={receiptFormData.paid}
-                            onChange={(e) => setReceiptFormData({ ...receiptFormData, paid: e.target.value })}
-                            className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
-                          >
-                            <option value="No">No</option>
-                            <option value="Yes">Yes</option>
-                          </select>
+                          <div className="flex bg-gray-100 p-1 rounded-xl h-[52px]">
+                            <button
+                              type="button"
+                              onClick={() => setReceiptFormData({ ...receiptFormData, paid: 'No' })}
+                              className={`flex-1 rounded-lg font-bold transition-all ${receiptFormData.paid === 'No' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                              No
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReceiptFormData({ ...receiptFormData, paid: 'Yes' })}
+                              className={`flex-1 rounded-lg font-bold transition-all ${receiptFormData.paid === 'Yes' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                            >
+                              Yes
+                            </button>
+                          </div>
                         </div>
                       </div>
 
@@ -660,7 +787,7 @@ export default function PettyCashTab() {
                         className="w-1/2 mx-auto bg-black text-white font-bold py-4 px-4 rounded-xl hover:bg-gray-800 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <Plus className="w-5 h-5" />
-                        {loading ? 'Saving...' : 'Add Receipt'}
+                        {loading ? 'Saving...' : 'Save Receipt'}
                       </button>
                     </div>
                   </div>
@@ -747,17 +874,22 @@ export default function PettyCashTab() {
                                 />
                               </td>
                               <td className="px-6 py-3 text-center">
-                                <select
-                                  value={row.paid}
-                                  onChange={(e) => updateExpenseRow(index, 'paid', e.target.value)}
-                                  className={`px-3 py-2 rounded-lg text-xs font-black transition-all outline-none border-2 border-transparent ${row.paid === 'Yes'
-                                    ? 'bg-green-100 text-green-700 hover:border-green-300'
-                                    : 'bg-red-100 text-red-700 hover:border-red-300'
-                                    }`}
-                                >
-                                  <option value="No">UNPAID</option>
-                                  <option value="Yes">PAID</option>
-                                </select>
+                                <div className="flex bg-gray-100 p-1 rounded-lg w-24 mx-auto">
+                                  <button
+                                    type="button"
+                                    onClick={() => updateExpenseRow(index, 'paid', 'No')}
+                                    className={`flex-1 py-1 rounded-md text-[10px] font-black transition-all ${row.paid === 'No' ? 'bg-white text-black shadow-sm' : 'text-gray-400'}`}
+                                  >
+                                    NO
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => updateExpenseRow(index, 'paid', 'Yes')}
+                                    className={`flex-1 py-1 rounded-md text-[10px] font-black transition-all ${row.paid === 'Yes' ? 'bg-black text-white shadow-sm' : 'text-gray-400'}`}
+                                  >
+                                    YES
+                                  </button>
+                                </div>
                               </td>
                               <td className="px-6 py-3 text-center">
                                 <button
@@ -1138,73 +1270,145 @@ export default function PettyCashTab() {
 
           {/* Voucher Tab (Print Only) */}
           {activeTab === 'voucher' && (
-            <div className="max-w-4xl mx-auto no-print">
-              <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-cyan-100">
-                <div className="flex items-center gap-4 mb-8 border-b pb-6">
-                  <div className="bg-cyan-600 text-white p-3 rounded-xl">
-                    <FileText className="w-6 h-6" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">Quick Print Voucher</h2>
-                  </div>
-                </div>
+            <div className="max-w-7xl mx-auto no-print">
+              {voucherSubTab === 'add' ? (
+                <div className="max-w-4xl mx-auto">
+                  <div className="bg-white rounded-2xl shadow-xl p-8 border-2 border-cyan-100">
+                    <div className="flex items-center gap-4 mb-8 border-b pb-6">
+                      <div className="bg-cyan-600 text-white p-3 rounded-xl">
+                        <FileText className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-2xl font-bold text-gray-900">Print Voucher</h2>
+                      </div>
+                    </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  <div>
-                    <label className="block font-bold mb-2 text-sm text-gray-700">Payment Date</label>
-                    <input
-                      type="date"
-                      value={voucherFormData.date}
-                      onChange={(e) => setVoucherFormData({ ...voucherFormData, date: e.target.value })}
-                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold mb-2 text-sm text-gray-700">Amount (AED)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={voucherFormData.amount}
-                      onChange={(e) => setVoucherFormData({ ...voucherFormData, amount: e.target.value })}
-                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white text-cyan-600 font-bold"
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
+                    <div className="mb-6">
+                      <label className="block font-bold mb-2 text-sm text-gray-700">Voucher Number</label>
+                      <input
+                        type="text"
+                        value={nextVoucherNumber}
+                        disabled
+                        className="w-full border-2 border-gray-100 rounded-xl p-4 bg-gray-100 focus:outline-none font-black text-gray-500 text-center"
+                      />
+                    </div>
 
-                <div className="space-y-6 mb-10">
-                  <div>
-                    <label className="block font-bold mb-2 text-sm text-gray-700">Paid To (Recipient)</label>
-                    <input
-                      type="text"
-                      value={voucherFormData.source}
-                      onChange={(e) => setVoucherFormData({ ...voucherFormData, source: e.target.value })}
-                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white font-bold"
-                      placeholder="Enter name of person or company"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold mb-2 text-sm text-gray-700">Description</label>
-                    <textarea
-                      value={voucherFormData.description}
-                      onChange={(e) => setVoucherFormData({ ...voucherFormData, description: e.target.value })}
-                      className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white resize-none"
-                      rows={3}
-                      placeholder="What is this payment for?"
-                    />
-                  </div>
-                </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div>
+                        <label className="block font-bold mb-2 text-sm text-gray-700">Payment Date</label>
+                        <input
+                          type="date"
+                          value={voucherFormData.date}
+                          onChange={(e) => setVoucherFormData({ ...voucherFormData, date: e.target.value })}
+                          className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold mb-2 text-sm text-gray-700">Amount (AED)</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={voucherFormData.amount}
+                          onChange={(e) => setVoucherFormData({ ...voucherFormData, amount: e.target.value })}
+                          className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white text-cyan-600 font-bold"
+                          placeholder="0.00"
+                        />
+                      </div>
+                    </div>
 
-                <div className="flex justify-center">
-                  <button
-                    onClick={handlePrintOnlyVoucher}
-                    className="w-full md:w-1/2 bg-cyan-600 text-white font-black py-5 px-8 rounded-2xl hover:bg-cyan-700 transition-all duration-300 flex items-center justify-center gap-3 shadow-xl hover:shadow-cyan-100 hover:scale-[1.02] transform"
-                  >
-                    <FileText className="w-6 h-6" />
-                    PRINT VOUCHER
-                  </button>
+                    <div className="space-y-6 mb-10">
+                      <div>
+                        <label className="block font-bold mb-2 text-sm text-gray-700">Paid To</label>
+                        <input
+                          type="text"
+                          value={voucherFormData.source}
+                          onChange={(e) => setVoucherFormData({ ...voucherFormData, source: e.target.value })}
+                          className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white font-bold"
+                          placeholder="Enter name of person or company"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold mb-2 text-sm text-gray-700">Description</label>
+                        <textarea
+                          value={voucherFormData.description}
+                          onChange={(e) => setVoucherFormData({ ...voucherFormData, description: e.target.value })}
+                          className="w-full border-2 border-gray-100 rounded-xl p-4 focus:border-cyan-600 focus:outline-none transition-all bg-gray-50 focus:bg-white resize-none"
+                          rows={3}
+                          placeholder="What is this payment for?"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center">
+                      <button
+                        onClick={handlePrintOnlyVoucher}
+                        disabled={loading}
+                        className="w-full md:w-1/2 bg-cyan-600 text-white font-black py-5 px-8 rounded-2xl hover:bg-cyan-700 transition-all duration-300 flex items-center justify-center gap-3 shadow-xl hover:shadow-cyan-100 hover:scale-[1.02] transform disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <FileText className="w-6 h-6" />
+                        {loading ? 'SAVING...' : 'SAVE & PRINT VOUCHER'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-8">
+                  {/* Search Box */}
+                  <div className="max-w-2xl mx-auto">
+                    <div className="relative group">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Search className="h-6 w-6 text-gray-400 group-focus-within:text-cyan-600 transition-colors" />
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Search by Voucher Number or Recipient..."
+                        value={voucherSearchQuery}
+                        onChange={(e) => setVoucherSearchQuery(e.target.value)}
+                        className="block w-full pl-12 pr-4 py-5 bg-white border-2 border-gray-100 rounded-2xl focus:ring-4 focus:ring-cyan-50 focus:border-cyan-600 transition-all text-lg shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Grid of Vouchers */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {filteredVouchers.map((v, i) => (
+                      <div
+                        key={i}
+                        className="bg-white rounded-2xl shadow-sm border-2 border-gray-100 p-6 hover:border-cyan-400 hover:shadow-xl hover:scale-[1.02] transition-all group flex flex-col justify-between"
+                      >
+                        <div>
+                          <div className="flex justify-between items-start mb-4">
+                            <span className="font-black text-cyan-600 text-lg">{v.number}</span>
+                            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-2 py-1 rounded">{v.date}</span>
+                          </div>
+                          <h4 className="font-bold text-gray-900 uppercase truncate mb-1" title={v.receiptName}>{v.receiptName}</h4>
+                          <p className="text-xs text-gray-500 line-clamp-2 h-8" title={v.description}>{v.description}</p>
+                        </div>
+                        <div className="mt-6 pt-4 border-t border-gray-50 flex items-center justify-between">
+                          <span className="text-lg font-black text-gray-900">{parseFloat(v.amount).toFixed(2)} <span className="text-xs">AED</span></span>
+                          <button
+                            onClick={() => handleReprintVoucher(v)}
+                            className="bg-gray-100 text-gray-600 p-3 rounded-xl hover:bg-cyan-600 hover:text-white transition-all transform active:scale-95 shadow-sm"
+                            title="Reprint"
+                          >
+                            <RotateCw className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {filteredVouchers.length === 0 && (
+                    <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-gray-100">
+                      <div className="bg-gray-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Search className="w-10 h-10 text-gray-300" />
+                      </div>
+                      <h3 className="text-xl font-bold text-gray-800">No Vouchers Found</h3>
+                      <p className="text-gray-500">Try adjusting your search criteria</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -1212,7 +1416,7 @@ export default function PettyCashTab() {
 
       {/* Hidden container for global printing - MATCHING CASH RECEIPT LOGIC */}
       <div id="voucher-print" className="hidden-print m-0 p-0" style={{ width: '210mm' }}>
-        <VoucherDocument data={voucherFormData} />
+        <VoucherDocument data={{ ...voucherFormData, voucherNumber: nextVoucherNumber }} />
       </div>
 
       <style jsx global>{`
@@ -1230,10 +1434,11 @@ export default function PettyCashTab() {
         }
         @media print {
           .no-print { display: none !important; }
-          .hidden-print { display: block !important; position: static !important; }
-          body { background: white !important; padding: 0 !important; margin: 0 !important; }
-          #voucher-print { border: none !important; box-shadow: none !important; width: 210mm !important; }
-          @page { size: A4 portrait; margin: 0mm; }
+          .hidden-print { display: block !important; position: static !important; width: 100% !important; height: auto !important; overflow: hidden !important; }
+          body { background: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; min-height: initial !important; }
+          html { height: auto !important; }
+          #voucher-print { border: none !important; box-shadow: none !important; width: 210mm !important; margin: 0 auto !important; }
+          @page { size: A4 portrait; margin: 5mm; }
         }
       `}</style>
 
@@ -1302,14 +1507,22 @@ export default function PettyCashTab() {
 
               <div>
                 <label className="block font-semibold mb-2 text-sm text-gray-700">Paid?</label>
-                <select
-                  value={editFormData.paid}
-                  onChange={(e) => setEditFormData({ ...editFormData, paid: e.target.value })}
-                  className="w-full border-2 border-gray-200 rounded-xl p-3 focus:border-black focus:outline-none transition-colors"
-                >
-                  <option value="No">No</option>
-                  <option value="Yes">Yes</option>
-                </select>
+                <div className="flex bg-gray-100 p-1 rounded-xl h-[52px]">
+                  <button
+                    type="button"
+                    onClick={() => setEditFormData({ ...editFormData, paid: 'No' })}
+                    className={`flex-1 rounded-lg font-bold transition-all ${editFormData.paid === 'No' ? 'bg-white text-black shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    No
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditFormData({ ...editFormData, paid: 'Yes' })}
+                    className={`flex-1 rounded-lg font-bold transition-all ${editFormData.paid === 'Yes' ? 'bg-black text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Yes
+                  </button>
+                </div>
               </div>
 
               <div className="flex gap-3 pt-4">
@@ -1354,14 +1567,18 @@ function VoucherDocument({ data }: { data: any }) {
         </div>
 
         {/* Header */}
-        <div className="text-center mb-10 border-b-2 border-black pb-8">
+        <div className="text-center mb-6 border-b-2 border-black pb-6">
           <h1 className="text-2xl font-black uppercase tracking-widest text-gray-900 mb-2">Al Marai Al Arabia Trading Sole Proprietorship L.L.C</h1>
           <p className="text-lg font-bold text-gray-700 decoration-double underline underline-offset-4">PAYMENT VOUCHER</p>
         </div>
 
         {/* Info Grid */}
-        <div className="grid grid-cols-2 gap-10 mb-10">
+        <div className="grid grid-cols-2 gap-10 mb-6">
           <div className="space-y-4">
+            <div className="flex items-end gap-2 border-b border-gray-300 pb-1">
+              <span className="font-bold text-sm uppercase text-gray-500 min-w-[100px]">Voucher No:</span>
+              <span className="text-lg font-bold text-red-600">{data.voucherNumber}</span>
+            </div>
             <div className="flex items-end gap-2 border-b border-gray-300 pb-1">
               <span className="font-bold text-sm uppercase text-gray-500 min-w-[100px]">Date:</span>
               <span className="text-lg font-bold">{data.date}</span>
@@ -1378,28 +1595,28 @@ function VoucherDocument({ data }: { data: any }) {
         </div>
 
         {/* Body */}
-        <div className="space-y-6 mb-10 mt-6">
-          <div className="flex items-end gap-4 border-b-2 border-gray-200 pb-2">
-            <span className="font-black text-sm uppercase text-gray-400 min-w-[120px]">Paid to:</span>
-            <span className="text-2xl font-bold uppercase underline decoration-2 underline-offset-8 decoration-gray-400">{data.source}</span>
+        <div className="space-y-4 mb-6 mt-4">
+          <div className="flex items-end gap-2 border-b-2 border-gray-200 pb-2">
+            <span className="font-black text-sm uppercase text-gray-400 min-w-[100px]">Paid to:</span>
+            <span className="text-2xl font-bold uppercase">{data.source}</span>
           </div>
           <div className="flex flex-col gap-4 border-b-2 border-gray-200 pb-2">
             <span className="font-black text-sm uppercase text-gray-400">Description:</span>
-            <p className="text-2xl font-medium leading-relaxed italic pr-10">"{data.description}"</p>
+            <p className="text-2xl font-medium leading-relaxed pr-10">{data.description}</p>
           </div>
         </div>
 
         {/* Signature Section */}
-        <div className="grid grid-cols-2 gap-24 pt-10">
+        <div className="grid grid-cols-2 gap-16 pt-6">
           <div className="text-center border-t-2 border-black pt-4">
             <p className="text-xs font-black uppercase text-gray-500 mb-1">Authorized Signature</p>
             <div className="h-10"></div>
-            <p className="font-bold text-gray-900 mt-2">_________________________</p>
+            <p className="font-bold text-gray-900 mt-2">Mohamed Sabry</p>
           </div>
           <div className="text-center border-t-2 border-black pt-4">
             <p className="text-xs font-black uppercase text-gray-500 mb-1">Receiver's Signature</p>
             <div className="h-10"></div>
-            <p className="font-bold text-gray-900 mt-2">_________________________</p>
+            <p className="font-bold text-gray-900 mt-2">{data.source}</p>
           </div>
         </div>
 
