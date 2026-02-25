@@ -46,7 +46,7 @@ export default function InventoryWh20ItemsTab() {
         date: new Date().toISOString().split('T')[0],
         receiverName: '',
         customerName: '',
-        destination: '',
+        description: '',
         operationType: ''
     });
 
@@ -99,7 +99,8 @@ export default function InventoryWh20ItemsTab() {
         return historyData.filter(tx =>
             tx.number.toLowerCase().includes(query) ||
             (tx.recipientName && tx.recipientName.toLowerCase().includes(query)) ||
-            (tx.destination && tx.destination.toLowerCase().includes(query))
+            (tx.description && tx.description.toLowerCase().includes(query)) ||
+            (tx.customerName && tx.customerName.toLowerCase().includes(query))
         );
     }, [historyData, historySearchQuery]);
 
@@ -319,7 +320,8 @@ export default function InventoryWh20ItemsTab() {
                             number: t.number,
                             date: t.date,
                             recipientName: t.recipientName,
-                            destination: t.destination,
+                            customerName: t.customerName,
+                            description: t.description,
                             operationType: t.operationType,
                             user: t.user,
                             total: 0
@@ -425,10 +427,7 @@ export default function InventoryWh20ItemsTab() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    header: {
-                        ...header,
-                        destination: header.customerName ? `${header.customerName} | ${header.destination}` : header.destination
-                    },
+                    header: { ...header },
                     rows: validRows.map(r => ({
                         productName: r.productName,
                         barcode: r.barcode,
@@ -510,7 +509,7 @@ export default function InventoryWh20ItemsTab() {
             if (header.customerName) {
                 currentY = drawHeaderItem("Customer", header.customerName, 20, pageWidth - 40, currentY) + 4;
             }
-            currentY = drawHeaderItem("Description", header.destination, 20, pageWidth - 40, currentY) + 2;
+            currentY = drawHeaderItem("Description", header.description, 20, pageWidth - 40, currentY) + 2;
 
             // Table
             const head = [["#", "Product", "Unit", "Qty", "Price", "Total"]];
@@ -581,7 +580,7 @@ export default function InventoryWh20ItemsTab() {
 
             addNotification('Transfer saved and PDF generated successfully!', 'success');
             // Reset form: Clear header and clear Qty/Price only from rows
-            setHeader(prev => ({ ...prev, operationType: '', receiverName: '', customerName: '', destination: '' }));
+            setHeader(prev => ({ ...prev, operationType: '', receiverName: '', customerName: '', description: '' }));
             setSelectedTag('');
             // Reset rows based on empty tag
             updateRowsByTag('');
@@ -1009,8 +1008,8 @@ export default function InventoryWh20ItemsTab() {
                                     <input
                                         type="text"
                                         placeholder="e.g. Warehouse 3, Item usage..."
-                                        value={header.destination}
-                                        onChange={(e) => setHeader({ ...header, destination: e.target.value })}
+                                        value={header.description}
+                                        onChange={(e) => setHeader({ ...header, description: e.target.value })}
                                         className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
                                     />
                                 </div>
@@ -1229,10 +1228,11 @@ export default function InventoryWh20ItemsTab() {
                             <thead className="bg-slate-50 text-slate-600 font-semibold border-b">
                                 <tr>
                                     <th className="px-2 py-3 rounded-tl-lg text-center w-[12%]">Number</th>
-                                    <th className="px-2 py-3 text-center w-[10%]">Date</th>
-                                    <th className="px-2 py-3 text-center w-[10%]">Type</th>
-                                    <th className="px-2 py-3 text-center w-[18%]">Recipient</th>
-                                    <th className="px-2 py-3 text-center w-[30%]">Destination & Description</th>
+                                    <th className="px-2 py-3 text-center w-[9%]">Date</th>
+                                    <th className="px-2 py-3 text-center w-[9%]">Type</th>
+                                    <th className="px-2 py-3 text-center w-[15%]">Recipient</th>
+                                    <th className="px-2 py-3 text-center w-[15%]">Customer</th>
+                                    <th className="px-2 py-3 text-center w-[20%]">Description</th>
                                     <th className="px-2 py-3 text-center w-[14%]">Total Amount</th>
                                     <th className="px-2 py-3 rounded-tr-lg text-center w-[6%]">Action</th>
                                 </tr>
@@ -1244,7 +1244,8 @@ export default function InventoryWh20ItemsTab() {
                                         <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.date}>{tx.date}</td>
                                         <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={translateOpType(tx.operationType)}>{translateOpType(tx.operationType)}</td>
                                         <td className="px-2 py-3 text-sm font-medium text-slate-800 text-center truncate" title={tx.recipientName}>{tx.recipientName}</td>
-                                        <td className="px-2 py-3 text-sm text-slate-600 text-center truncate px-2" title={tx.destination}>{tx.destination}</td>
+                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.customerName}>{tx.customerName || '-'}</td>
+                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate px-2" title={tx.description}>{tx.description || '-'}</td>
                                         <td className="px-2 py-3 text-sm font-bold text-indigo-600 text-center truncate">{tx.total?.toLocaleString()} AED</td>
                                         <td className="px-2 py-3 text-center">
                                             <button

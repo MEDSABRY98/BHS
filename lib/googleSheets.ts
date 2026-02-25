@@ -3020,7 +3020,8 @@ export interface Wh20Transfer {
   date: string;
   operationType: string;
   recipientName: string;
-  destination: string;
+  customerName: string;
+  description: string;
   barcode: string;
   product: string;
   qty: number;
@@ -3079,14 +3080,15 @@ export async function addWh20Transfers(transfers: Wh20Transfer[]) {
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // USER, NUMBER, DATE, Recipient Name, Destination, Reason, BARCODE, PRODUCT, QTY, TYPE (CTN/PCS)?, PRICE, TOTAL
+    // USER, NUMBER, DATE, OperationType, Recipient Name, Customer Name, Description, BARCODE, PRODUCT, QTY, TYPE (CTN/PCS), PRICE, TOTAL
     const values = transfers.map(t => [
       t.user,
       t.number,
       t.date,
       t.operationType,
       t.recipientName,
-      t.destination,
+      t.customerName,
+      t.description,
       t.barcode,
       t.product,
       t.qty,
@@ -3097,7 +3099,7 @@ export async function addWh20Transfers(transfers: Wh20Transfer[]) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!A:L`,
+      range: `'TRANSFERS - WH/20 ITEMS'!A:M`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'OVERWRITE',
       requestBody: { values },
@@ -3152,7 +3154,7 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
     const [transfersResponse, customersResponse] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'TRANSFERS - WH/20 ITEMS'!E:F`, // E: Recipient Name, F: Destination
+        range: `'TRANSFERS - WH/20 ITEMS'!E:G`, // E: Recipient Name, F: Customer Name, G: Description
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
@@ -3178,7 +3180,7 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
 
     rows.slice(1).forEach(row => {
       if (row[0] && row[0].trim()) recipients.add(row[0].trim());
-      if (row[1] && row[1].trim()) destinations.add(row[1].trim());
+      if (row[2] && row[2].trim()) destinations.add(row[2].trim()); // G: Description
     });
 
     return {
@@ -3204,7 +3206,7 @@ export async function getWh20History(limit?: number): Promise<Wh20Transfer[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!A:L`,
+      range: `'TRANSFERS - WH/20 ITEMS'!A:M`,
     });
 
     const rows = response.data.values;
@@ -3217,13 +3219,14 @@ export async function getWh20History(limit?: number): Promise<Wh20Transfer[]> {
       date: row[2] || '',
       operationType: row[3] || '',
       recipientName: row[4] || '',
-      destination: row[5] || '',
-      barcode: row[6] || '',
-      product: row[7] || '',
-      qty: parseFloat(row[8] || '0'),
-      type: row[9] || 'CTN',
-      price: parseFloat(row[10] || '0'),
-      total: parseFloat(row[11] || '0')
+      customerName: row[5] || '',
+      description: row[6] || '',
+      barcode: row[7] || '',
+      product: row[8] || '',
+      qty: parseFloat(row[9] || '0'),
+      type: row[10] || 'CTN',
+      price: parseFloat(row[11] || '0'),
+      total: parseFloat(row[12] || '0')
     })).reverse(); // Newest first
 
     if (limit) {
@@ -3251,7 +3254,7 @@ export async function getWh20TransferByNumber(transactionNumber: string): Promis
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!A:L`, // All columns
+      range: `'TRANSFERS - WH/20 ITEMS'!A:M`, // All columns
     });
 
     const rows = response.data.values;
@@ -3266,13 +3269,14 @@ export async function getWh20TransferByNumber(transactionNumber: string): Promis
       date: row[2]?.toString() || '',
       operationType: row[3]?.toString() || '',
       recipientName: row[4]?.toString() || '',
-      destination: row[5]?.toString() || '',
-      barcode: row[6]?.toString() || '',
-      product: row[7]?.toString() || '',
-      qty: parseFloat(row[8]?.toString().replace(/,/g, '') || '0'),
-      type: row[9]?.toString() || 'CTN',
-      price: parseFloat(row[10]?.toString().replace(/,/g, '') || '0'),
-      total: parseFloat(row[11]?.toString().replace(/,/g, '') || '0')
+      customerName: row[5]?.toString() || '',
+      description: row[6]?.toString() || '',
+      barcode: row[7]?.toString() || '',
+      product: row[8]?.toString() || '',
+      qty: parseFloat(row[9]?.toString().replace(/,/g, '') || '0'),
+      type: row[10]?.toString() || 'CTN',
+      price: parseFloat(row[11]?.toString().replace(/,/g, '') || '0'),
+      total: parseFloat(row[12]?.toString().replace(/,/g, '') || '0')
     }));
 
   } catch (error) {
