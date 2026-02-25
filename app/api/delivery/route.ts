@@ -6,6 +6,7 @@ import {
     updateLpoRecord,
     deleteLpoRecord,
     addLpoItemLog,
+    getLpoCustomers,
 } from '@/lib/googleSheets';
 
 export const dynamic = 'force-dynamic';
@@ -14,9 +15,10 @@ export const dynamic = 'force-dynamic';
 // Returns all LPO records merged with their items (missing, shipped, canceled)
 export async function GET() {
     try {
-        const [records, itemsLog] = await Promise.all([
+        const [records, itemsLog, customers] = await Promise.all([
             getLpoRecords(),
             getLpoItemsLog(),
+            getLpoCustomers(),
         ]);
 
         // Merge items into each LPO record
@@ -45,7 +47,7 @@ export async function GET() {
             };
         });
 
-        return NextResponse.json({ orders: merged });
+        return NextResponse.json({ orders: merged, customers });
     } catch (error) {
         console.error('GET /api/delivery error:', error);
         return NextResponse.json({ error: 'Failed to fetch delivery data' }, { status: 500 });

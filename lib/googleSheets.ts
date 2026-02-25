@@ -3590,6 +3590,12 @@ export async function updatePaymentDefinition(rowIndex: number, monthsClosed: st
 
 const LPO_RECORDS_SHEET = 'LPO Records';
 const LPO_ITEMS_SHEET = 'LPO Items Logs';
+const LPO_CUSTOMERS_SHEET = 'LPO Customers';
+
+export interface LpoCustomer {
+  customerId: string;
+  customerName: string;
+}
 
 export interface LpoRecord {
   rowIndex: number;
@@ -3695,6 +3701,29 @@ export async function getLpoItemsLog(): Promise<LpoItemLog[]> {
   } catch (error) {
     console.error('Error fetching LPO Items Log:', error);
     throw error;
+  }
+}
+
+// READ: Get all LPO Customers
+export async function getLpoCustomers(): Promise<LpoCustomer[]> {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_CUSTOMERS_SHEET}'!A:B`,
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    return rows.slice(1)
+      .filter(row => row[1]) // must have customer name
+      .map(row => ({
+        customerId: row[0]?.toString() || '',
+        customerName: row[1]?.toString() || '',
+      }));
+  } catch (error) {
+    console.error('Error fetching LPO Customers:', error);
+    return [];
   }
 }
 

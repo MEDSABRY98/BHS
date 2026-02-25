@@ -63,6 +63,9 @@ export default function DeliveryTrackingTab() {
     const [selectedReshipOrder, setSelectedReshipOrder] = useState<DeliveryEntry | null>(null);
     const [reshipAmounts, setReshipAmounts] = useState<{ [key: number]: string }>({});
     const [shippingIdx, setShippingIdx] = useState<number | null>(null);
+    const [customers, setCustomers] = useState<{ customerId: string, customerName: string }[]>([]);
+    const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+    const [customerSearch, setCustomerSearch] = useState('');
 
     // New LPO Form State
     const [newLpoData, setNewLpoData] = useState({
@@ -336,6 +339,7 @@ export default function DeliveryTrackingTab() {
             .then(res => res.json())
             .then(data => {
                 if (data.orders) setOrders(data.orders);
+                if (data.customers) setCustomers(data.customers);
             })
             .catch(err => {
                 console.error('Failed to fetch orders:', err);
@@ -350,12 +354,22 @@ export default function DeliveryTrackingTab() {
             const res = await fetch('/api/delivery');
             const data = await res.json();
             if (data.orders) setOrders(data.orders);
+            if (data.customers) setCustomers(data.customers);
         } catch {
             showToast('Failed to refresh data', 'error');
         } finally {
             setIsLoading(false);
         }
     };
+
+    const filteredCustomers = useMemo(() => {
+        const q = customerSearch.toLowerCase().trim();
+        if (!q) return customers;
+        return customers.filter(c =>
+            c.customerName.toLowerCase().includes(q) ||
+            c.customerId.toLowerCase().includes(q)
+        );
+    }, [customers, customerSearch]);
 
     const stats = useMemo(() => {
         const total = orders.length;
@@ -514,8 +528,8 @@ export default function DeliveryTrackingTab() {
                 )}
                 {!isLoading && activeTab === 'new_order' && (
                     <div className="max-w-[1000px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
-                        <div className="bg-white rounded-[24px] border-[1.5px] border-[#E2E8F0] shadow-[0_10px_40px_rgba(0,0,0,0.04)] overflow-hidden">
-                            <div className="p-8 bg-[#312E81] flex items-center justify-between">
+                        <div className="bg-white rounded-[24px] border-[1.5px] border-[#E2E8F0] shadow-[0_10px_40px_rgba(0,0,0,0.04)] relative">
+                            <div className="p-8 bg-[#312E81] flex items-center justify-between rounded-t-[22px]">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-[24px]">📦</div>
                                     <div>
@@ -545,15 +559,67 @@ export default function DeliveryTrackingTab() {
                                             className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all appearance-none shadow-sm"
                                         />
                                     </div>
-                                    <div className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-2 relative">
                                         <label className="text-[12px] font-[700] text-[#2C3E35] uppercase tracking-wider">Customer Name <span className="text-[#E74C3C]">*</span></label>
-                                        <input
-                                            type="text"
-                                            placeholder="Customer / Company name"
-                                            value={newLpoData.customerName}
-                                            onChange={(e) => setNewLpoData(prev => ({ ...prev, customerName: e.target.value }))}
-                                            className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all shadow-sm"
-                                        />
+                                        <div className="relative">
+                                            <input
+                                                type="text"
+                                                placeholder="Search or Select Customer..."
+                                                value={newLpoData.customerName || customerSearch}
+                                                onFocus={() => {
+                                                    setShowCustomerDropdown(true);
+                                                    setCustomerSearch(newLpoData.customerName);
+                                                    setNewLpoData(prev => ({ ...prev, customerName: '' }));
+                                                }}
+                                                onChange={(e) => {
+                                                    setCustomerSearch(e.target.value);
+                                                    setShowCustomerDropdown(true);
+                                                }}
+                                                className="w-full bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all shadow-sm pr-10"
+                                            />
+                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B2C4BB]">
+                                                <Search className="w-4 h-4" />
+                                            </div>
+
+                                            {showCustomerDropdown && (
+                                                <>
+                                                    <div
+                                                        className="fixed inset-0 z-[10]"
+                                                        onClick={() => setShowCustomerDropdown(false)}
+                                                    ></div>
+                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border-[1.5px] border-[#E2E8F0] rounded-[14px] shadow-[0_10px_30px_rgba(0,0,0,0.1)] z-[20] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                        <div className="max-h-[250px] overflow-y-auto p-2 space-y-1">
+                                                            {filteredCustomers.length === 0 ? (
+                                                                <div className="p-4 text-center text-[#94A3B8] italic text-[13px]">
+                                                                    No customers found matching "{customerSearch}"
+                                                                </div>
+                                                            ) : (
+                                                                filteredCustomers.map((c) => (
+                                                                    <button
+                                                                        key={c.customerId}
+                                                                        onClick={() => {
+                                                                            setNewLpoData(prev => ({ ...prev, customerName: c.customerName }));
+                                                                            setCustomerSearch('');
+                                                                            setShowCustomerDropdown(false);
+                                                                        }}
+                                                                        className="w-full flex items-center justify-between p-3 rounded-[10px] hover:bg-[#F0F4FF] transition-colors text-left group"
+                                                                    >
+                                                                        <div>
+                                                                            <div className="text-[13.5px] font-[700] text-[#1E293B] group-hover:text-[#4F46E5]">
+                                                                                {c.customerName}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                            <ArrowRight className="w-4 h-4 text-[#4F46E5]" />
+                                                                        </div>
+                                                                    </button>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="flex flex-col gap-2">
                                         <label className="text-[12px] font-[700] text-[#2C3E35] uppercase tracking-wider">LPO Value <span className="text-[#E74C3C]">*</span></label>
