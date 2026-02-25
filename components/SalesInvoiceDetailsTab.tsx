@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Download, FileSpreadsheet, Calendar, User, Hash, Package, BarChart3, Receipt, PlusCircle, Trash2, MapPin, ShoppingBag, CheckCircle2, AlertCircle, Info, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -289,7 +289,7 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
 
     const exportLpoReport = () => {
         const workbook = XLSX.utils.book_new();
-        const exportData: any[] = [['LPO Suffix/Number', 'Expected Value', 'Found Invoice', 'Date', 'Customer', 'Inv Amount (Excl)', 'Inv Amount (Incl 5% VAT)', 'Difference', 'Status']];
+        const exportData: any[] = [['LPO Suffix/Number', 'Expected Value', 'Found Invoice', 'Date', 'Customer', 'Inv Amount (Excl)', 'Inv Amount (Incl 5% VAT)']];
 
         lpoRows.forEach(row => {
             if (row.found) {
@@ -301,13 +301,11 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                         res.date,
                         res.customer,
                         res.amountExcl.toFixed(2),
-                        res.amountWithVat.toFixed(2),
-                        res.diff.toFixed(2),
-                        res.status.toUpperCase()
+                        res.amountWithVat.toFixed(2)
                     ]);
                 });
             } else if (row.lpoNumber) {
-                exportData.push([row.lpoNumber, row.lpoValue, 'NOT FOUND', '-', '-', '-', '-', '-', '-']);
+                exportData.push([row.lpoNumber, row.lpoValue, 'NOT FOUND', '-', '-', '-', '-']);
             }
         });
 
@@ -574,112 +572,99 @@ export default function SalesInvoiceDetailsTab({ data, loading }: SalesInvoiceDe
                                 </div>
                             </div>
 
-                            <div className="p-8 space-y-8 bg-slate-50/30">
-                                {lpoRows.map((row) => (
-                                    <div key={row.id} className="relative bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden p-6 animate-in zoom-in-95 duration-200">
-                                        {/* Inputs Group */}
-                                        <div className="flex flex-col md:flex-row items-end gap-6 mb-6">
-                                            <div className="flex-1 space-y-2">
-                                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 px-1">
-                                                    <Hash className="w-3 h-3" /> LPO Number / Suffix
-                                                </label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Enter LPO part (e.g. 4800...)"
-                                                        value={row.lpoNumber}
-                                                        onChange={(e) => updateLpoRow(row.id, 'lpoNumber', e.target.value)}
-                                                        onKeyDown={(e) => e.key === 'Enter' && triggerLpoCheck(row.id)}
-                                                        className="w-full pl-5 pr-12 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 font-bold text-slate-700 transition-all"
-                                                    />
-                                                    <button
-                                                        onClick={() => triggerLpoCheck(row.id)}
-                                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                                                        title="Check LPO"
-                                                    >
-                                                        <Search className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <div className="flex-1 space-y-2">
-                                                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5 px-1">
-                                                    <BarChart3 className="w-3 h-3" /> Expected LPO Value (AED)
-                                                </label>
-                                                <input
-                                                    type="number"
-                                                    placeholder="Target amount..."
-                                                    value={row.lpoValue}
-                                                    onChange={(e) => updateLpoRow(row.id, 'lpoValue', e.target.value)}
-                                                    onKeyDown={(e) => e.key === 'Enter' && triggerLpoCheck(row.id)}
-                                                    className="w-full px-5 py-3 bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 font-bold text-slate-700 transition-all"
-                                                />
-                                            </div>
-                                            <button
-                                                onClick={() => removeLpoRow(row.id)}
-                                                disabled={lpoRows.length === 1}
-                                                className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-all disabled:opacity-20 mb-px"
-                                                title="Remove this check"
-                                            >
-                                                <Trash2 className="w-5 h-5" />
-                                            </button>
-                                        </div>
-
-                                        {/* Result Display for this Row */}
-                                        {row.found ? (
-                                            <div className="mt-8 border-t border-slate-100 pt-6">
-                                                <div className="overflow-x-auto">
-                                                    <table className="w-full text-sm text-center">
-                                                        <thead>
-                                                            <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-50">
-                                                                <th className="pb-3 px-4">Date</th>
-                                                                <th className="pb-3 px-4">Customer</th>
-                                                                <th className="pb-3 px-4">System Invoice #</th>
-                                                                <th className="pb-3 px-4">Base Amount</th>
-                                                                <th className="pb-3 px-4">Amount + 5% VAT</th>
-                                                                <th className="pb-3 px-4">Difference</th>
-                                                                <th className="pb-3 px-4">Status</th>
-                                                            </tr>
-                                                        </thead>
-                                                        <tbody className="divide-y divide-slate-50">
-                                                            {row.results.map((res: any, i: number) => (
-                                                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                                                    <td className="py-4 px-4 font-medium text-slate-500">{res.date}</td>
-                                                                    <td className="py-4 px-4 font-bold text-slate-800 text-xs truncate max-w-[180px]">{res.customer}</td>
-                                                                    <td className="py-4 px-4 font-black text-blue-600 bg-blue-50/30 rounded-lg">{res.invoiceNumber}</td>
-                                                                    <td className="py-4 px-4 font-medium text-slate-600">{res.amountExcl.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                                                    <td className="py-4 px-4 font-black text-slate-800 text-base">{res.amountWithVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                                                                    <td className={`py-4 px-4 font-black ${res.status === 'match' ? 'text-slate-300' : res.status === 'higher' ? 'text-red-500' : 'text-blue-500'}`}>
-                                                                        {res.diff > 0 ? '+' : ''}{res.diff.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                                                    </td>
-                                                                    <td className="py-4 px-4">
-                                                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-tight ${res.status === 'match' ? 'bg-green-100 text-green-700' :
-                                                                            res.status === 'higher' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'
-                                                                            }`}>
-                                                                            {res.status === 'match' ? <CheckCircle2 className="w-3 h-3" /> : res.status === 'higher' ? <AlertCircle className="w-3 h-3" /> : <PlusCircle className="w-3 h-3" />}
-                                                                            {res.status === 'match' ? 'Correct Match' : res.status === 'higher' ? `Inv > LPO (+${res.diff.toFixed(2)})` : `Inv < LPO (${res.diff.toFixed(2)})`}
-                                                                        </div>
-                                                                    </td>
-                                                                </tr>
-                                                            ))}
-                                                        </tbody>
-                                                    </table>
-                                                </div>
-                                            </div>
-                                        ) : row.lpoNumber && row.isVerified ? (
-                                            <div className="mt-4 flex items-center justify-center gap-2 p-4 bg-red-50/50 text-red-600 rounded-xl border border-red-100">
-                                                <AlertCircle className="w-4 h-4" />
-                                                <span className="text-xs font-bold uppercase tracking-wide">No system invoice contains the sequence "{row.lpoNumber}"</span>
-                                            </div>
-                                        ) : (
-                                            <div className="mt-4 p-8 border-2 border-dashed border-slate-100 bg-slate-50/20 rounded-xl flex flex-col items-center justify-center text-slate-300">
-                                                <Info className="w-8 h-8 mb-2" />
-                                                <span className="text-[10px] font-black uppercase tracking-widest">
-                                                    {row.lpoNumber ? 'Press Enter to Verify' : 'Awaiting Input...'}
-                                                </span>
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                            <div className="overflow-x-auto bg-slate-50/30 py-8">
+                                <table className="w-full text-sm border-separate border-spacing-y-2 px-8">
+                                    <thead>
+                                        <tr className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">
+                                            <th className="pb-2 px-4 text-left w-64">LPO Suffix</th>
+                                            <th className="pb-2 px-4 w-40">Expected Val (AED)</th>
+                                            <th className="pb-2 px-4 w-32">Date</th>
+                                            <th className="pb-2 px-4">Customer</th>
+                                            <th className="pb-2 px-4 w-60">System Invoice #</th>
+                                            <th className="pb-2 px-4 w-32">Base Amount</th>
+                                            <th className="pb-2 px-4 w-32">Total (+5%)</th>
+                                            <th className="pb-2 px-4 w-12"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="space-y-2">
+                                        {lpoRows.map((row) => (
+                                            <React.Fragment key={row.id}>
+                                                <tr className="bg-white rounded-xl shadow-sm border border-slate-200 group">
+                                                    <td className="py-3 px-4 rounded-l-xl">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="suffix..."
+                                                                value={row.lpoNumber}
+                                                                onChange={(e) => updateLpoRow(row.id, 'lpoNumber', e.target.value)}
+                                                                onKeyDown={(e) => e.key === 'Enter' && triggerLpoCheck(row.id)}
+                                                                className="w-full pl-3 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 font-bold text-slate-700 transition-all text-xs"
+                                                            />
+                                                            <button
+                                                                onClick={() => triggerLpoCheck(row.id)}
+                                                                className="absolute right-1 top-1/2 -translate-y-1/2 p-1.5 text-slate-400 hover:text-green-600 transition-all"
+                                                            >
+                                                                <Search className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <input
+                                                            type="number"
+                                                            placeholder="0.00"
+                                                            value={row.lpoValue}
+                                                            onChange={(e) => updateLpoRow(row.id, 'lpoValue', e.target.value)}
+                                                            onKeyDown={(e) => e.key === 'Enter' && triggerLpoCheck(row.id)}
+                                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-green-500 font-bold text-slate-700 text-center text-xs"
+                                                        />
+                                                    </td>
+                                                    {row.found ? (
+                                                        <>
+                                                            <td className="py-3 px-4 text-center font-medium text-slate-500 text-xs whitespace-nowrap">{row.results[0].date}</td>
+                                                            <td className="py-3 px-4 font-bold text-slate-800 text-[13px] uppercase truncate max-w-[200px] text-center">{row.results[0].customer}</td>
+                                                            <td className="py-3 px-4 font-black text-blue-600 bg-blue-50/30 text-center text-xs">{row.results[0].invoiceNumber}</td>
+                                                            <td className="py-3 px-4 font-medium text-slate-600 text-center text-xs">{row.results[0].amountExcl.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                            <td className="py-3 px-4 font-black text-slate-800 text-center text-sm">{row.results[0].amountWithVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        </>
+                                                    ) : (
+                                                        <td colSpan={5} className="py-3 px-4 text-center">
+                                                            {row.lpoNumber && row.isVerified ? (
+                                                                <span className="text-red-500 text-[10px] font-black uppercase tracking-widest bg-red-50 px-3 py-1 rounded-full border border-red-100 flex items-center justify-center gap-1 mx-auto w-fit">
+                                                                    <AlertCircle className="w-3 h-3" /> Not Found
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-slate-300 text-[10px] font-black uppercase tracking-widest">
+                                                                    {row.lpoNumber ? 'Pending Verify...' : 'Awaiting Suffix'}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                    )}
+                                                    <td className="py-3 px-4 rounded-r-xl text-right">
+                                                        <button
+                                                            onClick={() => removeLpoRow(row.id)}
+                                                            disabled={lpoRows.length === 1}
+                                                            className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-0"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                                {/* Extra results rows */}
+                                                {row.found && row.results.length > 1 && row.results.slice(1).map((res: any, idx: number) => (
+                                                    <tr key={idx} className="bg-slate-50/50 rounded-xl shadow-sm border border-slate-100 group">
+                                                        <td colSpan={2} className="rounded-l-xl"></td>
+                                                        <td className="py-3 px-4 text-center font-medium text-slate-500 text-xs whitespace-nowrap">{res.date}</td>
+                                                        <td className="py-3 px-4 font-bold text-slate-800 text-[13px] uppercase truncate max-w-[200px] text-center">{res.customer}</td>
+                                                        <td className="py-3 px-4 font-black text-blue-600 bg-blue-50/30 text-center text-xs">{res.invoiceNumber}</td>
+                                                        <td className="py-3 px-4 font-medium text-slate-600 text-center text-xs">{res.amountExcl.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        <td className="py-3 px-4 font-black text-slate-800 text-center text-sm rounded-r-xl">{res.amountWithVat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                                                        <td></td>
+                                                    </tr>
+                                                ))}
+                                            </React.Fragment>
+                                        ))}
+                                    </tbody>
+                                </table>
 
                                 <div className="pt-8 text-center">
                                     <p className="text-slate-400 text-[10px] font-medium italic">Verification uses precise floating point math. Small differences (&lt; 0.01) are treated as matches.</p>

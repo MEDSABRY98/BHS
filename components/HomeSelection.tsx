@@ -240,6 +240,10 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {isSystemAllowed('sales') && (
             <SystemCard title="Sales Analysis" icon={LayoutGrid} onClick={nav('/sales')} color="green" delay={400} />
           )}
+          {isSystemAllowed('delivery-tracking') && (
+            <SystemCard title="Delivery Tracking" icon={Truck} onClick={nav('/delivery-tracking')} color="blue" delay={425} />
+          )}
+
           {isSystemAllowed('inventory') && (
             <SystemCard title="Inventory" icon={Package} onClick={nav('/inventory')} color="indigo" delay={450} />
           )}

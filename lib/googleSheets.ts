@@ -3583,3 +3583,270 @@ export async function updatePaymentDefinition(rowIndex: number, monthsClosed: st
     throw error;
   }
 }
+
+// ============================================================
+// DELIVERY TRACKING — LPO Records & Items Log
+// ============================================================
+
+const LPO_RECORDS_SHEET = 'LPO Records';
+const LPO_ITEMS_SHEET = 'LPO Items Logs';
+
+export interface LpoRecord {
+  rowIndex: number;
+  lpoId: string;
+  lpoNumber: string;
+  lpoDate: string;
+  customerName: string;
+  lpoValue: number;
+  invoiceNumber: string;
+  invoiceDate: string;
+  invoiceValue: number;
+  status: 'delivered' | 'pending' | 'partial' | 'delivered_with_cancel';
+  reship: boolean;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LpoItemLog {
+  rowIndex: number;
+  rowId: string;
+  lpoId: string;
+  itemName: string;
+  status: 'missing' | 'shipped' | 'canceled';
+  shipmentValue: number;
+  actionDate: string;
+}
+
+async function getSheetsClient() {
+  const credentials = getServiceAccountCredentials();
+  const auth = new google.auth.GoogleAuth({
+    credentials,
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+  return google.sheets({ version: 'v4', auth });
+}
+
+function nowTimestamp(): string {
+  return new Date().toLocaleString('en-GB', {
+    timeZone: 'Asia/Dubai',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
+
+// READ: Get all LPO Records
+export async function getLpoRecords(): Promise<LpoRecord[]> {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_RECORDS_SHEET}'!A:M`,
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    return rows.slice(1)
+      .filter(row => row[0]) // must have LPO ID
+      .map((row, i) => ({
+        rowIndex: i + 2,
+        lpoId: row[0]?.toString() || '',
+        lpoNumber: row[1]?.toString() || '',
+        lpoDate: row[2]?.toString() || '',
+        customerName: row[3]?.toString() || '',
+        lpoValue: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+        invoiceNumber: row[5]?.toString() || '',
+        invoiceDate: row[6]?.toString() || '',
+        invoiceValue: parseFloat(row[7]?.toString().replace(/,/g, '') || '0'),
+        status: (row[8]?.toString() || 'pending') as LpoRecord['status'],
+        reship: row[9]?.toString() === 'TRUE',
+        notes: row[10]?.toString() || '',
+        createdAt: row[11]?.toString() || '',
+        updatedAt: row[12]?.toString() || '',
+      }));
+  } catch (error) {
+    console.error('Error fetching LPO Records:', error);
+    throw error;
+  }
+}
+
+// READ: Get all Items Logs
+export async function getLpoItemsLog(): Promise<LpoItemLog[]> {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_ITEMS_SHEET}'!A:F`,
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    return rows.slice(1)
+      .filter(row => row[0])
+      .map((row, i) => ({
+        rowIndex: i + 2,
+        rowId: row[0]?.toString() || '',
+        lpoId: row[1]?.toString() || '',
+        itemName: row[2]?.toString() || '',
+        status: (row[3]?.toString() || 'missing') as LpoItemLog['status'],
+        shipmentValue: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+        actionDate: row[5]?.toString() || '',
+      }));
+  } catch (error) {
+    console.error('Error fetching LPO Items Log:', error);
+    throw error;
+  }
+}
+
+// WRITE: Add new LPO Record
+export async function addLpoRecord(data: {
+  lpoId: string;
+  lpoNumber: string;
+  lpoDate: string;
+  customerName: string;
+  lpoValue: number;
+}): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+    const now = nowTimestamp();
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_RECORDS_SHEET}'!A:M`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          data.lpoId,        // A: LPO ID
+          data.lpoNumber,    // B: LPO Number
+          data.lpoDate,      // C: LPO Date
+          data.customerName, // D: Customer Name
+          data.lpoValue,     // E: LPO Value
+          '',                // F: Invoice Number
+          '',                // G: Invoice Date
+          0,                 // H: Invoice Value
+          'pending',         // I: Status
+          'FALSE',           // J: Reship?
+          '',                // K: Notes
+          now,               // L: Created At
+          now,               // M: Updated At
+        ]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding LPO Record:', error);
+    throw error;
+  }
+}
+
+// UPDATE: Update an LPO Record by row index
+export async function updateLpoRecord(rowIndex: number, data: Partial<{
+  invoiceNumber: string;
+  invoiceDate: string;
+  invoiceValue: number;
+  status: string;
+  reship: boolean;
+  notes: string;
+}>): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+    const now = nowTimestamp();
+
+    // Fetch current row first to avoid overwriting unchanged fields
+    const current = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_RECORDS_SHEET}'!F${rowIndex}:M${rowIndex}`,
+    });
+    const cur = current.data.values?.[0] || [];
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_RECORDS_SHEET}'!F${rowIndex}:M${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          data.invoiceNumber !== undefined ? data.invoiceNumber : (cur[0] || ''),   // F
+          data.invoiceDate !== undefined ? data.invoiceDate : (cur[1] || ''),       // G
+          data.invoiceValue !== undefined ? data.invoiceValue : (cur[2] || 0),      // H
+          data.status !== undefined ? data.status : (cur[3] || 'pending'),          // I
+          data.reship !== undefined ? (data.reship ? 'TRUE' : 'FALSE') : (cur[4] || 'FALSE'), // J
+          data.notes !== undefined ? data.notes : (cur[5] || ''),                  // K
+          cur[6] || now,  // L: Created At (keep original)
+          now,            // M: Updated At (always update)
+        ]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating LPO Record:', error);
+    throw error;
+  }
+}
+
+// DELETE: Delete an LPO Record row
+export async function deleteLpoRecord(rowIndex: number): Promise<{ success: boolean }> {
+  try {
+    const sheetId = await getSheetId(LPO_RECORDS_SHEET);
+    if (sheetId === null) throw new Error(`Sheet "${LPO_RECORDS_SHEET}" not found`);
+
+    const sheets = await getSheetsClient();
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId,
+              dimension: 'ROWS',
+              startIndex: rowIndex - 1,
+              endIndex: rowIndex,
+            },
+          },
+        }],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting LPO Record:', error);
+    throw error;
+  }
+}
+
+// WRITE: Add item log entry (ship or cancel)
+export async function addLpoItemLog(data: {
+  rowId: string;
+  lpoId: string;
+  itemName: string;
+  status: 'missing' | 'shipped' | 'canceled';
+  shipmentValue: number;
+}): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+    const now = nowTimestamp();
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_ITEMS_SHEET}'!A:F`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          data.rowId,         // A: Row ID
+          data.lpoId,         // B: LPO ID
+          data.itemName,      // C: Item Name
+          data.status,        // D: Status
+          data.shipmentValue, // E: Shipment Value
+          now,                // F: Action Date
+        ]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding LPO Item Log:', error);
+    throw error;
+  }
+}
+
