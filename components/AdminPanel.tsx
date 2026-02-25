@@ -20,7 +20,8 @@ const SYSTEMS = [
     { id: 'employee-overtime', label: 'Employee Overtime' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
-    { id: 'visit-customers', label: 'Visit Customers' }
+    { id: 'visit-customers', label: 'Visit Customers' },
+    { id: 'delivery-tracking', label: 'Delivery Tracking' }
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -87,6 +88,23 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'entry', label: 'Entry' },
         { id: 'search', label: 'Search' },
         { id: 'daily', label: 'Daily Output' }
+    ],
+    'delivery-tracking': [
+        { id: 'new_order', label: 'New LPO' },
+        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'orders', label: 'All Orders' },
+        { id: 'reship', label: 'Re-Shipments' },
+        { id: 'missing_items', label: 'Missing Items' }
+    ]
+};
+
+// Action-level permissions per system
+const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }[]> = {
+    'delivery-tracking': [
+        { id: 'add', label: 'Add (New LPO)', icon: '➕' },
+        { id: 'edit', label: 'Edit Orders', icon: '✏️' },
+        { id: 'delete', label: 'Delete Orders', icon: '🗑️' },
+        { id: 'download', label: 'Download / Export', icon: '⬇️' }
     ]
 };
 
@@ -98,6 +116,7 @@ export default function AdminPanel() {
     const [saving, setSaving] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
     const [modalSystem, setModalSystem] = useState<string | null>(null);
+    const [modalInnerTab, setModalInnerTab] = useState<'tabs' | 'actions'>('tabs');
 
     useEffect(() => {
         fetchUsers();
@@ -121,14 +140,19 @@ export default function AdminPanel() {
         try {
             return JSON.parse(roleStr || '{}');
         } catch {
-            // Handle legacy roles if any
+            // Handle legacy 'Admin' role
             if (roleStr === 'Admin') {
                 const allSystems = SYSTEMS.map(s => s.id);
                 const allSubTabs: Record<string, string[]> = {};
                 Object.keys(SYSTEM_SUBTABS).forEach(sysId => {
                     allSubTabs[sysId] = SYSTEM_SUBTABS[sysId].map(t => t.id);
                 });
-                return { systems: allSystems, ...allSubTabs };
+                // Also grant all actions for every system that has actions
+                const allActions: Record<string, string[]> = {};
+                Object.keys(SYSTEM_ACTIONS).forEach(sysId => {
+                    allActions[`${sysId}-actions`] = SYSTEM_ACTIONS[sysId].map(a => a.id);
+                });
+                return { systems: allSystems, ...allSubTabs, ...allActions };
             }
             return {};
         }
@@ -156,22 +180,23 @@ export default function AdminPanel() {
     const handleToggleSubTab = (systemId: string, tabId: string) => {
         if (!selectedUser) return;
         const perms = parsePermissions(selectedUser.role);
-
-        // We store subtabs by system key, e.g. perms.debit = ['customers', ...]
-        // legacy used 'debit_tabs' but let's migrate or support both. 
-        // For simplicity, let's use the systemId directly as the key for its tabs.
-        // Except for 'debit' which was 'debit_tabs' in previous version.
         const key = systemId === 'debit' ? 'debit_tabs' : systemId;
         const tabs = perms[key] || [];
-
         const newTabs = tabs.includes(tabId)
             ? tabs.filter((id: string) => id !== tabId)
             : [...tabs, tabId];
+        setSelectedUser({ ...selectedUser, role: JSON.stringify({ ...perms, [key]: newTabs }) });
+    };
 
-        setSelectedUser({
-            ...selectedUser,
-            role: JSON.stringify({ ...perms, [key]: newTabs })
-        });
+    const handleToggleAction = (systemId: string, actionId: string) => {
+        if (!selectedUser) return;
+        const perms = parsePermissions(selectedUser.role);
+        const key = `${systemId}-actions`;
+        const actions = perms[key] || [];
+        const newActions = actions.includes(actionId)
+            ? actions.filter((id: string) => id !== actionId)
+            : [...actions, actionId];
+        setSelectedUser({ ...selectedUser, role: JSON.stringify({ ...perms, [key]: newActions }) });
     };
 
     const handleSave = async () => {
@@ -208,10 +233,15 @@ export default function AdminPanel() {
         const perms = parsePermissions(selectedUser.role);
         const key = modalSystem === 'debit' ? 'debit_tabs' : modalSystem;
         const enabledTabs = perms[key] || [];
+        const systemActions = SYSTEM_ACTIONS[modalSystem] || [];
+        const actionsKey = `${modalSystem}-actions`;
+        const enabledActions = perms[actionsKey] || [];
+        const hasActions = systemActions.length > 0;
 
         return (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                 <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+                    {/* Header */}
                     <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-blue-600 text-white rounded-xl shadow-md">
@@ -219,42 +249,98 @@ export default function AdminPanel() {
                             </div>
                             <div>
                                 <h3 className="text-xl font-bold text-slate-900">{system?.label}</h3>
-                                <p className="text-xs text-slate-500">Configure sub-tab visibility</p>
+                                <p className="text-xs text-slate-500">Configure permissions</p>
                             </div>
                         </div>
                         <button
-                            onClick={() => setModalSystem(null)}
+                            onClick={() => { setModalSystem(null); setModalInnerTab('tabs'); }}
                             className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-200 rounded-full transition-all"
                         >
                             <X className="w-6 h-6" />
                         </button>
                     </div>
 
-                    <div className="p-6 max-h-[60vh] overflow-y-auto space-y-2 no-scrollbar">
-                        {subTabs.map(tab => {
-                            const isEnabled = enabledTabs.includes(tab.id);
-                            return (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => handleToggleSubTab(modalSystem, tab.id)}
-                                    className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                        ? 'border-blue-500 bg-blue-50/50 text-blue-900'
-                                        : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
-                                        }`}
-                                >
-                                    <span className="font-bold">{tab.label}</span>
-                                    <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-blue-500 text-white' : 'bg-slate-200'
-                                        }`}>
-                                        {isEnabled && <Check className="w-4 h-4" />}
-                                    </div>
-                                </button>
-                            );
-                        })}
+                    {/* Inner Tab Switcher — only show if system has actions */}
+                    {hasActions && (
+                        <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-100">
+                            <button
+                                onClick={() => setModalInnerTab('tabs')}
+                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${modalInnerTab === 'tabs'
+                                        ? 'bg-blue-600 text-white shadow'
+                                        : 'text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                Tabs
+                            </button>
+                            <button
+                                onClick={() => setModalInnerTab('actions')}
+                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${modalInnerTab === 'actions'
+                                        ? 'bg-emerald-600 text-white shadow'
+                                        : 'text-slate-500 hover:bg-slate-100'
+                                    }`}
+                            >
+                                Actions
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Content */}
+                    <div className="p-6 max-h-[55vh] overflow-y-auto space-y-2 no-scrollbar">
+                        {/* Tabs panel */}
+                        {(!hasActions || modalInnerTab === 'tabs') && (
+                            <>
+                                {subTabs.map(tab => {
+                                    const isEnabled = enabledTabs.includes(tab.id);
+                                    return (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => handleToggleSubTab(modalSystem, tab.id)}
+                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
+                                                    ? 'border-blue-500 bg-blue-50/50 text-blue-900'
+                                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
+                                                }`}
+                                        >
+                                            <span className="font-bold">{tab.label}</span>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-blue-500 text-white' : 'bg-slate-200'}`}>
+                                                {isEnabled && <Check className="w-4 h-4" />}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </>
+                        )}
+
+                        {/* Actions panel */}
+                        {hasActions && modalInnerTab === 'actions' && (
+                            <>
+                                {systemActions.map(action => {
+                                    const isEnabled = enabledActions.includes(action.id);
+                                    return (
+                                        <button
+                                            key={action.id}
+                                            onClick={() => handleToggleAction(modalSystem, action.id)}
+                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
+                                                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900'
+                                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
+                                                }`}
+                                        >
+                                            <span className="font-bold flex items-center gap-2">
+                                                <span>{action.icon}</span>
+                                                {action.label}
+                                            </span>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200'}`}>
+                                                {isEnabled && <Check className="w-4 h-4" />}
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </>
+                        )}
                     </div>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
                         <button
-                            onClick={() => setModalSystem(null)}
+                            onClick={() => { setModalSystem(null); setModalInnerTab('tabs'); }}
                             className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
                         >
                             Confirm

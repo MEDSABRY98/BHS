@@ -85,6 +85,26 @@ export default function DeliveryTrackingTab() {
     const [filterDateFrom, setFilterDateFrom] = useState('');
     const [filterDateTo, setFilterDateTo] = useState('');
 
+    // ── User Action Permissions ─────────────────────────────
+    const deliveryActions: string[] = useMemo(() => {
+        try {
+            const saved = localStorage.getItem('currentUser');
+            if (!saved) return [];
+            const user = JSON.parse(saved);
+            // Admin users get all permissions automatically
+            if (user.role === 'Admin' || user.name === 'MED Sabry') {
+                return ['add', 'edit', 'delete', 'download'];
+            }
+            const perms = JSON.parse(user.role || '{}');
+            return perms['delivery-tracking-actions'] || [];
+        } catch { return []; }
+    }, []);
+    const canAdd = deliveryActions.includes('add');
+    const canEdit = deliveryActions.includes('edit');
+    const canDelete = deliveryActions.includes('delete');
+    const canDownload = deliveryActions.includes('download');
+    // ────────────────────────────────────────────────────────
+
     // --- NOTIFICATION & CONFIRMATION SYSTEM ---
     const [confirmConfig, setConfirmConfig] = useState<{
         isOpen: boolean;
@@ -484,7 +504,7 @@ export default function DeliveryTrackingTab() {
                 {/* TAB NAVIGATION */}
                 <div className={`${activeTab === 'orders' ? 'max-w-[1850px]' : 'max-w-[1600px]'} mx-auto px-8 h-[48px] flex items-end justify-center gap-4 transition-all duration-500`}>
                     {[
-                        { id: 'new_order', label: 'New LPO', icon: Plus },
+                        ...(canAdd ? [{ id: 'new_order', label: 'New LPO', icon: Plus }] : []),
                         { id: 'dashboard', label: 'Dashboard', icon: BarChart3 },
                         { id: 'orders', label: 'All Orders', count: stats.total },
                         { id: 'reship', label: 'Re-Shipments', count: stats.reship },
@@ -526,7 +546,8 @@ export default function DeliveryTrackingTab() {
                         <p className="text-[14px] font-[600] text-[#5A7266]">Loading from Google Sheets...</p>
                     </div>
                 )}
-                {!isLoading && activeTab === 'new_order' && (
+                {!isLoading && activeTab === 'new_order' && canAdd && (
+
                     <div className="max-w-[1000px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="bg-white rounded-[24px] border-[1.5px] border-[#E2E8F0] shadow-[0_10px_40px_rgba(0,0,0,0.04)] relative">
                             <div className="p-8 bg-[#312E81] flex items-center justify-between rounded-t-[22px]">
@@ -816,9 +837,11 @@ export default function DeliveryTrackingTab() {
                                     </button>
                                 ))}
                                 <div className="w-px h-4 bg-[#B2C4BB] mx-1"></div>
-                                <button onClick={exportOrdersCSV} className="flex items-center gap-1.5 text-[11px] font-[600] text-[#5A7266] bg-white border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 hover:border-[#4F46E5] hover:text-[#4F46E5] transition-all">
-                                    <Download className="w-3 h-3" /> Export List
-                                </button>
+                                {canDownload && (
+                                    <button onClick={exportOrdersCSV} className="flex items-center gap-1.5 text-[11px] font-[600] text-[#5A7266] bg-white border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 hover:border-[#4F46E5] hover:text-[#4F46E5] transition-all">
+                                        <Download className="w-3 h-3" /> Export List
+                                    </button>
+                                )}
                             </div>
                         </div>
 
@@ -953,14 +976,16 @@ export default function DeliveryTrackingTab() {
                                                             {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : o.missing.length > 0 ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
                                                         </td>
                                                         <td className="p-[12px_16px] text-center">
-                                                            <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button
-                                                                    onClick={() => openEditModal(o)}
-                                                                    className="w-7 h-7 bg-[#EBF5FB] text-[#2980B9] rounded-md flex items-center justify-center hover:scale-110 transition-transform shadow-sm"
-                                                                >
-                                                                    <Edit2 className="w-3.5 h-3.5" />
-                                                                </button>
-                                                            </div>
+                                                            {canEdit && (
+                                                                <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    <button
+                                                                        onClick={() => openEditModal(o)}
+                                                                        className="w-7 h-7 bg-[#EBF5FB] text-[#2980B9] rounded-md flex items-center justify-center hover:scale-110 transition-transform shadow-sm"
+                                                                    >
+                                                                        <Edit2 className="w-3.5 h-3.5" />
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     </tr>
                                                 );
@@ -980,9 +1005,11 @@ export default function DeliveryTrackingTab() {
                                 <div className="w-[3px] h-[16px] bg-[#4F46E5] rounded-[3px]"></div>
                                 Missing & Canceled Items Track
                             </div>
-                            <button onClick={exportMissingItemsCSV} className="flex items-center gap-1.5 text-[11px] font-[600] text-[#5A7266] bg-white border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 hover:border-[#2980B9] transition-all">
-                                <Download className="w-3 h-3" /> Export List
-                            </button>
+                            {canDownload && (
+                                <button onClick={exportMissingItemsCSV} className="flex items-center gap-1.5 text-[11px] font-[600] text-[#5A7266] bg-white border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 hover:border-[#2980B9] transition-all">
+                                    <Download className="w-3 h-3" /> Export List
+                                </button>
+                            )}
                         </div>
 
                         <div className="bg-white rounded-[14px] border-[1.5px] border-[#E4EDE8] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden">
