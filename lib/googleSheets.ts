@@ -3111,7 +3111,7 @@ export async function addWh20Transfers(transfers: Wh20Transfer[]) {
   }
 }
 
-export async function getWh20AutocompleteData(): Promise<{ recipients: string[], destinations: string[] }> {
+export async function getWh20Customers(): Promise<string[]> {
   try {
     const credentials = getServiceAccountCredentials();
     const auth = new google.auth.GoogleAuth({
@@ -3122,11 +3122,55 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!E:F`, // E: Recipient Name, F: Destination
+      range: `'CUSTOMERS - WH/20 ITEMS'!A:B`, // A: ID, B: Name
     });
 
     const rows = response.data.values;
-    if (!rows || rows.length < 2) return { recipients: [], destinations: [] };
+    if (!rows || rows.length < 2) return [];
+
+    // Filter out header and empty values
+    const customers = rows.slice(1)
+      .map(row => row[1]?.toString().trim())
+      .filter(name => name) as string[];
+
+    return Array.from(new Set(customers)).sort();
+  } catch (error) {
+    console.error('Error fetching WH/20 customers:', error);
+    return [];
+  }
+}
+
+export async function getWh20AutocompleteData(): Promise<{ recipients: string[], destinations: string[], customers: string[] }> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const [transfersResponse, customersResponse] = await Promise.all([
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'TRANSFERS - WH/20 ITEMS'!E:F`, // E: Recipient Name, F: Destination
+      }),
+      sheets.spreadsheets.values.get({
+        spreadsheetId: SPREADSHEET_ID,
+        range: `'CUSTOMERS - WH/20 ITEMS'!B:B`,
+      })
+    ]);
+
+    const rows = transfersResponse.data.values;
+    const customerRows = customersResponse.data.values;
+
+    const customersSet = new Set<string>();
+    if (customerRows && customerRows.length > 1) {
+      customerRows.slice(1).forEach(row => {
+        if (row[0] && row[0].trim()) customersSet.add(row[0].trim());
+      });
+    }
+
+    if (!rows || rows.length < 2) return { recipients: [], destinations: [], customers: Array.from(customersSet).sort() };
 
     // Skip header and collect unique values
     const recipients = new Set<string>();
@@ -3139,12 +3183,13 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
 
     return {
       recipients: Array.from(recipients).sort(),
-      destinations: Array.from(destinations).sort()
+      destinations: Array.from(destinations).sort(),
+      customers: Array.from(customersSet).sort()
     };
 
   } catch (error) {
     console.error('Error fetching WH/20 autocomplete data:', error);
-    return { recipients: [], destinations: [] };
+    return { recipients: [], destinations: [], customers: [] };
   }
 }
 
@@ -3661,8 +3706,8 @@ export async function getLpoRecords(): Promise<LpoRecord[]> {
         lpoDate: row[2]?.toString() || '',
         customerName: row[3]?.toString() || '',
         lpoValue: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-        invoiceNumber: row[5]?.toString() || '',
-        invoiceDate: row[6]?.toString() || '',
+        invoiceDate: row[5]?.toString() || '',
+        invoiceNumber: row[6]?.toString() || '',
         invoiceValue: parseFloat(row[7]?.toString().replace(/,/g, '') || '0'),
         status: (row[8]?.toString() || 'pending') as LpoRecord['status'],
         reship: row[9]?.toString() === 'TRUE',
@@ -3750,8 +3795,8 @@ export async function addLpoRecord(data: {
           data.lpoDate,      // C: LPO Date
           data.customerName, // D: Customer Name
           data.lpoValue,     // E: LPO Value
-          '',                // F: Invoice Number
-          '',                // G: Invoice Date
+          '',                // F: Invoice Date
+          '',                // G: Invoice Number
           0,                 // H: Invoice Value
           'pending',         // I: Status
           'FALSE',           // J: Reship?
@@ -3795,8 +3840,8 @@ export async function updateLpoRecord(rowIndex: number, data: Partial<{
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
-          data.invoiceNumber !== undefined ? data.invoiceNumber : (cur[0] || ''),   // F
-          data.invoiceDate !== undefined ? data.invoiceDate : (cur[1] || ''),       // G
+          data.invoiceDate !== undefined ? data.invoiceDate : (cur[0] || ''),       // F
+          data.invoiceNumber !== undefined ? data.invoiceNumber : (cur[1] || ''),   // G
           data.invoiceValue !== undefined ? data.invoiceValue : (cur[2] || 0),      // H
           data.status !== undefined ? data.status : (cur[3] || 'pending'),          // I
           data.reship !== undefined ? (data.reship ? 'TRUE' : 'FALSE') : (cur[4] || 'FALSE'), // J
@@ -3878,4 +3923,66 @@ export async function addLpoItemLog(data: {
     throw error;
   }
 }
+
+// UPDATE: Update an existing item log row in-place (change status from 'missing' → 'shipped'/'canceled')
+// Searches for the first row where lpoId + itemName match and status is 'missing', then updates it.
+export async function updateLpoItemLog(data: {
+  lpoId: string;
+  itemName: string;
+  newStatus: 'shipped' | 'canceled';
+  shipmentValue: number;
+}): Promise<{ success: boolean; rowIndex?: number }> {
+  try {
+    const sheets = await getSheetsClient();
+
+    // Read all rows from the items log sheet
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_ITEMS_SHEET}'!A:F`,
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) {
+      throw new Error('LPO Items Logs sheet is empty or has no data rows');
+    }
+
+    // Find the first row where col B = lpoId, col C = itemName, col D = 'missing'
+    // Row index in sheet = array index + 1 (for 1-based) + 1 (for header row) = i + 2
+    const dataRows = rows.slice(1); // skip header
+    const matchIndex = dataRows.findIndex(
+      row =>
+        row[1]?.toString().trim() === data.lpoId.trim() &&
+        row[2]?.toString().trim() === data.itemName.trim() &&
+        row[3]?.toString().trim() === 'missing'
+    );
+
+    if (matchIndex === -1) {
+      throw new Error(
+        `No 'missing' row found for lpoId="${data.lpoId}" itemName="${data.itemName}"`
+      );
+    }
+
+    const sheetRowIndex = matchIndex + 2; // 1-based + header offset
+    const now = nowTimestamp();
+
+    // Update columns D (Status), E (Shipment Value), F (Action Date)
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${LPO_ITEMS_SHEET}'!D${sheetRowIndex}:F${sheetRowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          data.newStatus,       // D: Status  (missing → shipped / canceled)
+          data.shipmentValue,   // E: Shipment Value
+          now,                  // F: Action Date
+        ]],
+      },
+    });
+
+    return { success: true, rowIndex: sheetRowIndex };
+  } catch (error) {
+    console.error('Error updating LPO Item Log:', error);
+    throw error;
+  }
+}
+
 

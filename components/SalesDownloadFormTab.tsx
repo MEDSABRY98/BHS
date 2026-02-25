@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, FileDown, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, MoreVertical, ChevronDown } from 'lucide-react';
-import { generateDownloadFormPDF } from '@/lib/pdfUtils';
+import { generateDownloadFormPDF } from '@/lib/PdfUtils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 

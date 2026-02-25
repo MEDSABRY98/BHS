@@ -17,7 +17,7 @@ const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'wh20-items', label: 'WH/20 Items' },
-    { id: 'employee-overtime', label: 'Employee Overtime' },
+    { id: 'employee', label: 'Employee' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'visit-customers', label: 'Visit Customers' },
@@ -63,7 +63,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'voucher', label: 'Voucher' },
         { id: 'stats', label: 'Statistics' }
     ],
-    'employee-overtime': [
+    'employee': [
         { id: 'register', label: 'Register' },
         { id: 'view', label: 'View Records' },
         { id: 'statistics', label: 'Statistics' },
@@ -76,7 +76,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'wh20-items': [
         { id: 'entry', label: 'Entry' },
-        { id: 'search', label: 'Search' },
         { id: 'history', label: 'History' },
         { id: 'people', label: 'People Inventory' }
     ],
@@ -91,7 +90,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'delivery-tracking': [
         { id: 'new_order', label: 'New LPO' },
-        { id: 'dashboard', label: 'Dashboard' },
+        { id: 'stats', label: 'Statistics' },
         { id: 'orders', label: 'All Orders' },
         { id: 'reship', label: 'Re-Shipments' },
         { id: 'missing_items', label: 'Missing Items' }
@@ -104,7 +103,8 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
         { id: 'add', label: 'Add (New LPO)', icon: '➕' },
         { id: 'edit', label: 'Edit Orders', icon: '✏️' },
         { id: 'delete', label: 'Delete Orders', icon: '🗑️' },
-        { id: 'download', label: 'Download / Export', icon: '⬇️' }
+        { id: 'download', label: 'Download / Export', icon: '⬇️' },
+        { id: 'reship', label: 'Re-shipment Actions', icon: '📦' }
     ]
 };
 
@@ -266,8 +266,8 @@ export default function AdminPanel() {
                             <button
                                 onClick={() => setModalInnerTab('tabs')}
                                 className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${modalInnerTab === 'tabs'
-                                        ? 'bg-blue-600 text-white shadow'
-                                        : 'text-slate-500 hover:bg-slate-100'
+                                    ? 'bg-blue-600 text-white shadow'
+                                    : 'text-slate-500 hover:bg-slate-100'
                                     }`}
                             >
                                 Tabs
@@ -275,8 +275,8 @@ export default function AdminPanel() {
                             <button
                                 onClick={() => setModalInnerTab('actions')}
                                 className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${modalInnerTab === 'actions'
-                                        ? 'bg-emerald-600 text-white shadow'
-                                        : 'text-slate-500 hover:bg-slate-100'
+                                    ? 'bg-emerald-600 text-white shadow'
+                                    : 'text-slate-500 hover:bg-slate-100'
                                     }`}
                             >
                                 Actions
@@ -296,8 +296,8 @@ export default function AdminPanel() {
                                             key={tab.id}
                                             onClick={() => handleToggleSubTab(modalSystem, tab.id)}
                                             className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                                    ? 'border-blue-500 bg-blue-50/50 text-blue-900'
-                                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
+                                                ? 'border-blue-500 bg-blue-50/50 text-blue-900'
+                                                : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
                                                 }`}
                                         >
                                             <span className="font-bold">{tab.label}</span>
@@ -320,8 +320,8 @@ export default function AdminPanel() {
                                             key={action.id}
                                             onClick={() => handleToggleAction(modalSystem, action.id)}
                                             className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                                    ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900'
-                                                    : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
+                                                ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900'
+                                                : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
                                                 }`}
                                         >
                                             <span className="font-bold flex items-center gap-2">

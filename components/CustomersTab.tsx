@@ -11,7 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import CustomerDetails from './CustomerDetails';
-import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/pdfUtils';
+import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/PdfUtils';
 import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
@@ -2317,7 +2317,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
-      const { generateAccountStatementPDF, generateBulkDebitSummaryPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF, generateBulkDebitSummaryPDF } = await import('@/lib/PdfUtils');
 
       const customersToDehydrate = filteredData.filter(c => selectedCustomersForDownload.has(c.customerName));
 
@@ -2344,7 +2344,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
-      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
 
       const zip = new JSZip();
       let count = 0;
@@ -2439,7 +2439,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
-      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
 
       const zip = new JSZip();
       let count = 0;

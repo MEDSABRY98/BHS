@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import EmployeeOvertimeTab from '@/components/EmployeeOvertimeTab';
+import EmployeeTab from '@/components/EmployeeTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 
-export default function EmployeeOvertimePage() {
+export default function EmployeePage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -76,7 +76,7 @@ export default function EmployeeOvertimePage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <EmployeeOvertimeTab />
+      <EmployeeTab />
     </div>
   );
 }

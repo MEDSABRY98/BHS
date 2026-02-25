@@ -159,7 +159,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
               <ChevronLeft className="w-6 h-6" />
             </button>
             <div className="h-6 w-px bg-slate-200" />
-            <h1 className="text-xl font-bold text-slate-900">Admin Control Center</h1>
+            <h1 className="text-xl font-bold text-slate-900">Admin Control</h1>
           </div>
         </div>
         <AdminPanel />
@@ -250,8 +250,8 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {isSystemAllowed('wh20-items') && (
             <SystemCard title="WH/20 ITEMS" icon={Package} onClick={nav('/wh20-items')} color="emerald" delay={525} />
           )}
-          {isSystemAllowed('employee-overtime') && (
-            <SystemCard title="Employee Overtime" icon={Clock} onClick={nav('/employee-overtime')} color="blue" delay={550} />
+          {isSystemAllowed('employee') && (
+            <SystemCard title="Employee" icon={Clock} onClick={nav('/employee')} color="blue" delay={550} />
           )}
           {isSystemAllowed('water-delivery-note') && (
             <SystemCard title="Water - Delivery Note" icon={FileText} onClick={nav('/water-delivery-note')} color="violet" delay={600} />

@@ -34,7 +34,7 @@ interface Props {
     onSendToQuotation?: (items: OrderItem[]) => void;
 }
 
-export default function ProductOrdersMakeTab({ poNumber, orderItems, setOrderItems, setPoNumber, onSendToQuotation }: Props) {
+export default function InventoryProductOrdersMakeTab({ poNumber, orderItems, setOrderItems, setPoNumber, onSendToQuotation }: Props) {
     const [allProducts, setAllProducts] = useState<ProductOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

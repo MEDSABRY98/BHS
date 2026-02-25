@@ -1689,7 +1689,7 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
 
     setIsDownloading(true);
     try {
-      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
 
       // Process each customer
       for (const customerName of selectedCustomersForDownload) {

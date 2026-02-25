@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 
-import ProductOrdersTab from '@/components/ProductOrdersTab';
-import NotificationOrderTab from '@/components/NotificationOrderTab';
-import ProductOrdersMakeTab, { OrderItem } from '@/components/ProductOrdersMakeTab';
+import InventoryProductOrdersTab from '@/components/InventoryProductOrdersTab';
+import InventoryNotificationOrderTab from '@/components/InventoryNotificationOrderTab';
+import InventoryProductOrdersMakeTab, { OrderItem } from '@/components/InventoryProductOrdersMakeTab';
 import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
-import ItemCodeTab from '@/components/ItemCodeTab';
+import InventoryItemCodeTab from '@/components/InventoryItemCodeTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
@@ -137,13 +137,13 @@ export default function InventoryPage() {
       <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
 
         <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
-          <ProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
+          <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
         </div>
         <div className={activeTab === 'notification' ? 'block' : 'hidden'}>
-          <NotificationOrderTab />
+          <InventoryNotificationOrderTab />
         </div>
         <div className={activeTab === 'make' ? 'block' : 'hidden'}>
-          <ProductOrdersMakeTab
+          <InventoryProductOrdersMakeTab
             poNumber={poNumber}
             orderItems={orderItems}
             setOrderItems={setOrderItems}
@@ -155,7 +155,7 @@ export default function InventoryPage() {
           <PurchaseQuotationTab initialItems={quotationItems} />
         </div>
         <div className={activeTab === 'item_code' ? 'block' : 'hidden'}>
-          <ItemCodeTab />
+          <InventoryItemCodeTab />
         </div>
       </div>
     </div>

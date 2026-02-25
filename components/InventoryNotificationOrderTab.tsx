@@ -6,7 +6,7 @@ import {
     AlertCircle, RefreshCw, ArrowUpDown, FileDown, Mail
 } from 'lucide-react';
 import Loading from './Loading';
-import { ProductOrder as BaseProductOrder } from './ProductOrdersMakeTab';
+import { ProductOrder as BaseProductOrder } from './InventoryProductOrdersMakeTab';
 
 // Ensure local interface matches
 interface ProductOrder extends BaseProductOrder {
@@ -15,7 +15,7 @@ interface ProductOrder extends BaseProductOrder {
     maxQ?: number;
 }
 
-export default function NotificationOrderTab() {
+export default function InventoryNotificationOrderTab() {
     const [products, setProducts] = useState<ProductOrder[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);

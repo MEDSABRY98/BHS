@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from './invoiceType';
+import { getInvoiceType } from './InvoiceType';
 
 interface FilterContext {
     startDate?: Date;

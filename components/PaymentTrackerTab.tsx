@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from '@/lib/invoiceType';
-import { generatePaymentAnalysisPDF } from '@/lib/Pdfpaymentanalysis';
+import { getInvoiceType } from '@/lib/InvoiceType';
+import { generatePaymentAnalysisPDF } from '@/lib/PdfPaymentAnalysis';
 import {
   BarChart,
   Bar,

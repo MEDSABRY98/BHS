@@ -10,7 +10,7 @@ interface ItemCodeEntry {
     barcode: string;
 }
 
-export default function ItemCodeTab() {
+export default function InventoryItemCodeTab() {
     const [itemCodes, setItemCodes] = useState<ItemCodeEntry[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchQuery, setSearchQuery] = useState('');

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { generateBulkSupplierStatementsPDF } from '@/lib/pdfUtils';
+import { generateBulkSupplierStatementsPDF } from '@/lib/PdfUtils';
 import * as XLSX from 'xlsx';
 import { Printer, Search, FileSpreadsheet, FileText, CheckSquare, Save, X, CheckCircle2, AlertCircle, MinusCircle, FileDown } from 'lucide-react';
 

@@ -321,7 +321,7 @@ export default function AgesTab({ data }: AgesTabProps) {
   const handleExportPDF = async () => {
     try {
       const { saveAs } = await import('file-saver');
-      const { generateAgesPDF } = await import('@/lib/pdfUtils');
+      const { generateAgesPDF } = await import('@/lib/PdfUtils');
 
       // Determine filter description
       let filterDesc = 'All Customers';

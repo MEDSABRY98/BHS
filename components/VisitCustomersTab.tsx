@@ -319,15 +319,22 @@ export default function VisitCustomersTab() {
         const uniqueDays = new Set(repVisits.map(v => v.date)).size;
         const avgPerDay = uniqueDays > 0 ? (totalVisits / uniqueDays).toFixed(1) : '0';
 
-        const activeDates = Array.from(new Set(repVisits.map(v => v.date))).sort().reverse().slice(0, 7).reverse();
-        const chartData = activeDates.map(dateStr => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const chartData = [];
+
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            const dateStr = d.toISOString().split('T')[0];
+
             const dayVisits = repVisits.filter(v => v.date === dateStr);
-            return {
+            chartData.push({
                 date: dateStr,
                 visits: dayVisits.length,
                 amount: dayVisits.reduce((sum, v) => sum + (v.howMuchCollectMoney || 0), 0)
-            };
-        });
+            });
+        }
 
         // Determine filter period string
         let period = 'All Time';
@@ -337,7 +344,7 @@ export default function VisitCustomersTab() {
         else if (monthFilter) period = `Month ${monthFilter}`;
 
         try {
-            const { generateSalesRepReportPDF } = await import('@/lib/pdfUtils');
+            const { generateSalesRepReportPDF } = await import('@/lib/PdfUtils');
             const pdfBlob = await generateSalesRepReportPDF({
                 repName,
                 period,
@@ -1024,11 +1031,43 @@ export default function VisitCustomersTab() {
 }
 
 function SalesRepDetailView({ details, onBack, period, showNotification, customerBalances }: { details: any; onBack: () => void; period: string; showNotification: (m: string, t?: any) => void; customerBalances: Record<string, number> }) {
+    const [subTab, setSubTab] = useState<'visits' | 'daily'>('visits');
     if (!details) return null;
+
+    const dailySummary = useMemo(() => {
+        const grouped = details.visits.reduce((acc: any, curr: any) => {
+            const date = curr.date;
+            if (!acc[date]) {
+                acc[date] = {
+                    date,
+                    visitCount: 0,
+                    uniqueCustomers: new Set(),
+                    collectionCount: 0,
+                    totalAmount: 0
+                };
+            }
+            acc[date].visitCount += 1;
+            acc[date].uniqueCustomers.add(curr.customerName);
+            if (curr.collectMoney === 'Yes') acc[date].collectionCount += 1;
+            acc[date].totalAmount += (curr.howMuchCollectMoney || 0);
+            return acc;
+        }, {});
+
+        return Object.values(grouped).map((day: any) => {
+            const [y, m, d] = day.date.split('-').map(Number);
+            const dateObj = new Date(y, m - 1, d);
+            const dayName = dateObj.toLocaleDateString('en-GB', { weekday: 'long' });
+            return {
+                ...day,
+                dayName,
+                customerCount: day.uniqueCustomers.size
+            };
+        }).sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    }, [details.visits]);
 
     const handleDownloadPDF = async (details: any) => {
         try {
-            const { generateSalesRepReportPDF } = await import('@/lib/pdfUtils');
+            const { generateSalesRepReportPDF } = await import('@/lib/PdfUtils');
             const pdfBlob = await generateSalesRepReportPDF({
                 repName: details.name,
                 period: period,
@@ -1233,53 +1272,100 @@ function SalesRepDetailView({ details, onBack, period, showNotification, custome
                 </div>
             </div>
 
-            {/* Detailed Table */}
+            {/* Detailed Table Section */}
             <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-8 py-6 border-b border-slate-100">
+                <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between">
                     <h3 className="text-lg font-black text-slate-900">Visits History</h3>
+                    <div className="flex bg-slate-100 p-1 rounded-xl">
+                        <button
+                            onClick={() => setSubTab('visits')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${subTab === 'visits' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Detailed Visits
+                        </button>
+                        <button
+                            onClick={() => setSubTab('daily')}
+                            className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${subTab === 'daily' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Daily History
+                        </button>
+                    </div>
                 </div>
                 <div className="overflow-x-auto">
-                    <table className="w-full text-center border-collapse">
-                        <thead>
-                            <tr className="bg-slate-50">
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Date</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Customer</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">City</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Status</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Amount</th>
-                                <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Notes</th>
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-50">
-                            {details.visits.map((v: any, i: number) => (
-                                <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{v.date}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <div className="flex flex-col items-center">
-                                            <span className="text-sm font-black text-slate-900">{v.customerName}</span>
-                                            {customerBalances[v.customerName] !== undefined && (
-                                                <span className={`text-xs font-black ${customerBalances[v.customerName] > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                                                    Balance: AED {customerBalances[v.customerName].toLocaleString()}
-                                                </span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-500">{v.city || '---'}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${v.collectMoney === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
-                                            {v.collectMoney === 'Yes' ? 'Collected' : 'No Collection'}
-                                        </span>
-                                    </td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-pink-600">
-                                        {v.howMuchCollectMoney > 0 ? `AED ${v.howMuchCollectMoney.toLocaleString()}` : '---'}
-                                    </td>
-                                    <td className="px-6 py-4">
-                                        <p className="text-sm font-bold text-slate-700 max-w-xs mx-auto">{v.notes || '---'}</p>
-                                    </td>
+                    {subTab === 'visits' ? (
+                        <table className="w-full text-center border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50">
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Date</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Customer</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">City</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Status</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Amount</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Notes</th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {details.visits.map((v: any, i: number) => (
+                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{v.date}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <div className="flex flex-col items-center">
+                                                <span className="text-sm font-black text-slate-900">{v.customerName}</span>
+                                                {customerBalances[v.customerName] !== undefined && (
+                                                    <span className={`text-xs font-black ${customerBalances[v.customerName] > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                        Balance: AED {customerBalances[v.customerName].toLocaleString()}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-500">{v.city || '---'}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${v.collectMoney === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                {v.collectMoney === 'Yes' ? 'Collected' : 'No Collection'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-pink-600">
+                                            {v.howMuchCollectMoney > 0 ? `AED ${v.howMuchCollectMoney.toLocaleString()}` : '---'}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-sm font-bold text-slate-700 max-w-xs mx-auto">{v.notes || '---'}</p>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <table className="w-full text-center border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50">
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Date</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Day</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Visits</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Unique Customers</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Collections</th>
+                                    <th className="px-6 py-4 text-xs font-black uppercase tracking-wider text-slate-400">Total Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {dailySummary.map((day: any, i: number) => (
+                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{day.date}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-500">{day.dayName}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{day.visitCount}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{day.customerCount}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase bg-green-50 text-green-600">
+                                                {day.collectionCount} Collections
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-pink-600">
+                                            AED {day.totalAmount.toLocaleString()}
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import Wh20ItemsTab from '@/components/Wh20ItemsTab';
+import InventoryWh20ItemsTab from '@/components/InventoryWh20ItemsTab';
 
 export const metadata = {
     title: 'WH/20 ITEMS System',
@@ -9,7 +9,7 @@ export const metadata = {
 export default function Wh20ItemsPage() {
     return (
         <div className="bg-slate-50 min-h-screen">
-            <Wh20ItemsTab />
+            <InventoryWh20ItemsTab />
         </div>
     );
 }

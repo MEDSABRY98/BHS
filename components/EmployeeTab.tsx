@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-export default function EmployeeOvertimeTab() {
+export default function EmployeeTab() {
   const [currentUser, setCurrentUser] = useState<any>(null);
 
   useEffect(() => {
@@ -109,7 +109,7 @@ export default function EmployeeOvertimeTab() {
   useEffect(() => {
     const fetchEmployeeNames = async () => {
       try {
-        const response = await fetch('/api/employee-overtime?type=names');
+        const response = await fetch('/api/employee?type=names');
         const data = await response.json();
         if (response.ok) {
           setEmployeeNames(data.names || []);
@@ -133,7 +133,7 @@ export default function EmployeeOvertimeTab() {
   const fetchRecords = async () => {
     try {
       setLoadingRecords(true);
-      const response = await fetch(`/api/employee-overtime?t=${Date.now()}`);
+      const response = await fetch(`/api/employee?t=${Date.now()}`);
       const data = await response.json();
       if (response.ok) {
         setOvertimeRecords(data.records || []);
@@ -148,7 +148,7 @@ export default function EmployeeOvertimeTab() {
   const fetchAbsenceRecords = async () => {
     try {
       setLoadingAbsence(true);
-      const response = await fetch(`/api/employee-overtime?type=absence&t=${Date.now()}`);
+      const response = await fetch(`/api/employee?type=absence&t=${Date.now()}`);
       const data = await response.json();
       if (response.ok) {
         setAbsenceRecords(data.records || []);
@@ -168,7 +168,7 @@ export default function EmployeeOvertimeTab() {
     if (deleteConfirm.rowIndex === null) return;
     try {
       setIsSaving(true);
-      const response = await fetch('/api/employee-overtime', {
+      const response = await fetch('/api/employee', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,7 +248,7 @@ export default function EmployeeOvertimeTab() {
     if (!selectedRecord) return;
     try {
       setIsSaving(true);
-      const response = await fetch('/api/employee-overtime', {
+      const response = await fetch('/api/employee', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -275,7 +275,7 @@ export default function EmployeeOvertimeTab() {
     if (!selectedRecord || !confirm('Are you sure you want to delete this record?')) return;
     try {
       setIsSaving(true);
-      const response = await fetch('/api/employee-overtime', {
+      const response = await fetch('/api/employee', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rowIndex: selectedRecord.rowIndex }),
@@ -423,7 +423,7 @@ export default function EmployeeOvertimeTab() {
 
         const type = parseFloat(row.deductionHours) > 0 ? 'Deduction' : 'Overtime';
 
-        await fetch('/api/employee-overtime', {
+        await fetch('/api/employee', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -721,7 +721,7 @@ export default function EmployeeOvertimeTab() {
               <div>
                 <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
                   <Clock className="w-6 h-6 text-blue-600" />
-                  Employee Overtime
+                  Employee
                 </h1>
               </div>
             </div>
@@ -737,8 +737,8 @@ export default function EmployeeOvertimeTab() {
                 ].filter(tab => {
                   try {
                     const perms = JSON.parse(currentUser?.role || '{}');
-                    if (perms['employee-overtime'] && currentUser?.name !== 'MED Sabry') {
-                      return perms['employee-overtime'].includes(tab.id);
+                    if (perms['employee'] && currentUser?.name !== 'MED Sabry') {
+                      return perms['employee'].includes(tab.id);
                     }
                   } catch (e) { }
                   return true;
@@ -1352,7 +1352,7 @@ export default function EmployeeOvertimeTab() {
                         setLoading(true);
                         try {
                           for (const row of valid) {
-                            await fetch('/api/employee-overtime', {
+                            await fetch('/api/employee', {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
                               body: JSON.stringify({

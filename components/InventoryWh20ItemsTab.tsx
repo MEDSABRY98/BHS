@@ -9,7 +9,7 @@ import {
 import { useRouter } from 'next/navigation';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { addArabicFont } from '@/lib/pdfUtils';
+import { addArabicFont } from '@/lib/PdfUtils';
 import Loading from './Loading';
 import { NotificationContainer, NotificationType } from './Notification';
 
@@ -34,7 +34,7 @@ interface RowItem {
     pcsPerCtn: number;
 }
 
-export default function Wh20ItemsTab() {
+export default function InventoryWh20ItemsTab() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
@@ -45,16 +45,19 @@ export default function Wh20ItemsTab() {
     const [header, setHeader] = useState({
         date: new Date().toISOString().split('T')[0],
         receiverName: '',
+        customerName: '',
         destination: '',
         operationType: ''
     });
 
-    const [suggestions, setSuggestions] = useState<{ recipients: string[], destinations: string[] }>({
+    const [suggestions, setSuggestions] = useState<{ recipients: string[], destinations: string[], customers: string[] }>({
         recipients: [],
-        destinations: []
+        destinations: [],
+        customers: []
     });
 
     const [showRecipientDropdown, setShowRecipientDropdown] = useState(false);
+    const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
     const [showDestinationDropdown, setShowDestinationDropdown] = useState(false);
     const [showTypeDropdown, setShowTypeDropdown] = useState(false);
     const [showTagDropdown, setShowTagDropdown] = useState(false);
@@ -78,7 +81,7 @@ export default function Wh20ItemsTab() {
     ]);
 
     // Tab State
-    const [activeTab, setActiveTab] = useState<'entry' | 'search' | 'history' | 'people'>('entry');
+    const [activeTab, setActiveTab] = useState<'entry' | 'history' | 'people'>('entry');
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [rawHistory, setRawHistory] = useState<any[]>([]);
     const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
@@ -422,7 +425,10 @@ export default function Wh20ItemsTab() {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    header,
+                    header: {
+                        ...header,
+                        destination: header.customerName ? `${header.customerName} | ${header.destination}` : header.destination
+                    },
                     rows: validRows.map(r => ({
                         productName: r.productName,
                         barcode: r.barcode,
@@ -468,11 +474,28 @@ export default function Wh20ItemsTab() {
                 doc.setTextColor(148, 163, 184); // Slate 400
                 doc.text(label, x, y);
 
-                doc.setFontSize(13);
+                let fontSize = 13;
+                doc.setFontSize(fontSize);
                 doc.setTextColor(51, 65, 85); // Slate 700 (Value)
-                const splitValue = doc.splitTextToSize(value || '-', w - 10);
-                doc.text(splitValue, x + w / 2, y, { align: 'center' });
-                return y + (splitValue.length * 7);
+
+                // Labels take some space on the left, so let's give more space but keep it safe
+                const labelWidth = doc.getTextWidth(label + "  ");
+                const availableX = x + labelWidth;
+                const availableW = (x + w) - availableX - 5; // 5 units padding from right
+
+                let textWidth = doc.getTextWidth(value || '-');
+
+                // Automatically shrink font to fit in one line
+                while (textWidth > availableW && fontSize > 6) {
+                    fontSize -= 0.5;
+                    doc.setFontSize(fontSize);
+                    textWidth = doc.getTextWidth(value || '-');
+                }
+
+                // Place text in the middle of the available space, but ensure it doesn't overlap the label
+                const centerOfAvailable = availableX + (availableW / 2);
+                doc.text(value || '-', centerOfAvailable, y, { align: 'center' });
+                return y + 7;
             };
 
             const colW = (pageWidth - 40) / 2;
@@ -483,7 +506,11 @@ export default function Wh20ItemsTab() {
             currentY = row1BottomY + 4;
 
             currentY = drawHeaderItem("Receiver", header.receiverName, 20, pageWidth - 40, currentY) + 4;
-            currentY = drawHeaderItem("Destination & Description", header.destination, 20, pageWidth - 40, currentY) + 2;
+
+            if (header.customerName) {
+                currentY = drawHeaderItem("Customer", header.customerName, 20, pageWidth - 40, currentY) + 4;
+            }
+            currentY = drawHeaderItem("Description", header.destination, 20, pageWidth - 40, currentY) + 2;
 
             // Table
             const head = [["#", "Product", "Unit", "Qty", "Price", "Total"]];
@@ -554,7 +581,7 @@ export default function Wh20ItemsTab() {
 
             addNotification('Transfer saved and PDF generated successfully!', 'success');
             // Reset form: Clear header and clear Qty/Price only from rows
-            setHeader(prev => ({ ...prev, operationType: '', receiverName: '', destination: '' }));
+            setHeader(prev => ({ ...prev, operationType: '', receiverName: '', customerName: '', destination: '' }));
             setSelectedTag('');
             // Reset rows based on empty tag
             updateRowsByTag('');
@@ -613,11 +640,26 @@ export default function Wh20ItemsTab() {
                 doc.setTextColor(148, 163, 184); // Slate 400
                 doc.text(label, x, y);
 
-                doc.setFontSize(13);
+                let fontSize = 13;
+                doc.setFontSize(fontSize);
                 doc.setTextColor(51, 65, 85); // Slate 700 (Value)
-                const splitValue = doc.splitTextToSize(value || '-', w - 10);
-                doc.text(splitValue, x + w / 2, y, { align: 'center' });
-                return y + (splitValue.length * 7);
+
+                const labelWidth = doc.getTextWidth(label + "  ");
+                const availableX = x + labelWidth;
+                const availableW = (x + w) - availableX - 5;
+
+                let textWidth = doc.getTextWidth(value || '-');
+
+                // Automatically shrink font to fit in one line
+                while (textWidth > availableW && fontSize > 6) {
+                    fontSize -= 0.5;
+                    doc.setFontSize(fontSize);
+                    textWidth = doc.getTextWidth(value || '-');
+                }
+
+                const centerOfAvailable = availableX + (availableW / 2);
+                doc.text(value || '-', centerOfAvailable, y, { align: 'center' });
+                return y + 7;
             };
 
             const colW = (pageWidth - 40) / 2;
@@ -628,7 +670,16 @@ export default function Wh20ItemsTab() {
             currentY = row1BottomY + 4;
 
             currentY = drawHeaderItem("Receiver", firstRow.recipientName, 20, pageWidth - 40, currentY) + 4;
-            currentY = drawHeaderItem("Destination & Description", firstRow.destination, 20, pageWidth - 40, currentY) + 2;
+
+            const fullDest = firstRow.destination || '';
+            const hasSplit = fullDest.includes(' | ');
+            const customerPart = hasSplit ? fullDest.split(' | ')[0] : '';
+            const descPart = hasSplit ? fullDest.split(' | ')[1] : fullDest;
+
+            if (customerPart) {
+                currentY = drawHeaderItem("Customer", customerPart, 20, pageWidth - 40, currentY) + 4;
+            }
+            currentY = drawHeaderItem(customerPart ? "Description" : "Destination & Description", descPart, 20, pageWidth - 40, currentY) + 2;
 
             // Table
             // Table
@@ -916,18 +967,53 @@ export default function Wh20ItemsTab() {
                                 )}
                             </div>
 
-                            {/* Destination Input */}
-                            <div className="space-y-2 relative md:col-span-2 lg:col-span-4">
-                                <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                    <MapPin className="w-4 h-4 text-indigo-500" /> Destination & Description
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. Warehouse 3, Item usage..."
-                                    value={header.destination}
-                                    onChange={(e) => setHeader({ ...header, destination: e.target.value })}
-                                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                                />
+                            {/* Customer Name & Description */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 lg:col-span-4 mt-2">
+                                <div className="space-y-2 relative">
+                                    <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                        <User className="w-4 h-4 text-indigo-500" /> Customer Name
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="Enter customer name"
+                                        value={header.customerName}
+                                        onChange={(e) => setHeader({ ...header, customerName: e.target.value })}
+                                        onFocus={() => setShowCustomerDropdown(true)}
+                                        onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                                    />
+                                    {showCustomerDropdown && suggestions.customers.length > 0 && (
+                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                                            {suggestions.customers
+                                                .filter(c => c.toLowerCase().includes(header.customerName.toLowerCase()))
+                                                .map((c, i) => (
+                                                    <button
+                                                        key={i}
+                                                        type="button"
+                                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0"
+                                                        onMouseDown={() => {
+                                                            setHeader({ ...header, customerName: c });
+                                                            setShowCustomerDropdown(false);
+                                                        }}
+                                                    >
+                                                        {c}
+                                                    </button>
+                                                ))}
+                                        </div>
+                                    )}
+                                </div>
+                                <div className="space-y-2 relative">
+                                    <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                        <MapPin className="w-4 h-4 text-indigo-500" /> Description
+                                    </label>
+                                    <input
+                                        type="text"
+                                        placeholder="e.g. Warehouse 3, Item usage..."
+                                        value={header.destination}
+                                        onChange={(e) => setHeader({ ...header, destination: e.target.value })}
+                                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                                    />
+                                </div>
                             </div>
 
 

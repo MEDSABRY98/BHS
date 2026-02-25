@@ -6,6 +6,7 @@ import {
     updateLpoRecord,
     deleteLpoRecord,
     addLpoItemLog,
+    updateLpoItemLog,
     getLpoCustomers,
 } from '@/lib/googleSheets';
 
@@ -37,6 +38,7 @@ export async function GET() {
                 lpoVal: record.lpoValue,
                 invoiceVal: record.invoiceValue,
                 invoiceDate: record.invoiceDate,
+                invoiceNumber: record.invoiceNumber,
                 status: record.status,
                 reship: record.reship,
                 notes: record.notes,
@@ -55,8 +57,8 @@ export async function GET() {
 }
 
 // ── POST /api/delivery ─────────────────────────────────────────
-// Add new LPO record  OR  Add item log entry
-// body: { action: 'add_lpo' | 'add_item', ...data }
+// Add new LPO record  OR  Add/Update item log entry
+// body: { action: 'add_lpo' | 'add_item' | 'ship_item' | 'cancel_item', ...data }
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -86,6 +88,22 @@ export async function POST(request: Request) {
             const rowId = `R-${nextNum}`;
             await addLpoItemLog({ rowId, lpoId, itemName, status, shipmentValue: shipmentValue || 0 });
             return NextResponse.json({ success: true, rowId });
+        }
+
+        // ship_item / cancel_item: update the existing 'missing' row in LPO Items Logs
+        if (action === 'ship_item' || action === 'cancel_item') {
+            const { lpoId, itemName, shipmentValue } = body;
+            if (!lpoId || !itemName) {
+                return NextResponse.json({ error: 'Missing required fields: lpoId, itemName' }, { status: 400 });
+            }
+            const newStatus = action === 'ship_item' ? 'shipped' : 'canceled';
+            const result = await updateLpoItemLog({
+                lpoId,
+                itemName,
+                newStatus,
+                shipmentValue: shipmentValue || 0,
+            });
+            return NextResponse.json({ success: true, rowIndex: result.rowIndex });
         }
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

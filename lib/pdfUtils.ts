@@ -1,7 +1,7 @@
 'use client';
 
 // Helper function to load and add Arabic font to jsPDF
-import { getInvoiceType } from '@/lib/invoiceType';
+import { getInvoiceType } from '@/lib/InvoiceType';
 
 export async function generateBulkDebitSummaryPDF(
   customers: Array<{
@@ -1899,7 +1899,7 @@ export async function generateSalesRepReportPDF(data: {
   doc.setFontSize(13);
   doc.setTextColor(...colors.black);
   doc.setFont('helvetica', 'bold');
-  doc.text('PERFORMANCE', marginX + 10, y + 15);
+  doc.text('PERFORMANCE LAST 7 DAYS', marginX + 10, y + 15);
 
   // Legend
   const legendX = pageWidth - marginX - 60;
@@ -1916,61 +1916,61 @@ export async function generateSalesRepReportPDF(data: {
 
   y += 25;
   const chartHeightValue = 45;
-  const chartWidthValue = pageWidth - (marginX * 2) - 40;
+  const chartWidthValue = pageWidth - (marginX * 2) - 15;
   const chartDataToShowArr = data.chartData.slice(0, 7);
-  const activeDaysCount = Math.max(chartDataToShowArr.filter(d => d.visits > 0 || d.amount > 0).length, 1);
+  const activeDaysCount = chartDataToShowArr.length || 7;
 
   const maxVisitsVal = Math.max(...chartDataToShowArr.map(d => d.visits), 1);
   const maxAmountVal = Math.max(...chartDataToShowArr.map(d => d.amount), 1);
 
   const groupW = chartWidthValue / activeDaysCount;
-  const barW = groupW * 0.3;
-  const barGapVal = 4;
-  const chartStartX = marginX + 20;
+  const barW = groupW * 0.22;
+  const barGapVal = 3;
+  const chartStartX = marginX + 7.5;
 
-  let displayIdx = 0;
-  chartDataToShowArr.forEach((d) => {
-    if (d.visits > 0 || d.amount > 0) {
-      const gx = chartStartX + (displayIdx * groupW);
+  chartDataToShowArr.forEach((d, displayIdx) => {
+    const gx = chartStartX + (displayIdx * groupW);
 
-      // Amount Bar (Red)
-      const hAmt = (d.amount / maxAmountVal) * chartHeightValue;
-      if (d.amount > 0) {
-        doc.setFillColor(...colors.red);
-        doc.roundedRect(gx, y + chartHeightValue - hAmt, barW, hAmt, 1, 1, 'F');
-        doc.setFontSize(11);
-        doc.setTextColor(...colors.black);
-        doc.text(d.amount.toLocaleString(), gx + barW / 2, y + chartHeightValue - hAmt - 2, { align: 'center' });
-      } else {
-        doc.setFillColor(...colors.gray100);
-        doc.rect(gx, y + chartHeightValue - 2, barW, 2, 'F');
-      }
+    // Amount Bar (Red)
+    const hAmt = (d.amount / maxAmountVal) * chartHeightValue;
+    if (d.amount > 0) {
+      doc.setFillColor(...colors.red);
+      doc.roundedRect(gx, y + chartHeightValue - hAmt, barW, hAmt, 1, 1, 'F');
+      doc.setFontSize(8.5);
+      doc.setTextColor(...colors.black);
+      doc.text(d.amount.toLocaleString(), gx + barW / 2, y + chartHeightValue - hAmt - 2, { align: 'center' });
+    } else {
+      doc.setFillColor(...colors.gray100);
+      doc.rect(gx, y + chartHeightValue - 1, barW, 1, 'F');
+    }
 
-      // Visits Bar (Black)
-      const hVis = (d.visits / (maxVisitsVal * 2)) * chartHeightValue; // Scale visits to 50% max height
+    // Visits Bar (Black)
+    const hVis = (d.visits / (maxVisitsVal * 2)) * chartHeightValue; // Scale visits to 50% max height
+    if (d.visits > 0) {
       doc.setFillColor(...colors.black);
       doc.roundedRect(gx + barW + barGapVal, y + chartHeightValue - hVis, barW, hVis, 1, 1, 'F');
-      doc.setFontSize(11);
+      doc.setFontSize(8.5);
       doc.setTextColor(...colors.black);
       doc.text(d.visits.toString(), gx + barW + barGapVal + barW / 2, y + chartHeightValue - hVis - 2, { align: 'center' });
-
-      // Tag
-      doc.setFontSize(10);
-      doc.setTextColor(...colors.black);
-
-      let tagStr = '';
-      if (d.name) {
-        tagStr = String(d.name);
-      } else if (d.date) {
-        const dateObj = new Date(d.date);
-        const weekdayShort = dateObj.toLocaleDateString('en-GB', { weekday: 'short' });
-        const datePartStr = d.date.split('-').slice(1).reverse().join('/');
-        tagStr = `${weekdayShort} ${datePartStr}`;
-      }
-      doc.text(tagStr, gx + (barW * 2 + barGapVal) / 2, y + chartHeightValue + 8, { align: 'center' });
-
-      displayIdx++;
+    } else {
+      doc.setFillColor(...colors.gray200);
+      doc.rect(gx + barW + barGapVal, y + chartHeightValue - 1, barW, 1, 'F');
     }
+
+    // Tag
+    doc.setFontSize(8);
+    doc.setTextColor(...colors.black);
+
+    let tagStr = '';
+    if (d.name) {
+      tagStr = String(d.name);
+    } else if (d.date) {
+      const dateObj = new Date(d.date);
+      const weekdayShort = dateObj.toLocaleDateString('en-GB', { weekday: 'short' });
+      const datePartStr = d.date.split('-').slice(1).reverse().join('/');
+      tagStr = `${weekdayShort} ${datePartStr}`;
+    }
+    doc.text(tagStr, gx + (barW * 2 + barGapVal) / 2, y + chartHeightValue + 8, { align: 'center' });
   });
 
   y += chartHeightValue + 35;

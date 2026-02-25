@@ -1,0 +1,691 @@
+'use client';
+
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    Search, Package, ShoppingCart,
+    ArrowUpDown, RotateCw, RefreshCw, AlertCircle, FileDown,
+    ChevronLeft, ChevronRight
+} from 'lucide-react';
+import Loading from './Loading';
+import { OrderItem, ProductOrder as BaseProductOrder } from './InventoryProductOrdersMakeTab';
+import ProductSalesAnalysisModal from './ProductSalesAnalysisModal';
+
+// Ensure local interface matches BaseProductOrder so we can cast it.
+interface ProductOrder extends BaseProductOrder {
+    salesBreakdown?: { label: string; qty: number }[];
+    minQ?: number;
+    maxQ?: number;
+}
+
+interface Props {
+    orderItems: OrderItem[];
+    setOrderItems: (items: OrderItem[]) => void;
+}
+
+// ... Components ...
+const StatCard = ({ title, value, icon: Icon, color }: { title: string, value: number | string, icon: any, color: 'blue' | 'green' | 'red' | 'amber' }) => {
+    const styles = {
+        blue: { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: 'text-blue-600' },
+        green: { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-100', icon: 'text-green-600' },
+        red: { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100', icon: 'text-red-600' },
+        amber: { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100', icon: 'text-amber-600' },
+    };
+
+    const s = styles[color];
+
+    return (
+        <div className={`rounded-xl border ${s.border} bg-white p-5 shadow-sm hover:shadow-md transition-shadow`}>
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
+                    <div className={`text-2xl font-bold ${s.text}`}>{value}</div>
+                </div>
+                <div className={`p-3 rounded-lg ${s.bg}`}>
+                    <Icon className={`w-6 h-6 ${s.icon}`} />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default function InventoryProductOrdersTab({ orderItems, setOrderItems }: Props) {
+    const [products, setProducts] = useState<ProductOrder[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [sortField, setSortField] = useState<keyof ProductOrder>('tags');
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+
+    const [statusFilter, setStatusFilter] = useState<'all' | 'in_stock' | 'out_of_stock' | 'negative_stock'>('all');
+    const [packSizes, setPackSizes] = useState<Record<string, string>>({});
+    const [limits, setLimits] = useState<Record<string, { min: string, max: string }>>({});
+    const [activeTag, setActiveTag] = useState<string>('All');
+    const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+    // Modal State
+    const [selectedProductForAnalysis, setSelectedProductForAnalysis] = useState<ProductOrder | null>(null);
+
+    useEffect(() => {
+        fetchOrders();
+    }, []);
+
+    const fetchOrders = async () => {
+        try {
+            setLoading(true);
+            const res = await fetch('/api/inventory/orders');
+            const json = await res.json();
+
+            if (!res.ok) throw new Error(json.details || json.error || 'Failed to fetch orders data');
+
+            const data = json.data || [];
+            setProducts(data);
+
+            // Initialize pack sizes and limits
+            const initialPackSizes: Record<string, string> = {};
+            const initialLimits: Record<string, { min: string, max: string }> = {};
+
+            data.forEach((p: ProductOrder) => {
+                if (p.qinc) {
+                    initialPackSizes[p.productId] = p.qinc.toString();
+                }
+                const min = p.minQ !== undefined ? p.minQ.toString() : '';
+                const max = p.maxQ !== undefined ? p.maxQ.toString() : '';
+                initialLimits[p.productId] = { min, max };
+            });
+            setPackSizes(initialPackSizes);
+            setLimits(initialLimits);
+            setError(null);
+        } catch (err) {
+            console.error('Error loading orders:', err);
+            setError('Failed to load orders data');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const stats = useMemo(() => {
+        const totalProducts = products.length;
+        const negativeStock = products.filter(p => p.qtyFreeToUse < 0).length;
+        const outOfStock = products.filter(p => p.qtyFreeToUse === 0).length;
+
+        return { totalProducts, negativeStock, outOfStock };
+    }, [products]);
+
+    const tags = useMemo(() => {
+        const uniqueTags = new Set<string>();
+        uniqueTags.add('All');
+        products.forEach(p => {
+            if (p.tags) {
+                const tag = p.tags.trim();
+                if (tag) uniqueTags.add(tag);
+            } else {
+                uniqueTags.add('Uncategorized');
+            }
+        });
+        return Array.from(uniqueTags).sort();
+    }, [products]);
+
+    const filteredAndSortedProducts = useMemo(() => {
+        let result = [...products];
+
+        // Filter by Tag
+        if (activeTag !== 'All') {
+            if (activeTag === 'Uncategorized') {
+                result = result.filter(p => !p.tags || !p.tags.trim());
+            } else {
+                result = result.filter(p => p.tags && p.tags.trim() === activeTag);
+            }
+        }
+
+        // Filter by Search Query
+        if (searchQuery.trim()) {
+            const query = searchQuery.toLowerCase();
+            result = result.filter(p =>
+                p.productName.toLowerCase().includes(query) ||
+                p.barcode.toLowerCase().includes(query) ||
+                p.productId.toLowerCase().includes(query) ||
+                p.tags.toLowerCase().includes(query)
+            );
+        }
+
+        // Filter by Status
+        if (statusFilter !== 'all') {
+            result = result.filter(p => {
+                if (statusFilter === 'out_of_stock') return p.qtyFreeToUse === 0;
+                if (statusFilter === 'negative_stock') return p.qtyFreeToUse < 0;
+                if (statusFilter === 'in_stock') return p.qtyFreeToUse > 0;
+                return true;
+            });
+        }
+
+        // Sort
+        result.sort((a, b) => {
+            const aValue = a[sortField] || '';
+            const bValue = b[sortField] || '';
+
+            let comparison = 0;
+            if (typeof aValue === 'string' && typeof bValue === 'string') {
+                comparison = aValue.localeCompare(bValue);
+            } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+                comparison = aValue - bValue;
+            }
+
+            if (comparison !== 0) {
+                return sortDirection === 'asc' ? comparison : -comparison;
+            }
+
+            // Secondary Sort: Product Name
+            return a.productName.localeCompare(b.productName);
+        });
+
+        return result;
+    }, [products, searchQuery, statusFilter, sortField, sortDirection, activeTag]);
+
+    const groupedProducts = useMemo(() => {
+        const groups: Record<string, ProductOrder[]> = {};
+        filteredAndSortedProducts.forEach(p => {
+            const tag = p.tags?.trim() || 'Uncategorized';
+            if (!groups[tag]) groups[tag] = [];
+            groups[tag].push(p);
+        });
+        return groups;
+    }, [filteredAndSortedProducts]);
+
+    const toggleGroup = (tag: string) => {
+        setCollapsedGroups(prev => {
+            const next = new Set(prev);
+            if (next.has(tag)) next.delete(tag);
+            else next.add(tag);
+            return next;
+        });
+    };
+
+    const navigateTag = (direction: 'next' | 'prev') => {
+        if (tags.length <= 1) return;
+        const currentIndex = tags.indexOf(activeTag);
+        let nextIndex;
+        if (direction === 'next') {
+            nextIndex = (currentIndex + 1) % tags.length;
+        } else {
+            nextIndex = (currentIndex - 1 + tags.length) % tags.length;
+        }
+        setActiveTag(tags[nextIndex]);
+    };
+
+    const handleSort = (field: keyof ProductOrder) => {
+        if (sortField === field) {
+            setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+        } else {
+            setSortField(field);
+            setSortDirection('asc');
+        }
+    };
+
+    const getSortIcon = (field: keyof ProductOrder) => {
+        if (sortField !== field) return <ArrowUpDown className="w-4 h-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return <ArrowUpDown className={`w-4 h-4 text-blue-600 ${sortDirection === 'desc' ? 'transform rotate-180' : ''}`} />;
+    };
+
+    // Helper to handle order qty change
+    const handleOrderQtyChange = (product: ProductOrder, qtyStr: string) => {
+        const qty = parseInt(qtyStr);
+
+        if (isNaN(qty) || qty <= 0) {
+            // If empty string or invalid, remove from order logic could be debated.
+            // User: "don't delete the number visual input"
+            // But we display `orderItem.orderQty`. So if I type 0, it removes from list, and visual becomes empty or 0.
+            // Let's stick to standard behavior: if invalid/0, remove from list.
+            if (qtyStr === '' || qty === 0) {
+                setOrderItems(orderItems.filter(item => item.productId !== product.productId));
+            }
+            return;
+        }
+
+        const existingItemIndex = orderItems.findIndex(item => item.productId === product.productId);
+
+        if (existingItemIndex >= 0) {
+            // Update
+            const newItems = [...orderItems];
+            newItems[existingItemIndex] = { ...newItems[existingItemIndex], orderQty: qty };
+            setOrderItems(newItems);
+        } else {
+            // Add
+            setOrderItems([...orderItems, { ...product, orderQty: qty }]);
+        }
+    };
+
+    const handleQincSave = async (product: ProductOrder) => {
+        const val = packSizes[product.productId];
+        // If empty, treat as 1
+        const qincValue = val ? parseFloat(val) : 0;
+
+        // Optimistic update/No need to wait, but let's save to backend
+        try {
+            await fetch('/api/inventory/update-qinc', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rowIndex: product.rowIndex, qinc: qincValue })
+            });
+            // Optional: show toast/notification
+        } catch (error) {
+            console.error('Failed to save QINC', error);
+            // Revert or show error? For now, silent fail/log is okay as input persists state
+        }
+    };
+
+    const handleLimitSave = async (product: ProductOrder, field: 'minQ' | 'maxQ') => {
+        const val = field === 'minQ' ? limits[product.productId]?.min : limits[product.productId]?.max;
+        const numValue = val ? parseFloat(val) : 0;
+
+        try {
+            await fetch('/api/inventory/update-limit', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rowIndex: product.rowIndex, field, value: numValue })
+            });
+        } catch (error) {
+            console.error(`Failed to save ${field}`, error);
+        }
+    };
+
+    const handleExportExcel = async () => {
+        try {
+            const XLSX = await import('xlsx');
+
+            // Prepare data for export
+            const exportData = filteredAndSortedProducts.map(product => {
+                const packSize = parseFloat(packSizes[product.productId]) || 1;
+                const cartons = product.qtyFreeToUse / packSize;
+                const minLimit = limits[product.productId]?.min || '';
+                const maxLimit = limits[product.productId]?.max || '';
+
+                return {
+                    'Barcode': product.barcode || '---',
+                    'Product Name': product.productName,
+                    'Tags': product.tags || '',
+                    'Min (Ctn)': minLimit,
+                    'Max (Ctn)': maxLimit,
+                    'Free (Pcs)': product.qtyFreeToUse,
+                    'Free (Ctns)': cartons.toFixed(1),
+                    'Units/Carton': packSize
+                };
+            });
+
+            // Create worksheet
+            const ws = XLSX.utils.json_to_sheet(exportData);
+
+            // Set column widths
+            ws['!cols'] = [
+                { wch: 15 }, // Barcode
+                { wch: 35 }, // Product Name
+                { wch: 15 }, // Tags
+                { wch: 12 }, // Min
+                { wch: 12 }, // Max
+                { wch: 12 }, // Free Pcs
+                { wch: 12 }, // Free Ctns
+                { wch: 12 }  // Units/Carton
+            ];
+
+            // Create workbook
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'Inventory Orders');
+
+            // Generate filename with date
+            const today = new Date();
+            const dateStr = today.toISOString().slice(0, 10);
+            const filename = `Inventory_Orders_${dateStr}.xlsx`;
+
+            // Download
+            XLSX.writeFile(wb, filename);
+        } catch (error) {
+            console.error('Error exporting to Excel:', error);
+            alert('Failed to export Excel file');
+        }
+    };
+
+    if (loading && products.length === 0) return <Loading message="Loading Product Orders Data..." />;
+
+    if (error) {
+        return (
+            <div className="flex flex-col items-center justify-center p-12 bg-red-50 rounded-2xl border border-red-100 mt-4">
+                <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+                <h3 className="text-xl font-bold text-red-700 mb-2">Error Loading Data</h3>
+                <p className="text-red-500 mb-6">{error}</p>
+                <button
+                    onClick={fetchOrders}
+                    className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+                >
+                    <RotateCw className="w-4 h-4" /> Try Again
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="space-y-6 animate-in fade-in duration-500">
+            {/* Search & Stats Header */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <StatCard
+                    title="Total Products"
+                    value={stats.totalProducts}
+                    icon={Package}
+                    color="blue"
+                />
+                <StatCard
+                    title="Out of Stock (Zero)"
+                    value={stats.outOfStock}
+                    icon={ShoppingCart}
+                    color="amber"
+                />
+                <StatCard
+                    title="Negative Stock"
+                    value={stats.negativeStock}
+                    icon={AlertCircle}
+                    color="red"
+                />
+            </div>
+
+            <div className="flex flex-col gap-5 bg-white p-6 rounded-2xl border border-gray-200 shadow-sm">
+                {/* Row 1: Search Bar (Full Width) */}
+                <div className="relative w-full group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                        <Search className="h-5 w-5 text-gray-400 group-focus-within:text-blue-500 transition-colors" />
+                    </div>
+                    <input
+                        type="text"
+                        className="block w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all text-center placeholder:text-center shadow-sm"
+                        placeholder="Search products by name, barcode, or ID..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                </div>
+
+                {/* Row 2: Centered Filters & Right-aligned Actions */}
+                <div className="relative flex flex-col md:flex-row items-center justify-center gap-4 w-full">
+                    {/* Centered Dropdowns */}
+                    <div className="flex flex-wrap items-center justify-center gap-3">
+                        {/* Category Dropdown Navigation */}
+                        <div className="flex items-center gap-1.5">
+                            <div className="flex items-center bg-gray-50 border border-gray-200 rounded-lg p-0.5 shadow-sm">
+                                <button
+                                    onClick={() => navigateTag('prev')}
+                                    className="p-2 hover:bg-gray-200 rounded-md transition-all text-gray-400 hover:text-gray-600 active:scale-90"
+                                    title="Previous Category"
+                                >
+                                    <ChevronLeft className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={() => navigateTag('next')}
+                                    className="p-2 hover:bg-gray-200 rounded-md transition-all text-gray-400 hover:text-gray-600 active:scale-90"
+                                    title="Next Category"
+                                >
+                                    <ChevronRight className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="relative min-w-[220px]">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <Package className="h-4 w-4 text-gray-400" />
+                                </div>
+                                <select
+                                    value={activeTag}
+                                    onChange={(e) => setActiveTag(e.target.value)}
+                                    className="w-full pl-9 pr-8 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer hover:bg-white transition-all appearance-none shadow-sm"
+                                >
+                                    {tags.map(tag => (
+                                        <option key={tag} value={tag}>
+                                            {tag === 'All' ? 'All Categories' : tag}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div className="relative">
+                            <select
+                                value={statusFilter}
+                                onChange={(e) => setStatusFilter(e.target.value as any)}
+                                className="pl-4 pr-10 py-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm font-bold text-slate-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none cursor-pointer hover:bg-white transition-all appearance-none shadow-sm"
+                            >
+                                <option value="all">🔍 All Status</option>
+                                <option value="in_stock">✅ In Stock</option>
+                                <option value="out_of_stock">🔘 Out (Zero)</option>
+                                <option value="negative_stock">❌ Negative</option>
+                            </select>
+                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                <ArrowUpDown className="h-4 w-4 text-gray-400" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right-aligned Icon Buttons */}
+                    <div className="flex items-center gap-2 md:absolute md:right-0">
+                        <button
+                            onClick={handleExportExcel}
+                            disabled={filteredAndSortedProducts.length === 0}
+                            className={`p-2.5 rounded-xl border-2 transition-all ${filteredAndSortedProducts.length === 0
+                                ? 'bg-gray-50 border-gray-100 text-gray-200 cursor-not-allowed'
+                                : 'bg-white border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-100 hover:bg-green-50 active:scale-95 shadow-sm'
+                                }`}
+                            title="Export to Excel"
+                        >
+                            <FileDown className="w-5 h-5" />
+                        </button>
+                        <button
+                            onClick={fetchOrders}
+                            disabled={loading}
+                            className={`p-2.5 rounded-xl border-2 transition-all ${loading
+                                ? 'bg-blue-50 border-blue-100 text-blue-400 cursor-wait'
+                                : 'bg-white border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-100 hover:bg-blue-50 active:scale-95 shadow-sm'
+                                }`}
+                            title="Refresh Data"
+                        >
+                            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+
+
+            {/* Table */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+                <div>
+                    <table className="w-full border-collapse">
+                        <thead>
+                            <tr className="bg-gray-900 text-white">
+                                <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[15%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    onClick={() => handleSort('barcode')}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        Barcode
+                                        {getSortIcon('barcode')}
+                                    </div>
+                                </th>
+                                <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[30%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    onClick={() => handleSort('productName')}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        Product Name
+                                        {getSortIcon('productName')}
+                                    </div>
+                                </th>
+                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[9%] shadow-md">Min (Ctn)</th>
+                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[9%] shadow-md">Max (Ctn)</th>
+                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[9%] shadow-md">Units/Carton</th>
+                                <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    onClick={() => handleSort('qtyFreeToUse')}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        Stock (Pcs)
+                                        {getSortIcon('qtyFreeToUse')}
+                                    </div>
+                                </th>
+                                <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md"
+                                >
+                                    Stock (Ctns)
+                                </th>
+                                <th className="sticky top-20 z-30 bg-amber-600 text-white border border-amber-700 p-3 text-sm font-bold w-[9%] shadow-md text-center">Make Order</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {Object.entries(groupedProducts).map(([tag, productsInGroup]) => {
+                                const isCollapsed = collapsedGroups.has(tag);
+                                return (
+                                    <React.Fragment key={tag}>
+                                        {/* Group Header Row */}
+                                        <tr
+                                            className="bg-gray-100 border-y-2 border-gray-300 cursor-pointer hover:bg-gray-200 transition-colors"
+                                            onClick={() => toggleGroup(tag)}
+                                        >
+                                            <td colSpan={8} className="p-3 text-sm font-bold text-gray-700">
+                                                <div className="flex items-center justify-between w-full">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-blue-600 w-5 text-center transition-transform duration-200 inline-block"
+                                                            style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+                                                            ▼
+                                                        </span>
+                                                        <Package className="w-4 h-4 text-gray-500" />
+                                                        <span className="truncate max-w-[600px]">{tag}</span>
+                                                    </div>
+                                                    <span className="min-w-[75px] text-center px-3 py-1 bg-white border border-gray-300 rounded-full text-[10px] text-gray-500 font-bold shadow-sm whitespace-nowrap">
+                                                        {productsInGroup.length} items
+                                                    </span>
+                                                </div>
+                                            </td>
+                                        </tr>
+
+                                        {!isCollapsed && productsInGroup.map((product, idx) => {
+                                            const isLowStock = product.qtyFreeToUse > 0 && product.qtyFreeToUse < (product.salesQty || 0) * 0.25;
+                                            const isOutOfStock = product.qtyFreeToUse <= 0;
+                                            const orderItem = orderItems.find(item => item.productId === product.productId);
+                                            const orderQty = orderItem ? orderItem.orderQty : '';
+
+                                            const packSize = parseFloat(packSizes[product.productId]) || 1;
+                                            const cartons = product.qtyFreeToUse / packSize;
+
+                                            return (
+                                                <tr
+                                                    key={`${product.productId}-${idx}`}
+                                                    className="hover:bg-blue-50 group transition-colors"
+                                                >
+                                                    <td className="border border-gray-300 p-2 text-center">
+                                                        <span className="font-mono text-sm text-gray-700 font-bold bg-gray-50 px-2 py-1 rounded border border-gray-200 block w-full">
+                                                            {product.barcode || '---'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="border border-gray-300 p-2 text-center">
+                                                        <div className="flex flex-col items-center">
+                                                            <span className="font-semibold text-gray-800 text-sm leading-snug group-hover:text-blue-700">
+                                                                {product.productName}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    {/* Min Q input */}
+                                                    <td className="border border-gray-300 p-2 bg-indigo-50/30">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-white bg-transparent text-indigo-900"
+                                                            placeholder="Min"
+                                                            value={limits[product.productId]?.min || ''}
+                                                            onChange={(e) => setLimits(prev => ({
+                                                                ...prev,
+                                                                [product.productId]: { ...prev[product.productId], min: e.target.value }
+                                                            }))}
+                                                            onBlur={() => handleLimitSave(product, 'minQ')}
+                                                        />
+                                                    </td>
+                                                    {/* Max Q input */}
+                                                    <td className="border border-gray-300 p-2 bg-indigo-50/30">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-white bg-transparent text-indigo-900"
+                                                            placeholder="Max"
+                                                            value={limits[product.productId]?.max || ''}
+                                                            onChange={(e) => setLimits(prev => ({
+                                                                ...prev,
+                                                                [product.productId]: { ...prev[product.productId], max: e.target.value }
+                                                            }))}
+                                                            onBlur={() => handleLimitSave(product, 'maxQ')}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 p-2 bg-indigo-50/30">
+                                                        <input
+                                                            type="number"
+                                                            min="1"
+                                                            className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-white bg-transparent text-indigo-900"
+                                                            placeholder=""
+                                                            value={packSizes[product.productId] || ''}
+                                                            onChange={(e) => setPackSizes(prev => ({ ...prev, [product.productId]: e.target.value }))}
+                                                            onBlur={() => handleQincSave(product)}
+                                                        />
+                                                    </td>
+                                                    <td className="border border-gray-300 p-2 text-center">
+                                                        <div className="flex flex-col items-center relative gap-1">
+                                                            <span className={`text-base font-bold ${isOutOfStock ? 'text-red-600' : isLowStock ? 'text-amber-600' : 'text-emerald-600'
+                                                                }`}>
+                                                                {product.qtyFreeToUse}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="border border-gray-300 p-2 text-center">
+                                                        <span className="font-bold text-gray-700 text-sm">
+                                                            {cartons.toFixed(1)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="border border-gray-300 p-2 bg-amber-50">
+                                                        <input
+                                                            type="number"
+                                                            min="0"
+                                                            className="w-full px-1 py-1 text-base text-center font-bold focus:outline-none focus:bg-white bg-transparent text-amber-900"
+                                                            placeholder=""
+                                                            value={orderQty}
+                                                            onChange={(e) => handleOrderQtyChange(product, e.target.value)}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+
+                </div>
+                {filteredAndSortedProducts.length === 0 && (
+                    <div className="py-20 text-center flex flex-col items-center justify-center text-gray-400">
+                        <Package className="w-16 h-16 mb-4 opacity-20" />
+                        <p className="text-lg font-semibold">No products found</p>
+                        <p className="text-sm">Try adjusting your search criteria</p>
+                    </div>
+                )}
+                <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 text-xs text-gray-500">
+                    Showing {filteredAndSortedProducts.length} of {products.length} products
+                </div>
+            </div>
+
+            {/* Analysis Modal */}
+            {
+                selectedProductForAnalysis && (
+                    <ProductSalesAnalysisModal
+                        product={selectedProductForAnalysis}
+                        isOpen={!!selectedProductForAnalysis}
+                        onClose={() => setSelectedProductForAnalysis(null)}
+                        packSize={parseFloat(packSizes[selectedProductForAnalysis.productId]) || 1}
+                    />
+                )
+            }
+        </div >
+    );
+}

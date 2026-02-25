@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { saveCashReceipt, getLastReceiptNumber, getAllReceipts } from '@/lib/cashReceipt';
+import { saveCashReceipt, getLastReceiptNumber, getAllReceipts } from '@/lib/CashReceipt';
 
 export async function GET(request: Request) {
     try {

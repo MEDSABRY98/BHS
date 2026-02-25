@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X } from 'lucide-react';
-import { generateWaterDeliveryNotePDF } from '@/lib/pdfUtils';
+import { generateWaterDeliveryNotePDF } from '@/lib/PdfUtils';
 import { NotificationContainer, NotificationType } from '@/components/Notification';
 import Loading from '@/components/Loading';
 

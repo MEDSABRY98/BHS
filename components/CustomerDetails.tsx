@@ -30,7 +30,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X } from 'lucide-react';
-import { getInvoiceType } from '@/lib/invoiceType';
+import { getInvoiceType } from '@/lib/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 
 interface CustomerDetailsProps {
@@ -473,7 +473,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
       // Build PDFs + per-customer net debt lines
       const monthsLabel = 'All Months (Net Only)';
-      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
 
       const attachments: Array<{ fileName: string; base64: string }> = [];
       const debtByCustomer: Array<{ customer: string; netDebt: number }> = [];
@@ -1841,7 +1841,7 @@ ${debtSectionHtml}
 
       const monthsLabel = 'All Months (Net Only)';
 
-      const { generateAccountStatementPDF } = await import('@/lib/pdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
       await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
 
     } catch (error) {
@@ -2028,7 +2028,7 @@ ${debtSectionHtml}
         exportToExcel(finalInvoices, monthsLabel);
       } else {
         // Export to PDF
-        const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/pdfUtils');
+        const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/PdfUtils');
 
         if (exportMode === 'separated') {
           await generateMonthlySeparatedPDF(customerName, finalInvoices);
