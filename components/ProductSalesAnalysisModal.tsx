@@ -9,7 +9,7 @@ import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid,
     Tooltip, ResponsiveContainer, BarChart, Bar, Cell
 } from 'recharts';
-import { ProductOrder } from './ProductOrdersMakeTab';
+import { ProductOrder } from './InventoryProductOrdersMakeTab';
 
 // Extended interface locally if needed, though we expect the one passed from parent to have salesBreakdown
 interface ExtendedProductOrder extends ProductOrder {
