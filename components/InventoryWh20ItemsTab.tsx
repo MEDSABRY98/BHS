@@ -670,15 +670,23 @@ export default function InventoryWh20ItemsTab() {
 
             currentY = drawHeaderItem("Receiver", firstRow.recipientName, 20, pageWidth - 40, currentY) + 4;
 
-            const fullDest = firstRow.destination || '';
-            const hasSplit = fullDest.includes(' | ');
-            const customerPart = hasSplit ? fullDest.split(' | ')[0] : '';
-            const descPart = hasSplit ? fullDest.split(' | ')[1] : fullDest;
+            let customerPart = firstRow.customerName || '';
+            let descPart = firstRow.description || '';
+
+            // Legacy support: If customerName contains the ' | ' separator, it means it's an old record
+            // where the combined "Customer | Description" was stored in this column.
+            if (customerPart.includes(' | ')) {
+                const parts = customerPart.split(' | ');
+                customerPart = parts[0].trim();
+                descPart = parts[1].trim();
+            }
 
             if (customerPart) {
                 currentY = drawHeaderItem("Customer", customerPart, 20, pageWidth - 40, currentY) + 4;
             }
-            currentY = drawHeaderItem(customerPart ? "Description" : "Destination & Description", descPart, 20, pageWidth - 40, currentY) + 2;
+            if (descPart) {
+                currentY = drawHeaderItem("Description", descPart, 20, pageWidth - 40, currentY) + 2;
+            }
 
             // Table
             // Table
