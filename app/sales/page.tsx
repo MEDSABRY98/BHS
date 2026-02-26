@@ -10,6 +10,7 @@ import SalesDailySalesTab from '@/components/SalesDailySalesTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
+import SalesComparisonTab from '@/components/SalesComparisonTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -211,6 +212,7 @@ export default function SalesPage() {
   const allTabs = [
     { id: 'sales-overview', label: 'Overview' },
     { id: 'sales-top10', label: 'Top 10' },
+    { id: 'sales-comparison', label: 'Comparison' },
     { id: 'sales-customers', label: 'Customers' },
     { id: 'sales-invoice-details', label: 'Invoice Details' },
     { id: 'sales-inactive-customers', label: 'Inactive' },
@@ -247,6 +249,8 @@ export default function SalesPage() {
         return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
       case 'sales-top10':
         return <SalesTop10Tab data={globallyFilteredData} loading={loading} />;
+      case 'sales-comparison':
+        return <SalesComparisonTab data={globallyFilteredData} loading={loading} />;
       case 'sales-customers':
         return <SalesCustomersTab data={globallyFilteredData} loading={loading} onUploadMapping={handleUploadMapping} />;
       case 'sales-invoice-details':

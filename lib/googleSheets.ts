@@ -3510,14 +3510,15 @@ export async function getVisitCustomersData(): Promise<VisitCustomerEntry[]> {
     if (!rows || rows.length === 0) return [];
 
     // Skip header
-    return rows.slice(1).map(row => ({
+    return rows.slice(1).map((row, index) => ({
       date: row[0] || '',
       customerName: row[1] || '',
       city: row[2] || '',
       salesRepName: row[3] || '',
       collectMoney: row[4] || '',
       howMuchCollectMoney: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
-      notes: row[6] || ''
+      notes: row[6] || '',
+      rowIndex: index + 2
     })).filter(e => e.customerName);
   } catch (error) {
     console.error('Error fetching Visit Customers data:', error);
@@ -3554,6 +3555,39 @@ export async function addVisitCustomerEntry(entries: VisitCustomerEntry | VisitC
     return { success: true };
   } catch (error) {
     console.error('Error adding Visit Customer entries:', error);
+    throw error;
+  }
+}
+
+export async function updateVisitCustomerEntry(rowIndex: number, entry: VisitCustomerEntry) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Visit Customers'!A${rowIndex}:G${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[
+          entry.date,
+          entry.customerName,
+          entry.city,
+          entry.salesRepName,
+          entry.collectMoney,
+          entry.howMuchCollectMoney,
+          entry.notes
+        ]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating Visit Customer entry:', error);
     throw error;
   }
 }

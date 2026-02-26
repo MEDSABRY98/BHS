@@ -128,6 +128,8 @@ export default function VisitCustomersTab() {
     const [selectedRep, setSelectedRep] = useState<string | null>(null);
     const [customerBalances, setCustomerBalances] = useState<Record<string, number>>({});
     const [notification, setNotification] = useState<{ message: string, type: 'error' | 'success' | 'info' } | null>(null);
+    const [editingVisit, setEditingVisit] = useState<VisitCustomerEntry | null>(null);
+    const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
 
     const showNotification = (message: string, type: 'error' | 'success' | 'info' = 'error') => {
         setNotification({ message, type });
@@ -299,6 +301,34 @@ export default function VisitCustomersTab() {
         } catch (error) {
             console.error('Error saving records:', error);
             showNotification('Error saving records. Please try again.', 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdateVisit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editingVisit || !editingVisit.rowIndex) return;
+
+        setLoading(true);
+        try {
+            const response = await fetch('/api/visit-customers', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(editingVisit)
+            });
+
+            if (response.ok) {
+                showNotification('Record updated successfully!', 'success');
+                setIsEditPopupOpen(false);
+                setEditingVisit(null);
+                fetchData();
+            } else {
+                showNotification('Failed to update record.', 'error');
+            }
+        } catch (error) {
+            console.error('Error updating record:', error);
+            showNotification('Error updating record.', 'error');
         } finally {
             setLoading(false);
         }
@@ -838,6 +868,8 @@ export default function VisitCustomersTab() {
                             onBack={() => setSelectedRep(null)}
                             showNotification={showNotification}
                             customerBalances={customerBalances}
+                            setEditingVisit={setEditingVisit}
+                            setIsEditPopupOpen={setIsEditPopupOpen}
                         />
                     ) : (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -862,7 +894,15 @@ export default function VisitCustomersTab() {
                                                         {filteredData.map((entry, idx) => (
                                                             <tr key={idx} className="hover:bg-slate-50 transition-colors group">
                                                                 <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <span className="text-sm font-black text-slate-900">{entry.date}</span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingVisit({ ...entry });
+                                                                            setIsEditPopupOpen(true);
+                                                                        }}
+                                                                        className="text-sm font-black text-slate-900 hover:text-pink-600 transition-colors"
+                                                                    >
+                                                                        {entry.date}
+                                                                    </button>
                                                                 </td>
                                                                 <td className="px-6 py-5 whitespace-nowrap">
                                                                     <div className="flex flex-col items-center">
@@ -976,7 +1016,7 @@ export default function VisitCustomersTab() {
                         </div>
                     )}
                 </div>
-            </main>
+            </main >
 
 
             <style jsx>{`
@@ -991,46 +1031,181 @@ export default function VisitCustomersTab() {
                 }
             `}</style>
 
-            {/* Custom Premium Notification */}
-            {notification && (
-                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-8 max-w-sm w-full text-center space-y-6 animate-in zoom-in-95 duration-300">
-                        <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${notification.type === 'error' ? 'bg-rose-50 text-rose-500' :
-                            notification.type === 'success' ? 'bg-emerald-50 text-emerald-500' :
-                                'bg-blue-50 text-blue-500'
-                            }`}>
-                            {notification.type === 'error' && <AlertTriangle className="w-10 h-10" />}
-                            {notification.type === 'success' && <CheckCircle2 className="w-10 h-10" />}
-                            {notification.type === 'info' && <Info className="w-10 h-10" />}
-                        </div>
+            {/* Visit Edit Popup */}
+            {
+                isEditPopupOpen && editingVisit && (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-8 max-w-2xl w-full space-y-6 animate-in zoom-in-95 duration-300">
+                            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+                                <h3 className="text-xl font-black text-slate-900 leading-tight">Edit Visit Details</h3>
+                                <button onClick={() => setIsEditPopupOpen(false)} className="p-2 hover:bg-slate-100 rounded-full transition-all">
+                                    <XCircle className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
 
-                        <div className="space-y-2">
-                            <h3 className="text-xl font-black text-slate-900 leading-tight">
-                                {notification.type === 'error' ? 'Something went wrong' :
-                                    notification.type === 'success' ? 'Perfect!' : 'Notice'}
-                            </h3>
-                            <p className="text-slate-500 font-bold text-sm leading-relaxed">
-                                {notification.message}
-                            </p>
-                        </div>
+                            <form onSubmit={handleUpdateVisit} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Date</label>
+                                        <input
+                                            type="text"
+                                            value={editingVisit.date}
+                                            onChange={(e) => setEditingVisit({ ...editingVisit, date: e.target.value })}
+                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none"
+                                        />
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label>
+                                        <input
+                                            type="text"
+                                            value={editingVisit.city || ''}
+                                            onChange={(e) => setEditingVisit({ ...editingVisit, city: e.target.value })}
+                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none"
+                                        />
+                                    </div>
+                                </div>
 
-                        <button
-                            onClick={() => setNotification(null)}
-                            className={`w-full py-4 rounded-2xl font-black text-white transition-all transform active:scale-95 shadow-lg ${notification.type === 'error' ? 'bg-rose-500 shadow-rose-200' :
-                                notification.type === 'success' ? 'bg-emerald-500 shadow-emerald-200' :
-                                    'bg-slate-900 shadow-slate-200'
-                                }`}
-                        >
-                            Understood
-                        </button>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Customer Name</label>
+                                    <SearchableSelect
+                                        value={editingVisit.customerName}
+                                        onChange={(val) => setEditingVisit({ ...editingVisit, customerName: val })}
+                                        options={customers}
+                                        placeholder="Customer"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Sales Representative</label>
+                                    <SearchableSelect
+                                        value={editingVisit.salesRepName}
+                                        onChange={(val) => setEditingVisit({ ...editingVisit, salesRepName: val })}
+                                        options={salesReps}
+                                        placeholder="Representative"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Collect Money?</label>
+                                        <div className="flex bg-slate-50 rounded-xl p-1 gap-1">
+                                            {['Yes', 'No'].map(opt => (
+                                                <button
+                                                    key={opt}
+                                                    type="button"
+                                                    onClick={() => setEditingVisit({ ...editingVisit, collectMoney: opt })}
+                                                    className={`flex-1 py-3 rounded-lg text-xs font-black transition-all ${editingVisit.collectMoney === opt
+                                                        ? 'bg-slate-900 text-white shadow-md'
+                                                        : 'text-slate-400 hover:text-slate-600'
+                                                        }`}
+                                                >
+                                                    {opt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Amount (AED)</label>
+                                        <input
+                                            type="number"
+                                            value={editingVisit.howMuchCollectMoney}
+                                            onChange={(e) => setEditingVisit({ ...editingVisit, howMuchCollectMoney: parseFloat(e.target.value) || 0 })}
+                                            disabled={editingVisit.collectMoney === 'No'}
+                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent rounded-xl text-sm font-black text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none disabled:opacity-30"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">Notes</label>
+                                    <textarea
+                                        value={editingVisit.notes || ''}
+                                        onChange={(e) => setEditingVisit({ ...editingVisit, notes: e.target.value })}
+                                        rows={3}
+                                        className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none resize-none"
+                                    />
+                                </div>
+
+                                <div className="flex gap-4 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsEditPopupOpen(false)}
+                                        className="flex-1 py-4 rounded-2xl font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="flex-1 py-4 rounded-2xl font-black text-white bg-slate-900 hover:bg-black transition-all shadow-xl shadow-slate-200 disabled:opacity-50"
+                                    >
+                                        {loading ? 'Saving...' : 'Save Changes'}
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+
+            {/* Custom Premium Notification */}
+            {
+                notification && (
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 p-8 max-w-sm w-full text-center space-y-6 animate-in zoom-in-95 duration-300">
+                            <div className={`w-20 h-20 mx-auto rounded-full flex items-center justify-center ${notification.type === 'error' ? 'bg-rose-50 text-rose-500' :
+                                notification.type === 'success' ? 'bg-emerald-50 text-emerald-500' :
+                                    'bg-blue-50 text-blue-500'
+                                }`}>
+                                {notification.type === 'error' && <AlertTriangle className="w-10 h-10" />}
+                                {notification.type === 'success' && <CheckCircle2 className="w-10 h-10" />}
+                                {notification.type === 'info' && <Info className="w-10 h-10" />}
+                            </div>
+
+                            <div className="space-y-2">
+                                <h3 className="text-xl font-black text-slate-900 leading-tight">
+                                    {notification.type === 'error' ? 'Something went wrong' :
+                                        notification.type === 'success' ? 'Perfect!' : 'Notice'}
+                                </h3>
+                                <p className="text-slate-500 font-bold text-sm leading-relaxed">
+                                    {notification.message}
+                                </p>
+                            </div>
+
+                            <button
+                                onClick={() => setNotification(null)}
+                                className={`w-full py-4 rounded-2xl font-black text-white transition-all transform active:scale-95 shadow-lg ${notification.type === 'error' ? 'bg-rose-500 shadow-rose-200' :
+                                    notification.type === 'success' ? 'bg-emerald-500 shadow-emerald-200' :
+                                        'bg-slate-900 shadow-slate-200'
+                                    }`}
+                            >
+                                Understood
+                            </button>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }
 
-function SalesRepDetailView({ details, onBack, period, showNotification, customerBalances }: { details: any; onBack: () => void; period: string; showNotification: (m: string, t?: any) => void; customerBalances: Record<string, number> }) {
+function SalesRepDetailView({
+    details,
+    onBack,
+    period,
+    showNotification,
+    customerBalances,
+    setEditingVisit,
+    setIsEditPopupOpen
+}: {
+    details: any;
+    onBack: () => void;
+    period: string;
+    showNotification: (m: string, t?: any) => void;
+    customerBalances: Record<string, number>;
+    setEditingVisit: (v: VisitCustomerEntry | null) => void;
+    setIsEditPopupOpen: (o: boolean) => void;
+}) {
     const [subTab, setSubTab] = useState<'visits' | 'daily'>('visits');
     if (!details) return null;
 
@@ -1307,7 +1482,17 @@ function SalesRepDetailView({ details, onBack, period, showNotification, custome
                             <tbody className="divide-y divide-slate-50">
                                 {details.visits.map((v: any, i: number) => (
                                     <tr key={i} className="hover:bg-slate-50/50 transition-colors group">
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-slate-900">{v.date}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingVisit({ ...v });
+                                                    setIsEditPopupOpen(true);
+                                                }}
+                                                className="text-sm font-black text-slate-900 hover:text-pink-600 transition-colors"
+                                            >
+                                                {v.date}
+                                            </button>
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex flex-col items-center">
                                                 <span className="text-sm font-black text-slate-900">{v.customerName}</span>

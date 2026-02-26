@@ -564,6 +564,7 @@ export default function DeliveryTrackingTab() {
                     total: 0,
                     delivered: 0,
                     partial: 0,
+                    pending: 0,
                     withCancel: 0,
                     missingCount: 0,
                     reshippedCount: 0,
@@ -574,6 +575,7 @@ export default function DeliveryTrackingTab() {
             c.total += 1;
             if (o.status === 'delivered') c.delivered += 1;
             if (o.status === 'partial') c.partial += 1;
+            if (o.status === 'pending') c.pending += 1;
             if (o.status === 'delivered_with_cancel') c.withCancel += 1;
             c.missingCount += (o.missing?.length || 0);
             c.reshippedCount += (o.shippedItems?.length || 0);
@@ -1184,25 +1186,35 @@ export default function DeliveryTrackingTab() {
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Total Orders</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#059669]">Delivered</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#D97706]">Partial</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-amber-500">Pending</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#7C3AED]">With Cancel</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-orange-600">Pending Items</th>
-                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-green-600">Reshipped</th>
-                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-600">Canceled</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-green-600">Reshipped Items</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-600">Canceled Items</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {customerStats.map((c: any, i) => (
-                                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.total}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-purple-600 bg-purple-50/30">{c.withCancel}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
+                                            {customerStats.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={9} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                        No data yet
+                                                    </td>
                                                 </tr>
-                                            ))}
+                                            ) : (
+                                                customerStats.map((c: any, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.total}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-purple-600 bg-purple-50/30">{c.withCancel}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
+                                                    </tr>
+                                                ))
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1233,15 +1245,23 @@ export default function DeliveryTrackingTab() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {productStats.map((p: any, i) => (
-                                                <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{p.name}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{p.pending}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{p.shipped}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
-                                                    <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">{p.pending + p.shipped + p.canceled}</td>
+                                            {productStats.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={5} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                        No data yet
+                                                    </td>
                                                 </tr>
-                                            ))}
+                                            ) : (
+                                                productStats.map((p: any, i) => (
+                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{p.name}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{p.pending}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{p.shipped}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">{p.pending + p.shipped + p.canceled}</td>
+                                                    </tr>
+                                                ))
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>

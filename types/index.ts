@@ -114,4 +114,5 @@ export interface VisitCustomerEntry {
   collectMoney: string;
   howMuchCollectMoney: number;
   notes: string;
+  rowIndex?: number;
 }
