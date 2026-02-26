@@ -30,10 +30,11 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
 
   // Check for dynamic JSON permission structure
   try {
+    const userName = currentUser?.name?.toLowerCase() || '';
     const perms = JSON.parse(currentUser?.role || '{}');
     // If role contains specific debit_tabs, filter by them
     // Otherwise, and for MED Sabry, show all tabs
-    if (perms.debit_tabs && currentUser?.name !== 'MED Sabry') {
+    if (perms.debit_tabs && userName !== 'med sabry') {
       tabs = allTabs.filter(tab => perms.debit_tabs.includes(tab.id));
     }
   } catch (e) {

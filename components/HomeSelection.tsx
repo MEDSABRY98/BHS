@@ -132,16 +132,20 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
   const nav = (path: string) => () => window.location.href = path;
 
   const isSystemAllowed = (systemId: string) => {
-    if (currentUser?.name === 'MED Sabry') return true;
+    const userName = currentUser?.name?.toLowerCase() || '';
+    if (userName === 'med sabry') return true;
+
     try {
-      const perms = JSON.parse(currentUser?.role || '{}');
+      const roleStr = currentUser?.role || '';
+      if (!roleStr) return true; // Default to true if no role
+
+      const perms = JSON.parse(roleStr);
       // If the user has dynamic permissions set (JSON role), follow them
-      // If no permissions are set yet, grant full access by default as requested
       if (perms.systems) {
         return perms.systems.includes(systemId);
       }
     } catch (e) {
-      // Not JSON or error, full access by default
+      // Not JSON or error, full access by default as requested
     }
     return true;
   };

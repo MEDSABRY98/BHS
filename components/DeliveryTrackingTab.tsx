@@ -103,14 +103,29 @@ export default function DeliveryTrackingTab() {
             const saved = localStorage.getItem('currentUser');
             if (!saved) return [];
             const user = JSON.parse(saved);
-            // Admin users get all permissions automatically
-            if (user.role === 'Admin' || user.name === 'MED Sabry') {
+
+            // Normalize name and role for comparison
+            const userName = user.name?.toLowerCase() || '';
+            const userRole = user.role || '';
+
+            // FULL ACCESS for MED Sabry or Admin role
+            if (userRole === 'Admin' || userName === 'med sabry') {
                 return ['add', 'edit', 'delete', 'download', 'reship'];
             }
-            const perms = JSON.parse(user.role || '{}');
+
+            // Attempt to parse JSON role
+            let perms: any = {};
+            try {
+                perms = JSON.parse(userRole);
+            } catch (e) {
+                // Not JSON, return empty actions
+                return [];
+            }
+
             return perms['delivery-tracking-actions'] || [];
         } catch { return []; }
-    }, []);
+    }, [isLoading]); // Added isLoading as a dependency to re-check after data fetches if needed, but primarily to fix the empty array issue if it was a mounting race.
+    // ────────────────────────────────────────────────────────
     const canAdd = deliveryActions.includes('add');
     const canEdit = deliveryActions.includes('edit');
     const canDelete = deliveryActions.includes('delete');
