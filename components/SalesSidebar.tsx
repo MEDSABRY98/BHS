@@ -13,6 +13,7 @@ interface SalesSidebarProps {
 export default function SalesSidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated }: SalesSidebarProps) {
   const allTabs = [
     { id: 'sales-overview', label: 'Overview', icon: '📊' },
+    { id: 'sales-comparison', label: 'Comparison', icon: '🔄' },
     { id: 'sales-top10', label: 'TOP10', icon: '🏆' },
     { id: 'sales-customers', label: 'Customers', icon: '👥' },
     { id: 'sales-inactive-customers', label: 'Inactive Customers', icon: '⚠️' },
@@ -53,8 +54,8 @@ export default function SalesSidebar({ activeTab, onTabChange, onLogout, current
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
             className={`w-full text-left p-4 mb-2 rounded-lg transition-colors flex items-center ${activeTab === tab.id
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-gray-300'
               }`}
           >
             <span className="mr-3 text-xl">{tab.icon}</span>

@@ -37,6 +37,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'sales': [
         { id: 'sales-overview', label: 'Overview' },
+        { id: 'sales-comparison', label: 'Comparison' },
         { id: 'sales-top10', label: 'Top 10' },
         { id: 'sales-customers', label: 'Customers' },
         { id: 'sales-invoice-details', label: 'Invoice Details' },
@@ -161,14 +162,14 @@ export default function AdminPanel() {
     const handleToggleSystem = (systemId: string) => {
         if (!selectedUser) return;
         const perms = parsePermissions(selectedUser.role);
-        const systems = perms.systems || [];
-        const isEnabled = systems.includes(systemId);
+        const currentSystems = perms.systems !== undefined ? perms.systems : SYSTEMS.map(s => s.id);
+        const isEnabled = currentSystems.includes(systemId);
 
         let newSystems;
         if (isEnabled) {
-            newSystems = systems.filter((id: string) => id !== systemId);
+            newSystems = currentSystems.filter((id: string) => id !== systemId);
         } else {
-            newSystems = [...systems, systemId];
+            newSystems = [...currentSystems, systemId];
         }
 
         setSelectedUser({
@@ -181,10 +182,10 @@ export default function AdminPanel() {
         if (!selectedUser) return;
         const perms = parsePermissions(selectedUser.role);
         const key = systemId === 'debit' ? 'debit_tabs' : systemId;
-        const tabs = perms[key] || [];
-        const newTabs = tabs.includes(tabId)
-            ? tabs.filter((id: string) => id !== tabId)
-            : [...tabs, tabId];
+        const currentTabs = perms[key] !== undefined ? perms[key] : (SYSTEM_SUBTABS[systemId] || []).map(t => t.id);
+        const newTabs = currentTabs.includes(tabId)
+            ? currentTabs.filter((id: string) => id !== tabId)
+            : [...currentTabs, tabId];
         setSelectedUser({ ...selectedUser, role: JSON.stringify({ ...perms, [key]: newTabs }) });
     };
 
@@ -192,10 +193,10 @@ export default function AdminPanel() {
         if (!selectedUser) return;
         const perms = parsePermissions(selectedUser.role);
         const key = `${systemId}-actions`;
-        const actions = perms[key] || [];
-        const newActions = actions.includes(actionId)
-            ? actions.filter((id: string) => id !== actionId)
-            : [...actions, actionId];
+        const currentActions = perms[key] !== undefined ? perms[key] : (SYSTEM_ACTIONS[systemId] || []).map(a => a.id);
+        const newActions = currentActions.includes(actionId)
+            ? currentActions.filter((id: string) => id !== actionId)
+            : [...currentActions, actionId];
         setSelectedUser({ ...selectedUser, role: JSON.stringify({ ...perms, [key]: newActions }) });
     };
 
@@ -232,10 +233,10 @@ export default function AdminPanel() {
         const subTabs = [...(SYSTEM_SUBTABS[modalSystem] || [])].sort((a, b) => a.label.localeCompare(b.label));
         const perms = parsePermissions(selectedUser.role);
         const key = modalSystem === 'debit' ? 'debit_tabs' : modalSystem;
-        const enabledTabs = perms[key] || [];
+        const enabledTabs = perms[key] !== undefined ? perms[key] : subTabs.map(t => t.id);
         const systemActions = SYSTEM_ACTIONS[modalSystem] || [];
         const actionsKey = `${modalSystem}-actions`;
-        const enabledActions = perms[actionsKey] || [];
+        const enabledActions = perms[actionsKey] !== undefined ? perms[actionsKey] : systemActions.map(a => a.id);
         const hasActions = systemActions.length > 0;
 
         return (
@@ -426,7 +427,9 @@ export default function AdminPanel() {
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         {[...SYSTEMS].sort((a, b) => a.label.localeCompare(b.label)).map((system) => {
                                             const permissions = parsePermissions(selectedUser.role);
-                                            const isEnabled = permissions.systems?.includes(system.id);
+                                            const isEnabled = permissions.systems !== undefined
+                                                ? permissions.systems.includes(system.id)
+                                                : true;
                                             const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
 
                                             return (

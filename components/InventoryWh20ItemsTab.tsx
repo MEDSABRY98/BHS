@@ -460,10 +460,17 @@ export default function InventoryWh20ItemsTab() {
 
             const pageWidth = doc.internal.pageSize.getWidth();
 
-            // Title with Transaction Number
-            doc.setFontSize(22);
+            // Company Header
+            doc.setFontSize(16);
+            doc.setTextColor(0, 155, 77);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, 18, { align: 'center' });
+
+            // Tax Invoice & TRN
+            doc.setFontSize(11);
             doc.setTextColor(51, 65, 85);
-            doc.text(`Inventory Report - ${transactionNumber}`, pageWidth / 2, 25, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.text(`TAX INVOICE : ${transactionNumber} - TRN: 100391462700003`, pageWidth / 2, 25, { align: 'center' });
 
             // Header Info - Refined Layout
             const startX = 20;
@@ -497,14 +504,17 @@ export default function InventoryWh20ItemsTab() {
                 return y + 7;
             };
 
-            const colW = (pageWidth - 40) / 2;
+            const totalHeaderW = pageWidth - 40;
+            const col1W = totalHeaderW * 0.25;
+            const col2W = totalHeaderW * 0.30;
+            const col3W = totalHeaderW * 0.45;
+
             const row1BottomY = Math.max(
-                drawHeaderItem("Date", header.date, 20, colW, currentY),
-                drawHeaderItem("Type", translateOpType(header.operationType), 20 + colW, colW, currentY)
+                drawHeaderItem("Date", header.date, 20, col1W, currentY),
+                drawHeaderItem("Type", translateOpType(header.operationType), 20 + col1W, col2W, currentY),
+                drawHeaderItem("Receiver", header.receiverName, 20 + col1W + col2W, col3W, currentY)
             );
             currentY = row1BottomY + 4;
-
-            currentY = drawHeaderItem("Receiver", header.receiverName, 20, pageWidth - 40, currentY) + 4;
 
             if (header.customerName) {
                 currentY = drawHeaderItem("Customer", header.customerName, 20, pageWidth - 40, currentY) + 4;
@@ -512,15 +522,21 @@ export default function InventoryWh20ItemsTab() {
             currentY = drawHeaderItem("Description", header.description, 20, pageWidth - 40, currentY) + 2;
 
             // Table
-            const head = [["#", "Product", "Unit", "Qty", "Price", "Total"]];
+            const head = [["#", "Barcode", "Product", "Unit", "Qty", "Price", "Total"]];
             const body = validRows.map((row, idx) => {
                 const qty = parseFloat(row.qty) || 0;
                 const price = parseFloat(row.price) || 0;
                 const totalPcs = row.unit === 'CTN' ? qty * row.pcsPerCtn : qty;
                 const total = totalPcs * price;
+
+                // Extract product name only (remove " - barcode" suffix)
+                const lastIndex = row.productName.lastIndexOf(' - ');
+                const productNameOnly = lastIndex !== -1 ? row.productName.substring(0, lastIndex) : row.productName;
+
                 return [
                     idx + 1,
-                    row.productName,
+                    row.barcode,
+                    productNameOnly,
                     row.unit,
                     qty.toLocaleString(),
                     price.toLocaleString(),
@@ -546,16 +562,18 @@ export default function InventoryWh20ItemsTab() {
                 styles: { font: "Amiri", halign: 'center', valign: 'middle' },
                 columnStyles: {
                     0: { cellWidth: 10 },
-                    1: { halign: 'center' }, // Product Name
-                    2: { cellWidth: 25 }, // Unit
-                    3: { cellWidth: 25 }, // Qty
-                    4: { cellWidth: 25 }, // Price
-                    5: { cellWidth: 25 }  // Total
+                    1: { cellWidth: 35 }, // Barcode
+                    2: { halign: 'center' }, // Product Name
+                    3: { cellWidth: 20 }, // Unit
+                    4: { cellWidth: 20 }, // Qty
+                    5: { cellWidth: 20 }, // Price
+                    6: { cellWidth: 25 }  // Total
                 },
+                margin: { left: 10, right: 10 },
                 foot: [
-                    ['', '', '', '', 'Subtotal', subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
-                    ['', '', '', '', 'VAT (5%)', vat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
-                    ['', '', '', '', 'Grand Total', grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
+                    ['', '', '', '', '', 'Subtotal', subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+                    ['', '', '', '', '', 'VAT (5%)', vat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+                    ['', '', '', '', '', 'Grand Total', grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
                 ],
                 footStyles: { fillColor: [241, 245, 249], textColor: [51, 65, 85], fontStyle: 'bold', font: 'Amiri', halign: 'center' }
             });
@@ -626,10 +644,17 @@ export default function InventoryWh20ItemsTab() {
 
             const pageWidth = doc.internal.pageSize.getWidth();
 
-            // Title
-            doc.setFontSize(22);
+            // Company Header
+            doc.setFontSize(16);
+            doc.setTextColor(0, 155, 77);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, 18, { align: 'center' });
+
+            // Tax Invoice & TRN
+            doc.setFontSize(11);
             doc.setTextColor(51, 65, 85);
-            doc.text(`Inventory Report - ${firstRow.number}`, pageWidth / 2, 25, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+            doc.text(`TAX INVOICE : ${firstRow.number} - TRN: 100391462700003`, pageWidth / 2, 25, { align: 'center' });
 
             // Header Info - Refined Layout
             const startX = 20;
@@ -661,14 +686,17 @@ export default function InventoryWh20ItemsTab() {
                 return y + 7;
             };
 
-            const colW = (pageWidth - 40) / 2;
+            const totalHeaderW = pageWidth - 40;
+            const col1W = totalHeaderW * 0.25;
+            const col2W = totalHeaderW * 0.30;
+            const col3W = totalHeaderW * 0.45;
+
             const row1BottomY = Math.max(
-                drawHeaderItem("Date", firstRow.date, 20, colW, currentY),
-                drawHeaderItem("Type", translateOpType(firstRow.operationType), 20 + colW, colW, currentY)
+                drawHeaderItem("Date", firstRow.date, 20, col1W, currentY),
+                drawHeaderItem("Type", translateOpType(firstRow.operationType), 20 + col1W, col2W, currentY),
+                drawHeaderItem("Receiver", firstRow.recipientName, 20 + col1W + col2W, col3W, currentY)
             );
             currentY = row1BottomY + 4;
-
-            currentY = drawHeaderItem("Receiver", firstRow.recipientName, 20, pageWidth - 40, currentY) + 4;
 
             let customerPart = firstRow.customerName || '';
             let descPart = firstRow.description || '';
@@ -692,6 +720,7 @@ export default function InventoryWh20ItemsTab() {
             // Table
             const validRows = transfer.map((t: any) => ({
                 productName: t.product || '',
+                barcode: t.barcode || '',
                 unit: t.type || 'CTN',
                 qty: parseFloat(t.qty.toString() || '0'),
                 price: parseFloat(t.price.toString() || '0'),
@@ -706,34 +735,42 @@ export default function InventoryWh20ItemsTab() {
             const vat = subtotal * 0.05;
             const grandTotal = subtotal + vat;
 
-            const tableBody = validRows.map((r: any, i: number) => [
-                (i + 1).toString(),
-                r.productName,
-                r.unit,
-                r.qty.toLocaleString(),
-                r.price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
-                r.total.toLocaleString(undefined, { minimumFractionDigits: 2 })
-            ]);
+            const tableBody = validRows.map((r: any, i: number) => {
+                const lastIndex = r.productName.lastIndexOf(' - ');
+                const productNameOnly = lastIndex !== -1 ? r.productName.substring(0, lastIndex) : r.productName;
+
+                return [
+                    (i + 1).toString(),
+                    r.barcode,
+                    productNameOnly,
+                    r.unit,
+                    r.qty.toLocaleString(),
+                    r.price.toLocaleString(undefined, { minimumFractionDigits: 2 }),
+                    r.total.toLocaleString(undefined, { minimumFractionDigits: 2 })
+                ];
+            });
 
             autoTable(doc, {
                 startY: currentY,
-                head: [['#', 'Product', 'Unit', 'Qty', 'Price', 'Total']],
+                head: [['#', 'Barcode', 'Product', 'Unit', 'Qty', 'Price', 'Total']],
                 body: tableBody,
                 theme: 'grid',
                 headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255], halign: 'center', font: 'Amiri' },
                 styles: { font: "Amiri", halign: 'center', valign: 'middle' },
                 columnStyles: {
                     0: { cellWidth: 10 },
-                    1: { halign: 'center' }, // Product Name
-                    2: { cellWidth: 25 }, // Unit
-                    3: { cellWidth: 25 }, // Qty
-                    4: { cellWidth: 25 }, // Price
-                    5: { cellWidth: 25 }  // Total
+                    1: { cellWidth: 35 }, // Barcode
+                    2: { halign: 'center' }, // Product Name
+                    3: { cellWidth: 20 }, // Unit
+                    4: { cellWidth: 20 }, // Qty
+                    5: { cellWidth: 20 }, // Price
+                    6: { cellWidth: 25 }  // Total
                 },
+                margin: { left: 10, right: 10 },
                 foot: [
-                    ['', '', '', '', 'Subtotal', subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
-                    ['', '', '', '', 'VAT (5%)', vat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
-                    ['', '', '', '', 'Grand Total', grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
+                    ['', '', '', '', '', 'Subtotal', subtotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+                    ['', '', '', '', '', 'VAT (5%)', vat.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })],
+                    ['', '', '', '', '', 'Grand Total', grandTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })]
                 ],
                 footStyles: { fillColor: [241, 245, 249], textColor: [51, 65, 85], fontStyle: 'bold', font: 'Amiri', halign: 'center' }
             });

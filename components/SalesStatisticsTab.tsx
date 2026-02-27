@@ -13,19 +13,9 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
   const [filterYear, setFilterYear] = useState('');
   const [filterMonth, setFilterMonth] = useState('');
-  const [filterMarket, setFilterMarket] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  const uniqueMarkets = useMemo(() => {
-    const markets = new Set<string>();
-    data.forEach(item => {
-      if (item.market && item.market.trim()) {
-        markets.add(item.market.trim());
-      }
-    });
-    return Array.from(markets).sort();
-  }, [data]);
 
   // Filter data based on filters
   const filteredData = useMemo(() => {
@@ -92,13 +82,9 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
       });
     }
 
-    // Market filter
-    if (filterMarket) {
-      filtered = filtered.filter(item => item.market === filterMarket);
-    }
 
     return filtered;
-  }, [data, filterYear, filterMonth, filterMarket, dateFrom, dateTo]);
+  }, [data, filterYear, filterMonth, dateFrom, dateTo]);
 
   // Calculate statistics for Area
   const areaStats = useMemo(() => {
@@ -543,7 +529,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-2">Year</label>
               <input
@@ -591,27 +577,13 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
                 className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
               />
             </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Market</label>
-              <select
-                value={filterMarket}
-                onChange={(e) => setFilterMarket(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600 bg-white"
-              >
-                <option value="">All Markets</option>
-                {uniqueMarkets.map(market => (
-                  <option key={market} value={market}>{market}</option>
-                ))}
-              </select>
-            </div>
           </div>
-          {(filterYear || filterMonth || filterMarket || dateFrom || dateTo) && (
+          {(filterYear || filterMonth || dateFrom || dateTo) && (
             <div className="mt-4">
               <button
                 onClick={() => {
                   setFilterYear('');
                   setFilterMonth('');
-                  setFilterMarket('');
                   setDateFrom('');
                   setDateTo('');
                 }}

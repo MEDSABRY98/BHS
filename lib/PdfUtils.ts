@@ -1975,10 +1975,180 @@ export async function generateSalesRepReportPDF(data: {
 
   y += chartHeightValue + 35;
 
-  // --- PAGE 2: VISIT DETAILS (LANDSCAPE) ---
+  // --- PAGE 2: CUSTOMER SUMMARY (LANDSCAPE) ---
   doc.addPage('a4', 'landscape');
   const landscapeWidth = doc.internal.pageSize.getWidth();
   const landscapeMargin = 15;
+  y = 20;
+
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Customer Performance Summary', landscapeWidth / 2, y, { align: 'center' });
+  y += 10;
+
+  const customerSummaryMap = new Map<string, {
+    name: string;
+    city: string;
+    visits: number;
+    collections: number;
+    totalCollected: number;
+    lastVisit: string;
+  }>();
+
+  data.visits.forEach(v => {
+    const stats = customerSummaryMap.get(v.customerName) || {
+      name: v.customerName,
+      city: v.city || v.area || '-',
+      visits: 0,
+      collections: 0,
+      totalCollected: 0,
+      lastVisit: '0000-00-00'
+    };
+    stats.visits += 1;
+    if (v.collectMoney === 'Yes') {
+      stats.collections += 1;
+      stats.totalCollected += v.howMuchCollectMoney || 0;
+    }
+    if (v.date > stats.lastVisit) stats.lastVisit = v.date;
+    customerSummaryMap.set(v.customerName, stats);
+  });
+
+  const summaryBody = Array.from(customerSummaryMap.values())
+    .sort((a, b) => {
+      const cityCompare = a.city.localeCompare(b.city, 'ar');
+      if (cityCompare !== 0) return cityCompare;
+      return a.name.localeCompare(b.name, 'ar');
+    })
+    .map(s => [
+      s.name,
+      s.city,
+      data.customerBalances?.[s.name] !== undefined ? data.customerBalances[s.name].toLocaleString() : '-',
+      s.visits.toString(),
+      s.collections.toString(),
+      s.totalCollected.toLocaleString(),
+      s.lastVisit.split('-').reverse().join('-')
+    ]);
+
+  const summaryOptions: any = {
+    startY: y,
+    head: [['Customer Name', 'City', 'Balance', 'Total Visits', 'Collections', 'Amount Collected', 'Last Visit']],
+    body: summaryBody,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [10, 10, 10],
+      textColor: [255, 255, 255],
+      fontSize: 10,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    bodyStyles: {
+      fontSize: 9,
+      textColor: [0, 0, 0],
+      halign: 'center',
+      valign: 'middle',
+      font: 'Amiri'
+    },
+    columnStyles: {
+      0: { cellWidth: 80, halign: 'center' },
+      1: { cellWidth: 40, halign: 'center', font: 'helvetica' },
+      2: { cellWidth: 35, font: 'helvetica' },
+      3: { cellWidth: 20, font: 'helvetica' },
+      4: { cellWidth: 25, font: 'helvetica' },
+      5: { cellWidth: 35, font: 'helvetica' },
+      6: { cellWidth: 30, font: 'helvetica' }
+    },
+    margin: { left: landscapeMargin, right: landscapeMargin }
+  };
+
+  if (typeof (doc as any).autoTable === 'function') {
+    (doc as any).autoTable(summaryOptions);
+  } else {
+    autoTable(doc, summaryOptions);
+  }
+
+  // --- PAGE 3: DAILY SUMMARY (PORTRAIT) ---
+  doc.addPage('a4', 'portrait');
+  const portraitWidth = doc.internal.pageSize.getWidth();
+  y = 20;
+
+  doc.setFontSize(18);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(15, 23, 42);
+  doc.text('Daily Performance Summary', portraitWidth / 2, y, { align: 'center' });
+  y += 10;
+
+  const dailySummaryMap = new Map<string, {
+    date: string;
+    visits: number;
+    customers: Set<string>;
+    collections: number;
+    totalAmount: number;
+  }>();
+
+  data.visits.forEach(v => {
+    const stats = dailySummaryMap.get(v.date) || {
+      date: v.date,
+      visits: 0,
+      customers: new Set<string>(),
+      collections: 0,
+      totalAmount: 0
+    };
+    stats.visits += 1;
+    stats.customers.add(v.customerName);
+    if (v.collectMoney === 'Yes') {
+      stats.collections += 1;
+      stats.totalAmount += v.howMuchCollectMoney || 0;
+    }
+    dailySummaryMap.set(v.date, stats);
+  });
+
+  const dailyBody = Array.from(dailySummaryMap.values())
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map(d => [
+      d.date.split('-').reverse().join('-'),
+      d.visits.toString(),
+      d.customers.size.toString(),
+      d.collections.toString(),
+      d.totalAmount.toLocaleString()
+    ]);
+
+  const dailyOptions: any = {
+    startY: y,
+    head: [['Date', 'Total Visits', 'Unique Customers', 'Collections', 'Amount Collected']],
+    body: dailyBody,
+    theme: 'grid',
+    headStyles: {
+      fillColor: [30, 41, 59],
+      textColor: [255, 255, 255],
+      fontSize: 10,
+      fontStyle: 'bold',
+      halign: 'center'
+    },
+    bodyStyles: {
+      fontSize: 10,
+      textColor: [0, 0, 0],
+      halign: 'center',
+      valign: 'middle'
+    },
+    columnStyles: {
+      0: { cellWidth: 40 },
+      1: { cellWidth: 35 },
+      2: { cellWidth: 35 },
+      3: { cellWidth: 35 },
+      4: { cellWidth: 35 }
+    },
+    margin: { left: 15, right: 15 }
+  };
+
+  if (typeof (doc as any).autoTable === 'function') {
+    (doc as any).autoTable(dailyOptions);
+  } else {
+    autoTable(doc, dailyOptions);
+  }
+
+  // --- PAGE 4: VISIT DETAILS (LANDSCAPE) ---
+  doc.addPage('a4', 'landscape');
   y = 20;
 
   // Centered header

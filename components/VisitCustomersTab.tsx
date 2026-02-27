@@ -384,7 +384,8 @@ export default function VisitCustomersTab() {
                 noCollectionVisits,
                 avgPerDay,
                 chartData,
-                visits: [...repVisits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                visits: [...repVisits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                customerBalances: customerBalances
             });
 
             const url = window.URL.createObjectURL(pdfBlob as Blob);
