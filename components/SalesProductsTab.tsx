@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Package, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
+import { Search, Package, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Filter, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesProductDetails from './SalesProductDetails';
 
@@ -52,6 +52,9 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  const hasActiveFilters = Boolean(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep);
 
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const marketDropdownRef = useRef<HTMLDivElement>(null);
@@ -391,358 +394,199 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
   return (
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="w-full">
-        {/* Header */}
-        <div className="mb-8 flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-800">Products</h1>
-          <button
-            onClick={exportToExcel}
-            className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-            title="Export to Excel"
-          >
-            <Download className="w-5 h-5" />
-          </button>
-        </div>
+        {/* Header Section */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 relative">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-black text-gray-800 tracking-tight">Products Analytics</h1>
+          </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Year Filter */}
-            <div>
-              <label htmlFor="filterYear" className="block text-sm font-medium text-gray-700 mb-1">
-                Year
-              </label>
+          {/* Centered Search Bar */}
+          <div className="w-full md:absolute md:left-1/2 md:-translate-x-1/2 md:max-w-md lg:max-w-xl">
+            <div className="relative group">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Search className="w-5 h-5 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+              </div>
               <input
-                id="filterYear"
-                type="number"
-                placeholder="e.g., 2024"
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                min="2000"
-                max="2100"
-              />
-            </div>
-
-            {/* Month Filter */}
-            <div>
-              <label htmlFor="filterMonth" className="block text-sm font-medium text-gray-700 mb-1">
-                Month (1-12)
-              </label>
-              <input
-                id="filterMonth"
-                type="number"
-                placeholder="e.g., 1-12"
-                value={filterMonth}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
-                    setFilterMonth(value);
-                  }
-                }}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                min="1"
-                max="12"
-              />
-            </div>
-
-            {/* Date From */}
-            <div>
-              <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                From Date
-              </label>
-              <input
-                id="dateFrom"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            {/* Date To */}
-            <div>
-              <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                To Date
-              </label>
-              <input
-                id="dateTo"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                type="text"
+                placeholder="Search products by name or barcode..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-2xl shadow-sm focus:outline-none focus:ring-4 focus:ring-green-500/10 focus:border-green-500 transition-all font-medium text-gray-700 placeholder:text-gray-400"
               />
             </div>
           </div>
 
-          {/* Dropdown Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-            {/* Area Filter */}
-            <div className="relative" ref={areaDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-green-600" />
-                Area
-              </label>
+          <div className="flex items-center gap-3 self-end md:self-auto">
+            <button
+              onClick={() => setIsFilterModalOpen(true)}
+              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${hasActiveFilters
+                ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-4 ring-green-500/10 border-green-500'
+                : 'bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-500 hover:text-green-600'
+                }`}
+            >
               <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterArea || 'All Areas'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'area' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterArea('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Areas
-                    </div>
-                    {uniqueAreas.map(area => (
-                      <div
-                        key={area}
-                        onClick={() => {
-                          setFilterArea(area);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {area}
-                      </div>
-                    ))}
-                  </div>
+                <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse text-white' : 'group-hover:scale-110 transition-transform'}`} />
+                {hasActiveFilters && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-green-600 animate-bounce"></span>
                 )}
               </div>
-            </div>
+              <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
+            </button>
 
-            {/* Market Filter */}
-            <div className="relative" ref={marketDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-green-600" />
-                Market
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'market'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterMarket ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterMarket || 'All Markets'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'market' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'market' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterMarket('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMarket === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Markets
-                    </div>
-                    {uniqueMarkets.map(market => (
-                      <div
-                        key={market}
-                        onClick={() => {
-                          setFilterMarket(market);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMarket === market
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {market}
-                      </div>
-                    ))}
+            <button
+              onClick={exportToExcel}
+              className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 hover:scale-105 active:scale-95 transition-all shadow-lg shadow-green-200 shrink-0"
+              title="Export to Excel"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Filters Modal */}
+        {isFilterModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)} />
+            <div className="relative rounded-[40px] shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col border border-white/10 animate-in fade-in zoom-in duration-300 overflow-hidden isolation-auto">
+              {/* Modal Header */}
+              <div className="px-10 py-8 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-green-100 rounded-2xl shadow-inner">
+                    <Filter className="w-7 h-7 text-green-600" />
                   </div>
-                )}
+                  <div>
+                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">Products Filters</h2>
+                  </div>
+                </div>
+                <button onClick={() => setIsFilterModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-full transition-colors group">
+                  <X className="w-7 h-7 text-gray-400 group-hover:text-gray-700 transition-colors" />
+                </button>
               </div>
-            </div>
 
-            {/* Merchandiser Filter */}
-            <div className="relative" ref={merchandiserDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-green-600" />
-                Merchandiser
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterMerchandiser || 'All Merchandisers'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'merchandiser' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterMerchandiser('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Merchandisers
-                    </div>
-                    {uniqueMerchandisers.map(merchandiser => (
-                      <div
-                        key={merchandiser}
-                        onClick={() => {
-                          setFilterMerchandiser(merchandiser);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {merchandiser}
+              {/* Modal Body */}
+              <div className="p-10 overflow-y-auto flex-1 bg-white [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                <div className="space-y-12 pb-20">
+                  {/* 01. Time Period */}
+                  <div className="space-y-6">
+                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
+                      <Calendar className="w-5 h-5 text-indigo-500" /> 01. Time Period
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-slate-50/50 p-8 rounded-[32px] border border-slate-100 shadow-sm">
+                      <div className="space-y-2 text-slate-700">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Year</label>
+                        <input value={filterYear} onChange={e => setFilterYear(e.target.value)} type="number" placeholder="YYYY" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none" />
                       </div>
-                    ))}
+                      <div className="space-y-2 text-slate-700">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Month</label>
+                        <input value={filterMonth} onChange={e => setFilterMonth(e.target.value)} type="number" placeholder="1-12" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none" />
+                      </div>
+                      <div className="space-y-2 text-slate-700">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">From Date</label>
+                        <input value={dateFrom} onChange={e => setDateFrom(e.target.value)} type="date" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none text-slate-700" />
+                      </div>
+                      <div className="space-y-2 text-slate-700">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">To Date</label>
+                        <input value={dateTo} onChange={e => setDateTo(e.target.value)} type="date" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none text-slate-700" />
+                      </div>
+                    </div>
                   </div>
-                )}
+
+                  {/* 02. Categorization */}
+                  <div className="space-y-6">
+                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
+                      <MapPin className="w-5 h-5 text-emerald-500" /> 02. Categorization
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 bg-green-50/30 p-10 rounded-[32px] border border-green-100/50 shadow-sm text-slate-700">
+                      {/* Area Dropdown */}
+                      <div className="relative" ref={areaDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Territory / Area</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
+                          <span className={filterArea ? 'text-slate-900' : 'text-slate-400'}>{filterArea || 'Select Area'}</span>
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'area' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'area' && (
+                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
+                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                              <button onClick={() => { setFilterArea(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
+                              {uniqueAreas.map(a => <button key={a} onClick={() => { setFilterArea(a); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{a}</button>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Sales Rep Dropdown */}
+                      <div className="relative" ref={salesRepDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Account Executive</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
+                          <span className={filterSalesRep ? 'text-slate-900' : 'text-slate-400'}>{filterSalesRep || 'Select Rep'}</span>
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'salesrep' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'salesrep' && (
+                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
+                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                              <button onClick={() => { setFilterSalesRep(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
+                              {uniqueSalesReps.map(r => <button key={r} onClick={() => { setFilterSalesRep(r); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{r}</button>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Market Dropdown */}
+                      <div className="relative" ref={marketDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Market Category</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
+                          <span className={filterMarket ? 'text-slate-900' : 'text-slate-400'}>{filterMarket || 'Select Market'}</span>
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'market' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'market' && (
+                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
+                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                              <button onClick={() => { setFilterMarket(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
+                              {uniqueMarkets.map(m => <button key={m} onClick={() => { setFilterMarket(m); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{m}</button>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Merchandiser Dropdown */}
+                      <div className="relative" ref={merchandiserDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Store Merchandiser</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
+                          <span className={filterMerchandiser ? 'text-slate-900' : 'text-slate-400'}>{filterMerchandiser || 'Select Merchandiser'}</span>
+                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'merchandiser' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'merchandiser' && (
+                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
+                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
+                              <button onClick={() => { setFilterMerchandiser(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
+                              {uniqueMerchandisers.map(m => <button key={m} onClick={() => { setFilterMerchandiser(m); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{m}</button>)}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* SalesRep Filter */}
-            <div className="relative" ref={salesRepDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-green-600" />
-                Sales Rep
-              </label>
-              <div className="relative">
+              {/* Modal Footer */}
+              <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
                 <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                  onClick={() => {
+                    setFilterYear(''); setFilterMonth(''); setDateFrom(''); setDateTo('');
+                    setFilterArea(''); setFilterMarket(''); setFilterMerchandiser(''); setFilterSalesRep('');
+                  }}
+                  className="px-6 py-4 text-[11px] font-black text-slate-400 hover:text-red-500 uppercase tracking-[0.2em] transition-all hover:bg-red-50 rounded-2xl"
                 >
-                  <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterSalesRep || 'All Sales Reps'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                      }`}
-                  />
+                  Clear All Filters
                 </button>
-                {openDropdown === 'salesrep' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterSalesRep('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Sales Reps
-                    </div>
-                    {uniqueSalesReps.map(salesRep => (
-                      <div
-                        key={salesRep}
-                        onClick={() => {
-                          setFilterSalesRep(salesRep);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {salesRep}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <button onClick={() => setIsFilterModalOpen(false)} className="px-12 py-4 bg-green-600 text-white font-black text-sm uppercase tracking-[0.2em] rounded-[20px] shadow-xl shadow-green-100 hover:bg-green-700 hover:scale-105 active:scale-95 transition-all outline-none">
+                  Apply & Close
+                </button>
               </div>
             </div>
           </div>
-
-          {/* Clear Filters Button */}
-          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) && (
-            <div className="mt-3">
-              <button
-                onClick={() => {
-                  setFilterYear('');
-                  setFilterMonth('');
-                  setDateFrom('');
-                  setDateTo('');
-                  setFilterArea('');
-                  setFilterMarket('');
-                  setFilterMerchandiser('');
-                  setFilterSalesRep('');
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-              >
-                Clear All Filters
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Search Box */}
-        <div className="mb-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Search by product name or barcode..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
-          </div>
-        </div>
+        )}
 
         {/* Products Table */}
         <div className="bg-white rounded-xl shadow-md p-6">

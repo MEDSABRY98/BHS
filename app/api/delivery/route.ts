@@ -65,16 +65,29 @@ export async function POST(request: Request) {
         const { action } = body;
 
         if (action === 'add_lpo') {
-            const { lpoNumber, lpoDate, customerName, lpoValue } = body;
-            if (!lpoNumber || !lpoDate || !customerName || !lpoValue) {
-                return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-            }
-            // Auto-generate LPO ID: read current count and create L-XXX
+            const { lpoNumber, lpoDate, customerName, lpoValue, lpos } = body;
+
             const existingRecords = await getLpoRecords();
-            const nextNum = (existingRecords.length + 1).toString().padStart(3, '0');
-            const lpoId = `L-${nextNum}`;
-            await addLpoRecord({ lpoId, lpoNumber, lpoDate, customerName, lpoValue });
-            return NextResponse.json({ success: true, lpoId });
+            let currentCount = existingRecords.length;
+
+            if (lpos && Array.isArray(lpos)) {
+                const recordsToAdd = lpos.map((lpo: any) => {
+                    currentCount++;
+                    return {
+                        ...lpo,
+                        lpoId: `L-${currentCount.toString().padStart(3, '0')}`
+                    };
+                });
+                await addLpoRecord(recordsToAdd);
+                return NextResponse.json({ success: true, count: recordsToAdd.length });
+            } else {
+                if (!lpoNumber || !lpoDate || !customerName || !lpoValue) {
+                    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+                }
+                const lpoId = `L-${(currentCount + 1).toString().padStart(3, '0')}`;
+                await addLpoRecord({ lpoId, lpoNumber, lpoDate, customerName, lpoValue });
+                return NextResponse.json({ success: true, lpoId });
+            }
         }
 
         if (action === 'add_item') {

@@ -19,6 +19,7 @@ interface CustomersTabProps {
   mode?: 'DEBIT' | 'OB_POS' | 'OB_NEG';
   onBack?: () => void;
   initialCustomer?: string;
+  onCustomerToggle?: (isOpen: boolean) => void;
 }
 
 const columnHelper = createColumnHelper<CustomerAnalysis>();
@@ -976,7 +977,7 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null; d
   return 'Invoice/Txn';
 };
 
-export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCustomer }: CustomersTabProps) {
+export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCustomer, onCustomerToggle }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(initialCustomer || null);
@@ -1046,6 +1047,13 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
   // Overdue Amount Filters
   const [overdueAmount, setOverdueAmount] = useState<string>('');
   const [overdueAging, setOverdueAging] = useState<string[]>([]); // ['AT_DATE', '1-30', '31-60', '61-90', '91-120', 'OLDER']
+
+  // Sync selection state with parent
+  useEffect(() => {
+    if (onCustomerToggle) {
+      onCustomerToggle(!!selectedCustomer);
+    }
+  }, [selectedCustomer, onCustomerToggle]);
 
   // OB Filter
   const [hasOB, setHasOB] = useState(false);

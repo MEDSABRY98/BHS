@@ -15,6 +15,7 @@ import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
+  onCustomerToggle?: (isOpen: boolean) => void;
 }
 
 const columnHelper = createColumnHelper<CustomerAnalysis>();
@@ -713,7 +714,7 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null })
   return 'Invoice/Txn';
 };
 
-export default function CustomersMinsTab({ data }: CustomersTabProps) {
+export default function CustomersMinsTab({ data, onCustomerToggle }: CustomersTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
@@ -774,6 +775,13 @@ export default function CustomersMinsTab({ data }: CustomersTabProps) {
   // Overdue Amount Filters
   const [overdueAmount, setOverdueAmount] = useState<string>('');
   const [overdueAging, setOverdueAging] = useState<string[]>([]); // ['AT_DATE', '1-30', '31-60', '61-90', '91-120', 'OLDER']
+
+  // Sync selection state with parent
+  useEffect(() => {
+    if (onCustomerToggle) {
+      onCustomerToggle(!!selectedCustomer);
+    }
+  }, [selectedCustomer, onCustomerToggle]);
 
   // OB Filter
   const [hasOB, setHasOB] = useState(false);

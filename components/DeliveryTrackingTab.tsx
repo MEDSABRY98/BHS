@@ -79,13 +79,15 @@ export default function DeliveryTrackingTab() {
     const [checkingSubmittedQuery, setCheckingSubmittedQuery] = useState('');
     const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-    // New LPO Form State
-    const [newLpoData, setNewLpoData] = useState({
+    // New LPO Form State (Multiple Rows)
+    const [lpoRows, setLpoRows] = useState([{
         lpoNumber: '',
-        lpoDate: '',
+        lpoDate: new Date().toISOString().split('T')[0],
         customerName: '',
-        lpoValue: ''
-    });
+        lpoValue: '',
+        customerSearch: '',
+        showDropdown: false
+    }]);
 
     // Loading / saving states
     const [isLoading, setIsLoading] = useState(true);
@@ -207,43 +209,48 @@ export default function DeliveryTrackingTab() {
                 setIsSaving(true);
                 showToast(`Reading ${data.length} records...`, 'info');
 
-                let successCount = 0;
-                let failCount = 0;
+                const lposToAdd: any[] = [];
 
                 for (const row of data) {
                     // Normalize keys (handle spaces or casing)
                     const lpoNumber = row['LPO Number'] || row['lpo number'] || row['LPO_Number'];
-                    const lpoDate = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
+                    const lpoDateRaw = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
                     const customerName = row['Customer Name'] || row['customer name'] || row['Customer_Name'];
                     const lpoValue = row['LPO Value'] || row['lpo value'] || row['LPO_Value'];
 
-                    if (lpoNumber && lpoDate && customerName && lpoValue) {
-                        try {
-                            const res = await fetch('/api/delivery', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    action: 'add_lpo',
-                                    lpoNumber,
-                                    lpoDate: typeof lpoDate === 'string' ? lpoDate : new Date((lpoDate - 25569) * 86400 * 1000).toISOString().split('T')[0],
-                                    customerName,
-                                    lpoValue: parseFloat(lpoValue)
-                                })
-                            });
-                            if (res.ok) successCount++;
-                            else failCount++;
-                        } catch {
-                            failCount++;
-                        }
-                    } else {
-                        failCount++;
+                    if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
+                        const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
+                        lposToAdd.push({
+                            lpoNumber: lpoNumber.toString(),
+                            lpoDate,
+                            customerName: customerName.toString(),
+                            lpoValue: parseFloat(lpoValue)
+                        });
                     }
                 }
 
-                await refreshOrders();
-                showToast(`Upload complete: ${successCount} saved, ${failCount} failed`, successCount > 0 ? 'success' : 'error');
-                if (fileInputRef.current) fileInputRef.current.value = '';
-                if (successCount > 0) setActiveTab('stats');
+                if (lposToAdd.length === 0) {
+                    showToast('No valid LPO records found in Excel', 'error');
+                    return;
+                }
+
+                const res = await fetch('/api/delivery', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        action: 'add_lpo',
+                        lpos: lposToAdd
+                    })
+                });
+
+                if (res.ok) {
+                    await refreshOrders();
+                    showToast(`Successfully uploaded ${lposToAdd.length} records`, 'success');
+                    if (fileInputRef.current) fileInputRef.current.value = '';
+                    setActiveTab('stats');
+                } else {
+                    showToast('Failed to upload records to database', 'error');
+                }
 
             } catch (error) {
                 console.error('Excel parse error:', error);
@@ -785,163 +792,239 @@ export default function DeliveryTrackingTab() {
                 )}
                 {!isLoading && activeTab === 'new_order' && canAdd && (
 
-                    <div className="max-w-[1000px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="bg-white rounded-[24px] border-[1.5px] border-[#E2E8F0] shadow-[0_10px_40px_rgba(0,0,0,0.04)] relative">
                             <div className="p-8 bg-[#312E81] flex items-center justify-between rounded-t-[22px]">
                                 <div className="flex items-center gap-4">
                                     <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center text-[24px]">📦</div>
                                     <div>
-                                        <h3 className="text-white text-[20px] font-[900] tracking-tight">Record New LPO</h3>
+                                        <h3 className="text-white text-[20px] font-[900] tracking-tight">Record New LPOs</h3>
                                     </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <button
+                                        onClick={() => {
+                                            const lastDate = lpoRows[lpoRows.length - 1]?.lpoDate || new Date().toISOString().split('T')[0];
+                                            setLpoRows(prev => [...prev, {
+                                                lpoNumber: '',
+                                                lpoDate: lastDate,
+                                                customerName: '',
+                                                lpoValue: '',
+                                                customerSearch: '',
+                                                showDropdown: false
+                                            }]);
+                                        }}
+                                        className="bg-white/10 hover:bg-white/20 text-white px-5 py-2.5 rounded-xl border border-white/20 text-[13px] font-bold flex items-center gap-2 transition-all"
+                                    >
+                                        <Plus className="w-4 h-4" /> Add Row
+                                    </button>
                                 </div>
                             </div>
 
-                            <div className="p-8 space-y-8">
-                                <div className="grid grid-cols-2 gap-6">
-                                    <div className="flex flex-col gap-2">
-                                        <label className="text-[12px] font-[700] text-[#2C3E35] uppercase tracking-wider">LPO Number <span className="text-[#E74C3C]">*</span></label>
-                                        <input
-                                            type="text"
-                                            placeholder="e.g. LPO-2025-0142"
-                                            value={newLpoData.lpoNumber}
-                                            onChange={(e) => setNewLpoData(prev => ({ ...prev, lpoNumber: e.target.value }))}
-                                            className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all shadow-sm"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <label className="text-[12px] font-[700] text-[#2C3E35] uppercase tracking-wider">LPO Date <span className="text-[#E74C3C]">*</span></label>
-                                        <input
-                                            type="date"
-                                            value={newLpoData.lpoDate}
-                                            onChange={(e) => setNewLpoData(prev => ({ ...prev, lpoDate: e.target.value }))}
-                                            className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all appearance-none shadow-sm"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-2 relative">
-                                        <label className="text-[12px] font-[700] text-[#2C3E35] uppercase tracking-wider">Customer Name <span className="text-[#E74C3C]">*</span></label>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                placeholder="Search or Select Customer..."
-                                                value={newLpoData.customerName || customerSearch}
-                                                onFocus={() => {
-                                                    setShowCustomerDropdown(true);
-                                                    setCustomerSearch(newLpoData.customerName);
-                                                    setNewLpoData(prev => ({ ...prev, customerName: '' }));
-                                                }}
-                                                onChange={(e) => {
-                                                    setCustomerSearch(e.target.value);
-                                                    setShowCustomerDropdown(true);
-                                                }}
-                                                className="w-full bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all shadow-sm pr-10"
-                                            />
-                                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[#B2C4BB]">
-                                                <Search className="w-4 h-4" />
+                            <div className="p-8 min-h-[300px]">
+                                <div className="space-y-4">
+                                    {lpoRows.map((row, idx) => (
+                                        <div key={idx} className="flex items-start gap-4 p-5 bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] group animate-in slide-in-from-left duration-300" style={{ animationDelay: `${idx * 50}ms` }}>
+                                            <div className="flex-none pt-2 font-black text-indigo-300 text-[16px] w-6">#{idx + 1}</div>
+
+                                            {/* LPO Date */}
+                                            <div className="w-[180px]">
+                                                <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider mb-1.5 block">LPO Date <span className="text-rose-500">*</span></label>
+                                                <input
+                                                    type="date"
+                                                    value={row.lpoDate}
+                                                    onChange={(e) => {
+                                                        const newRows = [...lpoRows];
+                                                        newRows[idx].lpoDate = e.target.value;
+                                                        setLpoRows(newRows);
+                                                    }}
+                                                    className="w-full bg-white border border-[#E2E8F0] rounded-xl p-3 text-[14px] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold"
+                                                />
                                             </div>
 
-                                            {showCustomerDropdown && (
-                                                <>
-                                                    <div
-                                                        className="fixed inset-0 z-[10]"
-                                                        onClick={() => setShowCustomerDropdown(false)}
-                                                    ></div>
-                                                    <div className="absolute top-full left-0 right-0 mt-2 bg-white border-[1.5px] border-[#E2E8F0] rounded-[14px] shadow-[0_10px_30px_rgba(0,0,0,0.1)] z-[20] overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                                        <div className="max-h-[250px] overflow-y-auto p-2 space-y-1">
-                                                            {filteredCustomers.length === 0 ? (
-                                                                <div className="p-4 text-center text-[#94A3B8] italic text-[13px]">
-                                                                    No customers found matching "{customerSearch}"
-                                                                </div>
-                                                            ) : (
-                                                                filteredCustomers.map((c) => (
-                                                                    <button
-                                                                        key={c.customerId}
-                                                                        onClick={() => {
-                                                                            setNewLpoData(prev => ({ ...prev, customerName: c.customerName }));
-                                                                            setCustomerSearch('');
-                                                                            setShowCustomerDropdown(false);
-                                                                        }}
-                                                                        className="w-full flex items-center justify-between p-3 rounded-[10px] hover:bg-[#F0F4FF] transition-colors text-left group"
-                                                                    >
-                                                                        <div>
-                                                                            <div className="text-[13.5px] font-[700] text-[#1E293B] group-hover:text-[#4F46E5]">
-                                                                                {c.customerName}
-                                                                            </div>
-                                                                        </div>
-                                                                        <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                            <ArrowRight className="w-4 h-4 text-[#4F46E5]" />
-                                                                        </div>
-                                                                    </button>
-                                                                ))
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                </>
-                                            )}
+                                            {/* LPO Number */}
+                                            <div className="flex-1 min-w-[180px]">
+                                                <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider mb-1.5 block">LPO Number <span className="text-rose-500">*</span></label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. LPO-2025-01"
+                                                    value={row.lpoNumber}
+                                                    onChange={(e) => {
+                                                        const newRows = [...lpoRows];
+                                                        newRows[idx].lpoNumber = e.target.value;
+                                                        setLpoRows(newRows);
+                                                    }}
+                                                    className="w-full bg-white border border-[#E2E8F0] rounded-xl p-3 text-[14px] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold"
+                                                />
+                                            </div>
+
+                                            {/* Customer Name */}
+                                            <div className="flex-[2] min-w-[280px] relative">
+                                                <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider mb-1.5 block">Customer Name <span className="text-rose-500">*</span></label>
+                                                <div className="relative">
+                                                    <input
+                                                        type="text"
+                                                        placeholder="Search Customer..."
+                                                        value={row.customerName || row.customerSearch}
+                                                        onChange={(e) => {
+                                                            const newRows = [...lpoRows];
+                                                            newRows[idx].customerSearch = e.target.value;
+                                                            newRows[idx].showDropdown = true;
+                                                            newRows[idx].customerName = '';
+                                                            setLpoRows(newRows);
+                                                        }}
+                                                        onFocus={() => {
+                                                            const newRows = [...lpoRows];
+                                                            newRows[idx].showDropdown = true;
+                                                            setLpoRows(newRows);
+                                                        }}
+                                                        className="w-full bg-white border border-[#E2E8F0] rounded-xl p-3 pr-10 text-[14px] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold"
+                                                    />
+                                                    <Search className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+
+                                                    {row.showDropdown && (
+                                                        <>
+                                                            <div className="fixed inset-0 z-10" onClick={() => {
+                                                                const newRows = [...lpoRows];
+                                                                newRows[idx].showDropdown = false;
+                                                                setLpoRows(newRows);
+                                                            }} />
+                                                            <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-[250px] overflow-y-auto p-1.5">
+                                                                {customers
+                                                                    .filter(c => c.customerName.toLowerCase().includes(row.customerSearch.toLowerCase()))
+                                                                    .map(c => (
+                                                                        <button
+                                                                            key={c.customerId}
+                                                                            onClick={() => {
+                                                                                const newRows = [...lpoRows];
+                                                                                newRows[idx].customerName = c.customerName;
+                                                                                newRows[idx].customerSearch = '';
+                                                                                newRows[idx].showDropdown = false;
+                                                                                setLpoRows(newRows);
+                                                                            }}
+                                                                            className="w-full text-left p-3 hover:bg-indigo-50 rounded-lg transition-colors group/item"
+                                                                        >
+                                                                            <span className="text-[13px] font-bold text-slate-700 group-hover/item:text-indigo-600">{c.customerName}</span>
+                                                                        </button>
+                                                                    ))
+                                                                }
+                                                                {customers.filter(c => c.customerName.toLowerCase().includes(row.customerSearch.toLowerCase())).length === 0 && (
+                                                                    <div className="p-4 text-center text-slate-400 text-[12px] italic">No results</div>
+                                                                )}
+                                                            </div>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* LPO Value */}
+                                            <div className="w-[160px]">
+                                                <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider mb-1.5 block">LPO Value <span className="text-rose-500">*</span></label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0.00"
+                                                    value={row.lpoValue}
+                                                    onChange={(e) => {
+                                                        const newRows = [...lpoRows];
+                                                        newRows[idx].lpoValue = e.target.value;
+                                                        setLpoRows(newRows);
+                                                    }}
+                                                    className="w-full bg-white border border-[#E2E8F0] rounded-xl p-3 text-[14px] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-mono-dm font-bold"
+                                                />
+                                            </div>
+
+                                            {/* Actions */}
+                                            <div className="flex-none pt-7">
+                                                <button
+                                                    onClick={() => {
+                                                        if (lpoRows.length === 1) return;
+                                                        setLpoRows(prev => prev.filter((_, i) => i !== idx));
+                                                    }}
+                                                    disabled={lpoRows.length === 1}
+                                                    className="w-10 h-10 rounded-xl flex items-center justify-center text-rose-500 hover:bg-rose-50 transition-colors disabled:opacity-0"
+                                                >
+                                                    <Trash2 className="w-5 h-5" />
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
-                                    <div className="flex flex-col gap-2">
-                                        <label className="text-[12px] font-[700] text-[#2C3E35] uppercase tracking-wider">LPO Value <span className="text-[#E74C3C]">*</span></label>
-                                        <input
-                                            type="number"
-                                            placeholder="0.00"
-                                            value={newLpoData.lpoValue}
-                                            onChange={(e) => setNewLpoData(prev => ({ ...prev, lpoValue: e.target.value }))}
-                                            className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[10px] p-[12px_16px] text-[14px] outline-none focus:border-[#4F46E5] focus:bg-white transition-all font-mono-dm shadow-sm"
-                                        />
-                                    </div>
+                                    ))}
                                 </div>
                             </div>
 
-                            <div className="p-8 bg-[#F6F9F7]/50 border-t border-[#E4EDE8] flex items-center justify-end gap-4">
-                                <input
-                                    type="file"
-                                    ref={fileInputRef}
-                                    onChange={handleExcelUpload}
-                                    accept=".xlsx, .xls"
-                                    className="hidden"
-                                />
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isSaving}
-                                    className="bg-white text-[#312E81] border-[1.5px] border-[#E4EDE8] font-[800] py-3.5 px-6 rounded-[12px] text-[14px] flex items-center gap-2 transition-all hover:bg-[#F8FAFC] hover:border-[#312E81] disabled:opacity-60"
-                                >
-                                    <Upload className="w-4 h-4" /> Upload Excel
-                                </button>
-                                <button
-                                    onClick={async () => {
-                                        if (!newLpoData.lpoNumber || !newLpoData.lpoDate || !newLpoData.customerName || !newLpoData.lpoValue) {
-                                            showToast('Please fill all required fields', 'error');
-                                            return;
-                                        }
-                                        setIsSaving(true);
-                                        try {
-                                            const lpoId = `L-${(orders.length + 1).toString().padStart(3, '0')}`;
-                                            await fetch('/api/delivery', {
-                                                method: 'POST',
-                                                headers: { 'Content-Type': 'application/json' },
-                                                body: JSON.stringify({
-                                                    action: 'add_lpo',
-                                                    lpoNumber: newLpoData.lpoNumber,
-                                                    lpoDate: newLpoData.lpoDate,
-                                                    customerName: newLpoData.customerName,
-                                                    lpoValue: parseFloat(newLpoData.lpoValue),
-                                                }),
-                                            });
-                                            await refreshOrders();
-                                            setNewLpoData({ lpoNumber: '', lpoDate: '', customerName: '', lpoValue: '' });
-                                            setActiveTab('stats');
-                                            showToast('LPO Recorded successfully', 'success');
-                                        } catch {
-                                            showToast('Failed to save LPO', 'error');
-                                        } finally {
-                                            setIsSaving(false);
-                                        }
-                                    }}
-                                    disabled={isSaving}
-                                    className="bg-[#312E81] text-white font-[800] py-3.5 px-10 rounded-[12px] text-[14px] flex items-center gap-2 transition-all shadow-[0_4px_16px_rgba(49,46,129,0.35)] hover:bg-[#4F46E5] hover:translate-y-[-2px] active:translate-y-[0px] disabled:opacity-60 disabled:cursor-not-allowed"
-                                >
-                                    {isSaving ? '⏳ Saving...' : '📂 Create LPO Record'}
-                                </button>
+                            <div className="p-8 bg-slate-50 border-t border-slate-200 flex items-center justify-between rounded-b-[22px]">
+                                <div className="flex items-center gap-4">
+                                    <input
+                                        type="file"
+                                        ref={fileInputRef}
+                                        onChange={handleExcelUpload}
+                                        accept=".xlsx, .xls"
+                                        className="hidden"
+                                    />
+                                    <button
+                                        onClick={() => fileInputRef.current?.click()}
+                                        disabled={isSaving}
+                                        className="bg-white text-indigo-900 border border-slate-200 font-bold h-[52px] px-8 rounded-xl text-[14px] flex items-center gap-2 transition-all hover:bg-slate-100 disabled:opacity-50"
+                                    >
+                                        <Upload className="w-4 h-4" /> Import Excel
+                                    </button>
+                                </div>
+                                <div className="flex items-center gap-4">
+                                    <button
+                                        onClick={async () => {
+                                            const incompleteIdx = lpoRows.findIndex(r => !r.lpoNumber || !r.lpoDate || !r.customerName || !r.lpoValue);
+
+                                            if (incompleteIdx !== -1) {
+                                                showToast(`Please fill all required fields in Row #${incompleteIdx + 1}`, 'error');
+                                                return;
+                                            }
+
+                                            setIsSaving(true);
+                                            try {
+                                                const res = await fetch('/api/delivery', {
+                                                    method: 'POST',
+                                                    headers: { 'Content-Type': 'application/json' },
+                                                    body: JSON.stringify({
+                                                        action: 'add_lpo',
+                                                        lpos: lpoRows.map(r => ({
+                                                            lpoNumber: r.lpoNumber,
+                                                            lpoDate: r.lpoDate,
+                                                            customerName: r.customerName,
+                                                            lpoValue: parseFloat(r.lpoValue),
+                                                        }))
+                                                    }),
+                                                });
+
+                                                if (!res.ok) throw new Error('Failed to save');
+
+                                                await refreshOrders();
+                                                const rowCount = lpoRows.length;
+                                                setLpoRows([{
+                                                    lpoNumber: '',
+                                                    lpoDate: new Date().toISOString().split('T')[0],
+                                                    customerName: '',
+                                                    lpoValue: '',
+                                                    customerSearch: '',
+                                                    showDropdown: false
+                                                }]);
+                                                setActiveTab('stats');
+                                                showToast(`${rowCount} LPO(s) recorded successfully`, 'success');
+                                            } catch (error) {
+                                                console.error('Save error:', error);
+                                                showToast('Failed to save LPOs', 'error');
+                                            } finally {
+                                                setIsSaving(false);
+                                            }
+                                        }}
+                                        disabled={isSaving}
+                                        className="bg-indigo-600 text-white font-black h-[52px] px-12 rounded-xl text-[15px] flex items-center gap-3 transition-all shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+                                    >
+                                        {isSaving ? (
+                                            <>⏳ Saving...</>
+                                        ) : (
+                                            <>🚀 Save {lpoRows.length} LPO Records</>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -1830,7 +1913,7 @@ export default function DeliveryTrackingTab() {
                                             ...(o.canceledItems || []).map((m, i) => ({ item: m, status: 'canceled', id: `${o.id}-c-${i}`, order: o }))
                                         ]).length === 0 ? (
                                             <tr>
-                                                <td colSpan={6} className="p-20 text-center text-[#B2C4BB] font-medium italic">
+                                                <td colSpan={6} className="p-20 text-center text-[#B2C4BB] font-medium">
                                                     No items found in the log
                                                 </td>
                                             </tr>
@@ -1998,7 +2081,7 @@ export default function DeliveryTrackingTab() {
                                         ))}
                                         {!filteredOrders.some(o => o.reship) && (
                                             <tr>
-                                                <td colSpan={6} className="py-20 text-center text-[#B2C4BB] font-medium italic">
+                                                <td colSpan={6} className="py-20 text-center text-[#B2C4BB] font-medium">
                                                     No re-shipments matching filters
                                                 </td>
                                             </tr>
@@ -2515,6 +2598,30 @@ export default function DeliveryTrackingTab() {
                         {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-100" />}
                         {toast.type === 'info' && <Bell className="w-5 h-5 text-indigo-100" />}
                         <span className="text-[13px] font-[800] tracking-tight">{toast.message}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* FULL PAGE LOADING OVERLAY */}
+            {isSaving && (
+                <div className="fixed inset-0 z-[3000] flex flex-col items-center justify-center animate-in fade-in duration-500">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                    <div className="relative z-[3001] flex flex-col items-center gap-6">
+                        <div className="relative flex items-center justify-center">
+                            <div className="w-24 h-24 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <RefreshCcw className="w-8 h-8 text-white animate-pulse" />
+                            </div>
+                        </div>
+                        <div className="text-center space-y-2">
+                            <h3 className="text-white text-[24px] font-black tracking-tight animate-pulse">Saving Records...</h3>
+                            <p className="text-white/60 text-[14px] font-bold">Please wait while we update the database</p>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" />
+                        </div>
                     </div>
                 </div>
             )}

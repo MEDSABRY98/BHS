@@ -1226,7 +1226,7 @@ export async function getInactiveCustomerExceptions(): Promise<InactiveCustomerE
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: 'Inactive Customers - Exception!A:B', // CUSTOMER ID, CUSTOMER NAME
+      range: 'Sales - Inactive Customers!A:B', // CUSTOMER ID, CUSTOMER NAME
     });
 
     const rows = response.data.values;
@@ -1248,6 +1248,82 @@ export async function getInactiveCustomerExceptions(): Promise<InactiveCustomerE
     console.error('Error fetching inactive customer exceptions:', error);
     // Return empty array if sheet doesn't exist or has errors
     return [];
+  }
+}
+
+export async function addInactiveCustomerException(customerId: string, customerName: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sales - Inactive Customers!A:B',
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [[customerId, customerName]],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding inactive customer exception:', error);
+    throw error;
+  }
+}
+
+export async function removeInactiveCustomerException(customerId: string) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: 'Sales - Inactive Customers!A:B',
+    });
+
+    const rows = response.data.values || [];
+    const rowIndex = rows.findIndex(row => row[0]?.toString().trim() === customerId.trim());
+
+    if (rowIndex === -1) {
+      return { success: false, message: 'Customer not found' };
+    }
+
+    const sheetId = await getSheetId('Sales - Inactive Customers');
+    if (sheetId === null) {
+      throw new Error('Sheet "Sales - Inactive Customers" not found');
+    }
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId: sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex,
+                endIndex: rowIndex + 1,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error removing inactive customer exception:', error);
+    throw error;
   }
 }
 
@@ -3810,29 +3886,36 @@ export async function getLpoCustomers(): Promise<LpoCustomer[]> {
   }
 }
 
-// WRITE: Add new LPO Record
+// WRITE: Add new LPO Record (supports single or multiple)
 export async function addLpoRecord(data: {
   lpoId: string;
   lpoNumber: string;
   lpoDate: string;
   customerName: string;
   lpoValue: number;
-}): Promise<{ success: boolean }> {
+} | {
+  lpoId: string;
+  lpoNumber: string;
+  lpoDate: string;
+  customerName: string;
+  lpoValue: number;
+}[]): Promise<{ success: boolean }> {
   try {
     const sheets = await getSheetsClient();
     const now = nowTimestamp();
+    const records = Array.isArray(data) ? data : [data];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: `'${LPO_RECORDS_SHEET}'!A:M`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
-        values: [[
-          data.lpoId,        // A: LPO ID
-          data.lpoNumber,    // B: LPO Number
-          data.lpoDate,      // C: LPO Date
-          data.customerName, // D: Customer Name
-          data.lpoValue,     // E: LPO Value
+        values: records.map(record => [
+          record.lpoId,        // A: LPO ID
+          record.lpoNumber,    // B: LPO Number
+          record.lpoDate,      // C: LPO Date
+          record.customerName, // D: Customer Name
+          record.lpoValue,     // E: LPO Value
           '',                // F: Invoice Date
           '',                // G: Invoice Number
           0,                 // H: Invoice Value
@@ -3841,7 +3924,7 @@ export async function addLpoRecord(data: {
           '',                // K: Notes
           now,               // L: Created At
           now,               // M: Updated At
-        ]],
+        ]),
       },
     });
 

@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Package, Users, ArrowUp, ArrowDown, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown } from 'lucide-react';
+import { Package, Users, ArrowUp, ArrowDown, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Filter, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface SalesTop10TabProps {
@@ -23,6 +23,7 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
   const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   const areaDropdownRef = useRef<HTMLDivElement>(null);
   const marketDropdownRef = useRef<HTMLDivElement>(null);
@@ -435,367 +436,175 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="w-full">
         {/* Header */}
-        <div className="mb-8 flex items-center gap-3">
-          <h1 className="text-3xl font-bold text-gray-800">TOP10</h1>
-          <button
-            onClick={exportToExcel}
-            className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-            title="Export to Excel"
-          >
-            <Download className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-8">
-          <h2 className="text-lg font-semibold text-gray-800 mb-3">Filters</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* Year Filter */}
-            <div>
-              <label htmlFor="filterYear" className="block text-sm font-medium text-gray-700 mb-1">
-                Year
-              </label>
-              <input
-                id="filterYear"
-                type="number"
-                placeholder="e.g., 2024"
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                min="2000"
-                max="2100"
-              />
-            </div>
-
-            {/* Month Filter */}
-            <div>
-              <label htmlFor="filterMonth" className="block text-sm font-medium text-gray-700 mb-1">
-                Month (1-12)
-              </label>
-              <input
-                id="filterMonth"
-                type="number"
-                placeholder="e.g., 1-12"
-                value={filterMonth}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
-                    setFilterMonth(value);
-                  }
-                }}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                min="1"
-                max="12"
-              />
-            </div>
-
-            {/* Date From */}
-            <div>
-              <label htmlFor="dateFrom" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                From Date
-              </label>
-              <input
-                id="dateFrom"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-
-            {/* Date To */}
-            <div>
-              <label htmlFor="dateTo" className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-2">
-                <Calendar className="w-4 h-4" />
-                To Date
-              </label>
-              <input
-                id="dateTo"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
-            </div>
-          </div>
-
-          {/* Dropdown Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-            {/* Area Filter */}
-            <div className="relative" ref={areaDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-green-600" />
-                Area
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'area'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterArea ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterArea || 'All Areas'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'area' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'area' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterArea('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterArea === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Areas
-                    </div>
-                    {uniqueAreas.map(area => (
-                      <div
-                        key={area}
-                        onClick={() => {
-                          setFilterArea(area);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterArea === area
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {area}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Market Filter */}
-            <div className="relative" ref={marketDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-green-600" />
-                Market
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'market'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterMarket ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterMarket || 'All Markets'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'market' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'market' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterMarket('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMarket === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Markets
-                    </div>
-                    {uniqueMarkets.map(market => (
-                      <div
-                        key={market}
-                        onClick={() => {
-                          setFilterMarket(market);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMarket === market
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {market}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Merchandiser Filter */}
-            <div className="relative" ref={merchandiserDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-green-600" />
-                Merchandiser
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'merchandiser'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterMerchandiser ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterMerchandiser || 'All Merchandisers'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'merchandiser' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'merchandiser' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterMerchandiser('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterMerchandiser === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Merchandisers
-                    </div>
-                    {uniqueMerchandisers.map(merchandiser => (
-                      <div
-                        key={merchandiser}
-                        onClick={() => {
-                          setFilterMerchandiser(merchandiser);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterMerchandiser === merchandiser
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {merchandiser}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* SalesRep Filter */}
-            <div className="relative" ref={salesRepDropdownRef}>
-              <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                <UserCircle className="w-4 h-4 text-green-600" />
-                Sales Rep
-              </label>
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                  className={`w-full px-4 py-2.5 pr-10 border-2 rounded-xl bg-white text-gray-800 font-medium transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex items-center justify-between ${openDropdown === 'salesrep'
-                    ? 'border-green-500 ring-2 ring-green-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                >
-                  <span className={filterSalesRep ? 'text-gray-800' : 'text-gray-400'}>
-                    {filterSalesRep || 'All Sales Reps'}
-                  </span>
-                  <ChevronDown
-                    className={`w-5 h-5 text-gray-400 transition-transform duration-200 ${openDropdown === 'salesrep' ? 'transform rotate-180' : ''
-                      }`}
-                  />
-                </button>
-                {openDropdown === 'salesrep' && (
-                  <div className="absolute z-50 w-full mt-1 bg-white border-2 border-gray-200 rounded-xl shadow-xl max-h-60 overflow-auto">
-                    <div
-                      onClick={() => {
-                        setFilterSalesRep('');
-                        setOpenDropdown(null);
-                      }}
-                      className={`px-4 py-3 cursor-pointer transition-colors duration-150 ${filterSalesRep === ''
-                        ? 'bg-green-50 text-green-700 font-semibold'
-                        : 'text-gray-700 hover:bg-gray-50'
-                        }`}
-                    >
-                      All Sales Reps
-                    </div>
-                    {uniqueSalesReps.map(salesRep => (
-                      <div
-                        key={salesRep}
-                        onClick={() => {
-                          setFilterSalesRep(salesRep);
-                          setOpenDropdown(null);
-                        }}
-                        className={`px-4 py-3 cursor-pointer transition-colors duration-150 border-t border-gray-100 ${filterSalesRep === salesRep
-                          ? 'bg-green-50 text-green-700 font-semibold'
-                          : 'text-gray-700 hover:bg-gray-50'
-                          }`}
-                      >
-                        {salesRep}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Clear Filters Button */}
-          {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) && (
-            <div className="mt-3">
+        <div className="mb-8 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-gray-800">TOP10</h1>
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => {
-                  setFilterYear('');
-                  setFilterMonth('');
-                  setDateFrom('');
-                  setDateTo('');
-                  setFilterArea('');
-                  setFilterMarket('');
-                  setFilterMerchandiser('');
-                  setFilterSalesRep('');
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
+                onClick={() => setIsFilterModalOpen(true)}
+                className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep)
+                  ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
+                  : 'bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-500 hover:text-green-600'
+                  }`}
               >
-                Clear All Filters
+                <Filter className={`w-5 h-5 ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
+                <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
+              </button>
+
+              <button
+                onClick={exportToExcel}
+                className="p-2.5 rounded-full bg-green-600 text-white hover:bg-green-700 transition-all duration-300 shadow-lg shadow-green-200"
+                title="Export to Excel"
+              >
+                <Download className="w-5 h-5" />
               </button>
             </div>
-          )}
+          </div>
+
+          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl shadow-sm border border-gray-100">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Display</label>
+            <input
+              type="number"
+              min="1"
+              max="100"
+              value={topCount}
+              onChange={(e) => setTopCount(Number(e.target.value))}
+              className="w-12 text-center font-bold text-slate-700 focus:outline-none"
+            />
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-l pl-3">Results</span>
+          </div>
         </div>
+
+        {/* Filters Modal */}
+        {isFilterModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)} />
+            <div className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col border border-white/20 animate-in fade-in zoom-in duration-300 overflow-hidden">
+              {/* Header */}
+              <div className="px-8 py-6 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-green-100 rounded-2xl">
+                    <Filter className="w-6 h-6 text-green-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-gray-800 tracking-tight">Top 10 Filters</h2>
+                  </div>
+                </div>
+                <button onClick={() => setIsFilterModalOpen(false)} className="p-2 hover:bg-gray-200 rounded-full transition-colors">
+                  <X className="w-6 h-6 text-gray-500" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="p-8 overflow-y-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[550px]">
+                <div className="space-y-12 pb-60">
+                  {/* Row 1: Time */}
+                  <div className="space-y-6">
+                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
+                      <Calendar className="w-5 h-5 text-indigo-500" /> 01. Time Period
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50/50 p-6 rounded-[24px] border border-slate-100">
+                      <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Year</label>
+                        <input value={filterYear} onChange={e => setFilterYear(e.target.value)} type="number" placeholder="YYYY" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold shadow-sm" />
+                      </div>
+                      <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">Month</label>
+                        <input value={filterMonth} onChange={e => setFilterMonth(e.target.value)} type="number" placeholder="1-12" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold shadow-sm" />
+                      </div>
+                      <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">From</label>
+                        <input value={dateFrom} onChange={e => setDateFrom(e.target.value)} type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold shadow-sm" />
+                      </div>
+                      <div className="space-y-1"><label className="text-[10px] font-black text-slate-500 uppercase ml-1">To</label>
+                        <input value={dateTo} onChange={e => setDateTo(e.target.value)} type="date" className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl font-bold shadow-sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Row 2: Categorization */}
+                  <div className="space-y-6">
+                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
+                      <MapPin className="w-5 h-5 text-emerald-500" /> 02. Categorization
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 bg-emerald-50/30 p-8 rounded-[24px] border border-emerald-100/50">
+                      {/* Area */}
+                      <div className="relative" ref={areaDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 mb-2 block">Area</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 shadow-sm">
+                          {filterArea || 'All Areas'} <ChevronDown className={`w-5 h-5 transition-transform ${openDropdown === 'area' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'area' && (
+                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-1.5 min-h-[100px] bg-white">
+                            <button onClick={() => { setFilterArea(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm">All Areas</button>
+                            {uniqueAreas.map(a => <button key={a} onClick={() => { setFilterArea(a); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm border-t border-slate-50">{a}</button>)}
+                          </div>
+                        )}
+                      </div>
+                      {/* Sales Rep */}
+                      <div className="relative" ref={salesRepDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 mb-2 block">Sales Rep</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 shadow-sm">
+                          {filterSalesRep || 'All Representatives'} <ChevronDown className={`w-5 h-5 transition-transform ${openDropdown === 'salesrep' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'salesrep' && (
+                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-1.5 min-h-[100px] bg-white">
+                            <button onClick={() => { setFilterSalesRep(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm">All Reps</button>
+                            {uniqueSalesReps.map(r => <button key={r} onClick={() => { setFilterSalesRep(r); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm border-t border-slate-50">{r}</button>)}
+                          </div>
+                        )}
+                      </div>
+                      {/* Market */}
+                      <div className="relative" ref={marketDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 mb-2 block">Market</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 shadow-sm">
+                          {filterMarket || 'All Markets'} <ChevronDown className={`w-5 h-5 transition-transform ${openDropdown === 'market' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'market' && (
+                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-1.5 min-h-[100px] bg-white">
+                            <button onClick={() => { setFilterMarket(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm">All Markets</button>
+                            {uniqueMarkets.map(m => <button key={m} onClick={() => { setFilterMarket(m); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm border-t border-slate-50">{m}</button>)}
+                          </div>
+                        )}
+                      </div>
+                      {/* Merchandiser */}
+                      <div className="relative" ref={merchandiserDropdownRef}>
+                        <label className="text-[10px] font-black text-slate-500 uppercase ml-1 mb-2 block">Merchandiser</label>
+                        <button onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')} className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 shadow-sm">
+                          {filterMerchandiser || 'All Merchandisers'} <ChevronDown className={`w-5 h-5 transition-transform ${openDropdown === 'merchandiser' ? 'rotate-180' : ''}`} />
+                        </button>
+                        {openDropdown === 'merchandiser' && (
+                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden p-1.5 min-h-[100px] bg-white">
+                            <button onClick={() => { setFilterMerchandiser(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm">All Merchandisers</button>
+                            {uniqueMerchandisers.map(m => <button key={m} onClick={() => { setFilterMerchandiser(m); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 rounded-xl font-bold text-sm border-t border-slate-50">{m}</button>)}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
+                <button
+                  onClick={() => {
+                    setFilterYear(''); setFilterMonth(''); setDateFrom(''); setDateTo('');
+                    setFilterArea(''); setFilterMarket(''); setFilterMerchandiser(''); setFilterSalesRep('');
+                  }}
+                  className="text-[11px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+                >
+                  Clear All Filters
+                </button>
+                <button onClick={() => setIsFilterModalOpen(false)} className="px-10 py-3.5 bg-green-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-lg shadow-green-100 hover:bg-green-700 transition-all">
+                  Apply & Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Customers Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-2xl font-bold text-gray-800">Top Customers</h2>
-            <div className="flex items-center gap-3">
-              <label htmlFor="topCount" className="text-sm font-medium text-gray-700">
-                Show Top:
-              </label>
-              <input
-                id="topCount"
-                type="number"
-                min="1"
-                max="100"
-                value={topCount}
-                onChange={(e) => {
-                  const value = parseInt(e.target.value);
-                  if (value > 0 && value <= 100) {
-                    setTopCount(value);
-                  }
-                }}
-                className="w-20 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 text-center font-medium"
-              />
-            </div>
           </div>
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
