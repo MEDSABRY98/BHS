@@ -193,8 +193,8 @@ export default function SalesComparisonTab({ data, loading }: SalesComparisonTab
             <div className="group bg-white hover:bg-slate-50 border-b border-slate-100 last:border-0 transition-colors">
                 <div className="grid grid-cols-12 items-center py-4 px-4 md:px-8">
                     {/* Label & Icon */}
-                    <div className="col-span-12 md:col-span-4 flex items-center gap-4 mb-4 md:mb-0">
-                        <div className={`p-2 rounded-xl ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'} transition-colors`}>
+                    <div className="col-span-12 md:col-span-4 flex items-center justify-start gap-4 mb-4 md:mb-0 pl-4 md:pl-12">
+                        <div className={`p-2 rounded-xl ${isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'} transition-colors shrink-0`}>
                             <Icon className="w-5 h-5" />
                         </div>
                         <div>
@@ -203,19 +203,17 @@ export default function SalesComparisonTab({ data, loading }: SalesComparisonTab
                     </div>
 
                     {/* Value 1 */}
-                    <div className="col-span-12 md:col-span-3 text-center md:text-left mb-2 md:mb-0">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Period 1</p>
+                    <div className="col-span-12 md:col-span-3 text-center mb-2 md:mb-0">
                         <p className="text-lg font-black text-slate-900">{formatValue(value1)}</p>
                     </div>
 
                     {/* Value 2 */}
-                    <div className="col-span-12 md:col-span-3 text-center md:text-left mb-2 md:mb-0">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Period 2</p>
+                    <div className="col-span-12 md:col-span-3 text-center mb-2 md:mb-0">
                         <p className="text-lg font-black text-slate-900">{formatValue(value2)}</p>
                     </div>
 
                     {/* Difference */}
-                    <div className="col-span-12 md:col-span-2 flex justify-center md:justify-end">
+                    <div className="col-span-12 md:col-span-2 flex justify-center">
                         <div className={`w-24 flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-sm font-black ${isPositive ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                             }`}>
                             {isPositive ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
@@ -488,8 +486,29 @@ export default function SalesComparisonTab({ data, loading }: SalesComparisonTab
                                     <TrendingUp className="w-5 h-5 text-white" />
                                 </div>
                                 <div>
-                                    <h3 className="text-xl font-black italic tracking-tight">PERFORMANCE ANALYSIS</h3>
+                                    <h3 className="text-xl font-black tracking-tight">PERFORMANCE ANALYSIS</h3>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{months.find(m => m.value === month1)?.label} {year1} vs {months.find(m => m.value === month2)?.label} {year2}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50/80 border-b border-slate-100 hidden md:block backdrop-blur-sm">
+                            <div className="grid grid-cols-12 py-5 px-8 items-center">
+                                <div className="col-span-4 text-center">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Metric</span>
+                                </div>
+                                <div className="col-span-3 text-center">
+                                    <span className="text-xs font-black text-emerald-600 uppercase tracking-[0.2em] bg-emerald-50/50 px-5 py-2 rounded-xl border border-emerald-100/50">
+                                        {months.find(m => m.value === month1)?.label} / {year1}
+                                    </span>
+                                </div>
+                                <div className="col-span-3 text-center">
+                                    <span className="text-xs font-black text-indigo-600 uppercase tracking-[0.2em] bg-indigo-50/50 px-5 py-2 rounded-xl border border-indigo-100/50">
+                                        {months.find(m => m.value === month2)?.label} / {year2}
+                                    </span>
+                                </div>
+                                <div className="col-span-2 text-center">
+                                    <span className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Growth</span>
                                 </div>
                             </div>
                         </div>

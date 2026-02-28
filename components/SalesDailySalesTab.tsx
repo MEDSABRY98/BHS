@@ -656,13 +656,16 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           <div className="flex items-center gap-2">
             <button
               onClick={() => setIsFilterModalOpen(true)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all border outline-none ${hasActiveFilters
-                ? 'bg-red-50 border-red-200 text-red-600 font-bold'
-                : 'bg-white border-gray-200 text-gray-600 hover:border-green-500 font-semibold'
+              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${hasActiveFilters
+                ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
+                : 'bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-500 hover:text-green-600'
                 }`}
             >
-              <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse' : ''}`} />
-              <span className="hidden sm:inline">Filters</span>
+              <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
+              <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
+              {hasActiveFilters && (
+                <span className="flex h-2 w-2 rounded-full bg-white"></span>
+              )}
             </button>
             <button
               onClick={() => {

@@ -771,12 +771,15 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
               <button
                 onClick={() => setIsFilterModalOpen(true)}
                 className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep)
-                  ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-4 ring-green-600/10'
+                  ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
                   : 'bg-white text-slate-600 border border-slate-200 shadow-sm hover:border-green-500 hover:text-green-600'
                   }`}
               >
                 <Filter className={`w-5 h-5 ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
-                <span className="text-[11px] font-black uppercase tracking-widest">Filters</span>
+                <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
+                {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) && (
+                  <span className="flex h-2 w-2 rounded-full bg-white"></span>
+                )}
               </button>
 
               <button

@@ -449,6 +449,9 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
               >
                 <Filter className={`w-5 h-5 ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
                 <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
+                {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) && (
+                  <span className="flex h-2 w-2 rounded-full bg-white"></span>
+                )}
               </button>
 
               <button

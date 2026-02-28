@@ -420,17 +420,15 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
             <button
               onClick={() => setIsFilterModalOpen(true)}
               className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${hasActiveFilters
-                ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-4 ring-green-500/10 border-green-500'
+                ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
                 : 'bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-500 hover:text-green-600'
                 }`}
             >
-              <div className="relative">
-                <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse text-white' : 'group-hover:scale-110 transition-transform'}`} />
-                {hasActiveFilters && (
-                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-green-600 animate-bounce"></span>
-                )}
-              </div>
+              <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
               <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
+              {hasActiveFilters && (
+                <span className="flex h-2 w-2 rounded-full bg-white"></span>
+              )}
             </button>
 
             <button
