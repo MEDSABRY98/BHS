@@ -27,7 +27,8 @@ import {
     FileDown,
     FileSpreadsheet,
     AlertTriangle,
-    Info
+    Info,
+    CircleDollarSign
 } from 'lucide-react';
 import {
     BarChart,
@@ -41,9 +42,32 @@ import {
     Area,
     LineChart,
     Line,
-    Legend
+    Legend,
+    Cell
 } from 'recharts';
 import * as XLSX from 'xlsx';
+
+const parseInvoiceDate = (dateStr?: string | null): Date | null => {
+    if (!dateStr) return null;
+    const parts = dateStr.trim().split(/[\/\-]/);
+    if (parts.length === 3) {
+        const p1 = parseInt(parts[0], 10);
+        const p2 = parseInt(parts[1], 10);
+        const p3 = parseInt(parts[2], 10);
+        if (!isNaN(p1) && !isNaN(p2) && !isNaN(p3)) {
+            if (p3 > 1000) {
+                const parsed = new Date(p3, p2 - 1, p1);
+                if (!isNaN(parsed.getTime())) return parsed;
+            } else if (p1 > 1000) {
+                const parsed = new Date(p1, p2 - 1, p3);
+                if (!isNaN(parsed.getTime())) return parsed;
+            }
+        }
+    }
+    const direct = new Date(dateStr);
+    if (!isNaN(direct.getTime())) return direct;
+    return null;
+};
 
 function SearchableSelect({
     value,
@@ -125,11 +149,14 @@ export default function VisitCustomersTab() {
     const [data, setData] = useState<VisitCustomerEntry[]>([]);
     const [customers, setCustomers] = useState<string[]>([]);
     const [salesReps, setSalesReps] = useState<string[]>([]);
+    const [cities, setCities] = useState<string[]>([]);
     const [selectedRep, setSelectedRep] = useState<string | null>(null);
     const [customerBalances, setCustomerBalances] = useState<Record<string, number>>({});
     const [notification, setNotification] = useState<{ message: string, type: 'error' | 'success' | 'info' } | null>(null);
     const [editingVisit, setEditingVisit] = useState<VisitCustomerEntry | null>(null);
     const [isEditPopupOpen, setIsEditPopupOpen] = useState(false);
+    const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+    const [allInvoices, setAllInvoices] = useState<any[]>([]);
 
     const showNotification = (message: string, type: 'error' | 'success' | 'info' = 'error') => {
         setNotification({ message, type });
@@ -165,6 +192,11 @@ export default function VisitCustomersTab() {
     const [fromDateFilter, setFromDateFilter] = useState('');
     const [toDateFilter, setToDateFilter] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [showVisitedOnly, setShowVisitedOnly] = useState<boolean | null>(null); // null = all, true = visited, false = not visited
+    const [cityFilter, setCityFilter] = useState('');
+    const [customerToCity, setCustomerToCity] = useState<Record<string, string>>({});
+    const [debtDaysFilter, setDebtDaysFilter] = useState('');
+    const [debtAmountFilter, setDebtAmountFilter] = useState('');
 
     useEffect(() => {
         const savedUser = localStorage.getItem('currentUser');
@@ -202,17 +234,26 @@ export default function VisitCustomersTab() {
 
                 const uniqueCustomers = Array.from(new Set(sheetData.map((row: any) => row.customerName))).sort() as string[];
                 setCustomers(uniqueCustomers);
+                setAllInvoices(sheetData);
 
-                // Calculate balances
+                // Calculate balances and city mapping
                 const balances: Record<string, number> = {};
+                const custToCity: Record<string, string> = {};
                 sheetData.forEach((row: any) => {
                     if (row.customerName) {
                         const debit = row.debit || 0;
                         const credit = row.credit || 0;
                         balances[row.customerName] = (balances[row.customerName] || 0) + (debit - credit);
+                        if (row.salesRep) {
+                            custToCity[row.customerName] = row.salesRep;
+                        }
                     }
                 });
                 setCustomerBalances(balances);
+                setCustomerToCity(custToCity);
+
+                const uniqueCities = Array.from(new Set(sheetData.map((row: any) => row.salesRep))).filter(Boolean).sort() as string[];
+                setCities(uniqueCities);
 
                 // Reps are now handled in fetchData from the visit history
             }
@@ -270,6 +311,18 @@ export default function VisitCustomersTab() {
             return;
         }
 
+        const invalidCustomers = entries.some(e => e.customerName && !customers.includes(e.customerName));
+        if (invalidCustomers) {
+            showNotification('One or more selected customers are not in the valid list. Please select from the dropdown.', 'error');
+            return;
+        }
+
+        const invalidCities = entries.some(e => e.city && !cities.includes(e.city));
+        if (invalidCities) {
+            showNotification('One or more selected cities are not in the valid list. Please select from the dropdown.', 'error');
+            return;
+        }
+
         setLoading(true);
         try {
             const response = await fetch('/api/visit-customers', {
@@ -309,6 +362,16 @@ export default function VisitCustomersTab() {
     const handleUpdateVisit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!editingVisit || !editingVisit.rowIndex) return;
+
+        if (editingVisit.customerName && !customers.includes(editingVisit.customerName)) {
+            showNotification('The selected customer is not in the valid list. Please select from the dropdown.', 'error');
+            return;
+        }
+
+        if (editingVisit.city && !cities.includes(editingVisit.city)) {
+            showNotification('The selected city is not in the valid list. Please select from the dropdown.', 'error');
+            return;
+        }
 
         setLoading(true);
         try {
@@ -400,6 +463,37 @@ export default function VisitCustomersTab() {
         }
     };
 
+    const handleExportExcel = () => {
+        if (summaryData.length === 0) {
+            showNotification('No data to export', 'info');
+            return;
+        }
+
+        const exportRows = summaryData.map((row: any, idx: number) => {
+            const base: any = {
+                '#': idx + 1,
+                'Name': row.name,
+                'Total Visits': row.totalVisits,
+                'Collections': row.visitsWithCollection,
+                'Total Collected (AED)': row.totalCollected,
+                'Last Visit': row.lastVisit
+            };
+            if (activeTab === 'customer-reports') {
+                base['Total Debit (AED)'] = row.totalCustomerDebt;
+                base['Oldest Debt (Days)'] = row.oldestDebtDays;
+            }
+            return base;
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(exportRows);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
+
+        // Styles for header
+        const fileName = `${activeTab === 'customer-reports' ? 'Customer' : 'SalesRep'}_Summary_${getTodayDate()}.xlsx`;
+        XLSX.writeFile(workbook, fileName);
+    };
+
     const filteredData = useMemo(() => {
         return data.filter(entry => {
             const matchesSearch = !searchQuery ||
@@ -407,8 +501,8 @@ export default function VisitCustomersTab() {
                 entry.salesRepName.toLowerCase().includes(searchQuery.toLowerCase()) ||
                 entry.notes.toLowerCase().includes(searchQuery.toLowerCase());
 
-            const matchesCustomer = !customerFilter || entry.customerName === customerFilter;
-            const matchesRep = !repFilter || entry.salesRepName === repFilter;
+            const matchesCustomer = !customerFilter || entry.customerName.toLowerCase().includes(customerFilter.toLowerCase());
+            const matchesRep = !repFilter || entry.salesRepName.toLowerCase().includes(repFilter.toLowerCase());
 
             const entryDate = new Date(entry.date);
             const matchesYear = !yearFilter || entryDate.getFullYear().toString() === yearFilter;
@@ -429,9 +523,22 @@ export default function VisitCustomersTab() {
             const matchesFromDate = !fromDateFilter || entry.date >= formattedFrom;
             const matchesToDate = !toDateFilter || entry.date <= formattedTo;
 
-            return matchesSearch && matchesCustomer && matchesRep && matchesYear && matchesMonth && matchesFromDate && matchesToDate;
+            const matchesCity = !cityFilter || (entry.city || customerToCity[entry.customerName]) === cityFilter;
+
+            return matchesSearch && matchesCustomer && matchesRep && matchesYear && matchesMonth && matchesFromDate && matchesToDate && matchesCity;
         }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    }, [data, searchQuery, customerFilter, repFilter, yearFilter, monthFilter, fromDateFilter, toDateFilter]);
+    }, [data, searchQuery, customerFilter, repFilter, yearFilter, monthFilter, fromDateFilter, toDateFilter, cityFilter, customerToCity]);
+
+    // Helper for parsing DD-MM-YYYY or YYYY-MM-DD to Date object
+    const parseInvoiceDate = (dateStr: string) => {
+        if (!dateStr) return new Date(0);
+        const parts = dateStr.split('-');
+        if (parts.length === 3) {
+            if (parts[0].length === 4) return new Date(dateStr); // YYYY-MM-DD
+            return new Date(`${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`); // DD-MM-YYYY
+        }
+        return new Date(dateStr);
+    };
 
     const stats = useMemo(() => {
         const totalVisits = filteredData.length;
@@ -443,6 +550,8 @@ export default function VisitCustomersTab() {
 
     const summaryData = useMemo(() => {
         const groupField = activeTab === 'customer-reports' ? 'customerName' : 'salesRepName';
+
+        // Base grouping from filteredData (actual visits)
         const grouped = filteredData.reduce((acc: any, curr: any) => {
             const key = curr[groupField] || 'Unknown';
             if (!acc[key]) {
@@ -462,17 +571,110 @@ export default function VisitCustomersTab() {
             if (curr.customerName) acc[key].uniqueCustomers.add(curr.customerName);
             return acc;
         }, {});
-        return Object.values(grouped).map((row: any) => {
+
+        let result = Object.values(grouped);
+
+        // If in Customer Reports, we might want to show all customers
+        if (activeTab === 'customer-reports') {
+            const currentResults = new Set(result.map((r: any) => r.name));
+
+            // Add customers who haven't been visited but match current filters
+            customers.forEach(custName => {
+                if (!currentResults.has(custName)) {
+                    // Check city
+                    const matchesCity = !cityFilter || customerToCity[custName] === cityFilter;
+                    // Check customer filter (partial match)
+                    const matchesCustomer = !customerFilter || custName.toLowerCase().includes(customerFilter.toLowerCase());
+                    // Check search query
+                    const matchesSearch = !searchQuery || custName.toLowerCase().includes(searchQuery.toLowerCase());
+
+                    if (matchesCity && matchesCustomer && matchesSearch) {
+                        currentResults.add(custName);
+                        result.push({
+                            name: custName,
+                            totalVisits: 0,
+                            totalCollected: 0,
+                            lastVisit: '---',
+                            visitsWithCollection: 0,
+                            uniqueCustomers: new Set([custName])
+                        });
+                    }
+                }
+            });
+
+            // Apply Visited/Not Visited toggle filter
+            if (showVisitedOnly === true) {
+                result = result.filter((r: any) => r.totalVisits > 0);
+            } else if (showVisitedOnly === false) {
+                result = result.filter((r: any) => r.totalVisits === 0);
+            }
+
+            // Ensure the final results strictly adhere to the main filters (City, Customer, Global Search)
+            result = result.filter((r: any) => {
+                const matchesCity = !cityFilter || customerToCity[r.name] === cityFilter;
+                const matchesCustomer = !customerFilter || r.name.toLowerCase().includes(customerFilter.toLowerCase());
+                const matchesSearch = !searchQuery || r.name.toLowerCase().includes(searchQuery.toLowerCase());
+                return matchesCity && matchesCustomer && matchesSearch;
+            });
+        }
+
+        return result.map((row: any) => {
             let totalDebt = 0;
             row.uniqueCustomers.forEach((c: string) => {
                 totalDebt += (customerBalances[c] || 0);
             });
+
+            // Calculate Oldest Debt Days for this customer
+            let oldestDays = 0;
+            if (activeTab === 'customer-reports') {
+                const customerInvoices = allInvoices.filter(inv => inv.customerName === row.name);
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+
+                // FIFO Aging: find oldest invoice not covered by total payments
+                // Total payments/credits = Total Debits - Current Positive Balance
+                const allDebits = customerInvoices
+                    .filter(inv => (inv.debit || 0) > 0)
+                    .sort((a, b) => parseInvoiceDate(a.date).getTime() - parseInvoiceDate(b.date).getTime());
+
+                const totalDebitSum = allDebits.reduce((s, inv) => s + (inv.debit || 0), 0);
+                // Only act if there's actual debt. If balance is <= 0, oldest is 0.
+                if (totalDebt > 0) {
+                    let creditsToApply = totalDebitSum - totalDebt;
+                    let oldestUnpaidDate: Date | null = null;
+
+                    for (const inv of allDebits) {
+                        if (creditsToApply >= inv.debit) {
+                            creditsToApply -= inv.debit;
+                        } else {
+                            oldestUnpaidDate = parseInvoiceDate(inv.date);
+                            break;
+                        }
+                    }
+
+                    if (oldestUnpaidDate) {
+                        const diffTime = today.getTime() - oldestUnpaidDate.getTime();
+                        oldestDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                    }
+                }
+            }
+
             return {
                 ...row,
-                totalCustomerDebt: totalDebt
+                totalCustomerDebt: totalDebt,
+                oldestDebtDays: oldestDays
             };
+        }).filter((row: any) => {
+            // Apply new filters
+            const minAmount = parseFloat(debtAmountFilter) || 0;
+            const minDays = parseInt(debtDaysFilter) || 0;
+
+            if (minAmount > 0 && row.totalCustomerDebt < minAmount) return false;
+            if (minDays > 0 && row.oldestDebtDays < minDays) return false;
+
+            return true;
         }).sort((a: any, b: any) => b.totalVisits - a.totalVisits);
-    }, [filteredData, activeTab, customerBalances]);
+    }, [filteredData, activeTab, customerBalances, customers, showVisitedOnly, cityFilter, customerToCity, customerFilter, searchQuery, debtDaysFilter, debtAmountFilter, allInvoices]);
 
     const repDetails = useMemo(() => {
         if (!selectedRep) return null;
@@ -534,10 +736,105 @@ export default function VisitCustomersTab() {
         };
     }, [selectedRep, filteredData, customerBalances]);
 
+    const customerDetails = useMemo(() => {
+        if (!selectedCustomer) return null;
+
+        const customerVisits = data.filter(v => v.customerName === selectedCustomer);
+        const sortedVisits = [...customerVisits].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const totalVisits = customerVisits.length;
+        const totalCollected = customerVisits.reduce((sum, v) => sum + (v.howMuchCollectMoney || 0), 0);
+        const visitsWithCollection = customerVisits.filter(v => v.collectMoney === 'Yes').length;
+        const lastVisit = sortedVisits.length > 0 ? sortedVisits[0].date : '---';
+        const netOutstanding = customerBalances[selectedCustomer] || 0;
+
+        // Aging Calculation
+        const customerInvoices = allInvoices.filter(inv => inv.customerName === selectedCustomer);
+        const aging = {
+            atDate: 0,
+            oneToThirty: 0,
+            thirtyOneToSixty: 0,
+            sixtyOneToNinety: 0,
+            ninetyOneToOneTwenty: 0,
+            older: 0
+        };
+
+        const matchingTotals = new Map<string, number>();
+        const maxDebits = new Map<string, number>();
+        const mainInvoiceIndices = new Map<string, number>();
+
+        // Pass 1: Analyze Matchings
+        customerInvoices.forEach((inv, idx) => {
+            if (inv.matching) {
+                const net = (inv.debit || 0) - (inv.credit || 0);
+                matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+
+                const currentMax = maxDebits.get(inv.matching) ?? -1;
+                if (inv.debit > currentMax) {
+                    maxDebits.set(inv.matching, inv.debit);
+                    mainInvoiceIndices.set(inv.matching, idx);
+                } else if (!mainInvoiceIndices.has(inv.matching)) {
+                    maxDebits.set(inv.matching, inv.debit);
+                    mainInvoiceIndices.set(inv.matching, idx);
+                }
+            }
+        });
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        // Pass 2: Aging Calculation
+        customerInvoices.forEach((inv, idx) => {
+            let amountToAge = 0;
+            let shouldAge = false;
+
+            if (!inv.matching) {
+                const net = (inv.debit || 0) - (inv.credit || 0);
+                if (Math.abs(net) > 0.01) {
+                    amountToAge = net;
+                    shouldAge = true;
+                }
+            } else if (mainInvoiceIndices.get(inv.matching) === idx) {
+                const residual = matchingTotals.get(inv.matching) || 0;
+                if (Math.abs(residual) > 0.01) {
+                    amountToAge = residual;
+                    shouldAge = true;
+                }
+            }
+
+            if (shouldAge) {
+                const targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
+                if (targetDate && !isNaN(targetDate.getTime())) {
+                    targetDate.setHours(0, 0, 0, 0);
+                    const diffTime = today.getTime() - targetDate.getTime();
+                    const daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (daysOverdue <= 0) aging.atDate += amountToAge;
+                    else if (daysOverdue <= 30) aging.oneToThirty += amountToAge;
+                    else if (daysOverdue <= 60) aging.thirtyOneToSixty += amountToAge;
+                    else if (daysOverdue <= 90) aging.sixtyOneToNinety += amountToAge;
+                    else if (daysOverdue <= 120) aging.ninetyOneToOneTwenty += amountToAge;
+                    else aging.older += amountToAge;
+                }
+            }
+        });
+
+        return {
+            name: selectedCustomer,
+            totalVisits,
+            totalCollected,
+            visitsWithCollection,
+            lastVisit,
+            netOutstanding,
+            aging,
+            visits: sortedVisits
+        };
+    }, [selectedCustomer, data, customerBalances, allInvoices]);
+
     return (
         <div className="min-h-screen bg-slate-50">
-            {/* Top Header */}
-            <header className="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-sm no-print">
+            {/* Top Header - Sticky */}
+            <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm no-print">
                 <div className="max-w-[1600px] mx-auto px-4 h-20 flex items-center justify-between gap-8">
                     {/* Left: Brand & Back */}
                     <div className="flex items-center gap-6">
@@ -583,6 +880,8 @@ export default function VisitCustomersTab() {
                                     setFromDateFilter('');
                                     setToDateFilter('');
                                     setSelectedRep(null);
+                                    setShowVisitedOnly(null);
+                                    setCityFilter('');
                                 }}
                                 className={`flex-1 flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-sm font-black transition-all duration-300 ${activeTab === tab.id
                                     ? 'bg-white text-slate-900 shadow-md scale-105'
@@ -598,118 +897,153 @@ export default function VisitCustomersTab() {
                     {/* Right: Spacer to keep tabs centered */}
                     <div className="hidden lg:block w-48"></div>
                 </div>
+            </header>
 
-                {/* Sub-Header / Filters & Stats (Only for Reports) */}
-                {activeTab !== 'registration' && (
-                    <div className="bg-slate-50 border-b border-slate-200 py-2 animate-in slide-in-from-top-2 duration-300">
-                        <div className="max-w-[1800px] mx-auto px-6 flex flex-wrap items-center justify-center gap-8">
+            {/* Sub-Header / Filters & Stats (Scrolling) */}
+            {activeTab !== 'registration' && (
+                <div className="bg-slate-50 border-b border-slate-200 py-2 animate-in slide-in-from-top-2 duration-300 no-print">
+                    <div className="max-w-[1800px] mx-auto px-6 flex flex-wrap items-center justify-center gap-8">
 
-                            {/* 1. View Mode Switcher (Tabs) */}
-                            <div className="flex items-center bg-white p-1 rounded-xl shadow-sm border border-slate-100 min-w-[400px]">
-                                <button
-                                    onClick={() => setViewMode('details')}
-                                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === 'details' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    <BarChart3 className="w-3.5 h-3.5" />
-                                    Detailed Visits
-                                </button>
-                                <button
-                                    onClick={() => setViewMode('summary')}
-                                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === 'summary' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                    <LayoutGrid className="w-3.5 h-3.5" />
-                                    Summary Numbers
-                                </button>
+                        {/* 1. View Mode Switcher (Tabs) */}
+                        <div className="flex items-center bg-white p-1 rounded-xl shadow-sm border border-slate-100 min-w-[400px]">
+                            <button
+                                onClick={() => setViewMode('details')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === 'details' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                <BarChart3 className="w-3.5 h-3.5" />
+                                Detailed Visits
+                            </button>
+                            <button
+                                onClick={() => setViewMode('summary')}
+                                className={`flex-1 flex items-center justify-center gap-2 px-4 py-1.5 rounded-lg text-xs font-black transition-all ${viewMode === 'summary' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                            >
+                                <LayoutGrid className="w-3.5 h-3.5" />
+                                Summary Numbers
+                            </button>
+                        </div>
+
+                        <div className="w-px h-6 bg-slate-200 hidden md:block" />
+
+                        {/* 2. Filters */}
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">
+                                <Filter className="w-3.5 h-3.5" /> Filters:
                             </div>
+                            {activeTab === 'customer-reports' && (
+                                <SearchableSelect
+                                    value={customerFilter}
+                                    onChange={setCustomerFilter}
+                                    options={customers}
+                                    placeholder="All Customers"
+                                    className="min-w-[280px]"
+                                />
+                            )}
+                            {activeTab === 'rep-reports' && (
+                                <SearchableSelect
+                                    value={repFilter}
+                                    onChange={setRepFilter}
+                                    options={salesReps}
+                                    placeholder="All Representatives"
+                                    className="min-w-[280px]"
+                                />
+                            )}
+
+                            {activeTab === 'customer-reports' && (
+                                <div className="flex items-center gap-4 border-l border-slate-200 pl-4">
+                                    <SearchableSelect
+                                        value={cityFilter}
+                                        onChange={setCityFilter}
+                                        options={cities}
+                                        placeholder="All Cities"
+                                        className="min-w-[200px]"
+                                    />
+
+                                    <div className="flex bg-white rounded-xl p-1 border border-slate-100 shadow-sm">
+                                        <button
+                                            onClick={() => setShowVisitedOnly(null)}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${showVisitedOnly === null ? 'bg-slate-900 text-white' : 'text-slate-400'}`}
+                                        >
+                                            All
+                                        </button>
+                                        <button
+                                            onClick={() => setShowVisitedOnly(true)}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${showVisitedOnly === true ? 'bg-slate-900 text-white' : 'text-slate-400'}`}
+                                        >
+                                            Visited
+                                        </button>
+                                        <button
+                                            onClick={() => setShowVisitedOnly(false)}
+                                            className={`px-3 py-1 rounded-lg text-[10px] font-black transition-all ${showVisitedOnly === false ? 'bg-slate-900 text-white' : 'text-slate-400'}`}
+                                        >
+                                            Not Visited
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="w-px h-6 bg-slate-200 hidden md:block" />
 
-                            {/* 2. Filters */}
-                            <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2 text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">
-                                    <Filter className="w-3.5 h-3.5" /> Filters:
-                                </div>
-                                {activeTab === 'customer-reports' && (
-                                    <SearchableSelect
-                                        value={customerFilter}
-                                        onChange={setCustomerFilter}
-                                        options={customers}
-                                        placeholder="All Customers"
-                                        className="min-w-[280px]"
+                            <div className="flex items-center gap-2">
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Year</p>
+                                    <input
+                                        type="number"
+                                        value={yearFilter}
+                                        onChange={(e) => setYearFilter(e.target.value)}
+                                        placeholder="YYYY"
+                                        className="w-20 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
                                     />
-                                )}
-                                {activeTab === 'rep-reports' && (
-                                    <SearchableSelect
-                                        value={repFilter}
-                                        onChange={setRepFilter}
-                                        options={salesReps}
-                                        placeholder="All Representatives"
-                                        className="min-w-[280px]"
+                                </div>
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Month</p>
+                                    <input
+                                        type="number"
+                                        value={monthFilter}
+                                        onChange={(e) => setMonthFilter(e.target.value)}
+                                        placeholder="MM"
+                                        className="w-20 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
                                     />
-                                )}
-
-                                <div className="flex items-center gap-2">
-                                    <div className="flex flex-col gap-1">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Year</p>
-                                        <input
-                                            type="number"
-                                            value={yearFilter}
-                                            onChange={(e) => setYearFilter(e.target.value)}
-                                            placeholder="YYYY"
-                                            className="w-20 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">Month</p>
-                                        <input
-                                            type="number"
-                                            value={monthFilter}
-                                            onChange={(e) => setMonthFilter(e.target.value)}
-                                            placeholder="MM"
-                                            className="w-20 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">From</p>
-                                        <input
-                                            type="text"
-                                            value={fromDateFilter}
-                                            onChange={(e) => setFromDateFilter(e.target.value)}
-                                            placeholder="DD-MM-YYYY"
-                                            className="w-32 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
-                                        />
-                                    </div>
-                                    <div className="flex flex-col gap-1">
-                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">To</p>
-                                        <input
-                                            type="text"
-                                            value={toDateFilter}
-                                            onChange={(e) => setToDateFilter(e.target.value)}
-                                            placeholder="DD-MM-YYYY"
-                                            className="w-32 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
-                                        />
-                                    </div>
                                 </div>
-                            </div>
-
-                            <div className="w-px h-6 bg-slate-200 hidden md:block" />
-
-                            {/* 3. Stats */}
-                            <div className="flex items-center gap-8 bg-white/50 px-6 py-1.5 rounded-2xl border border-slate-100">
-                                <div className="text-center">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Visits</p>
-                                    <p className="text-lg font-black text-slate-900 leading-none">{stats.totalVisits}</p>
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">From</p>
+                                    <input
+                                        type="text"
+                                        value={fromDateFilter}
+                                        onChange={(e) => setFromDateFilter(e.target.value)}
+                                        placeholder="DD-MM-YYYY"
+                                        className="w-32 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
+                                    />
                                 </div>
-                                <div className="w-px h-6 bg-slate-200" />
-                                <div className="text-center">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Collected</p>
-                                    <p className="text-lg font-black text-pink-600 leading-none">AED {stats.totalCollected.toLocaleString()}</p>
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">To</p>
+                                    <input
+                                        type="text"
+                                        value={toDateFilter}
+                                        onChange={(e) => setToDateFilter(e.target.value)}
+                                        placeholder="DD-MM-YYYY"
+                                        className="w-32 px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-bold focus:border-slate-900 outline-none transition-all"
+                                    />
                                 </div>
                             </div>
                         </div>
+
+                        <div className="w-px h-6 bg-slate-200 hidden md:block" />
+
+                        {/* 3. Stats */}
+                        <div className="flex items-center gap-8 bg-white/50 px-6 py-1.5 rounded-2xl border border-slate-100">
+                            <div className="text-center">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Visits</p>
+                                <p className="text-lg font-black text-slate-900 leading-none">{stats.totalVisits}</p>
+                            </div>
+                            <div className="w-px h-6 bg-slate-200" />
+                            <div className="text-center">
+                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Collected</p>
+                                <p className="text-lg font-black text-pink-600 leading-none">AED {stats.totalCollected.toLocaleString()}</p>
+                            </div>
+                        </div>
                     </div>
-                )}
-            </header>
+                </div>
+            )}
 
             {/* Main Content Area */}
             <main className="md:p-8 custom-scrollbar">
@@ -764,12 +1098,11 @@ export default function VisitCustomersTab() {
                                                         />
                                                     </td>
                                                     <td className="px-2">
-                                                        <input
-                                                            type="text"
+                                                        <SearchableSelect
                                                             value={entry.city}
-                                                            placeholder="City..."
-                                                            onChange={(e) => handleEntryChange(idx, 'city', e.target.value)}
-                                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none"
+                                                            onChange={(val) => handleEntryChange(idx, 'city', val)}
+                                                            options={cities}
+                                                            placeholder="City"
                                                         />
                                                     </td>
                                                     <td className="px-2">
@@ -872,9 +1205,74 @@ export default function VisitCustomersTab() {
                             setEditingVisit={setEditingVisit}
                             setIsEditPopupOpen={setIsEditPopupOpen}
                         />
+                    ) : selectedCustomer ? (
+                        <CustomerVisitDetailView
+                            details={customerDetails}
+                            onBack={() => setSelectedCustomer(null)}
+                            setEditingVisit={setEditingVisit}
+                            setIsEditPopupOpen={setIsEditPopupOpen}
+                        />
                     ) : (
                         <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                            {filteredData.length > 0 ? (
+                            {/* Persistent Summary Filters Section */}
+                            {viewMode === 'summary' && activeTab === 'customer-reports' && (
+                                <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-6 flex flex-wrap items-center justify-center gap-8">
+                                    <div className="flex flex-col gap-2 min-w-[240px]">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
+                                            <Clock className="w-3.5 h-3.5 text-blue-500" />
+                                            Debt Older Than (Days)
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={debtDaysFilter}
+                                                onChange={(e) => setDebtDaysFilter(e.target.value)}
+                                                placeholder="e.g. 90"
+                                                className="w-full pl-4 pr-12 py-3 bg-slate-50 border-2 border-transparent rounded-2xl text-sm font-black text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none"
+                                            />
+                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">DAYS</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2 min-w-[240px]">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
+                                            <CircleDollarSign className="w-3.5 h-3.5 text-emerald-500" />
+                                            Total Debit Greater Than
+                                        </label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={debtAmountFilter}
+                                                onChange={(e) => setDebtAmountFilter(e.target.value)}
+                                                placeholder="e.g. 5000"
+                                                className="w-full pl-12 pr-4 py-3 bg-slate-50 border-2 border-transparent rounded-2xl text-sm font-black text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none"
+                                            />
+                                            <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">AED</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-3 mt-6">
+                                        {(debtDaysFilter || debtAmountFilter) && (
+                                            <button
+                                                onClick={() => { setDebtDaysFilter(''); setDebtAmountFilter(''); }}
+                                                className="px-6 py-3 bg-rose-50 text-rose-600 rounded-xl text-xs font-black hover:bg-rose-100 transition-all flex items-center gap-2"
+                                            >
+                                                <XCircle className="w-4 h-4" /> Reset
+                                            </button>
+                                        )}
+
+                                        <button
+                                            onClick={handleExportExcel}
+                                            title="Export to Excel"
+                                            className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center shadow-lg shadow-emerald-100 group"
+                                        >
+                                            <FileSpreadsheet className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(viewMode === 'details' ? filteredData.length > 0 : summaryData.length > 0) ? (
                                 <div className="grid grid-cols-1 gap-4">
                                     <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
                                         <div className="overflow-x-auto">
@@ -882,13 +1280,13 @@ export default function VisitCustomersTab() {
                                                 <table className="w-full text-center border-collapse">
                                                     <thead>
                                                         <tr className="bg-slate-900 text-white">
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Date</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Customer</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">City</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Representative</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Collect?</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Amount</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Notes</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[150px]">Date</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[250px]">Customer</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[120px]">City</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[200px]">Representative</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[120px]">Collect?</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[150px]">Amount</th>
+                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-auto">Notes</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody className="divide-y divide-slate-100">
@@ -944,57 +1342,77 @@ export default function VisitCustomersTab() {
                                                     </tbody>
                                                 </table>
                                             ) : (
-                                                <table className="w-full text-center border-collapse">
-                                                    <thead>
-                                                        <tr className="bg-slate-900 text-white">
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">
-                                                                {activeTab === 'customer-reports' ? 'Customer Name' : 'Sales Representative'}
-                                                            </th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Total Visits</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Collections</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Total Amount</th>
-                                                            <th className="px-6 py-5 text-xs font-black uppercase tracking-wider">Last Visit</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody className="divide-y divide-slate-100">
-                                                        {summaryData.map((row: any, idx: number) => (
-                                                            <tr key={idx} className="hover:bg-slate-50 transition-colors group">
-                                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <div className="flex justify-center">
-                                                                        {activeTab === 'rep-reports' ? (
-                                                                            <button
-                                                                                onClick={() => setSelectedRep(row.name)}
-                                                                                className="text-lg font-black text-slate-900 hover:text-pink-600 transition-colors flex items-center gap-2 group/btn"
-                                                                            >
-                                                                                {row.name}
-                                                                                <ArrowRight className="w-4 h-4 opacity-0 -translate-x-2 group-hover/btn:opacity-100 group-hover/btn:translate-x-0 transition-all text-pink-500" />
-                                                                            </button>
-                                                                        ) : (
-                                                                            <span className="text-lg font-black text-slate-900">{row.name}</span>
-                                                                        )}
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <div className="flex items-center justify-center gap-2">
-                                                                        <span className="text-lg font-black text-slate-900">{row.totalVisits}</span>
-                                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">visits</span>
-                                                                    </div>
-                                                                </td>
-                                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-black ${row.visitsWithCollection > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
-                                                                        {row.visitsWithCollection} / {row.totalVisits} Collected
-                                                                    </span>
-                                                                </td>
-                                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <span className="text-lg font-black text-pink-600">AED {row.totalCollected.toLocaleString()}</span>
-                                                                </td>
-                                                                <td className="px-6 py-5 whitespace-nowrap">
-                                                                    <span className="text-sm font-bold text-slate-500">{row.lastVisit}</span>
-                                                                </td>
+                                                <div className="flex flex-col">
+                                                    <table className="w-full text-center border-collapse">
+                                                        <thead>
+                                                            <tr className="bg-slate-900 text-white">
+                                                                <th className="px-4 py-5 text-xs font-black uppercase tracking-wider w-[60px]">#</th>
+                                                                <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[300px]">
+                                                                    {activeTab === 'customer-reports' ? 'Customer Name' : 'Sales Representative'}
+                                                                </th>
+                                                                {activeTab === 'customer-reports' && (
+                                                                    <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[200px]">Total Debit</th>
+                                                                )}
+                                                                <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[150px]">Total Visits</th>
+                                                                <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[200px]">Collections</th>
+                                                                <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[200px]">Total Amount</th>
+                                                                <th className="px-6 py-5 text-xs font-black uppercase tracking-wider w-[200px]">Last Visit</th>
                                                             </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
+                                                        </thead>
+                                                        <tbody className="divide-y divide-slate-100">
+                                                            {summaryData.map((row: any, idx: number) => (
+                                                                <tr key={idx} className="hover:bg-slate-50 transition-colors group">
+                                                                    <td className="px-4 py-5 whitespace-nowrap text-slate-400 text-xs font-black">{idx + 1}</td>
+                                                                    <td className="px-6 py-5 whitespace-nowrap text-center">
+                                                                        <div className="flex justify-center">
+                                                                            {activeTab === 'rep-reports' ? (
+                                                                                <button
+                                                                                    onClick={() => setSelectedRep(row.name)}
+                                                                                    className="text-sm font-black text-slate-900 hover:text-pink-600 transition-colors flex items-center justify-center gap-2 group/btn"
+                                                                                >
+                                                                                    {row.name}
+                                                                                    <ArrowRight className="w-4 h-4 opacity-0 -translate-x-2 group-hover/btn:opacity-100 group-hover/btn:translate-x-0 transition-all text-pink-500" />
+                                                                                </button>
+                                                                            ) : (
+                                                                                <button
+                                                                                    onClick={() => setSelectedCustomer(row.name)}
+                                                                                    className="text-sm font-black text-slate-900 hover:text-blue-600 transition-colors flex items-center justify-center gap-2 group/btn"
+                                                                                >
+                                                                                    {row.name}
+                                                                                    <ArrowRight className="w-4 h-4 opacity-0 -translate-x-2 group-hover/btn:opacity-100 group-hover/btn:translate-x-0 transition-all text-blue-500" />
+                                                                                </button>
+                                                                            )}
+                                                                        </div>
+                                                                    </td>
+                                                                    {activeTab === 'customer-reports' && (
+                                                                        <td className="px-6 py-5 whitespace-nowrap text-center">
+                                                                            <span className={`text-lg font-black ${row.totalCustomerDebt > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                                                                                AED {row.totalCustomerDebt.toLocaleString()}
+                                                                            </span>
+                                                                        </td>
+                                                                    )}
+                                                                    <td className="px-6 py-5 whitespace-nowrap">
+                                                                        <div className="flex items-center justify-center gap-2">
+                                                                            <span className="text-lg font-black text-slate-900">{row.totalVisits}</span>
+                                                                            <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">visits</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="px-6 py-5 whitespace-nowrap">
+                                                                        <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-xs font-black ${row.visitsWithCollection > 0 ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                                            {row.visitsWithCollection} / {row.totalVisits} Collected
+                                                                        </span>
+                                                                    </td>
+                                                                    <td className="px-6 py-5 whitespace-nowrap">
+                                                                        <span className="text-lg font-black text-pink-600">AED {row.totalCollected.toLocaleString()}</span>
+                                                                    </td>
+                                                                    <td className="px-6 py-5 whitespace-nowrap">
+                                                                        <span className="text-sm font-bold text-slate-500">{row.lastVisit}</span>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
                                             )}
                                         </div>
                                     </div>
@@ -1017,7 +1435,7 @@ export default function VisitCustomersTab() {
                         </div>
                     )}
                 </div>
-            </main >
+            </main>
 
 
             <style jsx>{`
@@ -1057,11 +1475,11 @@ export default function VisitCustomersTab() {
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-2">City</label>
-                                        <input
-                                            type="text"
+                                        <SearchableSelect
                                             value={editingVisit.city || ''}
-                                            onChange={(e) => setEditingVisit({ ...editingVisit, city: e.target.value })}
-                                            className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent rounded-xl text-sm font-bold text-slate-900 focus:bg-white focus:border-slate-900 transition-all outline-none"
+                                            onChange={(val) => setEditingVisit({ ...editingVisit, city: val })}
+                                            options={cities}
+                                            placeholder="City"
                                         />
                                     </div>
                                 </div>
@@ -1186,7 +1604,193 @@ export default function VisitCustomersTab() {
                     </div>
                 )
             }
-        </div >
+        </div>
+    );
+}
+
+function CustomerVisitDetailView({
+    details,
+    onBack,
+    setEditingVisit,
+    setIsEditPopupOpen
+}: {
+    details: any;
+    onBack: () => void;
+    setEditingVisit: (v: VisitCustomerEntry | null) => void;
+    setIsEditPopupOpen: (o: boolean) => void;
+}) {
+    if (!details) return null;
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            {/* Header */}
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+                <div className="flex flex-col md:flex-row md:items-center gap-6">
+                    <button
+                        onClick={onBack}
+                        className="w-fit flex items-center gap-2 px-4 py-2 bg-white text-slate-600 rounded-xl font-bold text-sm shadow-sm border border-slate-100 hover:text-slate-900 transition-all group"
+                    >
+                        <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+                        Back to Summary
+                    </button>
+                    <div className="w-px h-8 bg-slate-200 hidden md:block" />
+                    <div className="flex flex-col">
+                        <h2 className="text-2xl font-black text-slate-900">Customer Analysis: <span className="text-blue-600">{details.name}</span></h2>
+                    </div>
+                </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                {[
+                    { label: 'Net Outstanding', value: `AED ${details.netOutstanding.toLocaleString()}`, icon: DollarSign, color: details.netOutstanding > 0 ? 'text-rose-600' : 'text-emerald-600', bg: details.netOutstanding > 0 ? 'bg-rose-50' : 'bg-emerald-50' },
+                    { label: 'Total Visits', value: details.totalVisits, icon: Activity, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'With Collection', value: details.visitsWithCollection, icon: CheckCircle2, color: 'text-green-600', bg: 'bg-green-50' },
+                    { label: 'Total Amount', value: `AED ${details.totalCollected.toLocaleString()}`, icon: Wallet, color: 'text-pink-600', bg: 'bg-pink-50' },
+                    { label: 'Last Visit', value: details.lastVisit, icon: Clock, color: 'text-purple-600', bg: 'bg-purple-50' }
+                ].map((stat, i) => (
+                    <div key={i} className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col gap-4">
+                        <div className={`w-12 h-12 ${stat.bg} ${stat.color} rounded-2xl flex items-center justify-center`}>
+                            <stat.icon className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{stat.label}</p>
+                            <p className="text-xl font-black text-slate-900">{stat.value}</p>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Aging Section */}
+            <div className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="flex items-center justify-between mb-10">
+                    <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-pink-100 rounded-2xl flex items-center justify-center">
+                            <Calendar className="w-6 h-6 text-pink-600" />
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black text-slate-900">Debt Aging Analysis</h3>
+                            <p className="text-sm font-bold text-slate-400">Aging breakdown of outstanding balance</p>
+                        </div>
+                    </div>
+                    <div className="bg-slate-50 px-6 py-3 rounded-2xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Outstanding</p>
+                        <p className="text-3xl font-black text-slate-900">AED {details.netOutstanding.toLocaleString()}</p>
+                    </div>
+                </div>
+
+                <div className="h-[400px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                            data={[
+                                { name: 'AT DATE', value: details.aging.atDate, color: '#10b981' },
+                                { name: '1 - 30', value: details.aging.oneToThirty, color: '#64748b' },
+                                { name: '31 - 60', value: details.aging.thirtyOneToSixty, color: '#64748b' },
+                                { name: '61 - 90', value: details.aging.sixtyOneToNinety, color: '#f59e0b' },
+                                { name: '91 - 120', value: details.aging.ninetyOneToOneTwenty, color: '#f59e0b' },
+                                { name: 'OLDER', value: details.aging.older, color: '#ef4444' }
+                            ]}
+                            margin={{ top: 40, right: 30, left: 20, bottom: 20 }}
+                        >
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis
+                                dataKey="name"
+                                axisLine={false}
+                                tickLine={false}
+                                tick={{ fill: '#64748b', fontSize: 13, fontWeight: 900 }}
+                                dy={10}
+                            />
+                            <YAxis hide />
+                            <Tooltip
+                                cursor={{ fill: '#f8fafc' }}
+                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
+                                formatter={(value: any) => [`AED ${value.toLocaleString()}`, 'Balance']}
+                            />
+                            <Bar
+                                dataKey="value"
+                                radius={[12, 12, 0, 0]}
+                                barSize={80}
+                                label={{
+                                    position: 'top',
+                                    formatter: (val: any) => val > 0 ? val.toLocaleString() : '',
+                                    fontSize: 20,
+                                    fontWeight: 900,
+                                    fill: '#1e293b',
+                                    offset: 15
+                                }}
+                            >
+                                {[
+                                    { color: '#10b981' },
+                                    { color: '#94a3b8' },
+                                    { color: '#64748b' },
+                                    { color: '#f59e0b' },
+                                    { color: '#f97316' },
+                                    { color: '#ef4444' }
+                                ].map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.color} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </div>
+
+            {/* Visit History Section */}
+            <div className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden">
+                <div className="px-8 py-6 border-b border-slate-100">
+                    <h3 className="text-lg font-black text-slate-900">Visits History</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    {details.visits.length > 0 ? (
+                        <table className="w-full text-center border-collapse">
+                            <thead>
+                                <tr className="bg-slate-50">
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Date</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Collected?</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Amount</th>
+                                    <th className="px-6 py-4 text-[10px] font-black uppercase tracking-wider text-slate-400">Note</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                                {details.visits.map((v: any, i: number) => (
+                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <button
+                                                onClick={() => {
+                                                    setEditingVisit({ ...v });
+                                                    setIsEditPopupOpen(true);
+                                                }}
+                                                className="text-sm font-black text-slate-900 hover:text-blue-600 transition-colors"
+                                            >
+                                                {v.date}
+                                            </button>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${v.collectMoney === 'Yes' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-400'}`}>
+                                                {v.collectMoney === 'Yes' ? 'Yes' : 'No'}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-pink-600">
+                                            {v.howMuchCollectMoney > 0 ? `AED ${v.howMuchCollectMoney.toLocaleString()}` : '---'}
+                                        </td>
+                                        <td className="px-6 py-4">
+                                            <p className="text-sm font-bold text-slate-600 max-w-lg mx-auto">{v.notes || '---'}</p>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    ) : (
+                        <div className="py-20 text-center">
+                            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Info className="w-10 h-10 text-slate-300" />
+                            </div>
+                            <p className="text-lg font-black text-slate-400">No previous visits for this customer</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 }
 

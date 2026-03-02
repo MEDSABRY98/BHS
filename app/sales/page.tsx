@@ -11,6 +11,7 @@ import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
 import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
 import SalesComparisonTab from '@/components/SalesComparisonTab';
+import SalesCategoryRankTab from '@/components/SalesCategoryRankTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -219,6 +220,7 @@ export default function SalesPage() {
     { id: 'sales-statistics', label: 'Statistics' },
     { id: 'sales-daily-sales', label: 'Daily Sales' },
     { id: 'sales-products', label: 'Products' },
+    { id: 'sales-category-rank', label: 'Category Rank' },
     { id: 'sales-download-form', label: 'Order Form' },
   ];
 
@@ -263,6 +265,8 @@ export default function SalesPage() {
         return <SalesDailySalesTab data={globallyFilteredData} loading={loading} />;
       case 'sales-products':
         return <SalesProductsTab data={globallyFilteredData} loading={loading} />;
+      case 'sales-category-rank':
+        return <SalesCategoryRankTab data={globallyFilteredData} loading={loading} />;
       case 'sales-download-form':
         return <SalesDownloadFormTab data={globallyFilteredData} loading={loading} />;
       default:

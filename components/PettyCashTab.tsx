@@ -1126,12 +1126,12 @@ export default function PettyCashTab() {
                         <div className="overflow-x-auto">
                           <table className="w-full">
                             <thead>
-                              <tr className="border-b-2 border-gray-200">
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Date</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Amount</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Source</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Description</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Paid?</th>
+                              <tr className="border-b-2 border-gray-200 bg-gray-50">
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[140px]">Date</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[160px]">Amount</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[250px]">Source</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-auto">Description</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[120px]">Paid?</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1165,12 +1165,12 @@ export default function PettyCashTab() {
                         <div className="overflow-x-auto">
                           <table className="w-full">
                             <thead>
-                              <tr className="border-b-2 border-gray-200">
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Date</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Amount</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Recipient</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Description</th>
-                                <th className="text-center py-3 px-3 text-base font-bold text-gray-700">Paid?</th>
+                              <tr className="border-b-2 border-gray-200 bg-gray-50">
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[140px]">Date</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[160px]">Amount</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[250px]">Recipient</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-auto">Description</th>
+                                <th className="text-center py-4 px-3 text-sm font-black text-gray-500 uppercase tracking-widest w-[120px]">Paid?</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -1228,35 +1228,36 @@ export default function PettyCashTab() {
                             </div>
                           </div>
 
-                          {/* Recipients Cards */}
-                          <div className="grid grid-cols-1 gap-3">
-                            {pendingPayments.map((payment, index) => (
-                              <div
-                                key={index}
-                                className="bg-white border-2 border-gray-100 rounded-xl p-5 hover:border-amber-400 hover:shadow-lg transition-all duration-300 group"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-4 flex-1">
-                                    <div className="bg-gradient-to-br from-amber-100 to-orange-100 p-3 rounded-xl group-hover:scale-110 transition-transform duration-300">
-                                      <div className="w-8 h-8 flex items-center justify-center">
-                                        <span className="text-2xl font-black text-amber-600">#{index + 1}</span>
-                                      </div>
-                                    </div>
-                                    <div className="flex-1">
-                                      <h4 className="text-lg font-bold text-gray-800 group-hover:text-amber-600 transition-colors">
+                          {/* Recipients Table */}
+                          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="bg-gray-50 border-b border-gray-100">
+                                  <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-[80px]">#</th>
+                                  <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-auto">Recipient</th>
+                                  <th className="px-6 py-4 text-center text-xs font-black text-gray-500 uppercase tracking-widest w-[250px]">Outstanding Amount</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {pendingPayments.map((payment, index) => (
+                                  <tr key={index} className="hover:bg-amber-50/50 transition-all group">
+                                    <td className="px-6 py-4 text-center">
+                                      <span className="text-sm font-black text-amber-600 bg-amber-100 px-3 py-1 rounded-lg">#{index + 1}</span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className="text-lg font-bold text-gray-800 group-hover:text-amber-600 transition-colors uppercase">
                                         {payment.recipient}
-                                      </h4>
-                                      <p className="text-sm text-gray-500 mt-1">Pending Payment</p>
-                                    </div>
-                                  </div>
-                                  <div className="text-right">
-                                    <p className="text-3xl font-black text-red-600">
-                                      {payment.amount.toFixed(2)} <span className="text-lg text-red-400">AED</span>
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
+                                      </span>
+                                    </td>
+                                    <td className="px-6 py-4 text-center">
+                                      <span className="text-2xl font-black text-red-600">
+                                        {payment.amount.toFixed(2)} <span className="text-xs text-red-400">AED</span>
+                                      </span>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
                           </div>
                         </div>
                       )}
