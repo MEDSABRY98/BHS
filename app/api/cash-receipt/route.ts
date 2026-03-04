@@ -45,6 +45,16 @@ export async function POST(request: Request) {
             );
         }
 
+        // Check if receipt number already exists
+        const allReceipts = await getAllReceipts();
+        const exists = allReceipts.some((r: any) => r.receiptNumber.toLowerCase() === receiptNumber.toLowerCase());
+        if (exists) {
+            return NextResponse.json(
+                { error: `Receipt number ${receiptNumber} already exists in the system.` },
+                { status: 409 }
+            );
+        }
+
         await saveCashReceipt({
             date,
             receiptNumber,

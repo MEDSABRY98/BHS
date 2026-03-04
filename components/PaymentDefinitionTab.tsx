@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Search, Save, Loader2, RefreshCw, Edit2, X, Check, Plus, Trash2 } from 'lucide-react';
+import { Search, Save, Loader2, RefreshCw, Edit2, X, Check, Plus, Trash2, CheckCircle2 } from 'lucide-react';
 
 interface PaymentDefinitionEntry {
     customerId: string;
@@ -323,10 +323,19 @@ export default function PaymentDefinitionTab() {
                             <button
                                 onClick={handleSave}
                                 disabled={saving || isOverLimit}
-                                className={`px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors ${saving || isOverLimit ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                className={`min-w-[220px] py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${saving || isOverLimit ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-slate-900 text-white hover:bg-black hover:translate-y-[-1px] shadow-lg shadow-slate-200'}`}
                             >
-                                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                Save Changes
+                                {saving ? (
+                                    <>
+                                        <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                        <span>Saving...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle2 className="w-4 h-4" />
+                                        <span>Save Changes</span>
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

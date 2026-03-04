@@ -1550,7 +1550,6 @@ export async function generateAgesPDF(
   filteredData: Array<{
     customerName: string;
     salesReps: string[];
-    atDate: number;
     oneToThirty: number;
     thirtyOneToSixty: number;
     sixtyOneToNinety: number;
@@ -1640,7 +1639,6 @@ export async function generateAgesPDF(
       item.customerName,
       item.salesReps.join(', ') || '',
       item.total.toLocaleString('en-US'),
-      item.atDate.toLocaleString('en-US'),
       item.oneToThirty.toLocaleString('en-US'),
       item.thirtyOneToSixty.toLocaleString('en-US'),
       item.sixtyOneToNinety.toLocaleString('en-US'),
@@ -1651,14 +1649,13 @@ export async function generateAgesPDF(
     // Calculate Totals for this City
     const totals = cityData.reduce((acc, item) => ({
       total: acc.total + item.total,
-      atDate: acc.atDate + item.atDate,
       oneToThirty: acc.oneToThirty + item.oneToThirty,
       thirtyOneToSixty: acc.thirtyOneToSixty + item.thirtyOneToSixty,
       sixtyOneToNinety: acc.sixtyOneToNinety + item.sixtyOneToNinety,
       ninetyOneToOneTwenty: acc.ninetyOneToOneTwenty + item.ninetyOneToOneTwenty,
       older: acc.older + item.older
     }), {
-      total: 0, atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0
+      total: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0
     });
 
     // Add Totals Row
@@ -1667,7 +1664,6 @@ export async function generateAgesPDF(
       'TOTAL',
       '',
       totals.total.toLocaleString('en-US'),
-      totals.atDate.toLocaleString('en-US'),
       totals.oneToThirty.toLocaleString('en-US'),
       totals.thirtyOneToSixty.toLocaleString('en-US'),
       totals.sixtyOneToNinety.toLocaleString('en-US'),
@@ -1677,7 +1673,7 @@ export async function generateAgesPDF(
 
     const tableOptions = {
       startY: yPosition,
-      head: [['#', 'Customer Name', 'City', 'Total', 'At Date', '1-30', '31-60', '61-90', '91-120', 'Older']],
+      head: [['#', 'Customer Name', 'City', 'Total', '0-30', '31-60', '61-90', '91-120', 'Older']],
       body: tableData,
       theme: 'grid',
       styles: {
@@ -1694,17 +1690,16 @@ export async function generateAgesPDF(
         fontSize: 10
       },
       columnStyles: {
-        0: { cellWidth: 8 }, // #
+        0: { cellWidth: 10 }, // #
         1: { font: 'Amiri', halign: 'center', fontStyle: 'bold' }, // Name (Bold)
-        2: { cellWidth: 28 }, // City
-        3: { cellWidth: 28, fontStyle: 'bold', fillColor: [230, 230, 230] }, // Total (Highlighted)
+        2: { cellWidth: 35 }, // City
+        3: { cellWidth: 35, fontStyle: 'bold', fillColor: [230, 230, 230] }, // Total (Highlighted)
         // Buckets
-        4: { cellWidth: 22, fontStyle: 'bold' }, // At Date (Bold, Black)
-        5: { cellWidth: 22, fontStyle: 'bold' },
-        6: { cellWidth: 22, fontStyle: 'bold' },
-        7: { cellWidth: 22, fontStyle: 'bold' },
-        8: { cellWidth: 22, fontStyle: 'bold' },
-        9: { cellWidth: 25, textColor: [185, 28, 28], fontStyle: 'bold' } // Older (Red)
+        4: { cellWidth: 25, fontStyle: 'bold' }, // 0-30
+        5: { cellWidth: 25, fontStyle: 'bold' },
+        6: { cellWidth: 25, fontStyle: 'bold' },
+        7: { cellWidth: 25, fontStyle: 'bold' },
+        8: { cellWidth: 28, textColor: [185, 28, 28], fontStyle: 'bold' } // Older (Red)
       },
       margin: { left: 5, right: 5 },
       didParseCell: (data: any) => {

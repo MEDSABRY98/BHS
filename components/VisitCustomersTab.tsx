@@ -227,12 +227,27 @@ export default function VisitCustomersTab() {
 
     const fetchMetadata = async () => {
         try {
-            const response = await fetch('/api/sheets');
-            if (response.ok) {
-                const result = await response.json();
+            const [sheetsResponse, closedResponse] = await Promise.all([
+                fetch('/api/sheets'),
+                fetch('/api/closed-customers'),
+            ]);
+
+            if (sheetsResponse.ok) {
+                const result = await sheetsResponse.json();
                 const sheetData = result.data || [];
 
-                const uniqueCustomers = Array.from(new Set(sheetData.map((row: any) => row.customerName))).sort() as string[];
+                // Build set of excluded customers (CLOSED only)
+                const excludedNames = new Set<string>();
+                if (closedResponse.ok) {
+                    const closedData = await closedResponse.json();
+                    (closedData.closedCustomers || []).forEach((name: string) => excludedNames.add(name.toLowerCase().trim().replace(/\s+/g, ' ')));
+                }
+
+                // Filter out closed customers only
+                const allCustomers = Array.from(new Set(sheetData.map((row: any) => row.customerName))).sort() as string[];
+                const uniqueCustomers = allCustomers.filter(
+                    (name: string) => !excludedNames.has(name.toLowerCase().trim().replace(/\s+/g, ' '))
+                );
                 setCustomers(uniqueCustomers);
                 setAllInvoices(sheetData);
 

@@ -66,6 +66,24 @@ export default function SalesPage() {
     }
   }, [isAuthenticated]);
 
+  // Enforce subtab permissions
+  useEffect(() => {
+    if (currentUser && currentUser.name !== 'MED Sabry') {
+      try {
+        const perms = JSON.parse(currentUser.role || '{}');
+        const allowedTabs = perms.sales;
+
+        if (allowedTabs && Array.isArray(allowedTabs)) {
+          if (!allowedTabs.includes(activeTab)) {
+            if (allowedTabs.length > 0) {
+              setActiveTab(allowedTabs[0]);
+            }
+          }
+        }
+      } catch (e) { }
+    }
+  }, [currentUser, activeTab]);
+
   // Reset scroll position when tab changes
   useEffect(() => {
     if (mainContentRef.current) {
@@ -245,6 +263,16 @@ export default function SalesPage() {
         </div>
       );
     }
+
+    // Check for dynamic JSON permission structure
+    try {
+      const perms = JSON.parse(currentUser?.role || '{}');
+      if (perms.sales && Array.isArray(perms.sales) && currentUser?.name !== 'MED Sabry') {
+        if (!perms.sales.includes(activeTab)) {
+          return <div className="p-20 text-center text-slate-400 font-bold">You don't have permission to view this section.</div>;
+        }
+      }
+    } catch (e) { }
 
     switch (activeTab) {
       case 'sales-overview':

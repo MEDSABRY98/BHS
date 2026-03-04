@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock, Save, RotateCw } from 'lucide-react';
+import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock, Save, RotateCw, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Receipt {
@@ -781,14 +781,25 @@ export default function PettyCashTab() {
                         />
                       </div>
 
-                      <button
-                        onClick={() => handleSubmit('receipt')}
-                        disabled={loading}
-                        className="w-1/2 mx-auto bg-black text-white font-bold py-4 px-4 rounded-xl hover:bg-gray-800 transition-all duration-200 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <Plus className="w-5 h-5" />
-                        {loading ? 'Saving...' : 'Save Receipt'}
-                      </button>
+                      <div className="flex justify-center mt-6">
+                        <button
+                          onClick={() => handleSubmit('receipt')}
+                          disabled={loading}
+                          className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
+                        >
+                          {loading ? (
+                            <>
+                              <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                              <span>Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-5 h-5" />
+                              <span>Save Receipt</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -930,17 +941,17 @@ export default function PettyCashTab() {
                         <button
                           onClick={() => handleSubmit('expense')}
                           disabled={loading}
-                          className="flex-1 md:flex-none px-10 py-3 bg-black text-white font-black rounded-xl hover:bg-gray-800 disabled:opacity-50 shadow-xl shadow-gray-200 transition-all flex items-center justify-center gap-2 transform active:scale-95"
+                          className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
                         >
                           {loading ? (
                             <>
-                              <RotateCw className="w-5 h-5 animate-spin" />
-                              Saving Records...
+                              <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                              <span>Saving Records...</span>
                             </>
                           ) : (
                             <>
-                              <Save className="w-5 h-5" />
-                              SAVE ALL
+                              <CheckCircle2 className="w-5 h-5" />
+                              <span>Save Receipt</span>
                             </>
                           )}
                         </button>
@@ -1344,10 +1355,19 @@ export default function PettyCashTab() {
                       <button
                         onClick={handlePrintOnlyVoucher}
                         disabled={loading}
-                        className="w-full md:w-1/2 bg-cyan-600 text-white font-black py-5 px-8 rounded-2xl hover:bg-cyan-700 transition-all duration-300 flex items-center justify-center gap-3 shadow-xl hover:shadow-cyan-100 hover:scale-[1.02] transform disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-4 rounded-2xl font-bold text-lg hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
                       >
-                        <FileText className="w-6 h-6" />
-                        {loading ? 'SAVING...' : 'SAVE & PRINT VOUCHER'}
+                        {loading ? (
+                          <>
+                            <div className="w-6 h-6 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                            <span>SAVING...</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle2 className="w-6 h-6" />
+                            <span>SAVE & PRINT VOUCHER</span>
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1530,9 +1550,19 @@ export default function PettyCashTab() {
                 <button
                   onClick={handleUpdateEntry}
                   disabled={loading}
-                  className="flex-1 bg-black text-white font-bold py-3 px-4 rounded-xl hover:bg-gray-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 flex items-center justify-center gap-2 bg-slate-900 text-white py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
                 >
-                  {loading ? 'Saving...' : 'Update'}
+                  {loading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Update</span>
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={handleDeleteEntry}

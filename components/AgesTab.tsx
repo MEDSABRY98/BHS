@@ -19,7 +19,6 @@ interface AgesTabProps {
 interface CustomerAgingSummary {
   customerName: string;
   salesReps: string[];
-  atDate: number;
   oneToThirty: number;
   thirtyOneToSixty: number;
   sixtyOneToNinety: number;
@@ -122,7 +121,6 @@ export default function AgesTab({ data }: AgesTabProps) {
       const summary: CustomerAgingSummary = {
         customerName,
         salesReps: Array.from(salesRepsSet).sort(),
-        atDate: 0,
         oneToThirty: 0,
         thirtyOneToSixty: 0,
         sixtyOneToNinety: 0,
@@ -190,9 +188,7 @@ export default function AgesTab({ data }: AgesTabProps) {
             daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
           }
 
-          if (daysOverdue <= 0) {
-            summary.atDate += amountToAge;
-          } else if (daysOverdue <= 30) {
+          if (daysOverdue <= 30) {
             summary.oneToThirty += amountToAge;
           } else if (daysOverdue <= 60) {
             summary.thirtyOneToSixty += amountToAge;
@@ -208,7 +204,6 @@ export default function AgesTab({ data }: AgesTabProps) {
 
       // Include in summary if there is significant debt or open items
       const hasValues = Math.abs(summary.total) > 0.01 ||
-        Math.abs(summary.atDate) > 0.01 ||
         Math.abs(summary.older) > 0.01 ||
         Math.abs(summary.oneToThirty) > 0.01 ||
         Math.abs(summary.thirtyOneToSixty) > 0.01 ||
@@ -281,11 +276,10 @@ export default function AgesTab({ data }: AgesTabProps) {
   }, [agingData, searchQuery, selectedSalesRep, statusFilter, closedCustomers, semiClosedCustomers]);
 
   const exportToExcel = () => {
-    const headers = ['Customer Name', 'Sales Rep', 'AT DATE', '1 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
+    const headers = ['Customer Name', 'Sales Rep', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
     const rows = filteredData.map((item) => [
       item.customerName,
       item.salesReps.join(', ') || '',
-      item.atDate,
       item.oneToThirty,
       item.thirtyOneToSixty,
       item.sixtyOneToNinety,
@@ -298,7 +292,6 @@ export default function AgesTab({ data }: AgesTabProps) {
     rows.push([
       'TOTAL',
       '',
-      totalAtDate,
       total1To30,
       total31To60,
       total61To90,
@@ -312,7 +305,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Aging Report');
 
     // Auto-size columns
-    const colWidths = [35, 20, 15, 12, 12, 12, 12, 12, 15];
+    const colWidths = [35, 20, 15, 12, 12, 12, 12, 15];
     worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
 
     XLSX.writeFile(workbook, `ages_export_${new Date().toISOString().split('T')[0]}.xlsx`);
@@ -349,16 +342,8 @@ export default function AgesTab({ data }: AgesTabProps) {
           </div>
         ),
       }),
-      columnHelper.accessor('atDate', {
-        header: 'AT DATE',
-        cell: (info) => (
-          <span className="text-green-600 font-semibold whitespace-nowrap">
-            {info.getValue().toLocaleString('en-US')}
-          </span>
-        ),
-      }),
       columnHelper.accessor('oneToThirty', {
-        header: '1 - 30',
+        header: '0 - 30',
         cell: (info) => (
           <span className="whitespace-nowrap">
             {info.getValue().toLocaleString('en-US')}
@@ -424,7 +409,6 @@ export default function AgesTab({ data }: AgesTabProps) {
   });
 
   // Calculate Totals
-  const totalAtDate = filteredData.reduce((sum, item) => sum + item.atDate, 0);
   const total1To30 = filteredData.reduce((sum, item) => sum + item.oneToThirty, 0);
   const total31To60 = filteredData.reduce((sum, item) => sum + item.thirtyOneToSixty, 0);
   const total61To90 = filteredData.reduce((sum, item) => sum + item.sixtyOneToNinety, 0);
@@ -503,9 +487,9 @@ export default function AgesTab({ data }: AgesTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'customerName') return '25%';
-                      // 7 numeric columns remaining = 75% / 7 ~ 10.7%
-                      return '10.7%';
+                      if (columnId === 'customerName') return '30%';
+                      // 6 numeric columns remaining = 70% / 6 ~ 11.6%
+                      return '11.6%';
                     };
                     return (
                       <th
@@ -531,8 +515,8 @@ export default function AgesTab({ data }: AgesTabProps) {
                   {row.getVisibleCells().map((cell) => {
                     const getWidth = () => {
                       const columnId = cell.column.id;
-                      if (columnId === 'customerName') return '25%';
-                      return '10.7%';
+                      if (columnId === 'customerName') return '30%';
+                      return '11.6%';
                     };
                     return (
                       <td
@@ -547,28 +531,25 @@ export default function AgesTab({ data }: AgesTabProps) {
                 </tr>
               ))}
               <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
-                <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '25%' }}>
+                <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '30%' }}>
                   TOTAL
                 </td>
-                <td className="px-6 py-4 text-center text-lg text-green-700 whitespace-nowrap" style={{ width: '10.7%' }}>
-                  {totalAtDate.toLocaleString('en-US')}
-                </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
                   {total1To30.toLocaleString('en-US')}
                 </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
                   {total31To60.toLocaleString('en-US')}
                 </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
                   {total61To90.toLocaleString('en-US')}
                 </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
                   {total91To120.toLocaleString('en-US')}
                 </td>
-                <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '10.7%' }}>
+                <td className="px-6 py-4 text-center text-lg text-red-700 whitespace-nowrap" style={{ width: '11.6%' }}>
                   {totalOlder.toLocaleString('en-US')}
                 </td>
-                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '10.7%' }}>
+                <td className="px-6 py-4 text-center text-lg whitespace-nowrap" style={{ width: '11.6%' }}>
                   {grandTotal.toLocaleString('en-US')}
                 </td>
               </tr>

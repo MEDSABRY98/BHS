@@ -32,10 +32,11 @@ export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser,
   try {
     const userName = currentUser?.name?.toLowerCase() || '';
     const perms = JSON.parse(currentUser?.role || '{}');
-    // If role contains specific debit_tabs, filter by them
+    // If role contains specific debit tabs, filter by them
     // Otherwise, and for MED Sabry, show all tabs
-    if (perms.debit_tabs && userName !== 'med sabry') {
-      tabs = allTabs.filter(tab => perms.debit_tabs.includes(tab.id));
+    const debitTabs = perms.debit || perms.debit_tabs;
+    if (debitTabs && Array.isArray(debitTabs) && userName !== 'med sabry') {
+      tabs = allTabs.filter(tab => debitTabs.includes(tab.id));
     }
   } catch (e) {
     // If not JSON or error, show all tabs (Full Access by default)

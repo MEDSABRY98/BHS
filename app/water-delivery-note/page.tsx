@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X } from 'lucide-react';
+import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X, CheckCircle2, List } from 'lucide-react';
 import { generateWaterDeliveryNotePDF } from '@/lib/PdfUtils';
 import { NotificationContainer, NotificationType } from '@/components/Notification';
 import Loading from '@/components/Loading';
@@ -377,49 +377,57 @@ export default function WaterDeliveryNotePage() {
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       <NotificationContainer notifications={notifications} onRemove={removeNotification} />
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">Water - Delivery Note</h1>
-          </div>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="p-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-            title="Back to Home"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="mb-6 flex justify-center">
-          <div className="inline-flex bg-white rounded-xl shadow-sm border border-gray-200 p-1">
-            {[
-              { id: 'entry', label: 'Entry' },
-              { id: 'search', label: 'Search' },
-              { id: 'daily', label: 'Daily Output' }
-            ].filter(tab => {
-              if (!currentUser || currentUser.name === 'MED Sabry') return true;
-              try {
-                const perms = JSON.parse(currentUser.role || '{}');
-                if (perms['water-delivery-note']) {
-                  return perms['water-delivery-note'].includes(tab.id);
-                }
-              } catch (e) { }
-              return true;
-            }).map((tab) => (
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Modern Integrated Header */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6 flex items-center justify-between">
+            <div className="flex items-center gap-4">
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`w-40 px-8 py-3 rounded-lg font-bold transition-all ${activeTab === tab.id
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
-                  }`}
+                onClick={() => window.location.href = '/'}
+                className="group p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-xl transition-all border border-white/20 shadow-sm"
+                title="Back to Home"
               >
-                {tab.label}
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
-            ))}
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">
+                <FileText className="w-7 h-7 text-white" />
+              </div>
+              <h1 className="text-2xl font-black text-white tracking-tight">Water Delivery</h1>
+            </div>
+          </div>
+
+          <div className="px-8 py-4 bg-slate-50/50 flex justify-center border-t border-gray-100">
+            <div className="flex bg-white p-1 rounded-xl shadow-inner border border-gray-200 w-full max-w-2xl">
+              {[
+                { id: 'entry', label: 'New Entry', icon: Plus },
+                { id: 'search', label: 'Search / Edit', icon: Search },
+                { id: 'daily', label: 'Daily Summary', icon: List }
+              ].filter(tab => {
+                if (!currentUser || currentUser.name === 'MED Sabry') return true;
+                try {
+                  const perms = JSON.parse(currentUser.role || '{}');
+                  if (perms['water-delivery-note']) {
+                    return perms['water-delivery-note'].includes(tab.id);
+                  }
+                } catch (e) { }
+                return true;
+              }).map((tab) => {
+                const Icon = tab.icon;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-2 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id
+                      ? 'bg-blue-600 text-white shadow-lg scale-[1.02]'
+                      : 'text-gray-500 hover:text-blue-600 hover:bg-white'
+                      }`}
+                  >
+                    <Icon className="w-4 h-4" />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -532,10 +540,7 @@ export default function WaterDeliveryNotePage() {
                 <button
                   onClick={handlePrint}
                   disabled={saving}
-                  className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${saving
-                    ? 'bg-blue-400 text-white cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                    }`}
+                  className="flex items-center justify-center gap-2 min-w-[220px] py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md active:scale-95 disabled:opacity-70 mx-auto"
                 >
                   {saving ? (
                     <>
@@ -544,7 +549,7 @@ export default function WaterDeliveryNotePage() {
                     </>
                   ) : (
                     <>
-                      <Save className="w-5 h-5" />
+                      <CheckCircle2 className="w-5 h-5" />
                       Save & Print
                     </>
                   )}
@@ -711,10 +716,7 @@ export default function WaterDeliveryNotePage() {
                   <button
                     onClick={handleUpdate}
                     disabled={saving}
-                    className={`w-1/2 px-6 py-3 rounded-lg transition-colors flex items-center justify-center gap-2 ${saving
-                      ? 'bg-green-400 text-white cursor-not-allowed'
-                      : 'bg-green-600 text-white hover:bg-green-700'
-                      }`}
+                    className="flex items-center justify-center gap-2 min-w-[220px] py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md active:scale-95 disabled:opacity-70 mx-auto"
                   >
                     {saving ? (
                       <>
@@ -723,7 +725,7 @@ export default function WaterDeliveryNotePage() {
                       </>
                     ) : (
                       <>
-                        <Edit2 className="w-5 h-5" />
+                        <CheckCircle2 className="w-5 h-5" />
                         Update
                       </>
                     )}

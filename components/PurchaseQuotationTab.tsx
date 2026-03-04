@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2, Download, ArrowLeft, Search, Upload, Save, Box, FileText, Loader2, RotateCcw } from 'lucide-react';
+import { Plus, Trash2, Download, ArrowLeft, Search, Upload, Save, Box, FileText, Loader2, RotateCcw, CheckCircle2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
@@ -615,18 +615,36 @@ export default function PurchaseQuotation({ initialItems }: PurchaseQuotationPro
                     <button
                         onClick={() => saveQuotation(true)}
                         disabled={loading}
-                        className="w-1/3 flex items-center justify-center gap-2 px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all font-bold text-[15px] w-[280px] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-slate-900/10"
                     >
-                        <Save size={24} />
-                        {loading ? 'Saving...' : 'Save & Draft'}
+                        {loading ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                <span>Saving...</span>
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircle2 size={20} />
+                                <span>Save & Draft</span>
+                            </>
+                        )}
                     </button>
                     <button
                         onClick={() => saveQuotation(false)}
                         disabled={loading}
-                        className="w-1/3 flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-semibold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center justify-center gap-2 px-6 py-3 bg-green-600 text-white rounded-xl hover:bg-green-700 transition-all font-bold text-[15px] w-[280px] disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-green-600/10"
                     >
-                        <Download size={24} />
-                        {loading ? 'Saving & Downloading...' : 'Save & Download PDF'}
+                        {loading ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                <span>Saving...</span>
+                            </>
+                        ) : (
+                            <>
+                                <CheckCircle2 size={20} />
+                                <span>Save & Download PDF</span>
+                            </>
+                        )}
                     </button>
                 </div>
             </div>

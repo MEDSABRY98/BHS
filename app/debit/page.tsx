@@ -58,6 +58,25 @@ function DebitPageContent() {
 
   // No longer redirect based on hardcoded lists
 
+  // Enforce subtab permissions
+  useEffect(() => {
+    if (currentUser && currentUser.name !== 'MED Sabry') {
+      try {
+        const perms = JSON.parse(currentUser.role || '{}');
+        const allowedTabs = perms.debit || perms.debit_tabs;
+
+        if (allowedTabs && Array.isArray(allowedTabs)) {
+          // If current tab not allowed, switch to first allowed
+          if (!allowedTabs.includes(activeTab)) {
+            if (allowedTabs.length > 0) {
+              setActiveTab(allowedTabs[0]);
+            }
+          }
+        }
+      } catch (e) { }
+    }
+  }, [currentUser, activeTab]);
+
   // Reset scroll position when tab changes
   useEffect(() => {
     if (mainContentRef.current) {
@@ -152,9 +171,11 @@ function DebitPageContent() {
     // Check for dynamic JSON permission structure
     try {
       const perms = JSON.parse(currentUser?.role || '{}');
-      if (perms.debit && currentUser?.name !== 'MED Sabry') {
-        if (!perms.debit.includes(activeTab)) {
-          return <CustomersTab data={data} />;
+      const allowedTabs = perms.debit || perms.debit_tabs;
+      if (allowedTabs && Array.isArray(allowedTabs) && currentUser?.name !== 'MED Sabry') {
+        if (!allowedTabs.includes(activeTab)) {
+          // If for some reason the activeTab is still not allowed after the useEffect, show nothing or a fallback
+          return <div className="p-20 text-center text-slate-400 font-bold">You don't have permission to view this section.</div>;
         }
       }
     } catch (e) {
@@ -233,8 +254,9 @@ function DebitPageContent() {
                 // Check for dynamic JSON permission structure
                 try {
                   const perms = JSON.parse(currentUser?.role || '{}');
-                  if (perms.debit && currentUser?.name !== 'MED Sabry') {
-                    if (!perms.debit.includes(tab.id)) {
+                  const allowedTabs = perms.debit || perms.debit_tabs;
+                  if (allowedTabs && Array.isArray(allowedTabs) && currentUser?.name !== 'MED Sabry') {
+                    if (!allowedTabs.includes(tab.id)) {
                       return null;
                     }
                   }

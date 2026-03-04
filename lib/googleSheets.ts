@@ -1917,29 +1917,30 @@ export async function saveEmployeeOvertime(data: {
 
     // Prepare row data (Columns A-M)
     const rowValues = [
-      data.date.trim(),              // A: Date
-      '',                            // B: Employee ID (Placeholder)
-      '',                            // C: Employee Name (Ar)
-      data.employeeName.trim(),      // D: Employee Name (En)
-      data.description?.trim() || '', // E: Particulars
+      data.date.trim(),               // A: Date
+      '',                             // B: ID
+      '',                             // C: Name Ar
+      data.employeeName.trim(),       // D: Name En
+      data.shiftHours || '9',          // E: Shift Hours (NEW LOCATION)
+      data.description?.trim() || '',  // F: Particulars
 
       // Standard Duty
-      split.sdStart.amPm,            // F: SD - AM/PM
-      split.sdStart.timeStr,         // G: SD - FROM
-      split.sdEnd.amPm,              // H: ED - AM/PM
-      split.sdEnd.timeStr,           // I: ED - TIME
+      split.sdStart.amPm,             // G: SD - AM/PM
+      split.sdStart.timeStr,          // H: SD - FROM
+      split.sdEnd.amPm,               // I: ED - AM/PM
+      split.sdEnd.timeStr,            // J: ED - TIME
 
       // Overtime
-      split.hasOvertime ? split.ovStart.amPm : '', // J: OVS - AM/PM
-      split.hasOvertime ? split.ovStart.timeStr : '', // K: OVS - TIME
-      split.hasOvertime ? split.ovEnd.amPm : '',   // L: OVE - AM/PM
-      split.hasOvertime ? split.ovEnd.timeStr : '',   // M: OVE - TIME
-      data.overtimeHours || '0', // N: TOTAL OVERTIME HOURS
+      split.hasOvertime ? split.ovStart.amPm : '', // K: OVS - AM/PM
+      split.hasOvertime ? split.ovStart.timeStr : '', // L: OVS - TIME
+      split.hasOvertime ? split.ovEnd.amPm : '',      // M: OVE - AM/PM
+      split.hasOvertime ? split.ovEnd.timeStr : '',   // N: OVE - TIME
+      data.overtimeHours || '0',  // O: TOTAL OVERTIME HOURS
     ];
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Employee Overtime'!A:N`,
+      range: `'Employee Overtime'!A:O`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rowValues] },
     });
@@ -1974,7 +1975,7 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A:N`, // Read up to N
+      range: `Employee Overtime!A:O`, // Read up to O
     });
 
     const rows = response.data.values;
@@ -1984,20 +1985,19 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
     const records = rows.slice(1).map((row, index) => {
       // Map Columns
       const date = row[0] || '';
-      // ID (1), NameAr (2) skipped
       const employeeName = row[3] || ''; // Name En
-      const description = row[4] || ''; // Particulars
+      const shiftHours = row[4] || '9';  // NEW: Shift Hours from Column E
+      const description = row[5] || '';  // Particulars shifted to F
+      const sdAmPm = row[6] || '';       // Shifted to G
+      const sdStart = row[7] || '';      // Shifted to H
+      const edAmPm = row[8] || '';       // Shifted to I
+      const edEnd = row[9] || '';        // Shifted to J
 
-      const sdAmPm = row[5] || '';
-      const sdStart = row[6] || '';
-      const edAmPm = row[7] || '';
-      const edEnd = row[8] || '';
-
-      const ovsAmPm = row[9] || '';
-      const ovsStart = row[10] || '';
-      const oveAmPm = row[11] || '';
-      const oveEnd = row[12] || '';
-      const storedTotalOvertime = row[13] || ''; // Column N
+      const ovsAmPm = row[10] || '';     // Shifted to K
+      const ovsStart = row[11] || '';    // Shifted to L
+      const oveAmPm = row[12] || '';      // Shifted to M
+      const oveEnd = row[13] || '';       // Shifted to N
+      const storedTotalOvertime = row[14] || ''; // Column O
 
       // Reconstruct for Frontend
       // Shift Start = SD Start
@@ -2047,13 +2047,9 @@ export async function getEmployeeOvertimeRecords(): Promise<Array<{
         date,
         employeeName,
         description,
-        shiftHours: '9', // Default/Placeholder
-        shiftStart: sdStart, // Just time
-        shiftStartAmPm: sdAmPm, // Extra field for frontend state if needed, but we pass combined above usually? 
-        // Actually frontend expects "shiftStart" as time? Or combined?
-        // Frontend in previous turn splits logic: `row.shiftStart` (text) and `shiftStartAmPm` (select).
-        // So we should return them separate if possible or frontend adapts?
-        // Let's return raw `sdStart` as `shiftStart` so it fits the input box.
+        shiftHours: shiftHours,
+        shiftStart: sdStart,
+        shiftStartAmPm: sdAmPm,
         shiftEnd: oveEnd || edEnd,
         shiftEndAmPm: oveEnd ? oveAmPm : edAmPm,
         overtimeHours: otHours,
@@ -2105,27 +2101,26 @@ export async function updateEmployeeOvertime(rowIndex: number, data: {
     const split = splitShiftData(s.time, s.amPm, e.time, e.amPm, stdHours);
 
     const rowValues = [
-      data.date.trim(),              // A: Date
-      '',                            // B: ID
-      '',                            // C: Name Ar
-      data.employeeName.trim(),      // D: Name En
-      data.description?.trim() || '', // E: Particulars
-
-      split.sdStart.amPm,            // F
-      split.sdStart.timeStr,         // G
-      split.sdEnd.amPm,              // H
-      split.sdEnd.timeStr,           // I
-
-      split.hasOvertime ? split.ovStart.amPm : '', // J
-      split.hasOvertime ? split.ovStart.timeStr : '', // K
-      split.hasOvertime ? split.ovEnd.amPm : '',   // L
-      split.hasOvertime ? split.ovEnd.timeStr : '',   // M
-      data.overtimeHours || '0',  // N
+      data.date.trim(),               // A
+      '',                             // B
+      '',                             // C
+      data.employeeName.trim(),       // D
+      data.shiftHours || '9',          // E: Shift Hours
+      data.description?.trim() || '',  // F: Particulars
+      split.sdStart.amPm,             // G
+      split.sdStart.timeStr,          // H
+      split.sdEnd.amPm,               // I
+      split.sdEnd.timeStr,            // J
+      split.hasOvertime ? split.ovStart.amPm : '', // K
+      split.hasOvertime ? split.ovStart.timeStr : '', // L
+      split.hasOvertime ? split.ovEnd.amPm : '',      // M
+      split.hasOvertime ? split.ovEnd.timeStr : '',   // N
+      data.overtimeHours || '0',  // O
     ];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Employee Overtime!A${rowIndex}:N${rowIndex}`,
+      range: `Employee Overtime!A${rowIndex}:O${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [rowValues] },
     });

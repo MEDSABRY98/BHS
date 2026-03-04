@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, Calendar, User, MapPin,
     FileText, Printer, Plus, Trash2,
-    ChevronDown, Save, RefreshCw, X, ArrowLeft, Tag, FileDown
+    ChevronDown, Save, RefreshCw, X, ArrowLeft, Tag, FileDown, CheckCircle2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import jsPDF from 'jspdf';
@@ -476,6 +476,7 @@ export default function InventoryWh20ItemsTab() {
             const startX = 20;
             let currentY = 35;
             const drawHeaderItem = (label: string, value: string, x: number, w: number, y: number) => {
+                doc.setFont("helvetica", "normal");
                 doc.setFontSize(10);
                 doc.setTextColor(148, 163, 184); // Slate 400
                 doc.text(label, x, y);
@@ -483,6 +484,7 @@ export default function InventoryWh20ItemsTab() {
                 let fontSize = 13;
                 doc.setFontSize(fontSize);
                 doc.setTextColor(51, 65, 85); // Slate 700 (Value)
+                doc.setFont("Amiri", "normal");
 
                 // Labels take some space on the left, so let's give more space but keep it safe
                 const labelWidth = doc.getTextWidth(label + "  ");
@@ -589,6 +591,7 @@ export default function InventoryWh20ItemsTab() {
             const signatureCenterX = startX + (signatureWidth / 2);
 
             doc.setFontSize(10);
+            doc.setFont("Amiri", "normal");
             const receiverText = `Recipient: ${header.receiverName}`;
             doc.text(receiverText, signatureCenterX, finalY + 10, { align: 'center' });
 
@@ -660,6 +663,7 @@ export default function InventoryWh20ItemsTab() {
             const startX = 20;
             let currentY = 35;
             const drawHeaderItem = (label: string, value: string, x: number, w: number, y: number) => {
+                doc.setFont("helvetica", "normal");
                 doc.setFontSize(10);
                 doc.setTextColor(148, 163, 184); // Slate 400
                 doc.text(label, x, y);
@@ -667,6 +671,7 @@ export default function InventoryWh20ItemsTab() {
                 let fontSize = 13;
                 doc.setFontSize(fontSize);
                 doc.setTextColor(51, 65, 85); // Slate 700 (Value)
+                doc.setFont("Amiri", "normal");
 
                 const labelWidth = doc.getTextWidth(label + "  ");
                 const availableX = x + labelWidth;
@@ -786,6 +791,7 @@ export default function InventoryWh20ItemsTab() {
             const signatureCenterX = startX + (signatureWidth / 2);
 
             doc.setFontSize(10);
+            doc.setFont("Amiri", "normal");
             const receiverText = `Recipient: ${firstRow.recipientName}`;
             doc.text(receiverText, signatureCenterX, finalY + 10, { align: 'center' });
 
@@ -864,10 +870,19 @@ export default function InventoryWh20ItemsTab() {
                                 <button
                                     onClick={handlePrintAndSave}
                                     disabled={submitting}
-                                    className="flex items-center gap-2 px-6 py-2 bg-white text-indigo-600 rounded-xl font-bold shadow-lg hover:bg-indigo-50 transition-all disabled:opacity-50"
+                                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-indigo-600 rounded-xl font-bold shadow-lg hover:bg-indigo-50 transition-all disabled:opacity-50 min-w-[220px]"
                                 >
-                                    {submitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                                    Save & Print
+                                    {submitting ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                                            <span>Saving...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-5 h-5" />
+                                            <span>Save & Print</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         </div>

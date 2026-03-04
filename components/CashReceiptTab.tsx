@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Printer, Calendar, User, FileText, DollarSign, Hash, ArrowLeft, Search, List, PlusCircle } from 'lucide-react';
+import { Printer, Calendar, User, FileText, DollarSign, Hash, ArrowLeft, Search, List, PlusCircle, CheckCircle2 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -346,22 +346,23 @@ export default function CashReceiptTab() {
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                   <div>
                     <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase">CASH RECEIPT</h2>
-                    <p className="text-gray-500 font-medium mt-1">Generate and save a new payment record</p>
                   </div>
                   <button
                     onClick={handlePrint}
                     disabled={loading}
-                    className={`flex items-center justify-center gap-3 py-4 px-10 rounded-2xl font-black text-lg transition-all shadow-xl hover:-translate-y-1 active:translate-y-0 ${loading
-                      ? 'bg-gray-200 cursor-not-allowed text-gray-400 shadow-none'
-                      : 'bg-black text-white hover:bg-gray-800 hover:shadow-2xl'
-                      }`}
+                    className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
                   >
                     {loading ? (
-                      <div className="w-6 h-6 border-3 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <>
+                        <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                        <span>Saving...</span>
+                      </>
                     ) : (
-                      <Printer className="w-6 h-6" />
+                      <>
+                        <CheckCircle2 className="w-5 h-5" />
+                        <span>Save & Print</span>
+                      </>
                     )}
-                    {loading ? 'Processing...' : 'Save & Print'}
                   </button>
                 </div>
 

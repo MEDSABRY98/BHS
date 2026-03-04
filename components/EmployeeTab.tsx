@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download, Search,
-  BarChart3, ChevronDown, ChevronRight, Calendar, User, Calculator
+  BarChart3, ChevronDown, ChevronRight, Calendar, User, Calculator, CheckCircle2, Loader2, RefreshCw
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -988,10 +988,19 @@ export default function EmployeeTab() {
                 <button
                   onClick={saveAllRecords}
                   disabled={loading}
-                  className="flex items-center justify-center gap-2 w-48 py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md shadow-blue-200 disabled:opacity-70 active:scale-95"
+                  className="flex items-center justify-center gap-2 min-w-[220px] py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md active:scale-95 disabled:opacity-70"
                 >
-                  <Save className="w-5 h-5" />
-                  {loading ? 'Saving...' : 'Save'}
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-5 h-5" />
+                      Save
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1337,13 +1346,13 @@ export default function EmployeeTab() {
                     </tbody>
                   </table>
 
-                  <div className="mt-8 flex items-center justify-between">
+                  <div className="mt-8 flex justify-center gap-6">
                     <button
                       onClick={() => setCurrentAbsenceRows([...currentAbsenceRows, { id: Date.now(), employeeName: '', particulars: 'Absent' }])}
-                      className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all border-dashed border-2"
+                      className="flex items-center justify-center gap-2 min-w-[220px] py-2.5 bg-white border-2 border-slate-200 border-dashed text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all active:scale-95"
                     >
                       <Plus className="w-4 h-4" />
-                      Add Another Absentee
+                      Add Row
                     </button>
                     <button
                       onClick={async () => {
@@ -1371,10 +1380,19 @@ export default function EmployeeTab() {
                         }
                       }}
                       disabled={loading}
-                      className="flex items-center gap-2 px-8 py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 shadow-lg shadow-red-100 transition-all active:scale-95 disabled:opacity-50"
+                      className="flex items-center justify-center gap-2 min-w-[220px] py-2.5 bg-red-600 text-white rounded-xl font-bold text-sm hover:bg-red-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
                     >
-                      <Save className="w-4 h-4" />
-                      {loading ? 'Saving...' : 'Save Absence Records'}
+                      {loading ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Save
+                        </>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -1408,7 +1426,7 @@ export default function EmployeeTab() {
                         const sortedEntries = Object.entries(grouped).sort((a, b) => b[1].length - a[1].length);
 
                         if (sortedEntries.length === 0) {
-                          return <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-400 font-bold italic">No absence data recorded yet</td></tr>;
+                          return <tr><td colSpan={3} className="px-6 py-12 text-center text-slate-400 font-bold">No absence data recorded yet</td></tr>;
                         }
 
                         return sortedEntries.map(([name, records]) => (
@@ -1435,10 +1453,14 @@ export default function EmployeeTab() {
                             {records.map((rec, rIdx) => (
                               <tr key={`${name}-${rIdx}`} className="hover:bg-red-50/20 transition-colors group">
                                 <td className="px-6 py-3 pl-16">
-                                  <div className="flex items-center gap-2 text-slate-500 font-bold text-sm">
-                                    <Calendar className="w-3.5 h-3.5" />
-                                    {rec.date}
-                                    <span className="text-[10px] text-slate-300 ml-2 font-medium italic">— {rec.particulars || 'No reason'}</span>
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2 min-w-[160px] text-slate-500 font-bold text-sm">
+                                      <Calendar className="w-4 h-4 text-slate-400" />
+                                      {rec.date}
+                                    </div>
+                                    <span className="text-sm text-slate-600 font-bold px-3 py-0.5 bg-slate-50 rounded-lg border border-slate-100">
+                                      {rec.particulars || 'Absent'}
+                                    </span>
                                   </div>
                                 </td>
                                 <td className="px-6 py-3 text-center"></td>
@@ -1654,20 +1676,23 @@ export default function EmployeeTab() {
                 <Trash2 className="w-4 h-4" />
                 Delete
               </button>
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="px-6 py-2.5 bg-white text-slate-500 rounded-xl font-bold text-sm hover:bg-slate-100 transition-all border border-slate-200"
-                >
-                  Cancel
-                </button>
+              <div className="flex items-center gap-3 ml-auto">
                 <button
                   onClick={handleUpdateRecord}
                   disabled={isSaving}
-                  className="flex items-center gap-2 px-8 py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all active:scale-95 disabled:opacity-50"
+                  className="flex items-center justify-center gap-2 min-w-[220px] py-2.5 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 shadow-md transition-all active:scale-95 disabled:opacity-50"
                 >
-                  <Save className="w-4 h-4" />
-                  {isSaving ? 'Updating...' : 'Save Changes'}
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Updating...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Save Changes
+                    </>
+                  )}
                 </button>
               </div>
             </div>

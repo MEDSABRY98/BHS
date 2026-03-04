@@ -70,7 +70,21 @@ export async function POST(request: Request) {
             const existingRecords = await getLpoRecords();
             let currentCount = existingRecords.length;
 
+            const normalize = (s: string) => s.trim().toLowerCase();
+            const existingKeys = new Set(existingRecords.map(r => `${normalize(r.lpoNumber)}|${normalize(r.customerName)}`));
+
             if (lpos && Array.isArray(lpos)) {
+                // Check within the incoming list for duplicates (excluding "no number")
+                for (const lpo of lpos) {
+                    const num = normalize(lpo.lpoNumber);
+                    const cust = normalize(lpo.customerName);
+                    const key = `${num}|${cust}`;
+
+                    if (num !== 'no number' && existingKeys.has(key)) {
+                        return NextResponse.json({ error: `Duplicate LPO "${lpo.lpoNumber}" already exists for customer "${lpo.customerName}"` }, { status: 409 });
+                    }
+                }
+
                 const recordsToAdd = lpos.map((lpo: any) => {
                     currentCount++;
                     return {
@@ -84,6 +98,15 @@ export async function POST(request: Request) {
                 if (!lpoNumber || !lpoDate || !customerName || !lpoValue) {
                     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
                 }
+
+                const num = normalize(lpoNumber);
+                const cust = normalize(customerName);
+                const key = `${num}|${cust}`;
+
+                if (num !== 'no number' && existingKeys.has(key)) {
+                    return NextResponse.json({ error: `Duplicate LPO "${lpoNumber}" already exists for customer "${customerName}"` }, { status: 409 });
+                }
+
                 const lpoId = `L-${(currentCount + 1).toString().padStart(3, '0')}`;
                 await addLpoRecord({ lpoId, lpoNumber, lpoDate, customerName, lpoValue });
                 return NextResponse.json({ success: true, lpoId });

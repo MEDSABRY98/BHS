@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers } from 'lucide-react';
+import { Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2 } from 'lucide-react';
 import Loading from './Loading';
 
 interface UserPermissions {
@@ -182,7 +182,7 @@ export default function AdminPanel() {
     const handleToggleSubTab = (systemId: string, tabId: string) => {
         if (!selectedUser) return;
         const perms = parsePermissions(selectedUser.role);
-        const key = systemId === 'debit' ? 'debit_tabs' : systemId;
+        const key = systemId;
         const currentTabs = perms[key] !== undefined ? perms[key] : (SYSTEM_SUBTABS[systemId] || []).map(t => t.id);
         const newTabs = currentTabs.includes(tabId)
             ? currentTabs.filter((id: string) => id !== tabId)
@@ -233,7 +233,7 @@ export default function AdminPanel() {
         const system = SYSTEMS.find(s => s.id === modalSystem);
         const subTabs = [...(SYSTEM_SUBTABS[modalSystem] || [])].sort((a, b) => a.label.localeCompare(b.label));
         const perms = parsePermissions(selectedUser.role);
-        const key = modalSystem === 'debit' ? 'debit_tabs' : modalSystem;
+        const key = modalSystem;
         const enabledTabs = perms[key] !== undefined ? perms[key] : subTabs.map(t => t.id);
         const systemActions = SYSTEM_ACTIONS[modalSystem] || [];
         const actionsKey = `${modalSystem}-actions`;
@@ -400,14 +400,23 @@ export default function AdminPanel() {
                         <>
                             <div className="flex items-center justify-between mb-8">
                                 <div>
-                                    <p className="text-slate-500 text-sm">Configure system access and tab visibility</p>
                                 </div>
                                 <button
                                     onClick={handleSave}
                                     disabled={saving}
-                                    className="flex items-center gap-2 bg-slate-900 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
+                                    className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
                                 >
-                                    {saving ? 'Saving...' : <><Save className="w-4 h-4" /> Save Changes</>}
+                                    {saving ? (
+                                        <>
+                                            <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            <span>Saving...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-5 h-5" />
+                                            <span>Save</span>
+                                        </>
+                                    )}
                                 </button>
                             </div>
 
@@ -419,63 +428,57 @@ export default function AdminPanel() {
                                 </div>
                             )}
 
-                            <div className="flex-1 overflow-y-auto pr-2 space-y-8 no-scrollbar">
-                                {/* Systems Section */}
-                                <div>
-                                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                                        <Settings className="w-4 h-4" /> Primary Systems (Home)
-                                    </h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        {[...SYSTEMS].sort((a, b) => a.label.localeCompare(b.label)).map((system) => {
-                                            const permissions = parsePermissions(selectedUser.role);
-                                            const isEnabled = permissions.systems !== undefined
-                                                ? permissions.systems.includes(system.id)
-                                                : true;
-                                            const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
+                            <div className="mt-4 flex-1 overflow-y-auto pr-2 space-y-8 no-scrollbar">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {[...SYSTEMS].sort((a, b) => a.label.localeCompare(b.label)).map((system) => {
+                                        const permissions = parsePermissions(selectedUser.role);
+                                        const isEnabled = permissions.systems !== undefined
+                                            ? permissions.systems.includes(system.id)
+                                            : true;
+                                        const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
 
-                                            return (
-                                                <div key={system.id} className="group relative">
-                                                    <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                                        ? 'border-blue-500 bg-white'
-                                                        : 'border-slate-100 bg-slate-50 opacity-60 hover:opacity-100'
-                                                        }`}>
-                                                        <div className="flex items-center gap-3 flex-1">
-                                                            <button
-                                                                onClick={() => handleToggleSystem(system.id)}
-                                                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${isEnabled ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'
-                                                                    }`}
-                                                            >
-                                                                <Check className={`w-5 h-5 transition-transform ${isEnabled ? 'scale-100' : 'scale-0'}`} />
-                                                            </button>
+                                        return (
+                                            <div key={system.id} className="group relative">
+                                                <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
+                                                    ? 'border-blue-500 bg-white'
+                                                    : 'border-slate-100 bg-slate-50 opacity-60 hover:opacity-100'
+                                                    }`}>
+                                                    <div className="flex items-center gap-3 flex-1">
+                                                        <button
+                                                            onClick={() => handleToggleSystem(system.id)}
+                                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${isEnabled ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'
+                                                                }`}
+                                                        >
+                                                            <Check className={`w-5 h-5 transition-transform ${isEnabled ? 'scale-100' : 'scale-0'}`} />
+                                                        </button>
 
-                                                            <div
-                                                                onClick={() => (hasSubTabs && isEnabled) && setModalSystem(system.id)}
-                                                                className={`flex-1 py-1 transition-all ${(hasSubTabs && isEnabled)
-                                                                    ? 'cursor-pointer hover:translate-x-1'
-                                                                    : ''
-                                                                    }`}
-                                                            >
-                                                                <div className="flex items-center gap-2">
-                                                                    <span className={`font-bold transition-colors ${isEnabled ? 'text-slate-900' : 'text-slate-400'
-                                                                        } ${(hasSubTabs && isEnabled) ? 'group-hover:text-blue-600' : ''}`}>
-                                                                        {system.label}
-                                                                    </span>
-                                                                    {hasSubTabs && isEnabled && (
-                                                                        <Layers className="w-3.5 h-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                                    )}
-                                                                </div>
+                                                        <div
+                                                            onClick={() => (hasSubTabs && isEnabled) && setModalSystem(system.id)}
+                                                            className={`flex-1 py-1 transition-all ${(hasSubTabs && isEnabled)
+                                                                ? 'cursor-pointer hover:translate-x-1'
+                                                                : ''
+                                                                }`}
+                                                        >
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`font-bold transition-colors ${isEnabled ? 'text-slate-900' : 'text-slate-400'
+                                                                    } ${(hasSubTabs && isEnabled) ? 'group-hover:text-blue-600' : ''}`}>
+                                                                    {system.label}
+                                                                </span>
                                                                 {hasSubTabs && isEnabled && (
-                                                                    <p className="text-[10px] text-blue-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                        Click to manage sub-tabs
-                                                                    </p>
+                                                                    <Layers className="w-3.5 h-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                                 )}
                                                             </div>
+                                                            {hasSubTabs && isEnabled && (
+                                                                <p className="text-[10px] text-blue-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                    Click to manage sub-tabs
+                                                                </p>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>
-                                            );
-                                        })}
-                                    </div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </div>
                         </>

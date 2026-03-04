@@ -271,6 +271,14 @@ export default function DeliveryTrackingTab() {
             showToast('Please enter the Invoice Date', 'error');
             return;
         }
+        if (!editingOrder.invoiceNumber || !editingOrder.invoiceNumber.trim()) {
+            showToast('Please enter the Invoice Number', 'error');
+            return;
+        }
+        if (!editingOrder.invoiceNumber.toUpperCase().startsWith('SAL')) {
+            showToast('Invoice Number must start with SAL', 'error');
+            return;
+        }
         if (!editingOrder.invoiceVal || editingOrder.invoiceVal <= 0) {
             showToast('Please enter a valid Invoice Value', 'error');
             return;
@@ -537,15 +545,17 @@ export default function DeliveryTrackingTab() {
 
         let favor = 0, against = 0;
         let favorCount = 0, againstCount = 0;
+
         filteredOrders.forEach(o => {
-            if (o.invoiceVal > 0 && o.lpoVal > 0) {
-                const d = o.invoiceVal - o.lpoVal;
-                if (d < 0) {
-                    favor += Math.abs(d);
+            // Only calculate finance diff if it's NOT pending (meaning it has an invoice) 
+            // OR if it has a recorded invoice value
+            if (o.status !== 'pending' || o.invoiceVal > 0) {
+                const diff = (o.invoiceVal || 0) - (o.lpoVal || 0);
+                if (diff < 0) {
+                    favor += Math.abs(diff);
                     favorCount++;
-                }
-                else if (d > 0) {
-                    against += d;
+                } else if (diff > 0) {
+                    against += diff;
                     againstCount++;
                 }
             }
@@ -844,7 +854,19 @@ export default function DeliveryTrackingTab() {
 
                                             {/* LPO Number */}
                                             <div className="flex-1 min-w-[180px]">
-                                                <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider mb-1.5 block">LPO Number <span className="text-rose-500">*</span></label>
+                                                <div className="flex justify-between items-center mb-1.5">
+                                                    <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider block">LPO Number <span className="text-rose-500">*</span></label>
+                                                    <button
+                                                        onClick={() => {
+                                                            const newRows = [...lpoRows];
+                                                            newRows[idx].lpoNumber = 'No Number';
+                                                            setLpoRows(newRows);
+                                                        }}
+                                                        className="text-[9px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-tighter bg-indigo-50 px-1.5 py-0.5 rounded transition-colors"
+                                                    >
+                                                        No Number
+                                                    </button>
+                                                </div>
                                                 <input
                                                     type="text"
                                                     placeholder="e.g. LPO-2025-01"
@@ -994,7 +1016,10 @@ export default function DeliveryTrackingTab() {
                                                     }),
                                                 });
 
-                                                if (!res.ok) throw new Error('Failed to save');
+                                                if (!res.ok) {
+                                                    const errorData = await res.json();
+                                                    throw new Error(errorData.error || 'Failed to save');
+                                                }
 
                                                 await refreshOrders();
                                                 const rowCount = lpoRows.length;
@@ -1008,20 +1033,26 @@ export default function DeliveryTrackingTab() {
                                                 }]);
                                                 setActiveTab('stats');
                                                 showToast(`${rowCount} LPO(s) recorded successfully`, 'success');
-                                            } catch (error) {
+                                            } catch (error: any) {
                                                 console.error('Save error:', error);
-                                                showToast('Failed to save LPOs', 'error');
+                                                showToast(error.message || 'Failed to save LPOs', 'error');
                                             } finally {
                                                 setIsSaving(false);
                                             }
                                         }}
                                         disabled={isSaving}
-                                        className="bg-indigo-600 text-white font-black h-[52px] px-12 rounded-xl text-[15px] flex items-center gap-3 transition-all shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
+                                        className="bg-indigo-600 text-white font-black h-[52px] min-w-[220px] px-8 rounded-xl text-[15px] flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50"
                                     >
                                         {isSaving ? (
-                                            <>⏳ Saving...</>
+                                            <>
+                                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                                <span>Saving...</span>
+                                            </>
                                         ) : (
-                                            <>🚀 Save {lpoRows.length} LPO Records</>
+                                            <>
+                                                <CheckCircle2 className="w-5 h-5" />
+                                                <span>Save Records</span>
+                                            </>
                                         )}
                                     </button>
                                 </div>
@@ -2195,13 +2226,13 @@ export default function DeliveryTrackingTab() {
                                             />
                                         </div>
                                         <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Number</label>
+                                            <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Number <span className="text-rose-500">*</span></label>
                                             <input
                                                 type="text"
-                                                placeholder="e.g. INV-2025-001"
+                                                placeholder="e.g. SAL-001"
+                                                className="w-full bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all font-bold"
                                                 value={editingOrder.invoiceNumber || ''}
-                                                onChange={(e) => setEditingOrder({ ...editingOrder, invoiceNumber: e.target.value })}
-                                                className="bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_12px] text-[13px] font-medium outline-none focus:border-[#6366F1] focus:bg-white transition-all"
+                                                onChange={(e) => setEditingOrder({ ...editingOrder, invoiceNumber: e.target.value.toUpperCase() })}
                                             />
                                         </div>
                                         <div className="flex flex-col gap-1.5">
@@ -2337,35 +2368,24 @@ export default function DeliveryTrackingTab() {
                             </div>
 
                             {/* FOOTER */}
-                            <div className="px-6 py-4 bg-white border-t border-[#E2E8F0] flex items-center justify-between rounded-b-[28px] sticky bottom-0">
+                            <div className="px-6 py-4 bg-white border-t border-[#E2E8F0] flex items-center justify-center rounded-b-[28px] sticky bottom-0">
                                 <button
-                                    onClick={() => setIsEditModalOpen(false)}
-                                    className="text-[12px] font-[700] text-[#94A3B8] uppercase tracking-widest hover:text-[#64748B] transition-colors"
+                                    onClick={handleSaveOrder}
+                                    disabled={isSaving}
+                                    className="bg-indigo-600 text-white font-black py-2.5 px-8 rounded-xl text-[13px] shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 flex items-center gap-2.5 min-w-[220px] justify-center"
                                 >
-                                    Skip
+                                    {isSaving ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            <span>Saving...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            <span>Complete & Sync</span>
+                                        </>
+                                    )}
                                 </button>
-                                <div className="flex gap-3">
-                                    <button
-                                        onClick={() => setIsEditModalOpen(false)}
-                                        className="px-5 py-2.5 rounded-[12px] text-[13px] font-[700] text-[#64748B] bg-[#F1F5F9] hover:bg-[#E2E8F0] transition-all border border-[#E2E8F0]"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSaveOrder}
-                                        disabled={isSaving}
-                                        className="bg-gradient-to-r from-[#4F46E5] to-[#6366F1] text-white font-[800] py-2.5 px-8 rounded-[12px] text-[13px] shadow-[0_4px_16px_rgba(99,102,241,0.4)] hover:shadow-[0_6px_24px_rgba(99,102,241,0.5)] hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-70 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 flex items-center gap-2.5 min-w-[160px] justify-center"
-                                    >
-                                        {isSaving ? (
-                                            <>
-                                                <span className="w-4 h-4 border-[2.5px] border-white/30 border-t-white rounded-full animate-spin inline-block" />
-                                                Syncing...
-                                            </>
-                                        ) : (
-                                            <>💾 Complete & Sync</>
-                                        )}
-                                    </button>
-                                </div>
                             </div>
                         </div>
                     </div>
