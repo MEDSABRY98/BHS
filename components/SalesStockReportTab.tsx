@@ -7,7 +7,7 @@ import { generateDownloadFormPDF } from '@/lib/PdfUtils';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
-interface SalesDownloadFormTabProps {
+interface SalesStockReportTabProps {
   data: SalesInvoice[];
   loading: boolean;
 }
@@ -31,7 +31,7 @@ const calculateMode = (numbers: number[]): number => {
   return mode;
 };
 
-export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFormTabProps) {
+export default function SalesStockReportTab({ data, loading }: SalesStockReportTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -208,7 +208,7 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
             </div>
             <div>
               <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent whitespace-nowrap">
-                Order Forms & Price Lists
+                Stock Report
               </h1>
               <p className="text-sm text-gray-500 mt-1">
                 {filteredCustomers.length} {filteredCustomers.length === 1 ? 'customer' : 'customers'} found
@@ -233,14 +233,14 @@ export default function SalesDownloadFormTab({ data, loading }: SalesDownloadFor
               onClick={handleDownloadAllPDFs}
               disabled={isGenerating || filteredCustomers.length === 0}
               className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-bold whitespace-nowrap"
-              title="Download all filtered customers Order Forms as ZIP"
+              title="Download all filtered customers Stock Reports as ZIP"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <FileDown className="w-5 h-5" />
               )}
-              {isGenerating ? 'Generating ZIP...' : 'Download Order Forms (ZIP)'}
+              {isGenerating ? 'Generating ZIP...' : 'Download Stock Reports (ZIP)'}
             </button>
             {isGenerating && generationProgress.total > 0 && (
               <p className="text-xs text-green-600 font-bold animate-pulse">

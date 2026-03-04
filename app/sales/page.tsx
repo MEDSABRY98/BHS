@@ -8,7 +8,7 @@ import SalesInactiveCustomersTab from '@/components/SalesInactiveCustomersTab';
 import SalesStatisticsTab from '@/components/SalesStatisticsTab';
 import SalesDailySalesTab from '@/components/SalesDailySalesTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
-import SalesDownloadFormTab from '@/components/SalesDownloadFormTab';
+import SalesStockReportTab from '@/components/SalesStockReportTab';
 import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
 import SalesComparisonTab from '@/components/SalesComparisonTab';
 import SalesCategoryRankTab from '@/components/SalesCategoryRankTab';
@@ -239,7 +239,7 @@ export default function SalesPage() {
     { id: 'sales-daily-sales', label: 'Daily Sales' },
     { id: 'sales-products', label: 'Products' },
     { id: 'sales-category-rank', label: 'Category Rank' },
-    { id: 'sales-download-form', label: 'Order Form' },
+    { id: 'sales-download-form', label: 'Stock Report' },
   ];
 
   const renderTabContent = () => {
@@ -296,7 +296,7 @@ export default function SalesPage() {
       case 'sales-category-rank':
         return <SalesCategoryRankTab data={globallyFilteredData} loading={loading} />;
       case 'sales-download-form':
-        return <SalesDownloadFormTab data={globallyFilteredData} loading={loading} />;
+        return <SalesStockReportTab data={globallyFilteredData} loading={loading} />;
       default:
         return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
     }
