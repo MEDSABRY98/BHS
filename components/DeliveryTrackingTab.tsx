@@ -401,11 +401,11 @@ export default function DeliveryTrackingTab() {
     };
 
     const exportOrdersCSV = () => {
-        const header = ['LPO ID', 'LPO Number', 'LPO Date', 'Customer Name', 'LPO Value', 'Invoice Date', 'Invoice Number', 'Invoice Value', 'Difference', 'Status', 'Missing Items', 'Re-ship?', 'Notes'];
+        const header = ['LPO ID', 'LPO Number', 'LPO Date', 'Delivery Date', 'Customer Name', 'LPO Value', 'Invoice Date', 'Invoice Number', 'Invoice Value', 'Difference', 'Status', 'Missing Items', 'Re-ship?', 'Notes'];
         const rows: string[][] = filteredOrders.map(o => {
             const diff = o.invoiceVal > 0 ? o.invoiceVal - o.lpoVal : 0;
             return [
-                o.lpoId, o.lpo, o.date, o.customer,
+                o.lpoId, o.lpo, o.date, o.deliveryDate || '', o.customer,
                 String(o.lpoVal), o.invoiceDate || '', o.invoiceNumber || '', o.invoiceVal > 0 ? String(o.invoiceVal) : '',
                 o.invoiceVal > 0 ? String(diff) : '',
                 o.status, o.missing.join(' | '), o.reship ? 'YES' : 'NO', o.notes || ''
@@ -1550,7 +1550,6 @@ export default function DeliveryTrackingTab() {
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#059669]">Delivered</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#D97706]">Partial</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-amber-500">Pending</th>
-                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#7C3AED]">With Cancel</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-orange-600">Pending Items</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-green-600">Reshipped Items</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-600">Canceled Items</th>
@@ -1559,7 +1558,7 @@ export default function DeliveryTrackingTab() {
                                         <tbody className="divide-y divide-slate-100">
                                             {customerStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={10} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                    <td colSpan={9} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
                                                         No data yet
                                                     </td>
                                                 </tr>
@@ -1573,7 +1572,6 @@ export default function DeliveryTrackingTab() {
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-purple-600 bg-purple-50/30">{c.withCancel}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
@@ -1587,7 +1585,6 @@ export default function DeliveryTrackingTab() {
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{customerTotals.delivered}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{customerTotals.partial}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{customerTotals.pending}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-purple-700 bg-purple-100/30">{customerTotals.withCancel}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-800">{customerTotals.missingCount}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-800">{customerTotals.reshippedCount}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-800">{customerTotals.canceledCount}</td>
