@@ -518,11 +518,11 @@ export default function PettyCashTab() {
     XLSX.writeFile(workbook, filename);
   };
 
-  const totalReceipts = receipts.reduce((sum, r) => sum + r.amount, 0);
-  const totalExpenses = expenses.filter(e => e.paid === 'Yes').reduce((sum, e) => sum + e.amount, 0);
-  const totalPending = expenses.filter(e => e.paid === 'No').reduce((sum, e) => sum + e.amount, 0);
-  const pendingCount = expenses.filter(e => e.paid === 'No').length;
-  const balance = totalReceipts - totalExpenses;
+  const totalReceipts = filteredReceipts.reduce((sum, r) => sum + r.amount, 0);
+  const totalExpenses = filteredExpenses.filter(e => e.paid === 'Yes').reduce((sum, e) => sum + e.amount, 0);
+  const totalPending = filteredExpenses.filter(e => e.paid === 'No').reduce((sum, e) => sum + e.amount, 0);
+  const pendingCount = filteredExpenses.filter(e => e.paid === 'No').length;
+  const balance = receipts.reduce((sum, r) => sum + r.amount, 0) - expenses.filter(e => e.paid === 'Yes').reduce((sum, e) => sum + e.amount, 0);
 
   const tabs = [
     { id: 'receipts' as const, name: 'Receipts', icon: TrendingUp },
@@ -978,7 +978,7 @@ export default function PettyCashTab() {
                   <p className="text-2xl font-bold mb-1 text-gray-900">{totalReceipts.toFixed(2)}</p>
                   <p className="text-xs text-gray-600 mb-3">AED</p>
                   <div className="pt-3 border-t border-green-100">
-                    <p className="text-xs text-gray-600">Transactions: <span className="font-bold">{receipts.length}</span></p>
+                    <p className="text-xs text-gray-600">Transactions: <span className="font-bold">{filteredReceipts.length}</span></p>
                   </div>
                 </div>
 
@@ -992,7 +992,7 @@ export default function PettyCashTab() {
                   <p className="text-2xl font-bold mb-1 text-gray-900">{totalExpenses.toFixed(2)}</p>
                   <p className="text-xs text-gray-600 mb-3">AED</p>
                   <div className="pt-3 border-t border-red-100">
-                    <p className="text-xs text-gray-600">Transactions: <span className="font-bold">{expenses.length}</span></p>
+                    <p className="text-xs text-gray-600">Transactions: <span className="font-bold">{filteredExpenses.filter(e => e.paid === 'Yes').length}</span></p>
                   </div>
                 </div>
 
@@ -1570,13 +1570,6 @@ export default function PettyCashTab() {
                   className="flex-1 bg-red-600 text-white font-bold py-3 px-4 rounded-xl hover:bg-red-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Deleting...' : 'Delete'}
-                </button>
-                <button
-                  onClick={closeModal}
-                  disabled={loading}
-                  className="flex-1 bg-gray-200 text-gray-700 font-bold py-3 px-4 rounded-xl hover:bg-gray-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Cancel
                 </button>
               </div>
             </div>

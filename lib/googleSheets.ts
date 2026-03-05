@@ -3749,6 +3749,7 @@ const LPO_CUSTOMERS_SHEET = 'LPO Customers';
 export interface LpoCustomer {
   customerId: string;
   customerName: string;
+  customerCity: string;
 }
 
 export interface LpoRecord {
@@ -3761,7 +3762,7 @@ export interface LpoRecord {
   invoiceNumber: string;
   invoiceDate: string;
   invoiceValue: number;
-  status: 'delivered' | 'pending' | 'partial' | 'delivered_with_cancel';
+  status: 'delivered' | 'pending' | 'partial';
   reship: boolean;
   notes: string;
   createdAt: string;
@@ -3819,7 +3820,7 @@ export async function getLpoRecords(): Promise<LpoRecord[]> {
         invoiceNumber: row[6]?.toString() || '',
         invoiceValue: parseFloat(row[7]?.toString().replace(/,/g, '') || '0'),
         status: (row[8]?.toString() || 'pending') as LpoRecord['status'],
-        reship: row[9]?.toString() === 'TRUE',
+        reship: ['true', 'yes', 'TRUE', 'YES'].includes(row[9]?.toString()?.trim() || ''),
         notes: row[10]?.toString() || '',
         createdAt: row[11]?.toString() || '',
         updatedAt: row[12]?.toString() || '',
@@ -3864,7 +3865,7 @@ export async function getLpoCustomers(): Promise<LpoCustomer[]> {
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_CUSTOMERS_SHEET}'!A:B`,
+      range: `'${LPO_CUSTOMERS_SHEET}'!A:C`,
     });
     const rows = res.data.values;
     if (!rows || rows.length < 2) return [];
@@ -3874,6 +3875,7 @@ export async function getLpoCustomers(): Promise<LpoCustomer[]> {
       .map(row => ({
         customerId: row[0]?.toString() || '',
         customerName: row[1]?.toString() || '',
+        customerCity: row[2]?.toString() || '',
       }));
   } catch (error) {
     console.error('Error fetching LPO Customers:', error);
@@ -3960,7 +3962,7 @@ export async function updateLpoRecord(rowIndex: number, data: Partial<{
           data.invoiceNumber !== undefined ? data.invoiceNumber : (cur[1] || ''),   // G
           data.invoiceValue !== undefined ? data.invoiceValue : (cur[2] || 0),      // H
           data.status !== undefined ? data.status : (cur[3] || 'pending'),          // I
-          data.reship !== undefined ? (data.reship ? 'TRUE' : 'FALSE') : (cur[4] || 'FALSE'), // J
+          data.reship !== undefined ? (data.reship ? 'YES' : 'NO') : (cur[4] || 'NO'), // J
           data.notes !== undefined ? data.notes : (cur[5] || ''),                  // K
           cur[6] || now,  // L: Created At (keep original)
           now,            // M: Updated At (always update)

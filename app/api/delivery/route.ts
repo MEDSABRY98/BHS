@@ -45,6 +45,8 @@ export async function GET() {
                 missing,
                 shippedItems,
                 canceledItems,
+                createdAt: record.createdAt,
+                updatedAt: record.updatedAt,
                 _rowIndex: record.rowIndex, // for updates/deletes
             };
         });
@@ -159,6 +161,11 @@ export async function PUT(request: Request) {
 
         if (!rowIndex) {
             return NextResponse.json({ error: 'rowIndex is required' }, { status: 400 });
+        }
+
+        // Ensure reship is always a proper boolean (not string)
+        if (fields.reship !== undefined) {
+            fields.reship = fields.reship === true || fields.reship === 'true' || fields.reship === 'YES';
         }
 
         await updateLpoRecord(rowIndex, fields);

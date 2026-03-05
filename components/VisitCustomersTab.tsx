@@ -485,9 +485,11 @@ export default function VisitCustomersTab() {
         }
 
         const exportRows = summaryData.map((row: any, idx: number) => {
+            const city = activeTab === 'customer-reports' ? (customerToCity[row.name] || 'Unknown') : '---';
             const base: any = {
                 '#': idx + 1,
                 'Name': row.name,
+                'City': city,
                 'Total Visits': row.totalVisits,
                 'Collections': row.visitsWithCollection,
                 'Total Collected (AED)': row.totalCollected,
@@ -500,11 +502,31 @@ export default function VisitCustomersTab() {
             return base;
         });
 
-        const worksheet = XLSX.utils.json_to_sheet(exportRows);
         const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Summary');
 
-        // Styles for header
+        // 1. Combined Sheet
+        const allSheetName = activeTab === 'customer-reports' ? 'All Customers' : 'Summary';
+        const worksheet = XLSX.utils.json_to_sheet(exportRows);
+        XLSX.utils.book_append_sheet(workbook, worksheet, allSheetName);
+
+        // 2. City Sheets (Only for customer reports)
+        if (activeTab === 'customer-reports') {
+            const citiesInReport = Array.from(new Set(exportRows.map(r => r.City))).filter(c => c && c !== '---').sort();
+
+            citiesInReport.forEach(city => {
+                const cityRows = exportRows
+                    .filter(r => r.City === city)
+                    .map((r, i) => ({ ...r, '#': i + 1 }));
+
+                if (cityRows.length > 0) {
+                    const citySheet = XLSX.utils.json_to_sheet(cityRows);
+                    // Sheet names must be <= 31 characters and no special chars
+                    const safeSheetName = city.replace(/[\[\]\*\?\/\\\:]/g, '').substring(0, 31);
+                    XLSX.utils.book_append_sheet(workbook, citySheet, safeSheetName || 'City');
+                }
+            });
+        }
+
         const fileName = `${activeTab === 'customer-reports' ? 'Customer' : 'SalesRep'}_Summary_${getTodayDate()}.xlsx`;
         XLSX.writeFile(workbook, fileName);
     };

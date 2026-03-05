@@ -3555,6 +3555,12 @@ ${debtSectionHtml}
                     {invoiceTypeTotals.returns.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </label>
+                <div className="flex-1 flex flex-col items-center justify-center gap-1 p-3 bg-emerald-50 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all text-center shadow-sm">
+                  <span className="text-sm font-bold text-gray-700">صافي المبيعات</span>
+                  <span className="text-sm font-bold text-emerald-700">
+                    {(invoiceTypeTotals.sales + invoiceTypeTotals.returns).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
                 <label className="flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-green-50 rounded-lg border border-green-100 hover:bg-green-100 transition-all text-center">
                   <div className="flex items-center gap-2">
                     <input

@@ -374,34 +374,6 @@ export default function SalesComparisonTab({ data, loading }: SalesComparisonTab
 
     return (
         <div className="p-4 md:p-6 space-y-6 animate-in fade-in duration-700 max-w-[1600px] mx-auto">
-            {/* Header with Export Buttons */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
-                <div>
-                    <h2 className="text-3xl font-[1000] text-slate-900 tracking-tight flex items-center gap-3">
-                        <div className="w-12 h-12 bg-green-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-green-200">
-                            <ArrowRightLeft className="w-6 h-6" />
-                        </div>
-                        Analytics Comparison
-                    </h2>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        onClick={exportToExcel}
-                        title="Export to Excel"
-                        className="p-4 bg-white text-emerald-600 rounded-2xl hover:bg-emerald-50 transition-all hover:scale-110 active:scale-95 border border-slate-100 shadow-sm group"
-                    >
-                        <FileDown className="w-6 h-6" />
-                    </button>
-                    <button
-                        onClick={exportToPDF}
-                        title="Export to PDF"
-                        className="p-4 bg-white text-rose-600 rounded-2xl hover:bg-rose-50 transition-all hover:scale-110 active:scale-95 border border-rose-200 shadow-sm group"
-                    >
-                        <FileText className="w-6 h-6" />
-                    </button>
-                </div>
-            </div>
-
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 {/* SETTINGS SIDEBAR */}
                 <div className="lg:col-span-4 space-y-6">
@@ -489,6 +461,22 @@ export default function SalesComparisonTab({ data, loading }: SalesComparisonTab
                                     <h3 className="text-xl font-black tracking-tight">PERFORMANCE ANALYSIS</h3>
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{months.find(m => m.value === month1)?.label} {year1} vs {months.find(m => m.value === month2)?.label} {year2}</p>
                                 </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={exportToExcel}
+                                    title="Export to Excel"
+                                    className="p-2.5 bg-white/10 hover:bg-white/20 text-emerald-400 rounded-xl transition-all hover:scale-105 active:scale-95 border border-white/10 shadow-sm"
+                                >
+                                    <FileDown className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={exportToPDF}
+                                    title="Export to PDF"
+                                    className="p-2.5 bg-white/10 hover:bg-white/20 text-rose-400 rounded-xl transition-all hover:scale-105 active:scale-95 border border-white/10 shadow-sm"
+                                >
+                                    <FileText className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
 

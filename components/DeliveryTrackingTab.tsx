@@ -43,24 +43,25 @@ interface DeliveryEntry {
     invoiceVal: number;
     invoiceDate: string;
     invoiceNumber: string;
-    status: 'delivered' | 'pending' | 'partial' | 'delivered_with_cancel';
+    status: 'delivered' | 'pending' | 'partial';
     missing: string[];
     shippedItems?: string[];
     canceledItems?: string[];
     reship: boolean;
     notes: string;
+    createdAt?: string;
+    updatedAt?: string;
 }
 
 const STATUS_CONFIG = {
     delivered: { label: 'Delivered', color: 'bg-[#EEF2FF] text-[#4F46E5] border-[#4F46E5]/10', dot: 'bg-[#6366F1]', icon: '✅' },
     pending: { label: 'Pending', color: 'bg-[#FEF6E8] text-[#9B6000] border-[#F5A623]/10', dot: 'bg-[#F5A623]', icon: '⏳' },
     partial: { label: 'Partial', color: 'bg-[#FEF0E7] text-[#7D4000] border-[#E67E22]/10', dot: 'bg-[#E67E22]', icon: '⚠️' },
-    delivered_with_cancel: { label: 'Delivery With Cancel', color: 'bg-[#F4ECF7] text-[#8E44AD] border-[#8E44AD]/10', dot: 'bg-[#9B59B6]', icon: '📦' },
 };
 
 export default function DeliveryTrackingTab() {
     const [activeTab, setActiveTab] = useState('stats');
-    const [statsSubTab, setStatsSubTab] = useState<'kpis' | 'customers' | 'products'>('kpis');
+    const [statsSubTab, setStatsSubTab] = useState<'kpis' | 'customers' | 'cities' | 'products'>('kpis');
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -72,7 +73,7 @@ export default function DeliveryTrackingTab() {
     const [selectedReshipOrder, setSelectedReshipOrder] = useState<DeliveryEntry | null>(null);
     const [reshipAmounts, setReshipAmounts] = useState<{ [key: number]: string }>({});
     const [shippingIdx, setShippingIdx] = useState<number | null>(null);
-    const [customers, setCustomers] = useState<{ customerId: string, customerName: string }[]>([]);
+    const [customers, setCustomers] = useState<{ customerId: string, customerName: string, customerCity: string }[]>([]);
     const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
     const [customerSearch, setCustomerSearch] = useState('');
     const [checkingSearchQuery, setCheckingSearchQuery] = useState('');
@@ -98,6 +99,7 @@ export default function DeliveryTrackingTab() {
     const [filterMonth, setFilterMonth] = useState('');
     const [filterDateFrom, setFilterDateFrom] = useState('');
     const [filterDateTo, setFilterDateTo] = useState('');
+    const [filterCity, setFilterCity] = useState('');
 
     // ── User Action Permissions ─────────────────────────────
     const deliveryActions: string[] = useMemo(() => {
@@ -339,7 +341,32 @@ export default function DeliveryTrackingTab() {
                 ));
             }
 
-            setOrders(prev => prev.map(o => o.id === editingOrder.id ? editingOrder : o));
+            // 3) If reship = false → cancel all still-missing items in the sheet
+            if (!editingOrder.reship && originalMissing.length > 0) {
+                await Promise.all(originalMissing.map(item =>
+                    fetch('/api/delivery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'cancel_item',
+                            lpoId: editingOrder.lpoId,
+                            itemName: item,
+                            shipmentValue: 0,
+                        }),
+                    }).catch(() => {/* ignore if item was already updated */ })
+                ));
+            }
+
+            // 4) Update local state — if reship=false, move missing items → canceledItems
+            const finalOrder = !editingOrder.reship && originalMissing.length > 0
+                ? {
+                    ...editingOrder,
+                    missing: [],
+                    canceledItems: [...(editingOrder.canceledItems || []), ...originalMissing],
+                }
+                : editingOrder;
+
+            setOrders(prev => prev.map(o => o.id === editingOrder.id ? finalOrder : o));
             setIsEditModalOpen(false);
             showToast('Saved to Sheets successfully', 'success');
         } catch {
@@ -423,6 +450,33 @@ export default function DeliveryTrackingTab() {
         XLSX.writeFile(wb, `Product_Stats_${new Date().toISOString().slice(0, 10)}.xlsx`);
         showToast('Product stats exported successfully', 'success');
     };
+
+    const exportCityStatsExcel = () => {
+        const data = cityStats.map((c: any) => ({
+            'City Name': c.name,
+            'LPO Value': c.lpoValue,
+            'Invoice Value': c.invoiceValue,
+            'Difference': c.invoiceValue - c.lpoValue,
+            'Orders': c.orders,
+            'Delivered': c.delivered,
+            'Partial': c.partial,
+            'Pending': c.pending
+        }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'City Stats');
+        XLSX.writeFile(wb, `City_Stats_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        showToast('City stats exported successfully', 'success');
+    };
+
+    const handleStatsExport = () => {
+        if (statsSubTab === 'cities') exportCityStatsExcel();
+        else if (statsSubTab === 'customers') exportCustomerStatsExcel();
+        else if (statsSubTab === 'products') exportProductStatsExcel();
+        else if (statsSubTab === 'kpis') {
+            showToast('KPIs export not implemented yet', 'info');
+        }
+    };
     // ─────────────────────────────────────────────────────────
 
     const handleReshipItem = async (orderId: string, itemIdx: number, action: 'ship' | 'cancel', amount: number = 0) => {
@@ -443,9 +497,7 @@ export default function DeliveryTrackingTab() {
 
         let finalStatus = o.status;
         if (isFinished) {
-            if (canceledItems.length > 0) {
-                finalStatus = 'delivered_with_cancel';
-            } else if (newInvoiceVal > 0) {
+            if (newInvoiceVal > 0) {
                 finalStatus = 'delivered';
             } else {
                 finalStatus = 'pending';
@@ -515,24 +567,46 @@ export default function DeliveryTrackingTab() {
 
     const [orders, setOrders] = useState<DeliveryEntry[]>([]);
 
-    const filteredOrders = useMemo(() => {
-        return orders.filter(o => {
-            // Text search
-            const matchesSearch = o.lpo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                o.customer.toLowerCase().includes(searchQuery.toLowerCase());
-            // Status filter
-            const matchesFilter = filterStatus === 'all' || o.status === filterStatus;
-
-            // Date filters (applied to LPO date)
-            const oDate = o.date ? new Date(o.date) : null;
-            const matchesYear = !filterYear || (oDate && oDate.getFullYear().toString() === filterYear);
-            const matchesMonth = !filterMonth || (oDate && (oDate.getMonth() + 1).toString().padStart(2, '0') === filterMonth);
-            const matchesFrom = !filterDateFrom || (oDate && o.date >= filterDateFrom);
-            const matchesTo = !filterDateTo || (oDate && o.date <= filterDateTo);
-
-            return matchesSearch && matchesFilter && matchesYear && matchesMonth && matchesFrom && matchesTo;
+    const customerToCity = useMemo(() => {
+        const map: Record<string, string> = {};
+        customers.forEach(c => {
+            map[c.customerName] = c.customerCity;
         });
-    }, [orders, searchQuery, filterStatus, filterYear, filterMonth, filterDateFrom, filterDateTo]);
+        return map;
+    }, [customers]);
+
+    const uniqueCities = useMemo(() => {
+        const cities = new Set<string>();
+        customers.forEach(c => {
+            if (c.customerCity) cities.add(c.customerCity);
+        });
+        return Array.from(cities).sort();
+    }, [customers]);
+
+    const filteredOrders = useMemo(() => {
+        return orders
+            .filter(o => {
+                // Text search
+                const matchesSearch = o.lpo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    o.customer.toLowerCase().includes(searchQuery.toLowerCase());
+                // Status filter
+                const matchesFilter = filterStatus === 'all' || o.status === filterStatus;
+
+                // Date filters (applied to LPO date)
+                const oDate = o.date ? new Date(o.date) : null;
+                const matchesYear = !filterYear || (oDate && oDate.getFullYear().toString() === filterYear);
+                const matchesMonth = !filterMonth || (oDate && (oDate.getMonth() + 1).toString().padStart(2, '0') === filterMonth);
+                const matchesFrom = !filterDateFrom || (oDate && o.date >= filterDateFrom);
+                const matchesTo = !filterDateTo || (oDate && o.date <= filterDateTo);
+
+                // City filter
+                const orderCity = customerToCity[o.customer] || 'Unknown';
+                const matchesCity = !filterCity || orderCity === filterCity;
+
+                return matchesSearch && matchesFilter && matchesYear && matchesMonth && matchesFrom && matchesTo && matchesCity;
+            })
+            .sort((a, b) => b.date.localeCompare(a.date));
+    }, [orders, searchQuery, filterStatus, filterYear, filterMonth, filterDateFrom, filterDateTo, filterCity, customerToCity]);
 
     const stats = useMemo(() => {
         const total = filteredOrders.length;
@@ -573,6 +647,36 @@ export default function DeliveryTrackingTab() {
         };
     }, [filteredOrders]);
 
+
+    const cityStats = useMemo(() => {
+        const grouped = filteredOrders.reduce((acc: any, o) => {
+            const city = customerToCity[o.customer] || 'Unknown';
+            if (!acc[city]) {
+                acc[city] = {
+                    name: city,
+                    lpoValue: 0,
+                    invoiceValue: 0,
+                    orders: 0,
+                    delivered: 0,
+                    partial: 0,
+                    pending: 0,
+                    favs: 0,
+                    against: 0
+                };
+            }
+            const c = acc[city];
+            c.lpoValue += (o.lpoVal || 0);
+            c.invoiceValue += (o.invoiceVal || 0);
+            c.orders += 1;
+            if (o.status === 'delivered') c.delivered += 1;
+            if (o.status === 'partial') c.partial += 1;
+            if (o.status === 'pending') c.pending += 1;
+
+            return acc;
+        }, {});
+        return Object.values(grouped).sort((a: any, b: any) => b.lpoValue - a.lpoValue);
+    }, [filteredOrders, customerToCity]);
+
     const customerStats = useMemo(() => {
         const grouped = filteredOrders.reduce((acc: any, o) => {
             if (!acc[o.customer]) {
@@ -582,7 +686,6 @@ export default function DeliveryTrackingTab() {
                     delivered: 0,
                     partial: 0,
                     pending: 0,
-                    withCancel: 0,
                     missingCount: 0,
                     reshippedCount: 0,
                     canceledCount: 0
@@ -593,7 +696,6 @@ export default function DeliveryTrackingTab() {
             if (o.status === 'delivered') c.delivered += 1;
             if (o.status === 'partial') c.partial += 1;
             if (o.status === 'pending') c.pending += 1;
-            if (o.status === 'delivered_with_cancel') c.withCancel += 1;
             c.missingCount += (o.missing?.length || 0);
             c.reshippedCount += (o.shippedItems?.length || 0);
             c.canceledCount += (o.canceledItems?.length || 0);
@@ -623,6 +725,42 @@ export default function DeliveryTrackingTab() {
             ((a as any).pending + (a as any).shipped + (a as any).canceled)
         );
     }, [filteredOrders]);
+
+    const cityTotals = useMemo(() => {
+        return (cityStats as any[]).reduce((acc: any, c: any) => ({
+            lpoValue: (acc.lpoValue || 0) + (c.lpoValue || 0),
+            invoiceValue: (acc.invoiceValue || 0) + (c.invoiceValue || 0),
+            orders: (acc.orders || 0) + (c.orders || 0),
+            delivered: (acc.delivered || 0) + (c.delivered || 0),
+            partial: (acc.partial || 0) + (c.partial || 0),
+            pending: (acc.pending || 0) + (c.pending || 0),
+        }), { lpoValue: 0, invoiceValue: 0, orders: 0, delivered: 0, partial: 0, pending: 0 });
+    }, [cityStats]);
+
+    const customerTotals = useMemo(() => {
+        return (customerStats as any[]).reduce((acc: any, c: any) => ({
+            total: (acc.total || 0) + (c.total || 0),
+            delivered: (acc.delivered || 0) + (c.delivered || 0),
+            partial: (acc.partial || 0) + (c.partial || 0),
+            pending: (acc.pending || 0) + (c.pending || 0),
+            withCancel: (acc.withCancel || 0) + (c.withCancel || 0),
+            missingCount: (acc.missingCount || 0) + (c.missingCount || 0),
+            reshippedCount: (acc.reshippedCount || 0) + (c.reshippedCount || 0),
+            canceledCount: (acc.canceledCount || 0) + (c.canceledCount || 0),
+        }), {
+            total: 0, delivered: 0, partial: 0, pending: 0, withCancel: 0,
+            missingCount: 0, reshippedCount: 0, canceledCount: 0
+        });
+    }, [customerStats]);
+
+    const productTotals = useMemo(() => {
+        return (productStats as any[]).reduce((acc: any, p: any) => ({
+            pending: acc.pending + p.pending,
+            shipped: acc.shipped + p.shipped,
+            canceled: acc.canceled + p.canceled,
+            totalLogs: acc.totalLogs + (p.pending + p.shipped + p.canceled)
+        }), { pending: 0, shipped: 0, canceled: 0, totalLogs: 0 });
+    }, [productStats]);
 
     // Fetch from Google Sheets on mount
     useEffect(() => {
@@ -766,35 +904,29 @@ export default function DeliveryTrackingTab() {
             <div className={`${activeTab === 'orders' ? 'max-w-[1850px]' : 'max-w-[1600px]'} mx-auto p-8 transition-all duration-500`}>
                 {isLoading && (
                     <div className="flex flex-col items-center justify-center py-32 animate-in fade-in duration-700">
-                        <div className="relative">
-                            {/* Outer glowing ring */}
-                            <div className="absolute inset-0 bg-indigo-500/20 rounded-full blur-2xl animate-pulse scale-150" />
-
-                            {/* Main Loader Container */}
-                            <div className="relative bg-white/40 backdrop-blur-xl border border-white/50 p-8 rounded-[40px] shadow-[0_20px_50px_rgba(49,46,129,0.1)] flex flex-col items-center gap-6">
-                                <div className="relative w-20 h-20">
-                                    {/* Spinner Track */}
-                                    <div className="absolute inset-0 border-[3px] border-indigo-100 rounded-full" />
-                                    {/* Active Spinner */}
-                                    <div className="absolute inset-0 border-[3px] border-indigo-600 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(79,70,229,0.4)]" />
-                                    {/* Center Icon */}
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                        <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg transform rotate-12">
-                                            <div className="animate-bounce">🚚</div>
-                                        </div>
+                        <div className="relative flex flex-col items-center gap-6">
+                            <div className="relative w-20 h-20">
+                                {/* Spinner Track */}
+                                <div className="absolute inset-0 border-[3px] border-indigo-100 rounded-full" />
+                                {/* Active Spinner */}
+                                <div className="absolute inset-0 border-[3px] border-indigo-600 border-t-transparent rounded-full animate-spin shadow-[0_0_15px_rgba(79,70,229,0.4)]" />
+                                {/* Center Icon */}
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg transform rotate-12">
+                                        <div className="animate-bounce">🚚</div>
                                     </div>
                                 </div>
+                            </div>
 
-                                <div className="flex flex-col items-center gap-2">
-                                    <h3 className="text-[18px] font-[900] text-indigo-950 tracking-tight">Syncing Database</h3>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex gap-1">
-                                            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                                            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                                            <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" />
-                                        </div>
-                                        <p className="text-[14px] font-[700] text-indigo-600/70 uppercase tracking-[0.2em] ml-2">Loading Data</p>
+                            <div className="flex flex-col items-center gap-2">
+                                <h3 className="text-[18px] font-[900] text-indigo-950 tracking-tight">Syncing Database</h3>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex gap-1">
+                                        <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                        <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                        <div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" />
                                     </div>
+                                    <p className="text-[14px] font-[700] text-indigo-600/70 uppercase tracking-[0.2em] ml-2">Loading Data</p>
                                 </div>
                             </div>
                         </div>
@@ -1071,6 +1203,23 @@ export default function DeliveryTrackingTab() {
                                 <div className="w-px h-6 bg-slate-200" />
                             </div>
 
+                            {/* City Filter */}
+                            <div className="flex items-center gap-2">
+                                <span className="text-[11px] font-[800] text-slate-500 uppercase tracking-wider">City</span>
+                                <select
+                                    value={filterCity}
+                                    onChange={e => setFilterCity(e.target.value)}
+                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-3 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all w-[140px] appearance-none cursor-pointer"
+                                >
+                                    <option value="">All Cities</option>
+                                    {uniqueCities.map(city => (
+                                        <option key={city} value={city}>{city}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="w-px h-6 bg-slate-200" />
+
                             {/* Year */}
                             <div className="flex items-center gap-2">
                                 <span className="text-[11px] font-[800] text-slate-500 uppercase tracking-wider">Year</span>
@@ -1122,11 +1271,11 @@ export default function DeliveryTrackingTab() {
                             </div>
 
                             {/* Clear */}
-                            {(filterYear || filterMonth || filterDateFrom || filterDateTo) && (
+                            {(filterYear || filterMonth || filterDateFrom || filterDateTo || filterCity) && (
                                 <>
                                     <div className="w-px h-6 bg-slate-200" />
                                     <button
-                                        onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDateFrom(''); setFilterDateTo(''); }}
+                                        onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDateFrom(''); setFilterDateTo(''); setFilterCity(''); }}
                                         className="text-[11px] font-[900] text-red-500 hover:text-red-600 flex items-center gap-1.5 transition-all active:scale-95 bg-red-50 px-3 py-2 rounded-lg"
                                     >
                                         <X className="w-3.5 h-3.5" /> RESET
@@ -1136,27 +1285,43 @@ export default function DeliveryTrackingTab() {
                         </div>
 
                         {/* STATS SUB-NAV */}
-                        <div className="flex items-center gap-6 mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm w-fit mx-auto">
-                            {[
-                                { id: 'kpis', label: 'General KPIs', icon: Activity },
-                                { id: 'customers', label: 'Customer Stats', icon: Users },
-                                { id: 'products', label: 'Product Stats', icon: Package },
-                            ].map(sub => (
-                                <button
-                                    key={sub.id}
-                                    onClick={() => setStatsSubTab(sub.id as any)}
-                                    className={`
-                                        flex items-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-[800] transition-all
-                                        ${statsSubTab === sub.id
-                                            ? 'bg-indigo-600 text-white shadow-lg scale-105'
-                                            : 'text-slate-500 hover:bg-slate-50'
-                                        }
-                                    `}
-                                >
-                                    <sub.icon className="w-4 h-4" />
-                                    {sub.label}
-                                </button>
-                            ))}
+                        <div className="flex items-center gap-4 mb-8 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm w-fit mx-auto relative group/nav">
+                            <div className="flex items-center gap-1">
+                                {[
+                                    { id: 'kpis', label: 'General KPIs', icon: Activity },
+                                    { id: 'cities', label: 'City Stats', icon: LayoutGrid },
+                                    { id: 'customers', label: 'Customer Stats', icon: Users },
+                                    { id: 'products', label: 'Product Stats', icon: Package },
+                                ].map((sub) => (
+                                    <button
+                                        key={sub.id}
+                                        onClick={() => setStatsSubTab(sub.id as any)}
+                                        className={`
+                                            flex items-center justify-center gap-2 px-6 py-2.5 rounded-xl text-[13px] font-[800] transition-all w-[180px]
+                                            ${statsSubTab === sub.id
+                                                ? 'bg-indigo-600 text-white shadow-lg scale-105'
+                                                : 'text-slate-500 hover:bg-slate-50'
+                                            }
+                                        `}
+                                    >
+                                        <sub.icon className="w-4 h-4" />
+                                        {sub.label}
+                                    </button>
+                                ))}
+                            </div>
+
+                            {statsSubTab !== 'kpis' && (
+                                <>
+                                    <div className="w-px h-8 bg-slate-200 mx-1" />
+                                    <button
+                                        onClick={handleStatsExport}
+                                        title="Export Excel"
+                                        className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white w-10 h-10 rounded-xl border border-emerald-600/20 flex items-center justify-center transition-all group/btn"
+                                    >
+                                        <Download className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                                    </button>
+                                </>
+                            )}
                         </div>
 
                         {statsSubTab === 'kpis' && (
@@ -1221,7 +1386,6 @@ export default function DeliveryTrackingTab() {
                                                     {[
                                                         { label: 'Delivered', count: stats.delivered, color: '#2DBE6C' },
                                                         { label: 'Partial', count: stats.partial, color: '#E67E22' },
-                                                        { label: 'With Cancel', count: orders.filter(o => o.status === 'delivered_with_cancel').length, color: '#8E44AD' },
                                                         { label: 'Pending', count: stats.pending, color: '#F5A623' },
                                                     ].map((s, i) => {
                                                         const pct = stats.total > 0 ? Math.round(s.count / stats.total * 100) : 0;
@@ -1280,22 +1444,79 @@ export default function DeliveryTrackingTab() {
                             </>
                         )}
 
-                        {statsSubTab === 'customers' && (
+                        {statsSubTab === 'cities' && (
                             <div className="bg-white rounded-[24px] border-[1.5px] border-[#E4EDE8] shadow-sm overflow-hidden animate-in fade-in duration-500">
-                                <div className="p-6 border-b border-[#E4EDE8] bg-[#F8FAFC] flex items-center justify-between">
-                                    <h3 className="text-[16px] font-[900] text-[#1E293B]">Customer Analytics</h3>
-                                    <button
-                                        onClick={exportCustomerStatsExcel}
-                                        title="Download Customer Stats Excel"
-                                        className="bg-white text-[#059669] border border-[#059669]/20 hover:bg-[#059669] hover:text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm group"
-                                    >
-                                        <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                    </button>
-                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="bg-[#F1F5F9]">
+                                                <th className="px-4 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider w-[50px]">#</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">City Name</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">LPO Value</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Invoice Value</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Difference</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Orders</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#059669]">Delivered</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#D97706]">Partial</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-amber-500">Pending</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {cityStats.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={9} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                        No data yet
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                <>
+                                                    {cityStats.map((c: any, i) => {
+                                                        const diff = c.invoiceValue - c.lpoValue;
+                                                        return (
+                                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                                <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[900] text-slate-800">AED {c.lpoValue.toLocaleString()}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">AED {c.invoiceValue.toLocaleString()}</td>
+                                                                <td className={`px-6 py-4 text-center text-[14px] font-[900] ${diff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                                                    {diff >= 0 ? '+' : ''}{diff.toLocaleString()}
+                                                                </td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.orders}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {/* TOTAL ROW */}
+                                                    <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
+                                                        <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
+                                                        <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900 bg-slate-100/50">AED {cityTotals.lpoValue.toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-[#312E81] bg-slate-100/50">AED {cityTotals.invoiceValue.toLocaleString()}</td>
+                                                        <td className={`px-6 py-4 text-center text-[14px] font-[950] bg-slate-100/50 ${(cityTotals.invoiceValue - cityTotals.lpoValue) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                                                            {(cityTotals.invoiceValue - cityTotals.lpoValue) >= 0 ? '+' : ''}{(cityTotals.invoiceValue - cityTotals.lpoValue).toLocaleString()}
+                                                        </td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900">{cityTotals.orders}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{cityTotals.delivered}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{cityTotals.partial}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{cityTotals.pending}</td>
+                                                    </tr>
+                                                </>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                        {statsSubTab === 'customers' && (
+                            <div className="bg-white rounded-[24px] border-[1.5px] border-[#E4EDE8] shadow-sm overflow-hidden animate-in fade-in duration-500">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-[#F1F5F9]">
+                                                <th className="px-4 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider w-[50px]">#</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Customer Name</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Total Orders</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#059669]">Delivered</th>
@@ -1310,24 +1531,40 @@ export default function DeliveryTrackingTab() {
                                         <tbody className="divide-y divide-slate-100">
                                             {customerStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                    <td colSpan={10} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
                                                         No data yet
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                customerStats.map((c: any, i) => (
-                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.total}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-purple-600 bg-purple-50/30">{c.withCancel}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
+                                                <>
+                                                    {customerStats.map((c: any, i) => (
+                                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.total}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-purple-600 bg-purple-50/30">{c.withCancel}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
+                                                        </tr>
+                                                    ))}
+                                                    {/* TOTAL ROW */}
+                                                    <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
+                                                        <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
+                                                        <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900 bg-slate-100/50">{customerTotals.total}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{customerTotals.delivered}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{customerTotals.partial}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{customerTotals.pending}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-purple-700 bg-purple-100/30">{customerTotals.withCancel}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-800">{customerTotals.missingCount}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-800">{customerTotals.reshippedCount}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-800">{customerTotals.canceledCount}</td>
                                                     </tr>
-                                                ))
+                                                </>
                                             )}
                                         </tbody>
                                     </table>
@@ -1337,20 +1574,11 @@ export default function DeliveryTrackingTab() {
 
                         {statsSubTab === 'products' && (
                             <div className="bg-white rounded-[24px] border-[1.5px] border-[#E4EDE8] shadow-sm overflow-hidden animate-in fade-in duration-500">
-                                <div className="p-6 border-b border-[#E4EDE8] bg-[#F8FAFC] flex items-center justify-between">
-                                    <h3 className="text-[16px] font-[900] text-[#1E293B]">Product Analytics</h3>
-                                    <button
-                                        onClick={exportProductStatsExcel}
-                                        title="Download Product Stats Excel"
-                                        className="bg-white text-indigo-600 border border-indigo-600/20 hover:bg-indigo-600 hover:text-white w-10 h-10 rounded-xl flex items-center justify-center transition-all shadow-sm group"
-                                    >
-                                        <Download className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                                    </button>
-                                </div>
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse">
                                         <thead>
                                             <tr className="bg-[#F1F5F9]">
+                                                <th className="px-4 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider w-[50px]">#</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Product Name</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-orange-600">Pending Re-ship</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-green-600">Total Shipped</th>
@@ -1361,20 +1589,31 @@ export default function DeliveryTrackingTab() {
                                         <tbody className="divide-y divide-slate-100">
                                             {productStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                    <td colSpan={6} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
                                                         No data yet
                                                     </td>
                                                 </tr>
                                             ) : (
-                                                productStats.map((p: any, i) => (
-                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{p.name}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{p.pending}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{p.shipped}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">{p.pending + p.shipped + p.canceled}</td>
+                                                <>
+                                                    {productStats.map((p: any, i) => (
+                                                        <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                            <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{p.name}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{p.pending}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{p.shipped}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">{p.pending + p.shipped + p.canceled}</td>
+                                                        </tr>
+                                                    ))}
+                                                    {/* TOTAL ROW */}
+                                                    <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
+                                                        <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{productTotals.pending}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{productTotals.shipped}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{productTotals.canceled}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-indigo-700 bg-indigo-100/30">{productTotals.totalLogs}</td>
                                                     </tr>
-                                                ))
+                                                </>
                                             )}
                                         </tbody>
                                     </table>
@@ -1464,7 +1703,7 @@ export default function DeliveryTrackingTab() {
 
                                             <div className="grid grid-cols-3 gap-4 pt-8 border-t border-[#F1F5F9]">
                                                 <div>
-                                                    <div className="text-[10px] text-[#94A3B8] font-black uppercase tracking-widest mb-1">Created Date</div>
+                                                    <div className="text-[10px] text-[#94A3B8] font-black uppercase tracking-widest mb-1">LPO Date</div>
                                                     <div className="text-[15px] font-bold text-[#0F172A]">{found.date || 'N/A'}</div>
                                                 </div>
                                                 <div>
@@ -1544,7 +1783,10 @@ export default function DeliveryTrackingTab() {
                                                     </div>
                                                     <div className="pb-6">
                                                         <div className="text-[14px] font-black text-[#0F172A]">LPO Recorded</div>
-                                                        <div className="text-[12px] text-[#64748B] font-medium mt-1">Order initial entry on {found.date}</div>
+                                                        <div className="text-[12px] text-[#64748B] font-medium mt-1">
+                                                            Order issued on {found.date}
+                                                            {found.createdAt && <span className="block text-[10px] text-[#94A3B8] mt-0.5 italic">System Entry: {found.createdAt}</span>}
+                                                        </div>
                                                     </div>
                                                 </div>
 
@@ -1586,7 +1828,10 @@ export default function DeliveryTrackingTab() {
                                                     </div>
                                                     <div>
                                                         <div className={`text-[14px] font-black ${progress === 100 ? 'text-[#0F172A]' : 'text-[#94A3B8]'}`}>Final Handover</div>
-                                                        <div className="text-[12px] text-[#64748B] font-medium mt-1">{progress === 100 ? 'Fully delivered and closed.' : 'Awaiting missing items resolution.'}</div>
+                                                        <div className="text-[12px] text-[#64748B] font-medium mt-1">
+                                                            {progress === 100 ? 'Fully delivered and closed.' : 'Awaiting missing items resolution.'}
+                                                            {found.updatedAt && <span className="block text-[10px] text-[#94A3B8] mt-0.5 italic">Last Synced: {found.updatedAt}</span>}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1662,7 +1907,7 @@ export default function DeliveryTrackingTab() {
                                 All Orders Register
                             </div>
                             <div className="flex items-center gap-[6px]">
-                                {['all', 'delivered', 'partial', 'delivered_with_cancel', 'pending'].map((s) => (
+                                {['all', 'delivered', 'partial', 'pending'].map((s) => (
                                     <button
                                         key={s}
                                         onClick={() => setFilterStatus(s)}
@@ -1760,9 +2005,9 @@ export default function DeliveryTrackingTab() {
                                 <table className="w-full text-center">
                                     <thead>
                                         <tr className="bg-[#4F46E5]">
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO ID</th>
+                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[110px]">LPO ID</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Number</th>
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Date</th>
+                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[130px]">LPO Date</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Customer Name</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Value</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Invoice DATE</th>
@@ -1779,58 +2024,78 @@ export default function DeliveryTrackingTab() {
                                         {filteredOrders.length === 0 ? (
                                             <tr><td colSpan={13} className="text-center py-20 text-[#B2C4BB] font-medium">No orders matching your filters</td></tr>
                                         ) : (
-                                            filteredOrders.map((o) => {
+                                            filteredOrders.map((o, index) => {
                                                 const diff = o.invoiceVal > 0 ? o.invoiceVal - o.lpoVal : 0;
                                                 const s = STATUS_CONFIG[o.status];
+                                                const showHeader = index === 0 || o.date !== filteredOrders[index - 1].date;
                                                 return (
-                                                    <tr key={o.id} className="hover:bg-[#F0FAF4] transition-colors group">
-                                                        <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId}</span></td>
-                                                        <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo}</span></td>
-                                                        <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date}</td>
-                                                        <td className="p-[12px_16px] text-center font-[600] text-[12.5px] text-[#0F1A14]">{o.customer}</td>
-                                                        <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.lpoVal.toLocaleString()}</td>
-                                                        <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.invoiceDate || '—'}</td>
-                                                        <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#2980B9] bg-[#EBF5FB] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12">{o.invoiceNumber || '—'}</span></td>
-                                                        <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.invoiceVal > 0 ? o.invoiceVal.toLocaleString() : '—'}</td>
-                                                        <td className="p-[12px_16px] text-center">
-                                                            {o.invoiceVal === 0 ? '—' :
-                                                                <span className={`text-[12px] font-[700] font-mono-dm ${diff > 0 ? 'text-[#E74C3C]' : diff < 0 ? 'text-[#1A8A47]' : 'text-[#B2C4BB]'}`}>
-                                                                    {diff === 0 ? '0' : (diff > 0 ? `+${diff.toLocaleString()}` : `-${Math.abs(diff).toLocaleString()}`)}
-                                                                </span>
-                                                            }
-                                                        </td>
-                                                        <td className="p-[12px_16px] text-center">
-                                                            <div className={`inline-flex items-center gap-[5px] px-[10px] py-[3px] rounded-[20px] text-[11px] font-[600] border border-transparent ${s.color}`}>
-                                                                <div className={`w-[5px] h-[5px] rounded-full ${s.dot}`}></div>
-                                                                {s.label}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-[12px_16px] text-center">
-                                                            {o.missing.length > 0 ? (
-                                                                <button
-                                                                    onClick={() => { setPopupItems(o.missing); setShowMissingPopup(true); }}
-                                                                    className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm"
-                                                                >
-                                                                    {o.missing.length} Items 📦
-                                                                </button>
-                                                            ) : '—'}
-                                                        </td>
-                                                        <td className="p-[12px_16px] text-center">
-                                                            {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : o.missing.length > 0 ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
-                                                        </td>
-                                                        <td className="p-[12px_16px] text-center">
-                                                            {canEdit && (
-                                                                <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    <button
-                                                                        onClick={() => openEditModal(o)}
-                                                                        className="w-7 h-7 bg-[#EBF5FB] text-[#2980B9] rounded-md flex items-center justify-center hover:scale-110 transition-transform shadow-sm"
-                                                                    >
-                                                                        <Edit2 className="w-3.5 h-3.5" />
-                                                                    </button>
+                                                    <React.Fragment key={o.id}>
+                                                        {showHeader && (
+                                                            <tr className="bg-[#F8FAFC]">
+                                                                <td colSpan={13} className="p-[10px_16px] text-left">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center">
+                                                                            <Clock className="w-4 h-4 text-[#4F46E5]" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <span className="text-[14px] font-[900] text-[#1e1b4b] tracking-tight">{o.date}</span>
+                                                                            <span className="ml-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-l border-slate-200 pl-3">
+                                                                                {filteredOrders.filter(ord => ord.date === o.date).length} Orders
+                                                                            </span>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                        <tr className="hover:bg-[#F0FAF4] transition-colors group">
+                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId}</span></td>
+                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo}</span></td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date}</td>
+                                                            <td className="p-[12px_16px] text-center font-[600] text-[12.5px] text-[#0F1A14]">{o.customer}</td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.lpoVal.toLocaleString()}</td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.invoiceDate || '—'}</td>
+                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#2980B9] bg-[#EBF5FB] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12">{o.invoiceNumber || '—'}</span></td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.invoiceVal > 0 ? o.invoiceVal.toLocaleString() : '—'}</td>
+                                                            <td className="p-[12px_16px] text-center">
+                                                                {o.invoiceVal === 0 ? '—' :
+                                                                    <span className={`text-[12px] font-[700] font-mono-dm ${diff > 0 ? 'text-[#E74C3C]' : diff < 0 ? 'text-[#1A8A47]' : 'text-[#B2C4BB]'}`}>
+                                                                        {diff === 0 ? '0' : (diff > 0 ? `+${diff.toLocaleString()}` : `-${Math.abs(diff).toLocaleString()}`)}
+                                                                    </span>
+                                                                }
+                                                            </td>
+                                                            <td className="p-[12px_16px] text-center">
+                                                                <div className={`inline-flex items-center gap-[5px] px-[10px] py-[3px] rounded-[20px] text-[11px] font-[600] border border-transparent ${s.color}`}>
+                                                                    <div className={`w-[5px] h-[5px] rounded-full ${s.dot}`}></div>
+                                                                    {s.label}
                                                                 </div>
-                                                            )}
-                                                        </td>
-                                                    </tr>
+                                                            </td>
+                                                            <td className="p-[12px_16px] text-center">
+                                                                {o.missing.length > 0 ? (
+                                                                    <button
+                                                                        onClick={() => { setPopupItems(o.missing); setShowMissingPopup(true); }}
+                                                                        className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm"
+                                                                    >
+                                                                        {o.missing.length} Items 📦
+                                                                    </button>
+                                                                ) : '—'}
+                                                            </td>
+                                                            <td className="p-[12px_16px] text-center">
+                                                                {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : o.missing.length > 0 ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
+                                                            </td>
+                                                            <td className="p-[12px_16px] text-center">
+                                                                {canEdit && (
+                                                                    <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={() => openEditModal(o)}
+                                                                            className="w-7 h-7 bg-[#EBF5FB] text-[#2980B9] rounded-md flex items-center justify-center hover:scale-110 transition-transform shadow-sm"
+                                                                        >
+                                                                            <Edit2 className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    </React.Fragment>
                                                 );
                                             })
                                         )}
@@ -2319,7 +2584,7 @@ export default function DeliveryTrackingTab() {
                                                 </button>
                                                 <button
                                                     type="button"
-                                                    onClick={() => setEditingOrder({ ...editingOrder, reship: false, status: 'delivered_with_cancel' })}
+                                                    onClick={() => setEditingOrder({ ...editingOrder, reship: false, status: 'partial' })}
                                                     className={`flex items-center justify-center gap-2 py-3 rounded-[12px] border-2 text-[13px] font-[800] transition-all
                                                         ${editingOrder.reship === false && editingOrder.missing.length > 0
                                                             ? 'bg-rose-500 border-rose-500 text-white shadow-[0_4px_14px_rgba(239,68,68,0.4)]'
@@ -2363,6 +2628,24 @@ export default function DeliveryTrackingTab() {
                                                 className="w-full bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all resize-none"
                                             />
                                         </div>
+                                    </div>
+                                )}
+
+                                {/* SYSTEM STAMPS */}
+                                {(editingOrder.createdAt || editingOrder.updatedAt) && (
+                                    <div className="flex items-center justify-between px-2 pt-2 pb-1 opacity-50">
+                                        {editingOrder.createdAt && (
+                                            <div className="flex items-center gap-1.5">
+                                                <Plus className="w-3 h-3" />
+                                                <span className="text-[10px] font-bold uppercase tracking-tighter">System Entry: {editingOrder.createdAt}</span>
+                                            </div>
+                                        )}
+                                        {editingOrder.updatedAt && (
+                                            <div className="flex items-center gap-1.5">
+                                                <History className="w-3 h-3" />
+                                                <span className="text-[10px] font-bold uppercase tracking-tighter">Last Audit: {editingOrder.updatedAt}</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
