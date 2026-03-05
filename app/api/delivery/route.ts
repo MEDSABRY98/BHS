@@ -22,6 +22,12 @@ export async function GET() {
             getLpoCustomers(),
         ]);
 
+        // Build a map: customerId → customerName for fast lookup
+        const customerIdToName = new Map<string, string>();
+        customers.forEach(c => {
+            if (c.customerId) customerIdToName.set(c.customerId, c.customerName);
+        });
+
         // Merge items into each LPO record
         const merged = records.map(record => {
             const items = itemsLog.filter(item => item.lpoId === record.lpoId);
@@ -29,12 +35,15 @@ export async function GET() {
             const shippedItems = items.filter(i => i.status === 'shipped').map(i => i.itemName);
             const canceledItems = items.filter(i => i.status === 'canceled').map(i => i.itemName);
 
+            // Resolve customer: if stored value is a customerId, look up the name; otherwise use as-is
+            const resolvedCustomer = customerIdToName.get(record.customerName) || record.customerName;
+
             return {
                 id: record.lpoId,
                 lpoId: record.lpoId,
                 lpo: record.lpoNumber,
                 date: record.lpoDate,
-                customer: record.customerName,
+                customer: resolvedCustomer,
                 lpoVal: record.lpoValue,
                 invoiceVal: record.invoiceValue,
                 invoiceDate: record.invoiceDate,

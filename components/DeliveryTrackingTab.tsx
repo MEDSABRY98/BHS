@@ -85,6 +85,7 @@ export default function DeliveryTrackingTab() {
         lpoNumber: '',
         lpoDate: new Date().toISOString().split('T')[0],
         customerName: '',
+        customerId: '',
         lpoValue: '',
         customerSearch: '',
         showDropdown: false
@@ -222,10 +223,14 @@ export default function DeliveryTrackingTab() {
 
                     if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
                         const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
+                        // Look up the customerId from the loaded customers list
+                        const matchedCustomer = customers.find(c =>
+                            c.customerName.toLowerCase().trim() === customerName.toString().toLowerCase().trim()
+                        );
                         lposToAdd.push({
                             lpoNumber: lpoNumber.toString(),
                             lpoDate,
-                            customerName: customerName.toString(),
+                            customerName: matchedCustomer ? matchedCustomer.customerId : customerName.toString(),
                             lpoValue: parseFloat(lpoValue)
                         });
                     }
@@ -951,6 +956,7 @@ export default function DeliveryTrackingTab() {
                                                 lpoNumber: '',
                                                 lpoDate: lastDate,
                                                 customerName: '',
+                                                customerId: '',
                                                 lpoValue: '',
                                                 customerSearch: '',
                                                 showDropdown: false
@@ -1046,12 +1052,13 @@ export default function DeliveryTrackingTab() {
                                                             <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-[250px] overflow-y-auto p-1.5">
                                                                 {customers
                                                                     .filter(c => c.customerName.toLowerCase().includes(row.customerSearch.toLowerCase()))
-                                                                    .map(c => (
+                                                                    .map((c, ci) => (
                                                                         <button
-                                                                            key={c.customerId}
+                                                                            key={`${ci}-${c.customerId}`}
                                                                             onClick={() => {
                                                                                 const newRows = [...lpoRows];
                                                                                 newRows[idx].customerName = c.customerName;
+                                                                                newRows[idx].customerId = c.customerId;
                                                                                 newRows[idx].customerSearch = '';
                                                                                 newRows[idx].showDropdown = false;
                                                                                 setLpoRows(newRows);
@@ -1142,7 +1149,7 @@ export default function DeliveryTrackingTab() {
                                                         lpos: lpoRows.map(r => ({
                                                             lpoNumber: r.lpoNumber,
                                                             lpoDate: r.lpoDate,
-                                                            customerName: r.customerName,
+                                                            customerName: r.customerId || r.customerName,
                                                             lpoValue: parseFloat(r.lpoValue),
                                                         }))
                                                     }),
@@ -1159,6 +1166,7 @@ export default function DeliveryTrackingTab() {
                                                     lpoNumber: '',
                                                     lpoDate: new Date().toISOString().split('T')[0],
                                                     customerName: '',
+                                                    customerId: '',
                                                     lpoValue: '',
                                                     customerSearch: '',
                                                     showDropdown: false
