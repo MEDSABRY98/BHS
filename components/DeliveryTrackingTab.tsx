@@ -38,6 +38,7 @@ interface DeliveryEntry {
     lpoId: string;
     lpo: string;
     date: string;
+    deliveryDate?: string;
     customer: string;
     lpoVal: number;
     invoiceVal: number;
@@ -84,6 +85,7 @@ export default function DeliveryTrackingTab() {
     const [lpoRows, setLpoRows] = useState([{
         lpoNumber: '',
         lpoDate: new Date().toISOString().split('T')[0],
+        lpoDeliveryDate: '',
         customerName: '',
         customerId: '',
         lpoValue: '',
@@ -955,6 +957,7 @@ export default function DeliveryTrackingTab() {
                                             setLpoRows(prev => [...prev, {
                                                 lpoNumber: '',
                                                 lpoDate: lastDate,
+                                                lpoDeliveryDate: '',
                                                 customerName: '',
                                                 customerId: '',
                                                 lpoValue: '',
@@ -987,6 +990,21 @@ export default function DeliveryTrackingTab() {
                                                         setLpoRows(newRows);
                                                     }}
                                                     className="w-full bg-white border border-[#E2E8F0] rounded-xl p-3 text-[14px] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold"
+                                                />
+                                            </div>
+
+                                            {/* LPO Delivery Date */}
+                                            <div className="w-[180px]">
+                                                <label className="text-[10px] font-[800] text-[#64748B] uppercase tracking-wider mb-1.5 block">Delivery Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={row.lpoDeliveryDate}
+                                                    onChange={(e) => {
+                                                        const newRows = [...lpoRows];
+                                                        newRows[idx].lpoDeliveryDate = e.target.value;
+                                                        setLpoRows(newRows);
+                                                    }}
+                                                    className="w-full bg-white border border-[#E2E8F0] rounded-xl p-3 text-[14px] outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all font-bold appearance-none"
                                                 />
                                             </div>
 
@@ -1149,6 +1167,7 @@ export default function DeliveryTrackingTab() {
                                                         lpos: lpoRows.map(r => ({
                                                             lpoNumber: r.lpoNumber,
                                                             lpoDate: r.lpoDate,
+                                                            lpoDeliveryDate: r.lpoDeliveryDate,
                                                             customerName: r.customerId || r.customerName,
                                                             lpoValue: parseFloat(r.lpoValue),
                                                         }))
@@ -1165,6 +1184,7 @@ export default function DeliveryTrackingTab() {
                                                 setLpoRows([{
                                                     lpoNumber: '',
                                                     lpoDate: new Date().toISOString().split('T')[0],
+                                                    lpoDeliveryDate: '',
                                                     customerName: '',
                                                     customerId: '',
                                                     lpoValue: '',
@@ -2016,6 +2036,7 @@ export default function DeliveryTrackingTab() {
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[110px]">LPO ID</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Number</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[130px]">LPO Date</th>
+                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[130px]">Delivery Date</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Customer Name</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Value</th>
                                             <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Invoice DATE</th>
@@ -2030,7 +2051,7 @@ export default function DeliveryTrackingTab() {
                                     </thead>
                                     <tbody className="divide-y divide-[#E0E7FF]">
                                         {filteredOrders.length === 0 ? (
-                                            <tr><td colSpan={13} className="text-center py-20 text-[#B2C4BB] font-medium">No orders matching your filters</td></tr>
+                                            <tr><td colSpan={14} className="text-center py-20 text-[#B2C4BB] font-medium">No orders matching your filters</td></tr>
                                         ) : (
                                             filteredOrders.map((o, index) => {
                                                 const diff = o.invoiceVal > 0 ? o.invoiceVal - o.lpoVal : 0;
@@ -2040,7 +2061,7 @@ export default function DeliveryTrackingTab() {
                                                     <React.Fragment key={o.id}>
                                                         {showHeader && (
                                                             <tr className="bg-[#F8FAFC]">
-                                                                <td colSpan={13} className="p-[10px_16px] text-left">
+                                                                <td colSpan={14} className="p-[10px_16px] text-left">
                                                                     <div className="flex items-center gap-2">
                                                                         <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center">
                                                                             <Clock className="w-4 h-4 text-[#4F46E5]" />
@@ -2059,6 +2080,12 @@ export default function DeliveryTrackingTab() {
                                                             <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId}</span></td>
                                                             <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo}</span></td>
                                                             <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date}</td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2980B9]">
+                                                                {o.deliveryDate
+                                                                    ? <span className="bg-[#EBF8FF] text-[#2980B9] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12 text-[12px] font-[600]">{o.deliveryDate}</span>
+                                                                    : <span className="text-[#B2C4BB]">&mdash;</span>
+                                                                }
+                                                            </td>
                                                             <td className="p-[12px_16px] text-center font-[600] text-[12.5px] text-[#0F1A14]">{o.customer}</td>
                                                             <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.lpoVal.toLocaleString()}</td>
                                                             <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.invoiceDate || '—'}</td>

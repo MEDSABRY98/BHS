@@ -43,6 +43,7 @@ export async function GET() {
                 lpoId: record.lpoId,
                 lpo: record.lpoNumber,
                 date: record.lpoDate,
+                deliveryDate: record.lpoDeliveryDate,
                 customer: resolvedCustomer,
                 lpoVal: record.lpoValue,
                 invoiceVal: record.invoiceValue,
@@ -76,7 +77,7 @@ export async function POST(request: Request) {
         const { action } = body;
 
         if (action === 'add_lpo') {
-            const { lpoNumber, lpoDate, customerName, lpoValue, lpos } = body;
+            const { lpoNumber, lpoDate, lpoDeliveryDate, customerName, lpoValue, lpos } = body;
 
             const existingRecords = await getLpoRecords();
             let currentCount = existingRecords.length;
@@ -119,7 +120,7 @@ export async function POST(request: Request) {
                 }
 
                 const lpoId = `L-${(currentCount + 1).toString().padStart(3, '0')}`;
-                await addLpoRecord({ lpoId, lpoNumber, lpoDate, customerName, lpoValue });
+                await addLpoRecord({ lpoId, lpoNumber, lpoDate, lpoDeliveryDate, customerName, lpoValue });
                 return NextResponse.json({ success: true, lpoId });
             }
         }

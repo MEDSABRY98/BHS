@@ -3757,6 +3757,7 @@ export interface LpoRecord {
   lpoId: string;
   lpoNumber: string;
   lpoDate: string;
+  lpoDeliveryDate: string;
   customerName: string;
   lpoValue: number;
   invoiceNumber: string;
@@ -3802,7 +3803,7 @@ export async function getLpoRecords(): Promise<LpoRecord[]> {
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_RECORDS_SHEET}'!A:M`,
+      range: `'${LPO_RECORDS_SHEET}'!A:N`,
     });
     const rows = res.data.values;
     if (!rows || rows.length < 2) return [];
@@ -3814,16 +3815,17 @@ export async function getLpoRecords(): Promise<LpoRecord[]> {
         lpoId: row[0]?.toString() || '',
         lpoNumber: row[1]?.toString() || '',
         lpoDate: row[2]?.toString() || '',
-        customerName: row[3]?.toString() || '',
-        lpoValue: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-        invoiceDate: row[5]?.toString() || '',
-        invoiceNumber: row[6]?.toString() || '',
-        invoiceValue: parseFloat(row[7]?.toString().replace(/,/g, '') || '0'),
-        status: (row[8]?.toString() || 'pending') as LpoRecord['status'],
-        reship: ['true', 'yes', 'TRUE', 'YES'].includes(row[9]?.toString()?.trim() || ''),
-        notes: row[10]?.toString() || '',
-        createdAt: row[11]?.toString() || '',
-        updatedAt: row[12]?.toString() || '',
+        lpoDeliveryDate: row[3]?.toString() || '',  // D: LPO Delivery Date (NEW)
+        customerName: row[4]?.toString() || '',     // E: Customer
+        lpoValue: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'), // F
+        invoiceDate: row[6]?.toString() || '',      // G
+        invoiceNumber: row[7]?.toString() || '',    // H
+        invoiceValue: parseFloat(row[8]?.toString().replace(/,/g, '') || '0'), // I
+        status: (row[9]?.toString() || 'pending') as LpoRecord['status'],  // J
+        reship: ['true', 'yes', 'TRUE', 'YES'].includes(row[10]?.toString()?.trim() || ''), // K
+        notes: row[11]?.toString() || '',           // L
+        createdAt: row[12]?.toString() || '',       // M
+        updatedAt: row[13]?.toString() || '',       // N
       }));
   } catch (error) {
     console.error('Error fetching LPO Records:', error);
@@ -3888,12 +3890,14 @@ export async function addLpoRecord(data: {
   lpoId: string;
   lpoNumber: string;
   lpoDate: string;
+  lpoDeliveryDate?: string;
   customerName: string;
   lpoValue: number;
 } | {
   lpoId: string;
   lpoNumber: string;
   lpoDate: string;
+  lpoDeliveryDate?: string;
   customerName: string;
   lpoValue: number;
 }[]): Promise<{ success: boolean }> {
@@ -3904,23 +3908,24 @@ export async function addLpoRecord(data: {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_RECORDS_SHEET}'!A:M`,
+      range: `'${LPO_RECORDS_SHEET}'!A:N`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: records.map(record => [
-          record.lpoId,        // A: LPO ID
-          record.lpoNumber,    // B: LPO Number
-          record.lpoDate,      // C: LPO Date
-          record.customerName, // D: Customer Name
-          record.lpoValue,     // E: LPO Value
-          '',                // F: Invoice Date
-          '',                // G: Invoice Number
-          0,                 // H: Invoice Value
-          'pending',         // I: Status
-          'FALSE',           // J: Reship?
-          '',                // K: Notes
-          now,               // L: Created At
-          now,               // M: Updated At
+          record.lpoId,                      // A: LPO ID
+          record.lpoNumber,                  // B: LPO Number
+          record.lpoDate,                    // C: LPO Date
+          record.lpoDeliveryDate || '',      // D: LPO Delivery Date (NEW)
+          record.customerName,               // E: Customer Name
+          record.lpoValue,                   // F: LPO Value
+          '',                                // G: Invoice Date
+          '',                                // H: Invoice Number
+          0,                                 // I: Invoice Value
+          'pending',                         // J: Status
+          'FALSE',                           // K: Reship?
+          '',                                // L: Notes
+          now,                               // M: Created At
+          now,                               // N: Updated At
         ]),
       },
     });
@@ -3946,26 +3951,27 @@ export async function updateLpoRecord(rowIndex: number, data: Partial<{
     const now = nowTimestamp();
 
     // Fetch current row first to avoid overwriting unchanged fields
+    // Columns G:N = Invoice Date, Invoice Number, Invoice Value, Status, Reship, Notes, Created At, Updated At
     const current = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_RECORDS_SHEET}'!F${rowIndex}:M${rowIndex}`,
+      range: `'${LPO_RECORDS_SHEET}'!G${rowIndex}:N${rowIndex}`,
     });
     const cur = current.data.values?.[0] || [];
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_RECORDS_SHEET}'!F${rowIndex}:M${rowIndex}`,
+      range: `'${LPO_RECORDS_SHEET}'!G${rowIndex}:N${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[
-          data.invoiceDate !== undefined ? data.invoiceDate : (cur[0] || ''),       // F
-          data.invoiceNumber !== undefined ? data.invoiceNumber : (cur[1] || ''),   // G
-          data.invoiceValue !== undefined ? data.invoiceValue : (cur[2] || 0),      // H
-          data.status !== undefined ? data.status : (cur[3] || 'pending'),          // I
-          data.reship !== undefined ? (data.reship ? 'YES' : 'NO') : (cur[4] || 'NO'), // J
-          data.notes !== undefined ? data.notes : (cur[5] || ''),                  // K
-          cur[6] || now,  // L: Created At (keep original)
-          now,            // M: Updated At (always update)
+          data.invoiceDate !== undefined ? data.invoiceDate : (cur[0] || ''),       // G: Invoice Date
+          data.invoiceNumber !== undefined ? data.invoiceNumber : (cur[1] || ''),   // H: Invoice Number
+          data.invoiceValue !== undefined ? data.invoiceValue : (cur[2] || 0),      // I: Invoice Value
+          data.status !== undefined ? data.status : (cur[3] || 'pending'),          // J: Status
+          data.reship !== undefined ? (data.reship ? 'YES' : 'NO') : (cur[4] || 'NO'), // K: Reship?
+          data.notes !== undefined ? data.notes : (cur[5] || ''),                  // L: Notes
+          cur[6] || now,  // M: Created At (keep original)
+          now,            // N: Updated At (always update)
         ]],
       },
     });
