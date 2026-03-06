@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2 } from 'lucide-react';
+import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, Printer, FileText, MoreVertical, Eye } from 'lucide-react';
 import './DocumentsTracking.css';
 
 interface TimelineEvent {
@@ -62,11 +62,20 @@ export default function DocumentsTrackingTab() {
     const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Print Choice state
+    const [printModal, setPrintModal] = useState<{ isOpen: boolean; check: Check | null }>({
+        isOpen: false,
+        check: null
+    });
+
     // Confirmation state
     const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; checkId: string | null }>({
         isOpen: false,
         checkId: null
     });
+
+    // Action modal state
+    const [activeActionModal, setActiveActionModal] = useState<Check | null>(null);
 
     const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
         setNotification({ msg, type });
@@ -290,6 +299,203 @@ export default function DocumentsTrackingTab() {
         }
     };
 
+    // PRINTING LOGIC
+    const handlePrint = (check: Check, type: 'reception' | 'delivery') => {
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) return;
+
+        const isReception = type === 'reception';
+        const title = isReception ? 'RECEPTION RECEIPT' : 'DELIVERY RECEIPT';
+        const dateStr = new Date().toLocaleDateString('en-GB');
+        const timeStr = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+        const html = `
+          <html>
+            <head>
+              <title>${title} - ${check.id}</title>
+              <style>
+                @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700&display=swap');
+                body { 
+                    font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+                    padding: 40px; 
+                    color: #1a1a1a; 
+                    background: #fff;
+                    line-height: 1.5;
+                }
+                .receipt-container { 
+                    border: 4px solid #000; 
+                    padding: 40px; 
+                    max-width: 700px; 
+                    margin: auto; 
+                    position: relative;
+                    box-shadow: 0 0 20px rgba(0,0,0,0.1);
+                }
+                .header { 
+                    text-align: center; 
+                    border-bottom: 2px solid #EEE; 
+                    padding-bottom: 25px; 
+                    margin-bottom: 35px; 
+                }
+                .header h1 { 
+                    margin: 0; 
+                    font-size: 32px; 
+                    font-weight: 900; 
+                    letter-spacing: 4px; 
+                }
+                .header p { 
+                    margin: 8px 0 0; 
+                    color: #555; 
+                    font-size: 14px; 
+                    font-weight: 700;
+                    letter-spacing: 1px;
+                }
+                .info-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 1fr;
+                    gap: 20px;
+                    margin-bottom: 40px;
+                }
+                .info-row { 
+                    display: flex; 
+                    flex-direction: column;
+                    border-bottom: 1px solid #eee; 
+                    padding-bottom: 8px; 
+                }
+                .info-label { 
+                    font-size: 11px;
+                    font-weight: 800; 
+                    color: #888; 
+                    text-transform: uppercase;
+                    margin-bottom: 2px;
+                }
+                .info-value { 
+                    font-size: 16px;
+                    font-weight: 700; 
+                    color: #000; 
+                    text-transform: uppercase; 
+                }
+                .full-row { grid-column: 1 / -1; }
+                .amount-box { 
+                    margin: 40px 0; 
+                    background: #000; 
+                    padding: 25px; 
+                    color: #fff;
+                    text-align: center; 
+                    border-radius: 4px;
+                }
+                .amount-box .lbl { font-size: 12px; font-weight: 700; opacity: 0.7; margin-bottom: 5px; }
+                .amount-box .val { font-size: 36px; font-weight: 900; }
+                .footer { 
+                    margin-top: 60px; 
+                    display: flex; 
+                    justify-content: space-between; 
+                    gap: 40px;
+                }
+                .sig-box { 
+                    flex: 1;
+                    padding-top: 15px; 
+                    border-top: 2px solid #000; 
+                    text-align: center; 
+                    font-size: 12px; 
+                    font-weight: 700;
+                }
+                .watermark { 
+                    position: absolute; 
+                    top: 50%; 
+                    left: 50%; 
+                    transform: translate(-50%, -50%) rotate(-45deg); 
+                    opacity: 0.03; 
+                    font-size: 120px; 
+                    font-weight: 900; 
+                    pointer-events: none; 
+                    white-space: nowrap; 
+                }
+                @media print {
+                    body { padding: 0; }
+                    .receipt-container { border: 2px solid #000; box-shadow: none; }
+                }
+              </style>
+            </head>
+            <body onload="window.print(); window.close();">
+              <div class="receipt-container">
+                <div class="watermark">${isReception ? 'RECEIVED' : 'DELIVERED'}</div>
+                <div class="header">
+                  <h1>${title}</h1>
+                  <p>BH DOCUMENTS TRACKING SYSTEM</p>
+                </div>
+                
+                <div class="info-grid">
+                    <div class="info-row">
+                      <span class="info-label">Reference ID</span>
+                      <span class="info-value">${check.id}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Date / Time Generated</span>
+                      <span class="info-value">${dateStr} ${timeStr}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Document Number</span>
+                      <span class="info-value">${check.num}</span>
+                    </div>
+                    <div class="info-row">
+                      <span class="info-label">Document Date</span>
+                      <span class="info-value">${check.checkDate || 'N/A'}</span>
+                    </div>
+                    <div class="info-row full-row">
+                      <span class="info-label">Document Name / Owner</span>
+                      <span class="info-value">${check.client}</span>
+                    </div>
+                    
+                    ${isReception ? `
+                      <div class="info-row full-row">
+                        <span class="info-label">Handed Over By</span>
+                        <span class="info-value">${check.bank || '—'}</span>
+                      </div>
+                      <div class="info-row full-row">
+                        <span class="info-label">Reception Date (System)</span>
+                        <span class="info-value">${check.date}</span>
+                      </div>
+                    ` : `
+                      <div class="info-row">
+                        <span class="info-label">Delivered To</span>
+                        <span class="info-value">${check.receiverName || 'Internal Staff'}</span>
+                      </div>
+                      <div class="info-row">
+                        <span class="info-label">Final Office Receiver</span>
+                        <span class="info-value">${check.finalReceiverName || 'N/A'}</span>
+                      </div>
+                    `}
+
+                    ${check.notes ? `
+                    <div class="info-row full-row">
+                      <span class="info-label">Internal Remarks</span>
+                      <span class="info-value">${check.notes}</span>
+                    </div>
+                    ` : ''}
+                </div>
+
+                <div class="amount-box">
+                  <div class="lbl">DOCUMENT TOTAL VALUE</div>
+                  <div class="val">${check.amount.toLocaleString('en-US')} AED</div>
+                </div>
+                
+                <div class="footer">
+                  <div class="sig-box">ISSUED BY & STAMP</div>
+                  <div class="sig-box">RECEIVER SIGNATURE</div>
+                </div>
+
+                <p style="text-align: center; margin-top: 40px; font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 1px;">
+                    This document is an electronic receipt generated by BH BHS System
+                </p>
+              </div>
+            </body>
+          </html>
+        `;
+        printWindow.document.write(html);
+        printWindow.document.close();
+        setPrintModal({ isOpen: false, check: null });
+    };
+
     const formatDate = (d: string) => {
         if (!d) return '—';
         const date = new Date(d);
@@ -508,10 +714,16 @@ export default function DocumentsTrackingTab() {
                                             <div className="td">{c.bank || '—'}</div>
                                             <div className="td">{renderProgress(c.status)}</div>
                                             <div className="td">
-                                                <div className="actions">
-                                                    <button className="btn-action" onClick={() => setSelectedCheckId(c.id)} title="تفاصيل">👁</button>
-                                                    <button className="btn-action" onClick={() => requestDelete(c.id)} title="حذف" style={{ color: 'red' }}>🗑</button>
-                                                </div>
+                                                <button
+                                                    className="btn-menu"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setActiveActionModal(c);
+                                                    }}
+                                                    title="الإجراءات"
+                                                >
+                                                    <MoreVertical size={18} />
+                                                </button>
                                             </div>
                                         </div>
                                     ))
@@ -610,6 +822,38 @@ export default function DocumentsTrackingTab() {
                 </div>
             )}
 
+            {/* ACTIONS MODAL */}
+            {activeActionModal && (
+                <div className="modal-overlay open" onClick={() => setActiveActionModal(null)}>
+                    <div className="modal action-popup-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '380px' }}>
+                        <div className="modal-title">
+                            <span>إجراءات الشيك: {activeActionModal.num}</span>
+                            <button className="modal-close" onClick={() => setActiveActionModal(null)}>✕</button>
+                        </div>
+                        <div className="modal-content">
+                            <div className="action-buttons-grid">
+                                <button className="action-btn-large" onClick={() => { setSelectedCheckId(activeActionModal.id); setActiveActionModal(null); }}>
+                                    <div className="btn-icon-circle blue"><Eye size={20} /></div>
+                                    <div className="btn-text">
+                                        <h4>عرض التفاصيل</h4>
+                                        <p>بيانات الشيك والسجل الزمني</p>
+                                    </div>
+                                </button>
+
+
+                                <button className="action-btn-large delete" onClick={() => { requestDelete(activeActionModal.id); setActiveActionModal(null); }}>
+                                    <div className="btn-icon-circle red"><Trash2 size={20} /></div>
+                                    <div className="btn-text">
+                                        <h4>حذف الشيك</h4>
+                                        <p>مسح السجل نهائياً من السيستم</p>
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* DELETE CONFIRMATION MODAL */}
             {confirmDelete.isOpen && (
                 <div className="modal-overlay open delete-confirm-overlay" onClick={() => setConfirmDelete({ isOpen: false, checkId: null })}>
@@ -631,6 +875,34 @@ export default function DocumentsTrackingTab() {
                             <button className="btn-confirm-delete" onClick={deleteCheck}>
                                 <Trash2 size={16} /> تأكيد الحذف
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* PRINT CHOICE MODAL */}
+            {printModal.isOpen && printModal.check && (
+                <div className="modal-overlay open" onClick={() => setPrintModal({ isOpen: false, check: null })}>
+                    <div className="modal print-choice-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="modal-title">
+                            <span>اختيار نوع الريسيت للطباعة</span>
+                            <button className="modal-close" onClick={() => setPrintModal({ isOpen: false, check: null })}>✕</button>
+                        </div>
+                        <div className="modal-content" style={{ textAlign: 'center', padding: '20px 0' }}>
+                            <p style={{ marginBottom: '20px', color: 'var(--gray-600)' }}>
+                                يرجى اختيار نوع الإيصال الذي ترغب في طباعته (باللغة الإنجليزية) للشيك رقم: <br />
+                                <strong>{printModal.check.num}</strong>
+                            </p>
+
+                            <div className="print-options-grid">
+                                <button className="btn-status btn-advance" onClick={() => handlePrint(printModal.check!, 'reception')} style={{ background: '#333', marginBottom: '10px', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                    <FileText size={18} /> Receipt: Receiving Document
+                                </button>
+
+                                <button className="btn-status btn-advance" onClick={() => handlePrint(printModal.check!, 'delivery')} style={{ background: 'var(--gold-dark)', width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                    <Printer size={18} /> Receipt: Delivering Document
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
