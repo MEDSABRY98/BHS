@@ -44,7 +44,7 @@ interface DeliveryEntry {
     invoiceVal: number;
     invoiceDate: string;
     invoiceNumber: string;
-    status: 'delivered' | 'pending' | 'partial';
+    status: 'delivered' | 'pending' | 'partial' | 'canceled';
     missing: string[];
     shippedItems?: string[];
     canceledItems?: string[];
@@ -58,6 +58,7 @@ const STATUS_CONFIG = {
     delivered: { label: 'Delivered', color: 'bg-[#EEF2FF] text-[#4F46E5] border-[#4F46E5]/10', dot: 'bg-[#6366F1]', icon: '✅' },
     pending: { label: 'Pending', color: 'bg-[#FEF6E8] text-[#9B6000] border-[#F5A623]/10', dot: 'bg-[#F5A623]', icon: '⏳' },
     partial: { label: 'Partial', color: 'bg-[#FEF0E7] text-[#7D4000] border-[#E67E22]/10', dot: 'bg-[#E67E22]', icon: '⚠️' },
+    canceled: { label: 'Canceled', color: 'bg-[#FEF2F2] text-[#EF4444] border-[#EF4444]/10', dot: 'bg-[#EF4444]', icon: '❌' },
 };
 
 export default function DeliveryTrackingTab() {
@@ -276,33 +277,45 @@ export default function DeliveryTrackingTab() {
 
         // ── Validation ──────────────────────────────────────
         // 1. The three required invoice fields
-        if (!editingOrder.invoiceDate) {
-            showToast('Please enter the Invoice Date', 'error');
-            return;
-        }
-        if (!editingOrder.invoiceNumber || !editingOrder.invoiceNumber.trim()) {
-            showToast('Please enter the Invoice Number', 'error');
-            return;
-        }
-        if (!editingOrder.invoiceNumber.toUpperCase().startsWith('SAL')) {
-            showToast('Invoice Number must start with SAL', 'error');
-            return;
-        }
-        if (!editingOrder.invoiceVal || editingOrder.invoiceVal <= 0) {
-            showToast('Please enter a valid Invoice Value', 'error');
-            return;
-        }
-        if (editingOrder.status === 'partial' && editingOrder.missing.length === 0) {
-            showToast('Please add missing products for Partial Delivery', 'error');
-            return;
-        }
-
-        // 2. If there are missing items → reship choice + notes required
-        if (editingOrder.missing.length > 0) {
-            if (!editingOrder.notes || !editingOrder.notes.trim()) {
-                showToast('Please add a Note for the missing items', 'error');
+        if (editingOrder.status !== 'canceled') {
+            if (!editingOrder.invoiceDate) {
+                showToast('Please enter the Invoice Date', 'error');
                 return;
             }
+            if (!editingOrder.invoiceNumber || !editingOrder.invoiceNumber.trim()) {
+                showToast('Please enter the Invoice Number', 'error');
+                return;
+            }
+            if (!editingOrder.invoiceNumber.toUpperCase().startsWith('SAL')) {
+                showToast('Invoice Number must start with SAL', 'error');
+                return;
+            }
+            if (!editingOrder.invoiceVal || editingOrder.invoiceVal <= 0) {
+                showToast('Please enter a valid Invoice Value', 'error');
+                return;
+            }
+            if (editingOrder.status === 'partial' && editingOrder.missing.length === 0) {
+                showToast('Please add missing products for Partial Delivery', 'error');
+                return;
+            }
+
+            // 2. If there are missing items → reship choice + notes required
+            if (editingOrder.missing.length > 0) {
+                if (!editingOrder.notes || !editingOrder.notes.trim()) {
+                    showToast('Please add a Note for the missing items', 'error');
+                    return;
+                }
+            }
+        } else {
+            // If canceled, a note is mandatory
+            if (!editingOrder.notes || !editingOrder.notes.trim()) {
+                showToast('Please add a Note for the canceled LPO', 'error');
+                return;
+            }
+            // Ensure no incorrect invoice validation disrupts cancellation save
+            editingOrder.invoiceVal = editingOrder.invoiceVal || 0;
+            editingOrder.invoiceNumber = editingOrder.invoiceNumber || '';
+            editingOrder.invoiceDate = editingOrder.invoiceDate || '';
         }
         // ────────────────────────────────────────────────────
 
@@ -341,7 +354,7 @@ export default function DeliveryTrackingTab() {
                             action: 'add_item',
                             lpoId: editingOrder.lpoId,
                             itemName: item,
-                            status: 'missing',
+                            status: editingOrder.reship ? 'missing' : 'canceled',
                             shipmentValue: 0,
                         }),
                     })
@@ -364,12 +377,16 @@ export default function DeliveryTrackingTab() {
                 ));
             }
 
-            // 4) Update local state — if reship=false, move missing items → canceledItems
-            const finalOrder = !editingOrder.reship && originalMissing.length > 0
+            // 4) Update local state — if reship=false, move all current missing items → canceledItems
+            const finalOrder = !editingOrder.reship
                 ? {
                     ...editingOrder,
                     missing: [],
-                    canceledItems: [...(editingOrder.canceledItems || []), ...originalMissing],
+                    canceledItems: [...new Set([
+                        ...(editingOrder.canceledItems || []),
+                        ...originalMissing,
+                        ...editingOrder.missing
+                    ])],
                 }
                 : editingOrder;
 
@@ -431,7 +448,8 @@ export default function DeliveryTrackingTab() {
             'Total Orders': c.total,
             'Delivered': c.delivered,
             'Partial': c.partial,
-            'With Cancel': c.withCancel,
+            'Pending': c.pending,
+            'Canceled Orders': c.canceledOrders,
             'Pending Items': c.missingCount,
             'Reshipped Items': c.reshippedCount,
             'Canceled Items': c.canceledCount
@@ -467,7 +485,8 @@ export default function DeliveryTrackingTab() {
             'Orders': c.orders,
             'Delivered': c.delivered,
             'Partial': c.partial,
-            'Pending': c.pending
+            'Pending': c.pending,
+            'Canceled': c.canceled
         }));
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
@@ -595,6 +614,8 @@ export default function DeliveryTrackingTab() {
             .filter(o => {
                 // Text search
                 const matchesSearch = o.lpo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    o.lpoId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    (o.invoiceNumber && o.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
                     o.customer.toLowerCase().includes(searchQuery.toLowerCase());
                 // Status filter
                 const matchesFilter = filterStatus === 'all' || o.status === filterStatus;
@@ -623,6 +644,7 @@ export default function DeliveryTrackingTab() {
         const missingCount = filteredOrders.reduce((acc, o) => acc + o.missing.length, 0);
         const discCount = filteredOrders.filter(o => o.invoiceVal > 0 && o.invoiceVal !== o.lpoVal).length;
         const partial = filteredOrders.filter(o => o.status === 'partial').length;
+        const canceledOrders = filteredOrders.filter(o => o.status === 'canceled').length;
 
         let favor = 0, against = 0;
         let favorCount = 0, againstCount = 0;
@@ -648,7 +670,7 @@ export default function DeliveryTrackingTab() {
         const totalTracked = missingCount + canceledCount;
 
         return {
-            total, delivered, pending, reship, missingCount, discCount, partial,
+            total, delivered, pending, reship, missingCount, discCount, partial, canceledOrders,
             favor, against, favorCount, againstCount, net: against - favor,
             shippedCount, canceledCount, totalTracked
         };
@@ -667,6 +689,7 @@ export default function DeliveryTrackingTab() {
                     delivered: 0,
                     partial: 0,
                     pending: 0,
+                    canceled: 0,
                     favs: 0,
                     against: 0
                 };
@@ -678,6 +701,7 @@ export default function DeliveryTrackingTab() {
             if (o.status === 'delivered') c.delivered += 1;
             if (o.status === 'partial') c.partial += 1;
             if (o.status === 'pending') c.pending += 1;
+            if (o.status === 'canceled') c.canceled += 1;
 
             return acc;
         }, {});
@@ -693,6 +717,7 @@ export default function DeliveryTrackingTab() {
                     delivered: 0,
                     partial: 0,
                     pending: 0,
+                    canceledOrders: 0,
                     missingCount: 0,
                     reshippedCount: 0,
                     canceledCount: 0
@@ -703,6 +728,7 @@ export default function DeliveryTrackingTab() {
             if (o.status === 'delivered') c.delivered += 1;
             if (o.status === 'partial') c.partial += 1;
             if (o.status === 'pending') c.pending += 1;
+            if (o.status === 'canceled') c.canceledOrders += 1;
             c.missingCount += (o.missing?.length || 0);
             c.reshippedCount += (o.shippedItems?.length || 0);
             c.canceledCount += (o.canceledItems?.length || 0);
@@ -741,7 +767,8 @@ export default function DeliveryTrackingTab() {
             delivered: (acc.delivered || 0) + (c.delivered || 0),
             partial: (acc.partial || 0) + (c.partial || 0),
             pending: (acc.pending || 0) + (c.pending || 0),
-        }), { lpoValue: 0, invoiceValue: 0, orders: 0, delivered: 0, partial: 0, pending: 0 });
+            canceled: (acc.canceled || 0) + (c.canceled || 0),
+        }), { lpoValue: 0, invoiceValue: 0, orders: 0, delivered: 0, partial: 0, pending: 0, canceled: 0 });
     }, [cityStats]);
 
     const customerTotals = useMemo(() => {
@@ -750,12 +777,13 @@ export default function DeliveryTrackingTab() {
             delivered: (acc.delivered || 0) + (c.delivered || 0),
             partial: (acc.partial || 0) + (c.partial || 0),
             pending: (acc.pending || 0) + (c.pending || 0),
+            canceledOrders: (acc.canceledOrders || 0) + (c.canceledOrders || 0),
             withCancel: (acc.withCancel || 0) + (c.withCancel || 0),
             missingCount: (acc.missingCount || 0) + (c.missingCount || 0),
             reshippedCount: (acc.reshippedCount || 0) + (c.reshippedCount || 0),
             canceledCount: (acc.canceledCount || 0) + (c.canceledCount || 0),
         }), {
-            total: 0, delivered: 0, partial: 0, pending: 0, withCancel: 0,
+            total: 0, delivered: 0, partial: 0, pending: 0, canceledOrders: 0, withCancel: 0,
             missingCount: 0, reshippedCount: 0, canceledCount: 0
         });
     }, [customerStats]);
@@ -851,7 +879,17 @@ export default function DeliveryTrackingTab() {
                             🚚
                         </div>
                         <div className="flex flex-col">
-                            <span className="text-[17px] font-[900] tracking-tight leading-none">Delivery Tracking</span>
+                            <div className="flex items-center gap-2">
+                                <span className="text-[17px] font-[900] tracking-tight leading-none">Delivery Tracking</span>
+                                <button
+                                    onClick={refreshOrders}
+                                    disabled={isLoading}
+                                    className={`p-1 rounded-md bg-white/10 hover:bg-white/20 border border-white/10 transition-all ${isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
+                                    title="Refresh Data"
+                                >
+                                    <RefreshCcw className={`w-3.5 h-3.5 text-white ${isLoading ? 'animate-spin' : ''}`} />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -1415,6 +1453,7 @@ export default function DeliveryTrackingTab() {
                                                         { label: 'Delivered', count: stats.delivered, color: '#2DBE6C' },
                                                         { label: 'Partial', count: stats.partial, color: '#E67E22' },
                                                         { label: 'Pending', count: stats.pending, color: '#F5A623' },
+                                                        { label: 'Canceled', count: stats.canceledOrders, color: '#E74C3C' },
                                                     ].map((s, i) => {
                                                         const pct = stats.total > 0 ? Math.round(s.count / stats.total * 100) : 0;
                                                         return (
@@ -1487,6 +1526,7 @@ export default function DeliveryTrackingTab() {
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#059669]">Delivered</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#D97706]">Partial</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-amber-500">Pending</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-500">Canceled</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -1513,6 +1553,7 @@ export default function DeliveryTrackingTab() {
                                                                 <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
                                                                 <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
                                                                 <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{c.canceled}</td>
                                                             </tr>
                                                         );
                                                     })}
@@ -1529,6 +1570,7 @@ export default function DeliveryTrackingTab() {
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{cityTotals.delivered}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{cityTotals.partial}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{cityTotals.pending}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{cityTotals.canceled}</td>
                                                     </tr>
                                                 </>
                                             )}
@@ -1550,6 +1592,7 @@ export default function DeliveryTrackingTab() {
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#059669]">Delivered</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-[#D97706]">Partial</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-amber-500">Pending</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-500">Canceled</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-orange-600">Pending Items</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-green-600">Reshipped Items</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-600">Canceled Items</th>
@@ -1572,6 +1615,7 @@ export default function DeliveryTrackingTab() {
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{c.canceledOrders}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
@@ -1585,6 +1629,7 @@ export default function DeliveryTrackingTab() {
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{customerTotals.delivered}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{customerTotals.partial}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{customerTotals.pending}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{customerTotals.canceledOrders}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-800">{customerTotals.missingCount}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-800">{customerTotals.reshippedCount}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-800">{customerTotals.canceledCount}</td>
@@ -1632,6 +1677,7 @@ export default function DeliveryTrackingTab() {
                                                     ))}
                                                     {/* TOTAL ROW */}
                                                     <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
+                                                        <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{productTotals.pending}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{productTotals.shipped}</td>
@@ -1932,7 +1978,7 @@ export default function DeliveryTrackingTab() {
                                 All Orders Register
                             </div>
                             <div className="flex items-center gap-[6px]">
-                                {['all', 'delivered', 'partial', 'pending'].map((s) => (
+                                {['all', 'delivered', 'partial', 'pending', 'canceled'].map((s) => (
                                     <button
                                         key={s}
                                         onClick={() => setFilterStatus(s)}
@@ -2115,7 +2161,7 @@ export default function DeliveryTrackingTab() {
                                                                 {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : o.missing.length > 0 ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                {canEdit && (
+                                                                {canEdit && o.status === 'pending' && (
                                                                     <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                         <button
                                                                             onClick={() => openEditModal(o)}
@@ -2465,12 +2511,13 @@ export default function DeliveryTrackingTab() {
                                 <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
                                     <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center gap-2">
                                         <div className="w-1 h-4 bg-[#6366F1] rounded-full" />
-                                        <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Delivery Status <span className="text-rose-500">*</span></span>
+                                        <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Delivery Status</span>
                                     </div>
-                                    <div className="p-4 grid grid-cols-2 gap-3">
+                                    <div className="p-4 grid grid-cols-3 gap-3">
                                         {([
                                             { value: 'delivered', label: 'Fully Delivered', icon: '✅', selectedBg: 'bg-emerald-50 border-emerald-400 text-emerald-700', dot: 'bg-emerald-500' },
                                             { value: 'partial', label: 'Partial Delivery', icon: '⚠️', selectedBg: 'bg-amber-50 border-amber-400 text-amber-700', dot: 'bg-amber-500' },
+                                            { value: 'canceled', label: 'Canceled', icon: '❌', selectedBg: 'bg-rose-50 border-rose-400 text-rose-700', dot: 'bg-rose-500' },
                                         ] as const).map(opt => {
                                             const hasMissing = editingOrder.missing.length > 0;
                                             const isDisabled = opt.value === 'delivered' && hasMissing;
@@ -2505,102 +2552,102 @@ export default function DeliveryTrackingTab() {
                                 </div>
 
                                 {/* SECTION 2 — Invoice Info */}
-                                <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
-                                    <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center gap-2">
-                                        <div className="w-1 h-4 bg-[#0EA5E9] rounded-full" />
-                                        <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Invoice Details</span>
-                                    </div>
-                                    <div className="p-4 grid grid-cols-3 gap-4">
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Date <span className="text-rose-500">*</span></label>
-                                            <input
-                                                type="date"
-                                                value={editingOrder.invoiceDate || ''}
-                                                onChange={(e) => setEditingOrder({ ...editingOrder, invoiceDate: e.target.value })}
-                                                className={`border-[1.5px] rounded-[10px] p-[10px_12px] text-[13px] font-medium outline-none transition-all appearance-none ${!editingOrder.invoiceDate
-                                                    ? 'border-rose-300 bg-rose-50 focus:border-rose-400'
-                                                    : 'bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white'}`}
-                                            />
+                                {editingOrder.status !== 'canceled' && (
+                                    <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+                                        <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center gap-2">
+                                            <div className="w-1 h-4 bg-[#0EA5E9] rounded-full" />
+                                            <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Invoice Details</span>
                                         </div>
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Number <span className="text-rose-500">*</span></label>
-                                            <input
-                                                type="text"
-                                                placeholder="e.g. SAL-001"
-                                                className="w-full bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all font-bold"
-                                                value={editingOrder.invoiceNumber || ''}
-                                                onChange={(e) => setEditingOrder({ ...editingOrder, invoiceNumber: e.target.value.toUpperCase() })}
-                                            />
-                                        </div>
-                                        <div className="flex flex-col gap-1.5">
-                                            <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Value <span className="text-rose-500">*</span></label>
-                                            <input
-                                                type="number"
-                                                placeholder="0.00"
-                                                value={editingOrder.invoiceVal || ''}
-                                                onChange={(e) => setEditingOrder({ ...editingOrder, invoiceVal: Number(e.target.value) })}
-                                                className={`border-[1.5px] rounded-[10px] p-[10px_12px] text-[13px] font-[700] outline-none transition-all font-mono-dm ${!editingOrder.invoiceVal || editingOrder.invoiceVal <= 0
-                                                    ? 'border-rose-300 bg-rose-50 focus:border-rose-400'
-                                                    : 'bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white'}`}
-                                            />
+                                        <div className="p-4 grid grid-cols-3 gap-4">
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Date</label>
+                                                <input
+                                                    type="date"
+                                                    value={editingOrder.invoiceDate || ''}
+                                                    onChange={(e) => setEditingOrder({ ...editingOrder, invoiceDate: e.target.value })}
+                                                    className="w-full border-[1.5px] rounded-[10px] p-[10px_12px] text-[13px] font-medium outline-none transition-all appearance-none bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white"
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Number</label>
+                                                <input
+                                                    type="text"
+                                                    placeholder="e.g. SAL-001"
+                                                    className="w-full bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all font-bold"
+                                                    value={editingOrder.invoiceNumber || ''}
+                                                    onChange={(e) => setEditingOrder({ ...editingOrder, invoiceNumber: e.target.value.toUpperCase() })}
+                                                />
+                                            </div>
+                                            <div className="flex flex-col gap-1.5">
+                                                <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Value</label>
+                                                <input
+                                                    type="number"
+                                                    placeholder="0.00"
+                                                    value={editingOrder.invoiceVal || ''}
+                                                    onChange={(e) => setEditingOrder({ ...editingOrder, invoiceVal: Number(e.target.value) })}
+                                                    className="w-full border-[1.5px] rounded-[10px] p-[10px_12px] text-[13px] font-[700] outline-none transition-all font-mono-dm bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* SECTION 3 — Missing Products */}
-                                <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
-                                    <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-1 h-4 bg-rose-400 rounded-full" />
-                                            <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Missing Products</span>
-                                        </div>
-                                        {editingOrder.missing.length > 0 && (
-                                            <span className="bg-rose-100 text-rose-600 text-[10px] font-[800] px-2 py-0.5 rounded-full border border-rose-200">
-                                                {editingOrder.missing.length} item{editingOrder.missing.length !== 1 ? 's' : ''}
-                                            </span>
-                                        )}
-                                    </div>
-                                    <div className="p-4 space-y-3">
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                placeholder="Add specific missing item title..."
-                                                value={missingItemInput}
-                                                onChange={(e) => setMissingItemInput(e.target.value)}
-                                                onKeyDown={(e) => e.key === 'Enter' && addMissingItem()}
-                                                className="flex-1 bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all"
-                                            />
-                                            <button
-                                                onClick={addMissingItem}
-                                                className="bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-[10px] px-5 text-[12px] font-[800] transition-all shadow-[0_4px_12px_rgba(99,102,241,0.3)] hover:-translate-y-0.5"
-                                            >
-                                                + Add
-                                            </button>
-                                        </div>
-                                        <div className="min-h-[44px] flex flex-wrap gap-2">
-                                            {editingOrder.missing.length > 0 ? (
-                                                editingOrder.missing.map((m, i) => (
-                                                    <span key={i} className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-[700] px-3 py-1.5 rounded-full shadow-sm hover:bg-rose-100 transition-colors">
-                                                        <Package className="w-3 h-3" />
-                                                        {m}
-                                                        <button onClick={() => removeMissingItem(i)} className="ml-1 hover:text-rose-900 transition-colors">
-                                                            <X className="w-3 h-3" />
-                                                        </button>
-                                                    </span>
-                                                ))
-                                            ) : (
-                                                <span className="text-[12px] text-[#94A3B8] italic py-2">No missing items reported.</span>
+                                {editingOrder.status !== 'canceled' && editingOrder.status !== 'delivered' && (
+                                    <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
+                                        <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center justify-between">
+                                            <div className="flex items-center gap-2">
+                                                <div className="w-1 h-4 bg-rose-400 rounded-full" />
+                                                <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Missing Products</span>
+                                            </div>
+                                            {editingOrder.missing.length > 0 && (
+                                                <span className="bg-rose-100 text-rose-600 text-[10px] font-[800] px-2 py-0.5 rounded-full border border-rose-200">
+                                                    {editingOrder.missing.length} item{editingOrder.missing.length !== 1 ? 's' : ''}
+                                                </span>
                                             )}
                                         </div>
+                                        <div className="p-4 space-y-3">
+                                            <div className="flex gap-2">
+                                                <input
+                                                    type="text"
+                                                    placeholder="Add specific missing item title..."
+                                                    value={missingItemInput}
+                                                    onChange={(e) => setMissingItemInput(e.target.value)}
+                                                    onKeyDown={(e) => e.key === 'Enter' && addMissingItem()}
+                                                    className="flex-1 bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all"
+                                                />
+                                                <button
+                                                    onClick={addMissingItem}
+                                                    className="bg-[#6366F1] hover:bg-[#4F46E5] text-white rounded-[10px] px-5 text-[12px] font-[800] transition-all shadow-[0_4px_12px_rgba(99,102,241,0.3)] hover:-translate-y-0.5"
+                                                >
+                                                    + Add
+                                                </button>
+                                            </div>
+                                            <div className="min-h-[44px] flex flex-wrap gap-2">
+                                                {editingOrder.missing.length > 0 ? (
+                                                    editingOrder.missing.map((m, i) => (
+                                                        <span key={i} className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-[700] px-3 py-1.5 rounded-full shadow-sm hover:bg-rose-100 transition-colors">
+                                                            <Package className="w-3 h-3" />
+                                                            {m}
+                                                            <button onClick={() => removeMissingItem(i)} className="ml-1 hover:text-rose-900 transition-colors">
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </span>
+                                                    ))
+                                                ) : (
+                                                    <span className="text-[12px] text-[#94A3B8] italic py-2">No missing items reported.</span>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
 
                                 {/* SECTION 4 — Re-ship + Notes (only shown if missing items exist) */}
-                                {editingOrder.missing.length > 0 && (
+                                {editingOrder.status !== 'canceled' && editingOrder.missing.length > 0 && (
                                     <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
                                         <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center gap-2">
                                             <div className="w-1 h-4 bg-amber-400 rounded-full" />
-                                            <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Re-shipment & Notes <span className="text-rose-500">*</span></span>
+                                            <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Re-shipment & Notes</span>
                                         </div>
                                         <div className="p-4 space-y-4">
                                             <div className="grid grid-cols-2 gap-3">
@@ -2628,36 +2675,40 @@ export default function DeliveryTrackingTab() {
                                             <div className="flex flex-col gap-1.5">
                                                 <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider flex items-center gap-1">
                                                     Delivery Notes
-                                                    <span className="text-rose-500 font-[800]">* required</span>
                                                 </label>
                                                 <textarea
                                                     rows={2}
                                                     value={editingOrder.notes}
                                                     onChange={(e) => setEditingOrder({ ...editingOrder, notes: e.target.value })}
-                                                    placeholder="Required: explain missing items situation..."
-                                                    className={`border-[1.5px] rounded-[10px] p-[10px_14px] text-[13px] outline-none transition-all resize-none ${!editingOrder.notes?.trim()
-                                                        ? 'border-rose-300 bg-rose-50 focus:border-rose-400'
-                                                        : 'bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white'}`}
+                                                    placeholder="explain missing items situation..."
+                                                    className="w-full border-[1.5px] rounded-[10px] p-[10px_14px] text-[13px] outline-none transition-all resize-none bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white"
                                                 />
                                             </div>
                                         </div>
                                     </div>
                                 )}
 
-                                {/* notes when no missing items */}
-                                {editingOrder.missing.length === 0 && (
+                                {/* notes when no missing items or canceled */}
+                                {(editingOrder.status === 'canceled' || editingOrder.missing.length === 0) && (
                                     <div className="bg-white rounded-[18px] border border-[#E2E8F0] shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden">
                                         <div className="px-5 py-3 border-b border-[#F1F5F9] flex items-center gap-2">
-                                            <div className="w-1 h-4 bg-slate-300 rounded-full" />
-                                            <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">Delivery Notes</span>
+                                            <div className={`w-1 h-4 ${editingOrder.status === 'canceled' ? 'bg-rose-500' : 'bg-slate-300'} rounded-full`} />
+                                            <span className="text-[11px] font-[800] text-[#475569] uppercase tracking-widest">
+                                                Delivery Notes
+                                            </span>
                                         </div>
-                                        <div className="p-4">
+                                        <div className="p-4 flex flex-col gap-1.5">
+                                            {editingOrder.status === 'canceled' && (
+                                                <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider flex items-center gap-1">
+                                                    Cancellation Reason
+                                                </label>
+                                            )}
                                             <textarea
                                                 rows={2}
                                                 value={editingOrder.notes}
                                                 onChange={(e) => setEditingOrder({ ...editingOrder, notes: e.target.value })}
-                                                placeholder="Notes regarding delivery issues, discrepancies, etc..."
-                                                className="w-full bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all resize-none"
+                                                placeholder={editingOrder.status === 'canceled' ? "specify the reason for cancellation..." : "Notes regarding delivery issues, discrepancies, etc..."}
+                                                className="w-full border-[1.5px] rounded-[10px] p-[10px_14px] text-[13px] outline-none transition-all resize-none bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white"
                                             />
                                         </div>
                                     </div>

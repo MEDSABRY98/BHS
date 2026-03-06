@@ -28,7 +28,8 @@ import {
     FileSpreadsheet,
     AlertTriangle,
     Info,
-    CircleDollarSign
+    CircleDollarSign,
+    RefreshCcw
 } from 'lucide-react';
 import {
     BarChart,
@@ -269,11 +270,21 @@ export default function VisitCustomersTab() {
 
                 const uniqueCities = Array.from(new Set(sheetData.map((row: any) => row.salesRep))).filter(Boolean).sort() as string[];
                 setCities(uniqueCities);
-
-                // Reps are now handled in fetchData from the visit history
             }
         } catch (error) {
             console.error('Error fetching metadata:', error);
+        }
+    };
+
+    const refreshData = async () => {
+        setLoading(true);
+        try {
+            await Promise.all([fetchData(), fetchMetadata()]);
+            showNotification('Data refreshed successfully', 'success');
+        } catch (err) {
+            showNotification('Failed to refresh data', 'error');
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -887,6 +898,14 @@ export default function VisitCustomersTab() {
                                 <Users className="w-5 h-5 text-pink-600" />
                             </div>
                             <h1 className="text-xl font-black text-slate-900 hidden md:block">Visit Customers</h1>
+                            <button
+                                onClick={refreshData}
+                                disabled={loading}
+                                className={`p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-pink-600 hover:border-pink-200 hover:bg-pink-50 transition-all ${loading ? 'opacity-50' : 'hover:scale-110 active:scale-95'}`}
+                                title="Refresh Data"
+                            >
+                                <RefreshCcw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                            </button>
                         </div>
                     </div>
 

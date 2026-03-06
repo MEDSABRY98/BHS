@@ -14,7 +14,7 @@ import AllNotesTab from '@/components/AllNotesTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { InvoiceRow } from '@/types';
-import { ArrowLeft, Wallet, LogOut, User } from 'lucide-react';
+import { ArrowLeft, Wallet, LogOut, User, RefreshCcw } from 'lucide-react';
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -29,6 +29,7 @@ function DebitPageContent() {
   const [activeTab, setActiveTab] = useState('customers');
   const [data, setData] = useState<InvoiceRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -98,9 +99,10 @@ function DebitPageContent() {
     setActiveTab('customers');
   };
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (silent) setIsRefreshing(true);
+      else setLoading(true);
       const response = await fetch('/api/sheets');
       const result = await response.json();
 
@@ -132,6 +134,7 @@ function DebitPageContent() {
       console.error('Error fetching data:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -158,7 +161,7 @@ function DebitPageContent() {
             <p className="text-red-600 text-lg mb-4">Error loading data</p>
             <p className="text-gray-600 mb-4">{error}</p>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
             >
               Retry
@@ -241,6 +244,14 @@ function DebitPageContent() {
                 <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200">
                   <Wallet className="w-6 h-6" />
                 </div>
+                <button
+                  onClick={() => fetchData(true)}
+                  disabled={loading || isRefreshing}
+                  className={`p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
+                  title="Refresh Data"
+                >
+                  <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </button>
               </div>
             </div>
 

@@ -202,7 +202,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
       const reconciliationSet = new Set(reconciliationMonths);
 
       // Start Logic: Use First Sale Month if available.
-      // If no sales found, maybe fallback to first BIL/Reconciled or just Empty?
+      // If no sales found, maybe fallback to first BIL / Reconciled or just Empty ?
       // User said "from [first sales month] to today". If no sales, technically no range.
       // But let's fallback to "earliest activity" (BIL/Reconciled) to be safe if sales data is missing but they are active.
 
@@ -271,10 +271,8 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
       summaries
         .filter((summary) => summary.customerName.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => a.customerName.localeCompare(b.customerName)),
-    [summaries, search],
+    [summaries, search]
   );
-
-
 
   const exportMissingToExcel = () => {
     try {
@@ -282,7 +280,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
 
       // Sheet 1: Summary (Customer | Concatenated Missing Months)
       const summaryData = filteredSummaries.map((item) => ({
-        Customer: item.customerName,
+        'Customer': item.customerName,
         'Missing Months': item.missingMonths.map((m) => m.label).join(' | '),
         'Avg. Monthly Discount': item.averageMonthlyDiscount,
         'Active Months count': item.activeMonthsCount
@@ -293,8 +291,8 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
       filteredSummaries.forEach((item) => {
         item.missingMonths.forEach((month) => {
           detailsData.push({
-            Customer: item.customerName,
-            Month: month.label,
+            'Customer': item.customerName,
+            'Month': month.label,
             'Due Amount': item.averageMonthlyDiscount // Using the average as the due amount per missing month
           });
         });
@@ -354,11 +352,11 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
         prev.map((entry) =>
           entry.customerName === selectedSummary.customerName
             ? { ...entry, reconciliationMonths: updatedKeys }
-            : entry,
-        ),
+            : entry
+        )
       );
 
-      // Optimistic/Immediate update for the modal
+      // Optimistic / Immediate update for the modal
       setSelectedSummary((prev) => {
         if (!prev) return prev;
 
@@ -372,7 +370,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
             newReconciled.push({ key: monthKey, label: formatMonthLabel(monthKey) });
           }
         } else {
-          // Unlock/Unfix
+          // Unlock / Unfix
           newReconciled = newReconciled.filter((m) => m.key !== monthKey);
           if (!newMissing.find(m => m.key === monthKey)) {
             newMissing.push({ key: monthKey, label: formatMonthLabel(monthKey) });
@@ -472,17 +470,18 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                       ) : (
                         <>
                           <span className="text-[10px] font-bold bg-white/60 text-orange-700 px-1.5 py-0.5 rounded-full border border-orange-200 group-hover:opacity-0 transition-opacity">
-                            REC
+                            RC
                           </span>
                           {canFix && (
                             <span className="absolute inset-x-0 bottom-2 text-[10px] font-bold text-red-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                              Unfix?
+                              unfix?
                             </span>
                           )}
                         </>
                       )}
                     </>
                   );
+
                   if (canFix) {
                     onClick = () => {
                       if (window.confirm(`Un-reconcile ${monthKey}? This will mark it as missing.`)) {
@@ -499,7 +498,9 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                   const isReconciling = reconcilingKey === monthKey;
                   content = (
                     <>
-                      <span className={`text-xs font-bold uppercase mb-1 ${canFix ? 'text-red-800' : 'text-red-400'}`}>{MONTH_NAMES[i]}</span>
+                      <span className={`text-xs font-bold uppercase mb-1 ${canFix ? 'text-red-800' : 'text-red-400'}`}>
+                        {MONTH_NAMES[i]}
+                      </span>
                       {isReconciling ? (
                         <svg className="animate-spin h-4 w-4 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -509,7 +510,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                         canFix && (
                           <>
                             <span className="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] text-red-700 bg-white/80 px-1 rounded border border-red-200">
-                              Fix?
+                              fix?
                             </span>
                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-10 transition-opacity bg-red-400 rounded-lg"></div>
                           </>
@@ -517,15 +518,13 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                       )}
                     </>
                   );
+
                   if (canFix) {
                     onClick = () => handleReconcile(monthKey);
                     disabled = isReconciling;
-                  } else {
-                    disabled = true;
                   }
                 } else {
-                  // Default fallback? Should be covered by logic above
-                  statusColor = "bg-gray-50 border-gray-200";
+                  disabled = true;
                 }
 
                 return (
@@ -546,7 +545,6 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
       </div>
     );
   };
-
 
   if (loading || isLoading) {
     return <Loading message="Loading discount tracker..." />;
@@ -574,7 +572,6 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
 
   return (
     <div className="p-6">
-
       <div className="mb-4 flex flex-col sm:flex-row items-center justify-center gap-3">
         <input
           type="text"
@@ -649,14 +646,14 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                           {summary.averageMonthlyDiscount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </span>
                         <span className="text-[10px] text-gray-400">
-                          Over {summary.activeMonthsCount} mo.
+                          per {summary.activeMonthsCount} mo.
                         </span>
                       </div>
                     </td>
                     <td className="px-5 py-4 whitespace-nowrap text-center">
                       {missingCount === 0 ? (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                          Up to date
+                          up to date
                         </span>
                       ) : (
                         <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
@@ -803,7 +800,8 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                       </button>
                     </div>
                   </div>
-                  <div className="bg-white border boundary-gray-200 rounded-xl overflow-hidden shadow-sm">
+
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50 border-b border-gray-200">
                         <tr className="text-center text-gray-600">
@@ -834,7 +832,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                               ))}
                               {/* Total Row */}
                               <tr className="bg-gray-50 border-t-2 border-gray-200 font-bold text-gray-900">
-                                <td colSpan={2} className="px-6 py-4 text-right"></td>
+                                <td colSpan={2} className="px-6 py-4 text-right">Total</td>
                                 <td className="px-6 py-4 text-center">{totalDebit.toLocaleString('en-US')}</td>
                                 <td className="px-6 py-4 text-center">{totalCredit.toLocaleString('en-US')}</td>
                                 <td className="px-6 py-4 text-center text-blue-700">Net: {netTotal.toLocaleString('en-US')}</td>
@@ -856,4 +854,3 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
     </div>
   );
 }
-

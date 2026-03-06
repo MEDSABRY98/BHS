@@ -14,6 +14,7 @@ export default function DiscountTrackerPage() {
     const [loading, setLoading] = useState(true);
     const [isChecking, setIsChecking] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [refreshKey, setRefreshKey] = useState(0);
 
     useEffect(() => {
         const savedUser = localStorage.getItem('currentUser');
@@ -51,7 +52,6 @@ export default function DiscountTrackerPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            // We still need the main data for the discount tracker validation logic
             const response = await fetch('/api/sheets');
             const result = await response.json();
 
@@ -61,6 +61,7 @@ export default function DiscountTrackerPage() {
 
             setData(result.data);
             setError(null);
+            setRefreshKey(prev => prev + 1);
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
             console.error('Error fetching data:', err);
@@ -93,6 +94,7 @@ export default function DiscountTrackerPage() {
                                 <Tag className="w-6 h-6" />
                             </div>
                             <h1 className="text-xl font-black text-slate-800 tracking-tight">Discount Tracker</h1>
+
                         </div>
                     </div>
 
@@ -110,7 +112,7 @@ export default function DiscountTrackerPage() {
                                 <p className="text-red-600 text-lg mb-4">Error loading data</p>
                                 <p className="text-gray-600 mb-4">{error}</p>
                                 <button
-                                    onClick={fetchData}
+                                    onClick={() => fetchData()}
                                     className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
                                 >
                                     Retry
@@ -118,7 +120,7 @@ export default function DiscountTrackerPage() {
                             </div>
                         </div>
                     ) : (
-                        <DiscountTrackerTab data={data} isLoading={false} />
+                        <DiscountTrackerTab key={refreshKey} data={data} isLoading={loading} />
                     )}
                 </main>
             </div>

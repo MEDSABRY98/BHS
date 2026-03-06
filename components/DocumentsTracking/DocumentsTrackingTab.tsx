@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye } from 'lucide-react';
+import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw } from 'lucide-react';
 import './DocumentsTracking.css';
 
 interface TimelineEvent {
@@ -444,6 +444,17 @@ export default function DocumentsTrackingTab() {
                     <div className="logo-icon"><ArrowRight className="w-6 h-6" /></div>
                     <div className="logo-text">تتبع <span>الشيكات</span></div>
                 </div>
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        fetchChecks();
+                    }}
+                    disabled={isLoading}
+                    className={`refresh-btn-icon ${isLoading ? 'loading' : ''}`}
+                    title="تحديث البيانات"
+                >
+                    <RefreshCcw size={18} />
+                </button>
             </header>
 
             <div className="stats-bar">

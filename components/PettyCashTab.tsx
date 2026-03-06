@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock, Save, RotateCw, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, FileText, TrendingDown, TrendingUp, BarChart3, Menu, X, Wallet, ArrowLeft, FileSpreadsheet, Search, Calendar, Clock, Save, RotateCw, CheckCircle2, RefreshCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface Receipt {
@@ -668,6 +668,19 @@ export default function PettyCashTab() {
           <h2 className="text-2xl font-bold text-gray-800">
             {tabs.find(t => t.id === activeTab)?.name}
           </h2>
+
+          <button
+            onClick={() => {
+              fetchRecords();
+              fetchNextVoucherNumber();
+              fetchVoucherHistory();
+            }}
+            disabled={loading}
+            className={`p-2 rounded-lg hover:bg-gray-100 transition-all ${loading ? 'opacity-50' : 'hover:scale-110 active:scale-95'}`}
+            title="Refresh Data"
+          >
+            <RefreshCcw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
+          </button>
 
           {activeTab === 'voucher' && (
             <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl ml-4 border border-gray-100">

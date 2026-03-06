@@ -15,7 +15,7 @@ import SalesCategoryRankTab from '@/components/SalesCategoryRankTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 export default function SalesPage() {
@@ -25,6 +25,7 @@ export default function SalesPage() {
   const [activeTab, setActiveTab] = useState('sales-overview');
   const [data, setData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});
@@ -105,9 +106,10 @@ export default function SalesPage() {
     setActiveTab('sales-overview');
   };
 
-  const fetchData = async () => {
+  const fetchData = async (silent = false) => {
     try {
-      setLoading(true);
+      if (silent) setIsRefreshing(true);
+      else setLoading(true);
       const response = await fetch('/api/sales');
       const result = await response.json();
 
@@ -139,6 +141,7 @@ export default function SalesPage() {
       console.error('Error fetching sales data:', err);
     } finally {
       setLoading(false);
+      setIsRefreshing(false);
     }
   };
 
@@ -254,7 +257,7 @@ export default function SalesPage() {
             <p className="text-red-600 text-lg mb-4">Error loading sales data</p>
             <p className="text-gray-600 mb-4">{error}</p>
             <button
-              onClick={fetchData}
+              onClick={() => fetchData()}
               className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
               Retry
@@ -333,7 +336,17 @@ export default function SalesPage() {
                   <BarChart3 className="w-6 h-6" />
                 </div>
                 <div className="flex flex-col">
-                  <h1 className="text-xl font-black text-slate-800 tracking-tight hidden md:block">Sales Analysis</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-xl font-black text-slate-800 tracking-tight hidden md:block">Sales Analysis</h1>
+                    <button
+                      onClick={() => fetchData(true)}
+                      disabled={loading || isRefreshing}
+                      className={`p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-110 active:scale-95'}`}
+                      title="Refresh Data"
+                    >
+                      <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    </button>
+                  </div>
                   <button
                     onClick={downloadTemplate}
                     className="text-[10px] text-green-600 font-bold hover:underline text-left -mt-1"
