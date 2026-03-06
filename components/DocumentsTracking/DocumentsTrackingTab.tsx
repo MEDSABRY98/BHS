@@ -332,9 +332,17 @@ export default function DocumentsTrackingTab() {
     };
 
     const exportData = () => {
-        const headers = ['رقم الشيك', 'العميل', 'المبلغ', 'تاريخ الاستلام', 'تاريخ الشيك', 'البنك', 'الحالة', 'ملاحظات'];
+        const headers = ['اسم العميل', 'تاريخ الاستلام', 'تاريخ الشيك', 'رقم الشيك', 'المبلغ', 'مستلم من مين', 'الملاحظات', 'الحالة'];
         const rows = checks.map(c => [
-            c.num, c.client, c.amount, c.date, c.checkDate || '', c.bank || '', STATUS_LABELS[c.status], c.notes || ''
+            c.client,
+            c.date,
+            c.checkDate || '',
+            // We use the ="000" formula trick to preserve leading zeros in Excel
+            `="${c.num}"`,
+            c.amount,
+            c.bank || '',
+            c.notes || '',
+            STATUS_LABELS[c.status]
         ]);
 
         const csv = '\uFEFF' + [headers, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
