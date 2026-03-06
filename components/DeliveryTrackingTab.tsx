@@ -595,9 +595,13 @@ export default function DeliveryTrackingTab() {
 
     const customerToCity = useMemo(() => {
         const map: Record<string, string> = {};
-        customers.forEach(c => {
-            map[c.customerName] = c.customerCity;
-        });
+        if (customers) {
+            customers.forEach(c => {
+                if (c && c.customerName) {
+                    map[c.customerName] = c.customerCity || 'Unknown';
+                }
+            });
+        }
         return map;
     }, [customers]);
 
@@ -610,30 +614,39 @@ export default function DeliveryTrackingTab() {
     }, [customers]);
 
     const filteredOrders = useMemo(() => {
+        if (!orders) return [];
         return orders
             .filter(o => {
+                const lpo = o.lpo || '';
+                const lpoId = o.lpoId || '';
+                const invoiceNumber = o.invoiceNumber || '';
+                const customer = o.customer || '';
+
                 // Text search
-                const matchesSearch = o.lpo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    o.lpoId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    (o.invoiceNumber && o.invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase())) ||
-                    o.customer.toLowerCase().includes(searchQuery.toLowerCase());
-                // Status filter
-                const matchesFilter = filterStatus === 'all' || o.status === filterStatus;
+                const matchesSearch = lpo.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    lpoId.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    customer.toLowerCase().includes(searchQuery.toLowerCase());
+
+                // Status filter - normalize status for filtering
+                const normalizedStatus = (o.status || 'pending').toLowerCase();
+                const matchesFilter = filterStatus === 'all' || normalizedStatus === filterStatus;
 
                 // Date filters (applied to LPO date)
-                const oDate = o.date ? new Date(o.date) : null;
-                const matchesYear = !filterYear || (oDate && oDate.getFullYear().toString() === filterYear);
-                const matchesMonth = !filterMonth || (oDate && (oDate.getMonth() + 1).toString().padStart(2, '0') === filterMonth);
-                const matchesFrom = !filterDateFrom || (oDate && o.date >= filterDateFrom);
-                const matchesTo = !filterDateTo || (oDate && o.date <= filterDateTo);
+                const oDateStr = o.date || '';
+                const oDate = oDateStr ? new Date(oDateStr) : null;
+                const matchesYear = !filterYear || (oDate && !isNaN(oDate.getTime()) && oDate.getFullYear().toString() === filterYear);
+                const matchesMonth = !filterMonth || (oDate && !isNaN(oDate.getTime()) && (oDate.getMonth() + 1).toString().padStart(2, '0') === filterMonth);
+                const matchesFrom = !filterDateFrom || (oDateStr && oDateStr >= filterDateFrom);
+                const matchesTo = !filterDateTo || (oDateStr && oDateStr <= filterDateTo);
 
                 // City filter
-                const orderCity = customerToCity[o.customer] || 'Unknown';
+                const orderCity = customerToCity[customer] || 'Unknown';
                 const matchesCity = !filterCity || orderCity === filterCity;
 
                 return matchesSearch && matchesFilter && matchesYear && matchesMonth && matchesFrom && matchesTo && matchesCity;
             })
-            .sort((a, b) => b.date.localeCompare(a.date));
+            .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     }, [orders, searchQuery, filterStatus, filterYear, filterMonth, filterDateFrom, filterDateTo, filterCity, customerToCity]);
 
     const stats = useMemo(() => {
@@ -803,8 +816,31 @@ export default function DeliveryTrackingTab() {
         fetch('/api/delivery')
             .then(res => res.json())
             .then(data => {
-                if (data.orders) setOrders(data.orders);
-                if (data.customers) setCustomers(data.customers);
+                if (data.orders) {
+                    const normalized = data.orders.map((o: any) => ({
+                        ...o,
+                        lpo: o.lpo || '',
+                        lpoId: o.lpoId || '',
+                        customer: o.customer || '',
+                        date: o.date || '',
+                        status: (o.status || 'pending').toLowerCase(),
+                        missing: Array.isArray(o.missing) ? o.missing : [],
+                        shippedItems: Array.isArray(o.shippedItems) ? o.shippedItems : [],
+                        canceledItems: Array.isArray(o.canceledItems) ? o.canceledItems : [],
+                        lpoVal: Number(o.lpoVal) || 0,
+                        invoiceVal: Number(o.invoiceVal) || 0,
+                    }));
+                    setOrders(normalized);
+                }
+                if (data.customers) {
+                    const normalizedCustomers = data.customers.map((c: any) => ({
+                        ...c,
+                        customerId: c.customerId || '',
+                        customerName: c.customerName || '',
+                        customerCity: c.customerCity || 'Unknown'
+                    }));
+                    setCustomers(normalizedCustomers);
+                }
             })
             .catch(err => {
                 console.error('Failed to fetch orders:', err);
@@ -818,8 +854,31 @@ export default function DeliveryTrackingTab() {
         try {
             const res = await fetch('/api/delivery');
             const data = await res.json();
-            if (data.orders) setOrders(data.orders);
-            if (data.customers) setCustomers(data.customers);
+            if (data.orders) {
+                const normalized = data.orders.map((o: any) => ({
+                    ...o,
+                    lpo: o.lpo || '',
+                    lpoId: o.lpoId || '',
+                    customer: o.customer || '',
+                    date: o.date || '',
+                    status: (o.status || 'pending').toLowerCase(),
+                    missing: Array.isArray(o.missing) ? o.missing : [],
+                    shippedItems: Array.isArray(o.shippedItems) ? o.shippedItems : [],
+                    canceledItems: Array.isArray(o.canceledItems) ? o.canceledItems : [],
+                    lpoVal: Number(o.lpoVal) || 0,
+                    invoiceVal: Number(o.invoiceVal) || 0,
+                }));
+                setOrders(normalized);
+            }
+            if (data.customers) {
+                const normalizedCustomers = data.customers.map((c: any) => ({
+                    ...c,
+                    customerId: c.customerId || '',
+                    customerName: c.customerName || '',
+                    customerCity: c.customerCity || 'Unknown'
+                }));
+                setCustomers(normalizedCustomers);
+            }
         } catch {
             showToast('Failed to refresh data', 'error');
         } finally {
@@ -828,12 +887,14 @@ export default function DeliveryTrackingTab() {
     };
 
     const filteredCustomers = useMemo(() => {
-        const q = customerSearch.toLowerCase().trim();
-        if (!q) return customers;
-        return customers.filter(c =>
-            c.customerName.toLowerCase().includes(q) ||
-            c.customerId.toLowerCase().includes(q)
-        );
+        const q = (customerSearch || '').toLowerCase().trim();
+        if (!q) return customers || [];
+        if (!customers) return [];
+        return customers.filter(c => {
+            const name = c.customerName || '';
+            const id = c.customerId || '';
+            return name.toLowerCase().includes(q) || id.toLowerCase().includes(q);
+        });
     }, [customers, customerSearch]);
 
     const deleteOrder = (id: string) => {
@@ -1744,7 +1805,8 @@ export default function DeliveryTrackingTab() {
                                 </div>
                             );
 
-                            const s = STATUS_CONFIG[found.status];
+                            const foundStatus = (found.status || 'pending').toLowerCase();
+                            const s = STATUS_CONFIG[foundStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
                             const diff = found.invoiceVal - found.lpoVal;
                             const diffPct = found.lpoVal > 0 ? (diff / found.lpoVal) * 100 : 0;
                             const totalResolved = (found.shippedItems?.length || 0) + (found.canceledItems?.length || 0);
@@ -1990,7 +2052,7 @@ export default function DeliveryTrackingTab() {
                                             }
                     `}
                                     >
-                                        {s === 'all' ? 'All' : STATUS_CONFIG[s as keyof typeof STATUS_CONFIG].label}
+                                        {s === 'all' ? 'All' : (STATUS_CONFIG[s as keyof typeof STATUS_CONFIG]?.label || s)}
                                     </button>
                                 ))}
                                 <div className="w-px h-4 bg-[#B2C4BB] mx-1"></div>
@@ -2120,35 +2182,41 @@ export default function DeliveryTrackingTab() {
                                                             </tr>
                                                         )}
                                                         <tr className="hover:bg-[#F0FAF4] transition-colors group">
-                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId}</span></td>
-                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo}</span></td>
-                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date}</td>
+                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId || '—'}</span></td>
+                                                            <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo || '—'}</span></td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date || '—'}</td>
                                                             <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2980B9]">
                                                                 {o.deliveryDate
                                                                     ? <span className="bg-[#EBF8FF] text-[#2980B9] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12 text-[12px] font-[600]">{o.deliveryDate}</span>
                                                                     : <span className="text-[#B2C4BB]">&mdash;</span>
                                                                 }
                                                             </td>
-                                                            <td className="p-[12px_16px] text-center font-[600] text-[12.5px] text-[#0F1A14]">{o.customer}</td>
-                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.lpoVal.toLocaleString()}</td>
+                                                            <td className="p-[12px_16px] text-center font-[600] text-[12.5px] text-[#0F1A14]">{o.customer || '—'}</td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{(o.lpoVal || 0).toLocaleString()}</td>
                                                             <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.invoiceDate || '—'}</td>
                                                             <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#2980B9] bg-[#EBF5FB] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12">{o.invoiceNumber || '—'}</span></td>
-                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.invoiceVal > 0 ? o.invoiceVal.toLocaleString() : '—'}</td>
+                                                            <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.invoiceVal && o.invoiceVal > 0 ? o.invoiceVal.toLocaleString() : '—'}</td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                {o.invoiceVal === 0 ? '—' :
+                                                                {!o.invoiceVal || o.invoiceVal === 0 ? '—' :
                                                                     <span className={`text-[12px] font-[700] font-mono-dm ${diff > 0 ? 'text-[#E74C3C]' : diff < 0 ? 'text-[#1A8A47]' : 'text-[#B2C4BB]'}`}>
                                                                         {diff === 0 ? '0' : (diff > 0 ? `+${diff.toLocaleString()}` : `-${Math.abs(diff).toLocaleString()}`)}
                                                                     </span>
                                                                 }
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                <div className={`inline-flex items-center gap-[5px] px-[10px] py-[3px] rounded-[20px] text-[11px] font-[600] border border-transparent ${s.color}`}>
-                                                                    <div className={`w-[5px] h-[5px] rounded-full ${s.dot}`}></div>
-                                                                    {s.label}
-                                                                </div>
+                                                                {(() => {
+                                                                    const normalizedStatus = (o.status || 'pending').toLowerCase();
+                                                                    const statusConf = STATUS_CONFIG[normalizedStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
+                                                                    return (
+                                                                        <div className={`inline-flex items-center gap-[5px] px-[10px] py-[3px] rounded-[20px] text-[11px] font-[600] border border-transparent ${statusConf.color}`}>
+                                                                            <div className={`w-[5px] h-[5px] rounded-full ${statusConf.dot}`}></div>
+                                                                            {statusConf.label}
+                                                                        </div>
+                                                                    );
+                                                                })()}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                {o.missing.length > 0 ? (
+                                                                {o.missing && o.missing.length > 0 ? (
                                                                     <button
                                                                         onClick={() => { setPopupItems(o.missing); setShowMissingPopup(true); }}
                                                                         className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm"
@@ -2158,7 +2226,7 @@ export default function DeliveryTrackingTab() {
                                                                 ) : '—'}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : o.missing.length > 0 ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
+                                                                {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : (o.missing && o.missing.length > 0) ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
                                                                 {canEdit && o.status === 'pending' && (
