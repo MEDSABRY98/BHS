@@ -96,8 +96,13 @@ export default function DocumentsTrackingTab() {
                     if (r.datedSendToOffice) timeline.push({ event: 'مسلّمة للمكتب الرئيسي', time: r.datedSendToOffice });
 
                     let status: 'received' | 'registered' | 'delivered' = 'received';
-                    if (r.documentStatus === 'مسلّمة للمكتب الرئيسي' || r.datedSendToOffice) status = 'delivered';
-                    else if (r.documentStatus === 'مسجلة في السيستم' || r.datedRecord) status = 'registered';
+                    const s = (r.documentStatus || '').toString().trim();
+                    if (s === 'مسلّمة للمكتب الرئيسي') status = 'delivered';
+                    else if (s === 'مسجلة في السيستم') status = 'registered';
+                    else if (s === 'مستلمة') status = 'received';
+                    // Fallback only if status is empty but dates exist
+                    else if (r.datedSendToOffice) status = 'delivered';
+                    else if (r.datedRecord) status = 'registered';
 
                     return {
                         id: r.documentId,
