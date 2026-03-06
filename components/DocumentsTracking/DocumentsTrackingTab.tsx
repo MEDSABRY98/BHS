@@ -110,7 +110,9 @@ export default function DocumentsTrackingTab() {
                         notes: r.documentNotes,
                         status,
                         timeline,
-                        rowIndex: r.rowIndex
+                        rowIndex: r.rowIndex,
+                        receiverName: r.whoDeliveryForOffice || '',
+                        finalReceiverName: r.whoTakeFromOffice || ''
                     };
                 });
                 setChecks(mappedChecks.reverse()); // Show newest first
@@ -184,7 +186,9 @@ export default function DocumentsTrackingTab() {
                 documentStatus: 'مستلمة',
                 datedReceived: now,
                 datedRecord: '',
-                datedSendToOffice: ''
+                datedSendToOffice: '',
+                whoDeliveryForOffice: '',
+                whoTakeFromOffice: ''
             }));
 
             const response = await fetch('/api/documents-tracking', {
@@ -268,7 +272,8 @@ export default function DocumentsTrackingTab() {
             };
 
             if (next === 'delivered') {
-                updateFields.documentNotes = `${currentCheck.notes} (المستلم: ${delReceiver}, النهائي: ${delFinal})`.trim();
+                updateFields.whoDeliveryForOffice = delReceiver;
+                updateFields.whoTakeFromOffice = delFinal;
             }
 
             const response = await fetch('/api/documents-tracking', {

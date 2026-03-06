@@ -4129,6 +4129,8 @@ export interface DocumentsTrackingRecord {
   datedReceived: string;
   datedRecord: string;
   datedSendToOffice: string;
+  whoDeliveryForOffice: string; // M: WHO DELIVERY FOR OFFICE?
+  whoTakeFromOffice: string;    // N: WHO TAKE FROM OFFICE?
 }
 
 // READ: Get all Documents Tracking Records
@@ -4137,7 +4139,7 @@ export async function getDocumentsTrackingRecords(): Promise<DocumentsTrackingRe
     const sheets = await getSheetsClient();
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${DOCUMENTS_TRACKING_SHEET}'!A:L`,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A:N`,
     });
     const rows = res.data.values;
     if (!rows || rows.length < 2) return [];
@@ -4156,6 +4158,8 @@ export async function getDocumentsTrackingRecords(): Promise<DocumentsTrackingRe
       datedReceived: row[9]?.toString() || '',
       datedRecord: row[10]?.toString() || '',
       datedSendToOffice: row[11]?.toString() || '',
+      whoDeliveryForOffice: row[12]?.toString() || '', // M
+      whoTakeFromOffice: row[13]?.toString() || '',    // N
     }));
   } catch (error) {
     console.error('Error fetching Documents Tracking Records:', error);
@@ -4171,22 +4175,24 @@ export async function addDocumentsTrackingRecord(data: DocumentsTrackingRecord |
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${DOCUMENTS_TRACKING_SHEET}'!A:L`,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A:N`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: records.map(record => [
-          record.documentId,      // A: DOCUMENT ID
-          record.receivedDate,    // B: RECEIVED DATE
-          record.documentDate,    // C: DOCUMENT DATE
-          record.documentNumber,  // D: DOCUMENT NUMBER
-          record.documentName,    // E: DOCUMENT NAME
-          record.receivedFrom,    // F: RECEIVED FROM
-          record.documentAmount,  // G: DOCUMENT AMOUNT
-          record.documentNotes,   // H: DOCUMENT NOTES
-          record.documentStatus,  // I: DOCUMENT STATUS
-          record.datedReceived || '', // J: DATED RECEIVED
-          record.datedRecord || '',   // K: DATED RECORD
-          record.datedSendToOffice || '', // L: DATED SEND TO OFFICE
+          record.documentId,                    // A: DOCUMENT ID
+          record.receivedDate,                  // B: RECEIVED DATE
+          record.documentDate,                  // C: DOCUMENT DATE
+          record.documentNumber,                // D: DOCUMENT NUMBER
+          record.documentName,                  // E: DOCUMENT NAME
+          record.receivedFrom,                  // F: RECEIVED FROM
+          record.documentAmount,                // G: DOCUMENT AMOUNT
+          record.documentNotes,                 // H: DOCUMENT NOTES
+          record.documentStatus,                // I: DOCUMENT STATUS
+          record.datedReceived || '',           // J: DATED RECEIVED
+          record.datedRecord || '',             // K: DATED RECORD
+          record.datedSendToOffice || '',       // L: DATED SEND TO OFFICE
+          record.whoDeliveryForOffice || '',    // M: WHO DELIVERY FOR OFFICE?
+          record.whoTakeFromOffice || '',       // N: WHO TAKE FROM OFFICE?
         ]),
       },
     });
@@ -4206,23 +4212,25 @@ export async function updateDocumentsTrackingRecord(rowIndex: number, data: Part
     // First, let's get the current row to see what we're updating
     const res = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${DOCUMENTS_TRACKING_SHEET}'!A${rowIndex}:L${rowIndex}`,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A${rowIndex}:N${rowIndex}`,
     });
     const currentRow = res.data.values?.[0] || [];
 
     // Map fields to their respective columns
     const updateMap: Record<string, number> = {
-      receivedDate: 1,      // B
-      documentDate: 2,      // C
-      documentNumber: 3,    // D
-      documentName: 4,      // E
-      receivedFrom: 5,      // F
-      documentAmount: 6,    // G
-      documentNotes: 7,     // H
-      documentStatus: 8,    // I
-      datedReceived: 9,     // J
-      datedRecord: 10,       // K
-      datedSendToOffice: 11, // L
+      receivedDate: 1,           // B
+      documentDate: 2,           // C
+      documentNumber: 3,         // D
+      documentName: 4,           // E
+      receivedFrom: 5,           // F
+      documentAmount: 6,         // G
+      documentNotes: 7,          // H
+      documentStatus: 8,         // I
+      datedReceived: 9,          // J
+      datedRecord: 10,           // K
+      datedSendToOffice: 11,     // L
+      whoDeliveryForOffice: 12,  // M
+      whoTakeFromOffice: 13,     // N
     };
 
     // Construct the updated row values
@@ -4236,7 +4244,7 @@ export async function updateDocumentsTrackingRecord(rowIndex: number, data: Part
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${DOCUMENTS_TRACKING_SHEET}'!A${rowIndex}:L${rowIndex}`,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A${rowIndex}:N${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [updatedValues],
