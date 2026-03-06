@@ -1338,3 +1338,36 @@
     color: var(--gray-400);
     font-weight: 500;
 }
+
+/* GROUP DATE HEADER ROW */
+.group-date-row {
+    background: linear-gradient(90deg, #1c1c2e 0%, #2d2457 100%);
+    color: #fff;
+    padding: 9px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 8px;
+    margin: 10px 0 4px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    border-right: 4px solid var(--gold-dark);
+}
+
+.group-date-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #e5e7eb;
+    font-size: 13px;
+}
+
+.group-count-badge {
+    background: var(--gold-dark);
+    color: #1c1c2e;
+    padding: 3px 12px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 800;
+}

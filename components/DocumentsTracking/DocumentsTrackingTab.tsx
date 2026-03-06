@@ -543,6 +543,64 @@ export default function DocumentsTrackingTab() {
         return matchFilter && matchSearch;
     });
 
+    // Group by registration date (c.date), newest group first
+    // Within each group, sort by checkDate newest first
+    const groupedChecks = (() => {
+        // The date stored in c.date is RECEIVED DATE (ISO or dd/mm/yyyy)
+        // We extract just the day part as group key
+        const getDateKey = (c: Check): string => {
+            const rawDate = c.date || '';
+            if (!rawDate) return 'غير محدد';
+
+            // Try ISO format (yyyy-mm-dd)
+            if (/^\d{4}-\d{2}-\d{2}/.test(rawDate)) {
+                const d = new Date(rawDate);
+                if (!isNaN(d.getTime())) {
+                    // Use yyyy-mm-dd as key for sorting, display separately
+                    return d.toISOString().split('T')[0];
+                }
+            }
+            // Try dd/mm/yyyy format
+            const slash = rawDate.split('/');
+            if (slash.length === 3) {
+                const [day, month, year] = slash;
+                const clean = year.split(',')[0].split('،')[0].trim();
+                return `${clean}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            }
+            return rawDate.split('،')[0].split(',')[0].trim();
+        };
+
+        const formatGroupLabel = (key: string): string => {
+            // key is yyyy-mm-dd
+            if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
+                const d = new Date(key + 'T00:00:00');
+                return d.toLocaleDateString('ar-EG', {
+                    weekday: 'long',
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+            }
+            return key;
+        };
+
+        const map = new Map<string, { checks: Check[]; label: string }>();
+        [...filteredChecks]
+            .sort((a, b) => {
+                const da = new Date(b.checkDate || 0).getTime();
+                const db = new Date(a.checkDate || 0).getTime();
+                return da - db;
+            })
+            .forEach(c => {
+                const key = getDateKey(c);
+                if (!map.has(key)) map.set(key, { checks: [], label: formatGroupLabel(key) });
+                map.get(key)!.checks.push(c);
+            });
+
+        return Array.from(map.entries())
+            .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime());
+    })();
+
     const totalAmount = checks.reduce((sum, c) => sum + c.amount, 0);
     const receivedCount = checks.filter(c => c.status === 'received').length;
     const registeredCount = checks.filter(c => c.status === 'registered').length;
@@ -703,30 +761,45 @@ export default function DocumentsTrackingTab() {
                                         <div className="empty-text">لا توجد نتائج</div>
                                     </div>
                                 ) : (
-                                    filteredChecks.map((c, i) => (
-                                        <div className="check-row" key={c.id}>
-                                            <div className="td" style={{ color: 'var(--gray-400)', fontWeight: 700 }}>{i + 1}</div>
-                                            <div className="td">{formatDate(c.date)}</div>
-                                            <div className="td">{formatDate(c.checkDate) || '—'}</div>
-                                            <div className="td check-num">{c.num}</div>
-                                            <div className="td">{c.client}</div>
-                                            <div className="td check-amount">{c.amount.toLocaleString('ar-AE')} د.إ</div>
-                                            <div className="td">{c.bank || '—'}</div>
-                                            <div className="td">{renderProgress(c.status)}</div>
-                                            <div className="td">
-                                                <button
-                                                    className="btn-menu"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setActiveActionModal(c);
-                                                    }}
-                                                    title="الإجراءات"
-                                                >
-                                                    <MoreVertical size={18} />
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))
+                                    (() => {
+                                        let rowNum = 0;
+                                        return groupedChecks.map(([dateKey, group]) => (
+                                            <React.Fragment key={dateKey}>
+                                                {/* Group Header */}
+                                                <div className="group-date-row">
+                                                    <span className="group-date-label">📅 {group.label}</span>
+                                                    <span className="group-count-badge">{group.checks.length} شيك</span>
+                                                </div>
+                                                {group.checks.map((c: Check) => {
+                                                    rowNum++;
+                                                    return (
+                                                        <div className="check-row" key={c.id}>
+                                                            <div className="td" style={{ color: 'var(--gray-400)', fontWeight: 700 }}>{rowNum}</div>
+                                                            <div className="td">{formatDate(c.date)}</div>
+                                                            <div className="td">{formatDate(c.checkDate) || '—'}</div>
+                                                            <div className="td check-num">{c.num}</div>
+                                                            <div className="td">{c.client}</div>
+                                                            <div className="td check-amount">{c.amount.toLocaleString('ar-AE')} د.إ</div>
+                                                            <div className="td">{c.bank || '—'}</div>
+                                                            <div className="td">{renderProgress(c.status)}</div>
+                                                            <div className="td">
+                                                                <button
+                                                                    className="btn-menu"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setActiveActionModal(c);
+                                                                    }}
+                                                                    title="الإجراءات"
+                                                                >
+                                                                    <MoreVertical size={18} />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </React.Fragment>
+                                        ));
+                                    })()
                                 )}
                             </div>
                         </div>
