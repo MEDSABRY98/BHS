@@ -4154,12 +4154,12 @@ export async function getDocumentsTrackingRecords(): Promise<DocumentsTrackingRe
       receivedFrom: row[5]?.toString() || '',
       documentAmount: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
       documentNotes: row[7]?.toString() || '',
-      documentStatus: row[8]?.toString() || '',
-      datedReceived: row[9]?.toString() || '',
-      datedRecord: row[10]?.toString() || '',
-      datedSendToOffice: row[11]?.toString() || '',
-      whoDeliveryForOffice: row[12]?.toString() || '', // M
-      whoTakeFromOffice: row[13]?.toString() || '',    // N
+      whoDeliveryForOffice: row[8]?.toString() || '', // I
+      whoTakeFromOffice: row[9]?.toString() || '',    // J
+      documentStatus: row[10]?.toString() || '',       // K
+      datedReceived: row[11]?.toString() || '',       // L
+      datedRecord: row[12]?.toString() || '',        // M
+      datedSendToOffice: row[13]?.toString() || '',   // N
     }));
   } catch (error) {
     console.error('Error fetching Documents Tracking Records:', error);
@@ -4187,12 +4187,12 @@ export async function addDocumentsTrackingRecord(data: DocumentsTrackingRecord |
           record.receivedFrom,                  // F: RECEIVED FROM
           record.documentAmount,                // G: DOCUMENT AMOUNT
           record.documentNotes,                 // H: DOCUMENT NOTES
-          record.documentStatus,                // I: DOCUMENT STATUS
-          record.datedReceived || '',           // J: DATED RECEIVED
-          record.datedRecord || '',             // K: DATED RECORD
-          record.datedSendToOffice || '',       // L: DATED SEND TO OFFICE
-          record.whoDeliveryForOffice || '',    // M: WHO DELIVERY FOR OFFICE?
-          record.whoTakeFromOffice || '',       // N: WHO TAKE FROM OFFICE?
+          record.whoDeliveryForOffice || '',    // I: WHO DELIVERY FOR OFFICE?
+          record.whoTakeFromOffice || '',       // J: WHO TAKE FROM OFFICE?
+          record.documentStatus,                // K: DOCUMENT STATUS
+          record.datedReceived || '',           // L: DATED RECEIVED
+          record.datedRecord || '',             // M: DATED RECORD
+          record.datedSendToOffice || '',       // N: DATED SEND TO OFFICE
         ]),
       },
     });
@@ -4225,12 +4225,12 @@ export async function updateDocumentsTrackingRecord(rowIndex: number, data: Part
       receivedFrom: 5,           // F
       documentAmount: 6,         // G
       documentNotes: 7,          // H
-      documentStatus: 8,         // I
-      datedReceived: 9,          // J
-      datedRecord: 10,           // K
-      datedSendToOffice: 11,     // L
-      whoDeliveryForOffice: 12,  // M
-      whoTakeFromOffice: 13,     // N
+      whoDeliveryForOffice: 8,   // I
+      whoTakeFromOffice: 9,      // J
+      documentStatus: 10,        // K
+      datedReceived: 11,         // L
+      datedRecord: 12,           // M
+      datedSendToOffice: 13,     // N
     };
 
     // Construct the updated row values
