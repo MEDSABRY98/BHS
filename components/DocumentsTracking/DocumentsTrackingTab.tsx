@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw } from 'lucide-react';
+import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import html2canvas from 'html2canvas';
 import './DocumentsTracking.css';
 
 interface TimelineEvent {
@@ -53,10 +56,16 @@ export default function DocumentsTrackingTab() {
     const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
     const [headerDate, setHeaderDate] = useState('');
     const [activeSubTab, setActiveSubTab] = useState<'register' | 'list'>('register');
+    const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
     // Delivery tracking inputs
     const [delReceiver, setDelReceiver] = useState('');
     const [delFinal, setDelFinal] = useState('');
+
+    // PDF Modal state
+    const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+    const [pdfType, setPdfType] = useState<'received' | 'delivered'>('delivered');
+    const [pdfPersonName, setPdfPersonName] = useState('');
 
     // Notification state
     const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -303,6 +312,132 @@ export default function DocumentsTrackingTab() {
             showNotify('فشل في تحديث الحالة', 'error');
         } finally {
             setIsLoading(false);
+        }
+    };
+
+
+    const toggleSelectAll = () => {
+        if (selectedIds.length === filteredChecks.length && filteredChecks.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(filteredChecks.map(c => c.id));
+        }
+    };
+
+    const toggleSelect = (id: string) => {
+        setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+    };
+
+    const generateHandoverReceipt = async () => {
+        const selectedCheques = checks.filter(c => selectedIds.includes(c.id));
+        if (selectedCheques.length === 0) return;
+
+        setIsLoading(true);
+        try {
+            const doc = new jsPDF('p', 'mm', 'a4');
+            const pageWidth = 210;
+            const pageHeight = 297;
+            const today = new Date().toLocaleDateString('en-GB');
+            const labelText = pdfType === 'received' ? 'Received From:' : 'Delivered To:';
+
+            // 1. Full Page Gold Border (A4)
+            doc.setDrawColor(201, 162, 39); // #c9a227
+            doc.setLineWidth(1.5);
+            doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
+
+            // 2. Title
+            const titleText = pdfType === 'received' ? 'CHEQUE RECEIPT' : 'CHEQUE HANDOVER';
+            doc.setFont('Helvetica', 'bold');
+            doc.setFontSize(22);
+            doc.setTextColor(0, 0, 0);
+            doc.text(titleText, pageWidth / 2, 25, { align: 'center' });
+
+            // 3. Simplified Header (Date 25%, Person 75% of content area)
+            doc.setDrawColor(201, 162, 39); // #c9a227
+            doc.setLineWidth(1.2);
+
+            // Date Segment
+            doc.setFontSize(11);
+            doc.setFont('Helvetica', 'bold');
+            doc.text('Date:', 15, 39);
+            const dateLineStart = 27;
+            const dateLineEnd = 58;
+            doc.line(dateLineStart, 41, dateLineEnd, 41);
+            doc.setFont('Helvetica', 'normal');
+            doc.text(today, (dateLineStart + dateLineEnd) / 2, 39, { align: 'center' });
+
+            // Person Name Segment
+            doc.setFont('Helvetica', 'bold');
+            doc.text(labelText, 63, 39);
+            const receiverLineStart = 90;
+            const receiverLineEnd = 195;
+            doc.line(receiverLineStart, 41, receiverLineEnd, 41);
+            doc.setFontSize(13); // Larger font for the name
+            doc.setFont('Helvetica', 'normal');
+            doc.text(pdfPersonName, (receiverLineStart + receiverLineEnd) / 2, 39, { align: 'center' });
+
+            // 4. Cheque Table (Columns: #, Drawer Name, Cheque Date, Cheque Number, Amount)
+            // Sorting by client name (Cheque Name) as requested
+            const sortedCheques = [...selectedCheques].sort((a, b) => a.client.localeCompare(b.client));
+
+            const tableData = sortedCheques.map((c, i) => [
+                i + 1,
+                c.client,
+                formatDate(c.checkDate),
+                c.num,
+                c.amount.toLocaleString('en-US')
+            ]);
+
+            autoTable(doc, {
+                startY: 50,
+                head: [['#', 'Cheque Name', 'Cheque Date', 'Cheque Number', 'Amount']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: {
+                    fillColor: [201, 162, 39],
+                    textColor: [0, 0, 0],
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.1
+                },
+                styles: {
+                    fontSize: 10,
+                    cellPadding: 4,
+                    lineColor: [68, 68, 68],
+                    lineWidth: 0.1,
+                    textColor: [0, 0, 0],
+                    halign: 'center',
+                    valign: 'middle'
+                },
+                columnStyles: {
+                    0: { cellWidth: 12 },
+                    1: { halign: 'center' },
+                    2: { halign: 'center' },
+                    3: { halign: 'center' },
+                    4: { halign: 'center' }
+                }
+            });
+
+            // 5. Totals Footer
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            const totalAmount = selectedCheques.reduce((sum, c) => sum + c.amount, 0);
+
+            doc.setFont('Helvetica', 'bold');
+            doc.text(`Total Cheques: ${selectedCheques.length}`, 15, finalY);
+            doc.text(`Total Amount: ${totalAmount.toLocaleString('en-US')} AED`, pageWidth - 15, finalY, { align: 'right' });
+
+            doc.save(`Cheque_${today.replace(/\//g, '-')}.pdf`);
+            showNotify('تم إصدار التقرير بنجاح');
+            setSelectedIds([]);
+            setIsPdfModalOpen(false);
+            setPdfPersonName('');
+        } catch (error) {
+            console.error('PDF Generation failed:', error);
+            showNotify('فشل في إنشاء ملف PDF نوعي', 'error');
+        } finally {
+            setIsLoading(true);
+            setTimeout(() => setIsLoading(false), 500);
         }
     };
 
@@ -568,12 +703,28 @@ export default function DocumentsTrackingTab() {
                             <button className={`filter-btn ${currentFilter === 'registered' ? 'active' : ''}`} onClick={() => setCurrentFilter('registered')}>مسجلة</button>
                             <button className={`filter-btn ${currentFilter === 'delivered' ? 'gold-active' : ''}`} onClick={() => setCurrentFilter('delivered')}>مسلّمة للمكتب</button>
                             <input type="text" className="search-box" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="🔍 بحث باسم العميل أو رقم الشيك..." />
+
+                            {selectedIds.length > 0 && (
+                                <button className="pdf-icon-btn" onClick={() => setIsPdfModalOpen(true)} title={`إصدار تقرير لـ ${selectedIds.length} شيك`}>
+                                    <span className="pdf-badge">{selectedIds.length}</span>
+                                    <FileCheck size={24} />
+                                </button>
+                            )}
+
                             <button className="filter-btn" onClick={exportData} style={{ marginRight: 'auto', borderColor: 'var(--gold)', color: 'var(--gold-dark)' }}>⬇ تصدير CSV</button>
                         </div>
 
                         {/* TABLE */}
                         <div className="table-container">
                             <div className="table-header-row">
+                                <div className="th">
+                                    <input
+                                        type="checkbox"
+                                        className="row-checkbox"
+                                        checked={selectedIds.length === filteredChecks.length && filteredChecks.length > 0}
+                                        onChange={toggleSelectAll}
+                                    />
+                                </div>
                                 <div className="th">#</div>
                                 <div className="th">تاريخ الاستلام</div>
                                 <div className="th">تاريخ الشيك</div>
@@ -603,7 +754,15 @@ export default function DocumentsTrackingTab() {
                                                 {group.checks.map((c: Check) => {
                                                     rowNum++;
                                                     return (
-                                                        <div className="check-row" key={c.id}>
+                                                        <div className={`check-row ${selectedIds.includes(c.id) ? 'selected' : ''}`} key={c.id}>
+                                                            <div className="td">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="row-checkbox"
+                                                                    checked={selectedIds.includes(c.id)}
+                                                                    onChange={() => toggleSelect(c.id)}
+                                                                />
+                                                            </div>
                                                             <div className="td" style={{ color: 'var(--gray-400)', fontWeight: 700 }}>{rowNum}</div>
                                                             <div className="td">{formatDate(c.date)}</div>
                                                             <div className="td">{formatDate(c.checkDate) || '—'}</div>
@@ -791,6 +950,79 @@ export default function DocumentsTrackingTab() {
                     <div className="toast-content">
                         <div className="toast-title">{notification.type === 'success' ? 'تمت العملية' : 'تنبيه'}</div>
                         <div className="toast-msg">{notification.msg}</div>
+                    </div>
+                </div>
+            )}
+
+            {/* PDF OPTIONS MODAL */}
+            {isPdfModalOpen && (
+                <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setIsPdfModalOpen(false); }}>
+                    <div className="modal pdf-options-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+                        <div className="modal-title">
+                            <span>خيارات تقرير الـ PDF</span>
+                            <button className="modal-close" onClick={() => setIsPdfModalOpen(false)}>✕</button>
+                        </div>
+
+                        <div className="pdf-options-content" style={{ padding: '20px 0' }}>
+                            <div className="option-group" style={{ marginBottom: '25px' }}>
+                                <label className="group-label" style={{ display: 'block', fontWeight: 700, color: 'var(--gray-400)', marginBottom: '12px' }}>نوع العملية:</label>
+                                <div className="pdf-type-selector" style={{ display: 'flex', gap: '12px' }}>
+                                    <button
+                                        className={`type-btn ${pdfType === 'received' ? 'active' : ''}`}
+                                        style={{
+                                            flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #e2e8f0',
+                                            background: pdfType === 'received' ? '#f0fdf4' : '#f8fafc',
+                                            borderColor: pdfType === 'received' ? '#22c55e' : '#e2e8f0',
+                                            color: pdfType === 'received' ? '#15803d' : '#64748b',
+                                            fontWeight: 700
+                                        }}
+                                        onClick={() => setPdfType('received')}
+                                    >
+                                        📥 استلام شيكات
+                                    </button>
+                                    <button
+                                        className={`type-btn ${pdfType === 'delivered' ? 'active' : ''}`}
+                                        style={{
+                                            flex: 1, padding: '15px', borderRadius: '12px', border: '2px solid #e2e8f0',
+                                            background: pdfType === 'delivered' ? '#f0fdf4' : '#f8fafc',
+                                            borderColor: pdfType === 'delivered' ? '#22c55e' : '#e2e8f0',
+                                            color: pdfType === 'delivered' ? '#15803d' : '#64748b',
+                                            fontWeight: 700
+                                        }}
+                                        onClick={() => setPdfType('delivered')}
+                                    >
+                                        📤 تسليم شيكات
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="field">
+                                <label style={{ marginBottom: '8px', display: 'block', fontWeight: 700 }}>{pdfType === 'received' ? 'مستلم من من؟' : 'مسلم إلى من؟'}</label>
+                                <input
+                                    type="text"
+                                    value={pdfPersonName}
+                                    onChange={(e) => setPdfPersonName(e.target.value)}
+                                    placeholder="اكتب الاسم هنا..."
+                                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '2px solid #e2e8f0', fontSize: '15px', color: 'black' }}
+                                    autoFocus
+                                />
+                            </div>
+
+                            <button
+                                className="pdf-final-generate-btn"
+                                onClick={generateHandoverReceipt}
+                                disabled={!pdfPersonName.trim()}
+                                style={{
+                                    width: '100%', marginTop: '25px', padding: '15px', background: '#4f46e5',
+                                    color: 'white', borderRadius: '12px', border: 'none', fontWeight: 800, fontSize: '16px',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                                    opacity: pdfPersonName.trim() ? 1 : 0.6, cursor: pdfPersonName.trim() ? 'pointer' : 'not-allowed'
+                                }}
+                            >
+                                <FileCheck size={20} />
+                                إصدار التقرير الآن
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
