@@ -4109,4 +4109,180 @@ export async function updateLpoItemLog(data: {
   }
 }
 
+// ============================================================
+// DOCUMENTS TRACKING — Checks & Timeline Logs
+// ============================================================
+
+const DOCUMENTS_TRACKING_SHEET = 'Documents Tracking';
+
+export interface DocumentsTrackingRecord {
+  rowIndex?: number; // Optional as it's from sheet
+  documentId: string;
+  receivedDate: string;
+  documentDate: string;
+  documentNumber: string;
+  documentName: string;
+  receivedFrom: string;
+  documentAmount: number;
+  documentNotes: string;
+  documentStatus: string;
+  datedReceived: string;
+  datedRecord: string;
+  datedSendToOffice: string;
+}
+
+// READ: Get all Documents Tracking Records
+export async function getDocumentsTrackingRecords(): Promise<DocumentsTrackingRecord[]> {
+  try {
+    const sheets = await getSheetsClient();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A:L`,
+    });
+    const rows = res.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    return rows.slice(1).map((row, i) => ({
+      rowIndex: i + 2,
+      documentId: row[0]?.toString() || '',
+      receivedDate: row[1]?.toString() || '',
+      documentDate: row[2]?.toString() || '',
+      documentNumber: row[3]?.toString() || '',
+      documentName: row[4]?.toString() || '',
+      receivedFrom: row[5]?.toString() || '',
+      documentAmount: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
+      documentNotes: row[7]?.toString() || '',
+      documentStatus: row[8]?.toString() || '',
+      datedReceived: row[9]?.toString() || '',
+      datedRecord: row[10]?.toString() || '',
+      datedSendToOffice: row[11]?.toString() || '',
+    }));
+  } catch (error) {
+    console.error('Error fetching Documents Tracking Records:', error);
+    throw error;
+  }
+}
+
+// WRITE: Add new Documents Tracking Records
+export async function addDocumentsTrackingRecord(data: DocumentsTrackingRecord | DocumentsTrackingRecord[]): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+    const records = Array.isArray(data) ? data : [data];
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A:L`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: records.map(record => [
+          record.documentId,      // A: DOCUMENT ID
+          record.receivedDate,    // B: RECEIVED DATE
+          record.documentDate,    // C: DOCUMENT DATE
+          record.documentNumber,  // D: DOCUMENT NUMBER
+          record.documentName,    // E: DOCUMENT NAME
+          record.receivedFrom,    // F: RECEIVED FROM
+          record.documentAmount,  // G: DOCUMENT AMOUNT
+          record.documentNotes,   // H: DOCUMENT NOTES
+          record.documentStatus,  // I: DOCUMENT STATUS
+          record.datedReceived || '', // J: DATED RECEIVED
+          record.datedRecord || '',   // K: DATED RECORD
+          record.datedSendToOffice || '', // L: DATED SEND TO OFFICE
+        ]),
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error adding Documents Tracking Record:', error);
+    throw error;
+  }
+}
+
+// UPDATE: Update a Documents Tracking Record by row index
+export async function updateDocumentsTrackingRecord(rowIndex: number, data: Partial<Omit<DocumentsTrackingRecord, 'rowIndex' | 'documentId'>>): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+
+    // First, let's get the current row to see what we're updating
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A${rowIndex}:L${rowIndex}`,
+    });
+    const currentRow = res.data.values?.[0] || [];
+
+    // Map fields to their respective columns
+    const updateMap: Record<string, number> = {
+      receivedDate: 1,      // B
+      documentDate: 2,      // C
+      documentNumber: 3,    // D
+      documentName: 4,      // E
+      receivedFrom: 5,      // F
+      documentAmount: 6,    // G
+      documentNotes: 7,     // H
+      documentStatus: 8,    // I
+      datedReceived: 9,     // J
+      datedRecord: 10,       // K
+      datedSendToOffice: 11, // L
+    };
+
+    // Construct the updated row values
+    const updatedValues = [...currentRow];
+    Object.entries(data).forEach(([key, value]) => {
+      const colIndex = updateMap[key];
+      if (colIndex !== undefined) {
+        updatedValues[colIndex] = value;
+      }
+    });
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${DOCUMENTS_TRACKING_SHEET}'!A${rowIndex}:L${rowIndex}`,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: {
+        values: [updatedValues],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating Documents Tracking Record:', error);
+    throw error;
+  }
+}
+
+// DELETE: Delete a Documents Tracking Record by row index
+export async function deleteDocumentsTrackingRecord(rowIndex: number): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+    const sheetId = await getSheetId(DOCUMENTS_TRACKING_SHEET);
+
+    if (sheetId === null) {
+      throw new Error(`Sheet '${DOCUMENTS_TRACKING_SHEET}' not found`);
+    }
+
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [
+          {
+            deleteDimension: {
+              range: {
+                sheetId,
+                dimension: 'ROWS',
+                startIndex: rowIndex - 1,
+                endIndex: rowIndex,
+              },
+            },
+          },
+        ],
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error deleting Documents Tracking Record:', error);
+    throw error;
+  }
+}
+
 

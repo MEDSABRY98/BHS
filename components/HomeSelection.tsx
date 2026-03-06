@@ -232,6 +232,9 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
           {isSystemAllowed('petty-cash') && (
             <SystemCard title="Petty Cash" icon={Wallet} onClick={nav('/petty-cash')} color="cyan" delay={200} />
           )}
+          {isSystemAllowed('documents-tracking') && (
+            <SystemCard title="Documents Tracking" icon={FileSpreadsheet} onClick={nav('/documents-tracking')} color="orange" delay={225} />
+          )}
           {isSystemAllowed('debit') && (
             <SystemCard title="Debit Analysis" icon={DollarSign} onClick={nav('/debit')} color="red" delay={250} />
           )}

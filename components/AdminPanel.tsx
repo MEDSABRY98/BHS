@@ -21,7 +21,8 @@ const SYSTEMS = [
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'visit-customers', label: 'Visit Customers' },
-    { id: 'delivery-tracking', label: 'Delivery Tracking' }
+    { id: 'delivery-tracking', label: 'Delivery Tracking' },
+    { id: 'documents-tracking', label: 'Documents Tracking' }
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
