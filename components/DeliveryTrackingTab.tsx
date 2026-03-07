@@ -70,7 +70,7 @@ export default function DeliveryTrackingTab() {
     const [editingOrder, setEditingOrder] = useState<DeliveryEntry | null>(null);
     const [missingItemInput, setMissingItemInput] = useState('');
     const [showMissingPopup, setShowMissingPopup] = useState(false);
-    const [popupItems, setPopupItems] = useState<string[]>([]);
+    const [popupItems, setPopupItems] = useState<{ name: string, type: 'missing' | 'shipped' | 'canceled' }[]>([]);
     const [isReshipPopupOpen, setIsReshipPopupOpen] = useState(false);
     const [selectedReshipOrder, setSelectedReshipOrder] = useState<DeliveryEntry | null>(null);
     const [reshipAmounts, setReshipAmounts] = useState<{ [key: number]: string }>({});
@@ -173,7 +173,16 @@ export default function DeliveryTrackingTab() {
     // ------------------------------------------
 
     const openEditModal = (order: DeliveryEntry) => {
-        setEditingOrder({ ...order }); // Clone to avoid direct mutation
+        setEditingOrder({
+            ...order,
+            invoiceDate: order.invoiceDate || '',
+            invoiceNumber: order.invoiceNumber || '',
+            invoiceVal: order.invoiceVal ?? 0,
+            missing: order.missing || [],
+            notes: order.notes || '',
+            reship: order.reship ?? true,
+            status: order.status || 'pending'
+        });
         setIsEditModalOpen(true);
     };
 
@@ -322,6 +331,8 @@ export default function DeliveryTrackingTab() {
         setIsSaving(true);
         try {
             const rowIndex = (editingOrder as any)._rowIndex;
+            // If LPO value is 0, update it to match Invoice value
+            const finalLpoVal = editingOrder.lpoVal === 0 ? editingOrder.invoiceVal : editingOrder.lpoVal;
 
             // 1) Update the LPO record fields in LPO Records sheet
             await fetch('/api/delivery', {
@@ -332,6 +343,7 @@ export default function DeliveryTrackingTab() {
                     invoiceDate: editingOrder.invoiceDate,
                     invoiceNumber: editingOrder.invoiceNumber,
                     invoiceValue: editingOrder.invoiceVal,
+                    lpoValue: finalLpoVal,
                     status: editingOrder.status,
                     reship: editingOrder.reship,
                     notes: editingOrder.notes,
@@ -381,6 +393,7 @@ export default function DeliveryTrackingTab() {
             const finalOrder = !editingOrder.reship
                 ? {
                     ...editingOrder,
+                    lpoVal: finalLpoVal,
                     missing: [],
                     canceledItems: [...new Set([
                         ...(editingOrder.canceledItems || []),
@@ -388,7 +401,7 @@ export default function DeliveryTrackingTab() {
                         ...editingOrder.missing
                     ])],
                 }
-                : editingOrder;
+                : { ...editingOrder, lpoVal: finalLpoVal };
 
             setOrders(prev => prev.map(o => o.id === editingOrder.id ? finalOrder : o));
             setIsEditModalOpen(false);
@@ -2216,17 +2229,32 @@ export default function DeliveryTrackingTab() {
                                                                 })()}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                {o.missing && o.missing.length > 0 ? (
-                                                                    <button
-                                                                        onClick={() => { setPopupItems(o.missing); setShowMissingPopup(true); }}
-                                                                        className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm"
-                                                                    >
-                                                                        {o.missing.length} Items 📦
-                                                                    </button>
-                                                                ) : '—'}
+                                                                {(() => {
+                                                                    const mCount = o.missing?.length || 0;
+                                                                    const sCount = (o.shippedItems || []).length;
+                                                                    const cCount = (o.canceledItems || []).length;
+                                                                    const total = mCount + sCount + cCount;
+
+                                                                    if (total === 0) return '—';
+
+                                                                    const allItems = [
+                                                                        ...(o.missing || []).map(m => ({ name: m, type: 'missing' as const })),
+                                                                        ...(o.shippedItems || []).map(m => ({ name: m, type: 'shipped' as const })),
+                                                                        ...(o.canceledItems || []).map(m => ({ name: m, type: 'canceled' as const })),
+                                                                    ];
+
+                                                                    return (
+                                                                        <button
+                                                                            onClick={() => { setPopupItems(allItems); setShowMissingPopup(true); }}
+                                                                            className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm"
+                                                                        >
+                                                                            {total} Items
+                                                                        </button>
+                                                                    );
+                                                                })()}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
-                                                                {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">🔄 YES</span> : (o.missing && o.missing.length > 0) ? <span className="text-[#A93226] font-bold text-[10px]">🚫 NO</span> : '—'}
+                                                                {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">YES</span> : (o.missing && o.missing.length > 0) ? <span className="text-[#A93226] font-bold text-[10px]">NO</span> : '—'}
                                                             </td>
                                                             <td className="p-[12px_16px] text-center">
                                                                 {canEdit && o.status === 'pending' && (
@@ -2513,7 +2541,7 @@ export default function DeliveryTrackingTab() {
                                                         onClick={() => openReshipPopup(o)}
                                                         className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm flex items-center gap-1.5 mx-auto"
                                                     >
-                                                        {o.missing.length} Items 📦
+                                                        {o.missing.length} Items
                                                     </button>
                                                 </td>
                                                 <td className="p-[12px_16px] text-center font-[500] text-[12px] text-[#5A7266] italic max-w-[200px] truncate">
@@ -2588,14 +2616,15 @@ export default function DeliveryTrackingTab() {
                                             { value: 'canceled', label: 'Canceled', icon: '❌', selectedBg: 'bg-rose-50 border-rose-400 text-rose-700', dot: 'bg-rose-500' },
                                         ] as const).map(opt => {
                                             const hasMissing = editingOrder.missing.length > 0;
-                                            const isDisabled = opt.value === 'delivered' && hasMissing;
+                                            const isInsufficientValue = opt.value === 'delivered' && editingOrder.invoiceVal > 0 && editingOrder.invoiceVal < editingOrder.lpoVal;
+                                            const isDisabled = (opt.value === 'delivered' && hasMissing) || isInsufficientValue;
                                             const isSelected = editingOrder.status === opt.value;
                                             return (
                                                 <button
                                                     key={opt.value}
                                                     type="button"
                                                     disabled={isDisabled}
-                                                    title={isDisabled ? 'Cannot select Fully Delivered when there are missing products' : undefined}
+                                                    title={isDisabled ? (hasMissing ? 'Cannot select Fully Delivered when there are missing products' : 'Invoice value must match or exceed LPO value for Full Delivery') : undefined}
                                                     onClick={() => { if (!isDisabled) setEditingOrder({ ...editingOrder, status: opt.value }); }}
                                                     className={`relative flex items-center gap-3 p-4 rounded-[14px] border-2 transition-all text-left
                                                         ${isDisabled
@@ -2611,7 +2640,6 @@ export default function DeliveryTrackingTab() {
                                                     <div>
                                                         <div className="text-[13px] font-[800] leading-tight">{opt.icon} {opt.label}</div>
                                                     </div>
-                                                    {isDisabled && <span className="absolute top-2 right-2 text-[9px] font-[700] text-[#94A3B8] bg-[#E2E8F0] px-1.5 py-0.5 rounded-full">🔒 Locked</span>}
                                                     {isSelected && !isDisabled && <div className="absolute top-2 right-2 w-2 h-2 rounded-full bg-current opacity-60" />}
                                                 </button>
                                             );
@@ -2631,7 +2659,7 @@ export default function DeliveryTrackingTab() {
                                                 <label className="text-[10px] font-[700] text-[#94A3B8] uppercase tracking-wider">Invoice Date</label>
                                                 <input
                                                     type="date"
-                                                    value={editingOrder.invoiceDate || ''}
+                                                    value={editingOrder.invoiceDate ?? ''}
                                                     onChange={(e) => setEditingOrder({ ...editingOrder, invoiceDate: e.target.value })}
                                                     className="w-full border-[1.5px] rounded-[10px] p-[10px_12px] text-[13px] font-medium outline-none transition-all appearance-none bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white"
                                                 />
@@ -2642,7 +2670,7 @@ export default function DeliveryTrackingTab() {
                                                     type="text"
                                                     placeholder="e.g. SAL-001"
                                                     className="w-full bg-[#F8FAFC] border-[1.5px] border-[#E2E8F0] rounded-[10px] p-[10px_14px] text-[13px] outline-none focus:border-[#6366F1] focus:bg-white transition-all font-bold"
-                                                    value={editingOrder.invoiceNumber || ''}
+                                                    value={editingOrder.invoiceNumber ?? ''}
                                                     onChange={(e) => setEditingOrder({ ...editingOrder, invoiceNumber: e.target.value.toUpperCase() })}
                                                 />
                                             </div>
@@ -2651,8 +2679,17 @@ export default function DeliveryTrackingTab() {
                                                 <input
                                                     type="number"
                                                     placeholder="0.00"
-                                                    value={editingOrder.invoiceVal || ''}
-                                                    onChange={(e) => setEditingOrder({ ...editingOrder, invoiceVal: Number(e.target.value) })}
+                                                    value={editingOrder.invoiceVal ?? ''}
+                                                    onChange={(e) => {
+                                                        const valStr = e.target.value;
+                                                        const newVal = valStr === '' ? 0 : Number(valStr);
+                                                        const isInsufficient = newVal > 0 && newVal < editingOrder.lpoVal;
+                                                        let nextStatus = editingOrder.status;
+                                                        if (nextStatus === 'delivered' && isInsufficient) {
+                                                            nextStatus = 'partial';
+                                                        }
+                                                        setEditingOrder({ ...editingOrder, invoiceVal: newVal, status: nextStatus });
+                                                    }}
                                                     className="w-full border-[1.5px] rounded-[10px] p-[10px_12px] text-[13px] font-[700] outline-none transition-all font-mono-dm bg-[#F8FAFC] border-[#E2E8F0] focus:border-[#6366F1] focus:bg-white"
                                                 />
                                             </div>
@@ -2833,18 +2870,26 @@ export default function DeliveryTrackingTab() {
                     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
                         <div className="absolute inset-0 bg-[#0F1A14]/40 backdrop-blur-[2px] animate-in fade-in duration-300" onClick={() => setShowMissingPopup(false)}></div>
                         <div className="bg-white rounded-[18px] w-full max-w-[400px] shadow-[0_24px_64px_rgba(0,0,0,0.2)] relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden border border-[#E4EDE8]">
-                            <div className="p-5 bg-[#FDEDEC] border-b border-[#E74C3C]/10 flex items-center justify-between">
+                            <div className="p-5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
                                 <div className="flex items-center gap-2.5">
-                                    <span className="text-[18px]">📦</span>
-                                    <h3 className="text-[#A93226] text-[15px] font-[800]">Missing Items List</h3>
+                                    <Activity className="w-5 h-5 text-indigo-600" />
+                                    <h3 className="text-indigo-900 text-[15px] font-[800]">Partial Delivery Audit</h3>
                                 </div>
-                                <button onClick={() => setShowMissingPopup(false)} className="text-[#A93226]/60 hover:text-[#A93226] transition-colors"><X className="w-5 h-5" /></button>
+                                <button onClick={() => setShowMissingPopup(false)} className="text-slate-400 hover:text-slate-600 transition-colors"><X className="w-5 h-5" /></button>
                             </div>
-                            <div className="p-6 space-y-2">
+                            <div className="p-6 space-y-2 max-h-[400px] overflow-y-auto">
                                 {popupItems.map((item, idx) => (
-                                    <div key={idx} className="flex items-center gap-3 bg-[#F9FBFA] border border-[#E4EDE8] p-3 rounded-xl">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-[#E74C3C]"></div>
-                                        <span className="text-[13px] font-[700] text-[#0F1A14]">{item}</span>
+                                    <div key={idx} className="flex items-center justify-between gap-3 bg-[#F9FBFA] border border-[#E4EDE8] p-3 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-1.5 h-1.5 rounded-full ${item.type === 'missing' ? 'bg-[#E67E22]' : item.type === 'shipped' ? 'bg-[#10B981]' : 'bg-slate-400'}`}></div>
+                                            <span className="text-[13px] font-[700] text-[#0F1A14]">{item.name}</span>
+                                        </div>
+                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${item.type === 'shipped' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                            item.type === 'canceled' ? 'bg-slate-100 text-slate-500 border-slate-200' :
+                                                'bg-orange-50 text-orange-600 border-orange-100'
+                                            }`}>
+                                            {item.type}
+                                        </span>
                                     </div>
                                 ))}
                             </div>
@@ -2876,8 +2921,6 @@ export default function DeliveryTrackingTab() {
                                             <h3 className="text-white text-[18px] font-[900] tracking-tight leading-tight">Re-shipment Items</h3>
                                             <div className="flex items-center gap-2 mt-1">
                                                 <span className="text-white/60 text-[11px] font-[600]">{selectedReshipOrder.customer}</span>
-                                                <span className="text-white/30 text-[10px]">·</span>
-                                                <span className="bg-white/15 text-white/80 text-[10px] font-[800] px-2 py-0.5 rounded-full border border-white/20">{selectedReshipOrder.lpo}</span>
                                             </div>
                                         </div>
                                     </div>
