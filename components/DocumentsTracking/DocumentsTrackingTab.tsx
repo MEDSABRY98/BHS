@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck } from 'lucide-react';
+import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck, Users, ChevronDown, ChevronUp } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
@@ -55,8 +55,9 @@ export default function DocumentsTrackingTab() {
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCheckId, setSelectedCheckId] = useState<string | null>(null);
     const [headerDate, setHeaderDate] = useState('');
-    const [activeSubTab, setActiveSubTab] = useState<'register' | 'list'>('register');
+    const [activeSubTab, setActiveSubTab] = useState<'register' | 'list' | 'receivers'>('register');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
+    const [trackingCheck, setTrackingCheck] = useState<Check | null>(null);
 
     // Delivery tracking inputs
     const [delReceiver, setDelReceiver] = useState('');
@@ -560,6 +561,39 @@ export default function DocumentsTrackingTab() {
     const registeredCount = checks.filter(c => c.status === 'registered').length;
     const deliveredCount = checks.filter(c => c.status === 'delivered').length;
 
+    // Calculate Stats for Receivers Tab
+    const receiverStats = React.useMemo(() => {
+        const stats: Record<string, { count: number; totalAmount: number; lastDate: string; items: Check[] }> = {};
+
+        checks.forEach(c => {
+            if (c.status === 'delivered' && c.finalReceiverName) {
+                const name = c.finalReceiverName.trim();
+                const receiptTime = c.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time || c.date;
+
+                if (!stats[name]) {
+                    stats[name] = { count: 0, totalAmount: 0, lastDate: receiptTime, items: [] };
+                }
+
+                stats[name].count += 1;
+                stats[name].totalAmount += c.amount;
+                stats[name].items.push(c);
+
+                // Track latest date
+                if (new Date(receiptTime).getTime() > new Date(stats[name].lastDate).getTime()) {
+                    stats[name].lastDate = receiptTime;
+                }
+            }
+        });
+
+        return Object.entries(stats).map(([name, data]) => ({
+            name,
+            ...data,
+            items: data.items.sort((a, b) => (a.client || '').localeCompare(b.client || ''))
+        })).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+    }, [checks]);
+
+    const [expandedReceiver, setExpandedReceiver] = useState<string | null>(null);
+
     const selectedCheck = checks.find(c => c.id === selectedCheckId);
 
     return (
@@ -577,7 +611,7 @@ export default function DocumentsTrackingTab() {
             <header className="header">
                 <div className="logo cursor-pointer" onClick={() => router.push('/')} title="العودة للرئيسية">
                     <div className="logo-icon"><ArrowRight className="w-6 h-6" /></div>
-                    <div className="logo-text">تتبع <span>الشيكات</span></div>
+                    <div className="logo-text">تتبع <span>المستندات</span></div>
                 </div>
                 <button
                     onClick={(e) => {
@@ -629,6 +663,12 @@ export default function DocumentsTrackingTab() {
                         onClick={() => setActiveSubTab('list')}
                     >
                         <span>📋</span> استعراض الشيكات
+                    </button>
+                    <button
+                        className={`sub-tab ${activeSubTab === 'receivers' ? 'active' : ''}`}
+                        onClick={() => setActiveSubTab('receivers')}
+                    >
+                        <span>🏢</span> مستلمي المكتب
                     </button>
                 </div>
 
@@ -766,7 +806,14 @@ export default function DocumentsTrackingTab() {
                                                             <div className="td" style={{ color: 'var(--gray-400)', fontWeight: 700 }}>{rowNum}</div>
                                                             <div className="td">{formatDate(c.date)}</div>
                                                             <div className="td">{formatDate(c.checkDate) || '—'}</div>
-                                                            <div className="td check-num">{c.num}</div>
+                                                            <div className="td">
+                                                                <button
+                                                                    className="check-num-btn"
+                                                                    onClick={() => setTrackingCheck(c)}
+                                                                >
+                                                                    {c.num}
+                                                                </button>
+                                                            </div>
                                                             <div className="td">{c.client}</div>
                                                             <div className="td check-amount">{c.amount.toLocaleString('ar-AE')} د.إ</div>
                                                             <div className="td">{c.bank || '—'}</div>
@@ -793,6 +840,69 @@ export default function DocumentsTrackingTab() {
                             </div>
                         </div>
                     </>
+                )}
+
+                {activeSubTab === 'receivers' && (
+                    <div className="receivers-section">
+                        <div className="receivers-grid">
+                            {receiverStats.length === 0 ? (
+                                <div className="empty-state">
+                                    <div className="empty-icon"><Users size={48} /></div>
+                                    <div className="empty-text">لا توجد بيانات مستلمين حالياً</div>
+                                    <p className="empty-subtext">تظهر البيانات هنا عندما يتم تسليم الشيكات للمكتب الرئيسي</p>
+                                </div>
+                            ) : (
+                                receiverStats.map((rec) => (
+                                    <div className={`receiver-card ${expandedReceiver === rec.name ? 'expanded' : ''}`} key={rec.name}>
+                                        <div className="receiver-card-main" onClick={() => setExpandedReceiver(expandedReceiver === rec.name ? null : rec.name)}>
+                                            <div className="receiver-card-info">
+                                                <div className="receiver-avatar">
+                                                    {rec.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="receiver-meta">
+                                                    <h3>{rec.name}</h3>
+                                                    <p>آخر استلام: {rec.lastDate.split(',')[0]}</p>
+                                                </div>
+                                            </div>
+                                            <div className="receiver-card-stats">
+                                                <div className="stat-pill count">
+                                                    <FileCheck size={14} />
+                                                    <span>{rec.count} شيك</span>
+                                                </div>
+                                                <div className="stat-pill amount">
+                                                    <span>{rec.totalAmount.toLocaleString('ar-AE')} د.إ</span>
+                                                </div>
+                                                <div className="expand-trigger">
+                                                    {expandedReceiver === rec.name ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {expandedReceiver === rec.name && (
+                                            <div className="receiver-details-expanded">
+                                                <div className="details-header-row">
+                                                    <span>تاريخ التسليم</span>
+                                                    <span>رقم الشيك</span>
+                                                    <span>العميل</span>
+                                                    <span>المبلغ</span>
+                                                </div>
+                                                <div className="details-items-list">
+                                                    {rec.items.map((item, idx) => (
+                                                        <div className="detail-item-row" key={idx} onClick={() => setTrackingCheck(item)}>
+                                                            <span className="d-date">{item.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time.split(',')[0] || formatDate(item.date)}</span>
+                                                            <span className="d-num gold-text">#{item.num}</span>
+                                                            <span className="d-client">{item.client}</span>
+                                                            <span className="d-amt">{item.amount.toLocaleString('ar-AE')} د.إ</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
                 )}
             </div>
 
@@ -1022,6 +1132,104 @@ export default function DocumentsTrackingTab() {
                                 <FileCheck size={20} />
                                 إصدار التقرير الآن
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* PROFESSIONAL TRACKING MODAL */}
+            {trackingCheck && (
+                <div className="modal-overlay open tracking-overlay" onClick={() => setTrackingCheck(null)}>
+                    <div className="modal tracking-modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="tracking-header">
+                            <div className="tracking-header-content">
+                                <div className="tracking-id-badge">DOCUMENT TRACKING</div>
+                                <h2 className="tracking-title">تتبع الشيك <span className="gold-text">#{trackingCheck.num}</span></h2>
+                                <p className="tracking-subtitle">{trackingCheck.client}</p>
+                            </div>
+                            <button className="tracking-close" onClick={() => setTrackingCheck(null)}>✕</button>
+                        </div>
+
+                        <div className="tracking-body">
+                            <div className="tracking-summary-grid">
+                                <div className="summary-item">
+                                    <span className="summary-label">المبلغ الإجمالي</span>
+                                    <span className="summary-value gold">{trackingCheck.amount.toLocaleString('ar-AE')} د.إ</span>
+                                </div>
+                                <div className="summary-item border-x">
+                                    <span className="summary-label">تاريخ الاستلام</span>
+                                    <span className="summary-value">{formatDate(trackingCheck.date)}</span>
+                                </div>
+                                <div className="summary-item">
+                                    <span className="summary-label">تاريخ الشيك</span>
+                                    <span className="summary-value">{formatDate(trackingCheck.checkDate)}</span>
+                                </div>
+                            </div>
+
+                            <div className="tracking-timeline-container">
+                                <h3 className="timeline-section-title">محطات الشيك</h3>
+                                <div className="modern-timeline">
+                                    {/* Received Step */}
+                                    <div className={`timeline-step ${['received', 'registered', 'delivered'].includes(trackingCheck.status) ? 'active' : ''}`}>
+                                        <div className="step-marker">
+                                            <div className="step-icon"><Plus size={16} /></div>
+                                        </div>
+                                        <div className="step-info">
+                                            <div className="step-label">تم استلام الشيك</div>
+                                            <div className="step-detail">
+                                                {trackingCheck.timeline.find(t => t.event === 'تم الاستلام')?.time || formatDate(trackingCheck.date)}
+                                                <span className="step-sub-detail"> {trackingCheck.bank ? ` - من ${trackingCheck.bank}` : ''}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Registered Step */}
+                                    <div className={`timeline-step ${['registered', 'delivered'].includes(trackingCheck.status) ? 'active' : ''} ${trackingCheck.status === 'received' ? 'pending' : ''}`}>
+                                        <div className="step-marker">
+                                            <div className="step-icon"><Calendar size={16} /></div>
+                                        </div>
+                                        <div className="step-info">
+                                            <div className="step-label">مسجل في النظام المحاسبي</div>
+                                            <div className="step-detail">
+                                                {trackingCheck.timeline.find(t => t.event === 'مسجلة في السيستم')?.time || (trackingCheck.status === 'received' ? 'بانتظار التسجيل' : '')}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Delivered Step */}
+                                    <div className={`timeline-step ${trackingCheck.status === 'delivered' ? 'active final' : ''} ${['received', 'registered'].includes(trackingCheck.status) ? 'pending' : ''}`}>
+                                        <div className="step-marker">
+                                            <div className="step-icon">
+                                                {trackingCheck.status === 'delivered' ? <FileCheck size={16} /> : <div className="pulse-dot"></div>}
+                                            </div>
+                                        </div>
+                                        <div className="step-info">
+                                            <div className="step-label">تم التسليم للمكتب الرئيسي</div>
+                                            <div className="step-detail">
+                                                {trackingCheck.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time || (trackingCheck.status !== 'delivered' ? 'بانتظار التسليم النهائي' : '')}
+                                                {trackingCheck.status === 'delivered' && trackingCheck.receiverName && (
+                                                    <div className="receiver-info-pills">
+                                                        <span className="info-pill">برفقة: {trackingCheck.receiverName}</span>
+                                                        <span className="info-pill">للمستلم: {trackingCheck.finalReceiverName}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {trackingCheck.notes && (
+                                <div className="tracking-notes-section">
+                                    <h3 className="section-title">ملاحظات إضافية</h3>
+                                    <div className="notes-box">
+                                        {trackingCheck.notes}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="tracking-footer">
+                            <button className="tracking-done-btn" onClick={() => setTrackingCheck(null)}>إغلاق النافذة</button>
                         </div>
                     </div>
                 </div>

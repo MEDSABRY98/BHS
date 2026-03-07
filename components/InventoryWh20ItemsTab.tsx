@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, Calendar, User, MapPin,
-    FileText, Printer, Plus, Trash2,
+    FileText, Printer, Plus, Trash2, Edit2,
     ChevronDown, Save, RefreshCw, X, ArrowLeft, Tag, FileDown, CheckCircle2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -50,6 +50,14 @@ export default function InventoryWh20ItemsTab() {
         operationType: ''
     });
 
+    const [editHeader, setEditHeader] = useState({
+        date: new Date().toISOString().split('T')[0],
+        receiverName: '',
+        customerName: '',
+        description: '',
+        operationType: ''
+    });
+
     const [suggestions, setSuggestions] = useState<{ recipients: string[], destinations: string[], customers: string[] }>({
         recipients: [],
         destinations: [],
@@ -62,6 +70,7 @@ export default function InventoryWh20ItemsTab() {
     const [showTypeDropdown, setShowTypeDropdown] = useState(false);
     const [showTagDropdown, setShowTagDropdown] = useState(false);
     const [selectedTag, setSelectedTag] = useState<string>('');
+    const [editSelectedTag, setEditSelectedTag] = useState<string>('');
 
     // Notifications
     const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: NotificationType }>>([]);
@@ -80,8 +89,15 @@ export default function InventoryWh20ItemsTab() {
         { barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }
     ]);
 
+    const [editRows, setEditRows] = useState<RowItem[]>([
+        { barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }
+    ]);
+
     // Tab State
-    const [activeTab, setActiveTab] = useState<'entry' | 'history' | 'people'>('entry');
+    const [activeTab, setActiveTab] = useState<'entry' | 'edit' | 'history' | 'people'>('entry');
+    const [editSearchValue, setEditSearchValue] = useState('');
+    const [isSearchingEdit, setIsSearchingEdit] = useState(false);
+    const [editingTransactionNumber, setEditingTransactionNumber] = useState<string | null>(null);
     const [historyData, setHistoryData] = useState<any[]>([]);
     const [rawHistory, setRawHistory] = useState<any[]>([]);
     const [recentTransactions, setRecentTransactions] = useState<any[]>([]);
@@ -252,7 +268,7 @@ export default function InventoryWh20ItemsTab() {
                 setInventory(sortedItems);
 
                 // Initialize rows with all products
-                updateRowsByTag('', sortedItems);
+                updateRowsByTag('', 'entry', sortedItems);
             }
         } catch (error) {
             console.error('Failed to fetch inventory:', error);
@@ -274,7 +290,7 @@ export default function InventoryWh20ItemsTab() {
         return map[val] || val;
     };
 
-    const updateRowsByTag = (tag: string, currentInventory?: Wh20Item[]) => {
+    const updateRowsByTag = (tag: string, targetTab: 'entry' | 'edit', currentInventory?: Wh20Item[]) => {
         const itemsToUse = currentInventory || inventory;
         const filtered = tag
             ? itemsToUse.filter(item => item.tags && item.tags.split(',').map(t => t.trim()).includes(tag))
@@ -290,10 +306,17 @@ export default function InventoryWh20ItemsTab() {
             pcsPerCtn: item.pcs || 1
         }));
 
-        setRows(initialRows.length > 0 ? initialRows : [
-            { barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }
-        ]);
-        setSelectedTag(tag);
+        const newRows = initialRows.length > 0 ? initialRows : [
+            { barcode: '', productName: '', unit: 'PCS' as 'CTN' | 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }
+        ];
+
+        if (targetTab === 'edit') {
+            setEditRows(newRows);
+            setEditSelectedTag(tag);
+        } else {
+            setRows(newRows);
+            setSelectedTag(tag);
+        }
     };
 
     useEffect(() => {
@@ -301,6 +324,124 @@ export default function InventoryWh20ItemsTab() {
             fetchHistory();
         }
     }, [activeTab]);
+
+    const fetchTransactionForEdit = async () => {
+        if (!editSearchValue.trim()) {
+            addNotification('Please enter a Transaction Number', 'warning');
+            return;
+        }
+
+        setIsSearchingEdit(true);
+        try {
+            const res = await fetch(`/api/wh20-items/reprint?transactionNumber=${editSearchValue.trim()}`);
+            const data = await res.json();
+
+            if (data.transfer && data.transfer.length > 0) {
+                const t = data.transfer;
+                const h = t[0];
+
+                // Load header data
+                setEditHeader({
+                    date: h.date,
+                    receiverName: h.recipientName,
+                    customerName: h.customerName || '',
+                    description: h.description || '',
+                    operationType: h.operationType
+                });
+
+                // Load rows with pcsPerCtn if possible
+                const r = t.map((item: any) => {
+                    const invItem = inventory.find(i => i.barcode === item.barcode);
+                    return {
+                        barcode: item.barcode,
+                        productName: item.product,
+                        unit: item.type as 'CTN' | 'PCS',
+                        qty: item.qty.toString(),
+                        price: item.price.toString(),
+                        searchTerm: item.product,
+                        pcsPerCtn: invItem ? (invItem.pcs || 1) : 1
+                    };
+                });
+
+                setEditRows(r);
+                setEditingTransactionNumber(h.number);
+                addNotification(`Transaction ${h.number} loaded for editing`, 'success');
+            } else {
+                addNotification('Transaction not found', 'error');
+                setEditingTransactionNumber(null);
+            }
+        } catch (err) {
+            console.error('Failed to load transaction for edit', err);
+            addNotification('Error loading transaction', 'error');
+        } finally {
+            setIsSearchingEdit(false);
+        }
+    };
+
+    const handleUpdateTransaction = async () => {
+        if (!editingTransactionNumber) return;
+
+        const validRows = editRows.filter(r => r.productName && r.qty && parseFloat(r.qty) > 0);
+        if (validRows.length === 0) {
+            addNotification('Please add at least one valid item', 'error');
+            return;
+        }
+
+        setSubmitting(true);
+        try {
+            const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
+            const res = await fetch('/api/wh20-items', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    transactionNumber: editingTransactionNumber,
+                    header: editHeader,
+                    rows: validRows,
+                    user: user.name || 'Unknown'
+                })
+            });
+
+            if (res.ok) {
+                addNotification(`Transaction ${editingTransactionNumber} updated successfully!`, 'success');
+
+                // Clear everything
+                setEditingTransactionNumber(null);
+                setEditSearchValue('');
+                setEditHeader({
+                    date: new Date().toISOString().split('T')[0],
+                    receiverName: '',
+                    customerName: '',
+                    description: '',
+                    operationType: ''
+                });
+                setEditRows([{ barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }]);
+                setEditSelectedTag('');
+                fetchHistory(); // Refresh history
+            } else {
+                const data = await res.json();
+                addNotification(data.error || 'Failed to update transaction', 'error');
+            }
+        } catch (err) {
+            console.error('Error updating transaction', err);
+            addNotification('Error updating transaction', 'error');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const clearEditSearch = () => {
+        setEditingTransactionNumber(null);
+        setEditSearchValue('');
+        setEditHeader({
+            date: new Date().toISOString().split('T')[0],
+            receiverName: '',
+            customerName: '',
+            description: '',
+            operationType: ''
+        });
+        setEditRows([{ barcode: '', productName: '', unit: 'PCS' as 'CTN' | 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }]);
+        setEditSelectedTag('');
+    };
 
     const fetchHistory = async (limit?: number) => {
         setHistoryLoading(true);
@@ -349,20 +490,33 @@ export default function InventoryWh20ItemsTab() {
     };
 
     const addRow = () => {
-        setRows([...rows, { barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }]);
+        if (activeTab === 'edit') {
+            setEditRows([...editRows, { barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }]);
+        } else {
+            setRows([...rows, { barcode: '', productName: '', unit: 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }]);
+        }
     };
 
     const removeRow = (index: number) => {
-        if (rows.length > 1) {
-            const newRows = [...rows];
-            newRows.splice(index, 1);
-            setRows(newRows);
+        if (activeTab === 'edit') {
+            if (editRows.length > 1) {
+                const newRows = [...editRows];
+                newRows.splice(index, 1);
+                setEditRows(newRows);
+            }
+        } else {
+            if (rows.length > 1) {
+                const newRows = [...rows];
+                newRows.splice(index, 1);
+                setRows(newRows);
+            }
         }
     };
 
     const updateRow = (index: number, field: keyof RowItem, value: any) => {
-        const newRows = [...rows];
-        (newRows[index] as any)[field] = value;
+        const isEdit = activeTab === 'edit';
+        const targetRows = isEdit ? [...editRows] : [...rows];
+        (targetRows[index] as any)[field] = value;
 
         if (field === 'searchTerm') {
             setActiveDropdown(index);
@@ -373,23 +527,27 @@ export default function InventoryWh20ItemsTab() {
             );
             if (exactMatch) {
                 selectProduct(index, exactMatch);
+                return; // Early return to let selectProduct handle State update
             }
         }
 
-        setRows(newRows);
+        if (isEdit) setEditRows(targetRows);
+        else setRows(targetRows);
     };
 
     const selectProduct = (index: number, product: Wh20Item) => {
-        const newRows = [...rows];
-        newRows[index] = {
-            ...newRows[index],
+        const isEdit = activeTab === 'edit';
+        const targetRows = isEdit ? [...editRows] : [...rows];
+        targetRows[index] = {
+            ...targetRows[index],
             barcode: product.barcode,
             productName: `${product.product} - ${product.barcode}`,
             // price: product.price.toString(), // Do not auto-fill price
             searchTerm: `${product.product} - ${product.barcode}`,
             pcsPerCtn: product.pcs || 1
         };
-        setRows(newRows);
+        if (isEdit) setEditRows(targetRows);
+        else setRows(targetRows);
         setActiveDropdown(null);
     };
 
@@ -604,7 +762,7 @@ export default function InventoryWh20ItemsTab() {
             setHeader(prev => ({ ...prev, operationType: '', receiverName: '', customerName: '', description: '' }));
             setSelectedTag('');
             // Reset rows based on empty tag
-            updateRowsByTag('');
+            updateRowsByTag('', 'entry');
 
         } catch (error) {
             console.error('Process failed:', error);
@@ -626,6 +784,7 @@ export default function InventoryWh20ItemsTab() {
         try {
             const res = await fetch(`/api/wh20-items/reprint?transactionNumber=${numberToReprint}`);
             const data = await res.json();
+            setIsReprinting(false);
 
             if (data.error || !data.transfer || data.transfer.length === 0) {
                 addNotification(data.error || 'Transaction not found', 'error');
@@ -831,6 +990,7 @@ export default function InventoryWh20ItemsTab() {
                 <div className="flex bg-slate-100 p-1 rounded-xl">
                     {[
                         { id: 'entry', label: 'Entry' },
+                        { id: 'edit', label: 'Edit Transaction' },
                         { id: 'history', label: 'History' },
                         { id: 'people', label: 'People Inventory' }
                     ].filter(tab => {
@@ -857,388 +1017,454 @@ export default function InventoryWh20ItemsTab() {
                 </div>
             </div>
 
-            {/* Entry Tab Content */}
-            {activeTab === 'entry' && (
-                <>
-                    {/* Header Input Section */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
-                        <div className="bg-gradient-to-r from-indigo-600 to-violet-700 p-4 sm:p-6 rounded-t-2xl">
-                            <div className="flex justify-between items-center text-white">
-                                <h3 className="text-lg font-bold flex items-center gap-2">
-                                    <FileText className="w-5 h-5" /> New Transaction
-                                </h3>
-                                <button
-                                    onClick={handlePrintAndSave}
-                                    disabled={submitting}
-                                    className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-indigo-600 rounded-xl font-bold shadow-lg hover:bg-indigo-50 transition-all disabled:opacity-50 min-w-[220px]"
-                                >
-                                    {submitting ? (
-                                        <>
-                                            <div className="w-5 h-5 border-2 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-                                            <span>Saving...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle2 className="w-5 h-5" />
-                                            <span>Save & Print</span>
-                                        </>
-                                    )}
-                                </button>
+            {/* Entry & Edit Tab Content */}
+            {(activeTab === 'entry' || activeTab === 'edit') && (
+                <div className="space-y-6">
+                    {activeTab === 'edit' && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden animate-in fade-in slide-in-from-top-4 duration-500">
+                            <div className="space-y-4">
+                                <h4 className="text-sm font-bold text-slate-500 flex items-center gap-2 uppercase tracking-wider">
+                                    <div className="p-1.5 bg-indigo-50 rounded-lg">
+                                        <Search className="w-4 h-4 text-indigo-600" />
+                                    </div>
+                                    Search Transaction
+                                </h4>
+                                <div className="flex flex-col md:flex-row items-stretch gap-4">
+                                    <div className="flex-1 relative group">
+                                        <input
+                                            type="text"
+                                            placeholder="Enter Transaction ID (e.g. WH20-0001)"
+                                            value={editSearchValue}
+                                            onChange={(e) => setEditSearchValue(e.target.value)}
+                                            onKeyDown={(e) => e.key === 'Enter' && fetchTransactionForEdit()}
+                                            className="w-full h-[52px] pl-6 pr-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-lg focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-inner"
+                                        />
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={fetchTransactionForEdit}
+                                            disabled={isSearchingEdit}
+                                            className="group w-[52px] h-[52px] bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg active:scale-95 disabled:opacity-50 flex items-center justify-center"
+                                            title="Fetch Details"
+                                        >
+                                            {isSearchingEdit ? (
+                                                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            ) : (
+                                                <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-500" />
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={clearEditSearch}
+                                            className="group w-[52px] h-[52px] bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 hover:text-slate-800 transition-all active:scale-95 flex items-center justify-center border border-slate-200"
+                                            title="Clear Search"
+                                        >
+                                            <X className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                    )}
 
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 bg-slate-50/50 rounded-b-2xl">
-                            {/* Date Input */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                    <Calendar className="w-4 h-4 text-indigo-500" /> Date
-                                </label>
-                                <input
-                                    type="date"
-                                    value={header.date}
-                                    onChange={(e) => setHeader({ ...header, date: e.target.value })}
-                                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                                />
-                            </div>
+                    {(activeTab === 'entry' || (activeTab === 'edit' && editingTransactionNumber)) && (
+                        <>
+                            {/* Header Input Section */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200">
+                                <div className="bg-gradient-to-r from-indigo-600 to-violet-700 p-4 sm:p-6 rounded-t-2xl">
+                                    <div className="flex justify-between items-center text-white">
+                                        <h3 className="text-lg font-bold flex items-center gap-2">
+                                            {activeTab === 'edit' ? <Edit2 className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
+                                            {activeTab === 'edit' ? `Editing: ${editingTransactionNumber}` : 'New Transaction'}
+                                        </h3>
+                                        <button
+                                            onClick={activeTab === 'edit' ? handleUpdateTransaction : handlePrintAndSave}
+                                            disabled={submitting}
+                                            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-white text-indigo-600 rounded-xl font-bold shadow-lg hover:bg-opacity-90 transition-all disabled:opacity-50 min-w-[220px]"
+                                        >
+                                            {submitting ? (
+                                                <>
+                                                    <div className={`w-5 h-5 border-2 border-indigo-600/20 border-t-current rounded-full animate-spin`} />
+                                                    <span>{activeTab === 'edit' ? 'Updating...' : 'Saving...'}</span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <CheckCircle2 className="w-5 h-5" />
+                                                    <span>{activeTab === 'edit' ? 'Update Transaction' : 'Save & Print'}</span>
+                                                </>
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
 
-                            {/* Tag Filter Dropdown */}
-                            <div className="space-y-2 relative">
-                                <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                    <Tag className="w-4 h-4 text-indigo-500" /> Filter by Tag
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowTagDropdown(!showTagDropdown)}
-                                    onBlur={() => setTimeout(() => setShowTagDropdown(false), 200)}
-                                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-left flex justify-between items-center"
-                                >
-                                    <span className={selectedTag ? 'text-slate-800' : 'text-slate-400'}>
-                                        {selectedTag || 'All Products'}
-                                    </span>
-                                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showTagDropdown ? 'rotate-180' : ''}`} />
-                                </button>
+                                <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 bg-slate-50/50 rounded-b-2xl">
+                                    {/* Date Input */}
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                            <Calendar className="w-4 h-4 text-indigo-500" /> Date
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={activeTab === 'edit' ? editHeader.date : header.date}
+                                            onChange={(e) => {
+                                                if (activeTab === 'edit') setEditHeader({ ...editHeader, date: e.target.value });
+                                                else setHeader({ ...header, date: e.target.value });
+                                            }}
+                                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                                        />
+                                    </div>
 
-                                {showTagDropdown && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto">
+                                    {/* Tag Filter Dropdown */}
+                                    <div className="space-y-2 relative">
+                                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                            <Tag className="w-4 h-4 text-indigo-500" /> Filter by Tag
+                                        </label>
                                         <button
                                             type="button"
-                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0 font-medium"
-                                            onMouseDown={() => {
-                                                updateRowsByTag('');
-                                                setShowTagDropdown(false);
-                                            }}
+                                            onClick={() => setShowTagDropdown(!showTagDropdown)}
+                                            onBlur={() => setTimeout(() => setShowTagDropdown(false), 200)}
+                                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-left flex justify-between items-center"
                                         >
-                                            All Products
+                                            <span className={(activeTab === 'edit' ? editSelectedTag : selectedTag) ? 'text-slate-800' : 'text-slate-400'}>
+                                                {(activeTab === 'edit' ? editSelectedTag : selectedTag) || 'All Products'}
+                                            </span>
+                                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showTagDropdown ? 'rotate-180' : ''}`} />
                                         </button>
-                                        {uniqueTags.map((tag) => (
-                                            <button
-                                                key={tag}
-                                                type="button"
-                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0 font-medium"
-                                                onMouseDown={() => {
-                                                    updateRowsByTag(tag);
-                                                    setShowTagDropdown(false);
-                                                }}
-                                            >
-                                                {tag}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
 
-                            {/* Operation Type */}
-                            <div className="space-y-2 relative">
-                                <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                    <FileText className="w-4 h-4 text-indigo-500" /> Type
-                                </label>
-                                <button
-                                    type="button"
-                                    onClick={() => setShowTypeDropdown(!showTypeDropdown)}
-                                    onBlur={() => setTimeout(() => setShowTypeDropdown(false), 200)}
-                                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-left flex justify-between items-center"
-                                >
-                                    <span className={header.operationType ? 'text-slate-800' : 'text-slate-400'}>
-                                        {header.operationType || 'Select Type'}
-                                    </span>
-                                    <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showTypeDropdown ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                {showTypeDropdown && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto">
-                                        {[
-                                            'Cash Sale',
-                                            'Credit Sale',
-                                            'Customer Delivery',
-                                            'Sample',
-                                            'Consignment to Receiver',
-                                            'Return to Warehouse',
-                                            'Liquidation'
-                                        ].map((type) => (
-                                            <button
-                                                key={type}
-                                                type="button"
-                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0 font-medium"
-                                                onMouseDown={() => {
-                                                    setHeader({ ...header, operationType: type });
-                                                    setShowTypeDropdown(false);
-                                                }}
-                                            >
-                                                {type}
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Recipient Input */}
-                            <div className="space-y-2 relative">
-                                <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                    <User className="w-4 h-4 text-indigo-500" /> Recipient Name
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="Enter recipient's name"
-                                    value={header.receiverName}
-                                    onChange={(e) => setHeader({ ...header, receiverName: e.target.value })}
-                                    onFocus={() => setShowRecipientDropdown(true)}
-                                    onBlur={() => setTimeout(() => setShowRecipientDropdown(false), 200)}
-                                    className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                                />
-                                {showRecipientDropdown && suggestions.recipients.length > 0 && (
-                                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
-                                        {suggestions.recipients
-                                            .filter(r => r.toLowerCase().includes(header.receiverName.toLowerCase()))
-                                            .map((r, i) => (
+                                        {showTagDropdown && (
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto">
                                                 <button
-                                                    key={i}
                                                     type="button"
-                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0"
+                                                    className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0 font-medium"
                                                     onMouseDown={() => {
-                                                        setHeader({ ...header, receiverName: r });
-                                                        setShowRecipientDropdown(false);
+                                                        updateRowsByTag('', activeTab === 'edit' ? 'edit' : 'entry');
+                                                        setShowTagDropdown(false);
                                                     }}
                                                 >
-                                                    {r}
+                                                    All Products
                                                 </button>
-                                            ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* Customer Name & Description */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 lg:col-span-4 mt-2">
-                                <div className="space-y-2 relative">
-                                    <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                        <User className="w-4 h-4 text-indigo-500" /> Customer Name
-                                    </label>
-                                    <input
-                                        type="text"
-                                        placeholder="Enter customer name"
-                                        value={header.customerName}
-                                        onChange={(e) => setHeader({ ...header, customerName: e.target.value })}
-                                        onFocus={() => setShowCustomerDropdown(true)}
-                                        onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
-                                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                                    />
-                                    {showCustomerDropdown && suggestions.customers.length > 0 && (
-                                        <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
-                                            {suggestions.customers
-                                                .filter(c => c.toLowerCase().includes(header.customerName.toLowerCase()))
-                                                .map((c, i) => (
+                                                {uniqueTags.map((tag) => (
                                                     <button
-                                                        key={i}
+                                                        key={tag}
                                                         type="button"
-                                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0"
+                                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0 font-medium"
                                                         onMouseDown={() => {
-                                                            setHeader({ ...header, customerName: c });
-                                                            setShowCustomerDropdown(false);
+                                                            updateRowsByTag(tag, activeTab === 'edit' ? 'edit' : 'entry');
+                                                            setShowTagDropdown(false);
                                                         }}
                                                     >
-                                                        {c}
+                                                        {tag}
                                                     </button>
                                                 ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-2 relative">
-                                    <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
-                                        <MapPin className="w-4 h-4 text-indigo-500" /> Description
-                                    </label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. Warehouse 3, Item usage..."
-                                        value={header.description}
-                                        onChange={(e) => setHeader({ ...header, description: e.target.value })}
-                                        className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
-                                    />
-                                </div>
-                            </div>
+                                            </div>
+                                        )}
+                                    </div>
 
+                                    {/* Operation Type */}
+                                    <div className="space-y-2 relative">
+                                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                            <FileText className="w-4 h-4 text-indigo-500" /> Type
+                                        </label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowTypeDropdown(!showTypeDropdown)}
+                                            onBlur={() => setTimeout(() => setShowTypeDropdown(false), 200)}
+                                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none text-left flex justify-between items-center"
+                                        >
+                                            <span className={(activeTab === 'edit' ? editHeader.operationType : header.operationType) ? 'text-slate-800' : 'text-slate-400'}>
+                                                {(activeTab === 'edit' ? editHeader.operationType : header.operationType) || 'Select Type'}
+                                            </span>
+                                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform ${showTypeDropdown ? 'rotate-180' : ''}`} />
+                                        </button>
 
-                        </div>
-                    </div>
+                                        {showTypeDropdown && (
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-30 overflow-hidden max-h-60 overflow-y-auto">
+                                                {[
+                                                    'Cash Sale',
+                                                    'Credit Sale',
+                                                    'Customer Delivery',
+                                                    'Sample',
+                                                    'Consignment to Receiver',
+                                                    'Return to Warehouse',
+                                                    'Liquidation'
+                                                ].map((type) => (
+                                                    <button
+                                                        key={type}
+                                                        type="button"
+                                                        className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0 font-medium"
+                                                        onMouseDown={() => {
+                                                            if (activeTab === 'edit') setEditHeader({ ...editHeader, operationType: type });
+                                                            else setHeader({ ...header, operationType: type });
+                                                            setShowTypeDropdown(false);
+                                                        }}
+                                                    >
+                                                        {type}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
 
-                    {/* Items Table */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-200 relative">
-                        <div className="overflow-visible min-h-[300px]">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-200">
-                                        <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-16 text-center">#</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider min-w-[300px] text-center">Product / Barcode</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Unit</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Qty</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Price</th>
-                                        <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Total</th>
-                                        <th className="px-6 py-4 w-16"></th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {rows.map((row, index) => (
-                                        <tr key={index} className="group hover:bg-slate-50/50 transition-colors">
-                                            <td className="px-6 py-4 text-slate-500 font-medium">{index + 1}</td>
-                                            <td className="px-6 py-4 relative">
-                                                <div className="relative">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="Search product or scan barcode..."
-                                                        value={row.searchTerm}
-                                                        onChange={(e) => updateRow(index, 'searchTerm', e.target.value)}
-                                                        onFocus={() => setActiveDropdown(index)}
-                                                        className="w-full px-4 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
-                                                    />
-                                                </div>
-
-                                                {/* Autocomplete Dropdown */}
-                                                {activeDropdown === index && row.searchTerm && (
-                                                    <>
-                                                        <div
-                                                            className="fixed inset-0 z-10"
-                                                            onClick={() => setActiveDropdown(null)}
-                                                        />
-                                                        <div
-                                                            className={`absolute left-6 right-6 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden max-h-60 overflow-y-auto ${
-                                                                // Show upwards if it's one of the last 2 rows and there are enough rows
-                                                                (rows.length > 2 && index >= rows.length - 2)
-                                                                    ? 'bottom-full mb-2 origin-bottom'
-                                                                    : 'top-full mt-2 origin-top'
-                                                                }`}
+                                    {/* Recipient Input */}
+                                    <div className="space-y-2 relative">
+                                        <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                            <User className="w-4 h-4 text-indigo-500" /> Recipient Name
+                                        </label>
+                                        <input
+                                            type="text"
+                                            placeholder="Enter recipient's name"
+                                            value={activeTab === 'edit' ? editHeader.receiverName : header.receiverName}
+                                            onChange={(e) => {
+                                                if (activeTab === 'edit') setEditHeader({ ...editHeader, receiverName: e.target.value });
+                                                else setHeader({ ...header, receiverName: e.target.value });
+                                            }}
+                                            onFocus={() => setShowRecipientDropdown(true)}
+                                            onBlur={() => setTimeout(() => setShowRecipientDropdown(false), 200)}
+                                            className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                                        />
+                                        {showRecipientDropdown && suggestions.recipients.length > 0 && (
+                                            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                                                {suggestions.recipients
+                                                    .filter(r => r.toLowerCase().includes((activeTab === 'edit' ? editHeader.receiverName : header.receiverName).toLowerCase()))
+                                                    .map((r, i) => (
+                                                        <button
+                                                            key={i}
+                                                            type="button"
+                                                            className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0"
+                                                            onMouseDown={() => {
+                                                                if (activeTab === 'edit') setEditHeader({ ...editHeader, receiverName: r });
+                                                                else setHeader({ ...header, receiverName: r });
+                                                                setShowRecipientDropdown(false);
+                                                            }}
                                                         >
-                                                            {filteredInventory(row.searchTerm).length > 0 ? (
-                                                                filteredInventory(row.searchTerm).map((item) => (
-                                                                    <button
-                                                                        key={item.barcode}
-                                                                        onClick={() => selectProduct(index, item)}
-                                                                        className="w-full px-4 py-3 text-left hover:bg-indigo-50 flex flex-col transition-colors border-b last:border-0 border-slate-100"
-                                                                    >
-                                                                        <span className="font-semibold text-slate-800">{item.product}</span>
-                                                                        <span className="text-xs text-slate-500 font-mono tracking-wider">{item.barcode}</span>
-                                                                    </button>
-                                                                ))
-                                                            ) : (
-                                                                <div className="px-4 py-3 text-slate-500 text-sm flex items-center gap-2">
-                                                                    No matches found
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div
-                                                    onClick={() => updateRow(index, 'unit', row.unit === 'CTN' ? 'PCS' : 'CTN')}
-                                                    className="relative flex items-center bg-slate-100 p-1.5 rounded-2xl cursor-pointer select-none w-32 mx-auto h-11 border border-slate-200/50 group/unit hover:border-indigo-100 transition-all shadow-inner"
-                                                >
-                                                    <div
-                                                        className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-[0.9rem] shadow-md transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) transform ${row.unit === 'PCS' ? 'translate-x-[calc(100%)]' : 'translate-x-0'}`}
-                                                    />
-                                                    <div className={`relative z-10 flex-1 text-center text-xs font-black tracking-widest transition-all duration-500 ${row.unit === 'CTN' ? 'text-indigo-600 scale-110' : 'text-slate-400 group-hover/unit:text-slate-500'}`}>
-                                                        CTN
-                                                    </div>
-                                                    <div className={`relative z-10 flex-1 text-center text-xs font-black tracking-widest transition-all duration-500 ${row.unit === 'PCS' ? 'text-indigo-600 scale-110' : 'text-slate-400 group-hover/unit:text-slate-500'}`}>
-                                                        PCS
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <input
-                                                    type="text"
-                                                    inputMode="decimal"
-                                                    placeholder="0"
-                                                    value={row.qty}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                            updateRow(index, 'qty', val);
-                                                        }
-                                                    }}
-                                                    className="w-full px-4 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-center"
-                                                />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <input
-                                                    type="text"
-                                                    inputMode="decimal"
-                                                    placeholder=""
-                                                    value={row.price}
-                                                    onChange={(e) => {
-                                                        const val = e.target.value;
-                                                        if (val === '' || /^\d*\.?\d*$/.test(val)) {
-                                                            updateRow(index, 'price', val);
-                                                        }
-                                                    }}
-                                                    className="w-full px-4 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-center"
-                                                />
-                                            </td>
-                                            <td className="px-6 py-4">
-                                                <div className="text-sm font-bold text-slate-700 bg-slate-100/50 px-3 py-2 rounded-lg text-center">
-                                                    {(() => {
-                                                        const qty = parseFloat(row.qty || '0');
-                                                        const totalPcs = row.unit === 'CTN' ? qty * row.pcsPerCtn : qty;
-                                                        return (totalPcs * parseFloat(row.price || '0')).toLocaleString(undefined, { minimumFractionDigits: 2 });
-                                                    })()}
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 text-center">
-                                                <button
-                                                    onClick={() => removeRow(index)}
-                                                    disabled={rows.length === 1}
-                                                    className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
-                                                >
-                                                    <Trash2 className="w-5 h-5" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                                            {r}
+                                                        </button>
+                                                    ))}
+                                            </div>
+                                        )}
+                                    </div>
 
-                        <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <button
-                                onClick={addRow}
-                                className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600/10 text-indigo-700 rounded-xl font-bold hover:bg-indigo-600/20 transition-all border border-indigo-600/20 active:scale-95"
-                            >
-                                <Plus className="w-5 h-5" /> Add New Row
-                            </button>
+                                    {/* Customer Name & Description */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2 lg:col-span-4 mt-2">
+                                        <div className="space-y-2 relative">
+                                            <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                                <User className="w-4 h-4 text-indigo-500" /> Customer Name
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="Enter customer name"
+                                                value={activeTab === 'edit' ? editHeader.customerName : header.customerName}
+                                                onChange={(e) => {
+                                                    if (activeTab === 'edit') setEditHeader({ ...editHeader, customerName: e.target.value });
+                                                    else setHeader({ ...header, customerName: e.target.value });
+                                                }}
+                                                onFocus={() => setShowCustomerDropdown(true)}
+                                                onBlur={() => setTimeout(() => setShowCustomerDropdown(false), 200)}
+                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                                            />
+                                            {showCustomerDropdown && suggestions.customers.length > 0 && (
+                                                <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-20 max-h-48 overflow-y-auto">
+                                                    {suggestions.customers
+                                                        .filter(c => c.toLowerCase().includes((activeTab === 'edit' ? editHeader.customerName : header.customerName).toLowerCase()))
+                                                        .map((c, i) => (
+                                                            <button
+                                                                key={i}
+                                                                type="button"
+                                                                className="w-full text-left px-4 py-3 hover:bg-slate-50 text-sm text-slate-700 transition-colors border-b border-slate-100 last:border-0"
+                                                                onMouseDown={() => {
+                                                                    if (activeTab === 'edit') setEditHeader({ ...editHeader, customerName: c });
+                                                                    else setHeader({ ...header, customerName: c });
+                                                                    setShowCustomerDropdown(false);
+                                                                }}
+                                                            >
+                                                                {c}
+                                                            </button>
+                                                        ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="space-y-2 relative">
+                                            <label className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                                                <MapPin className="w-4 h-4 text-indigo-500" /> Description
+                                            </label>
+                                            <input
+                                                type="text"
+                                                placeholder="e.g. Warehouse 3, Item usage..."
+                                                value={activeTab === 'edit' ? editHeader.description : header.description}
+                                                onChange={(e) => {
+                                                    if (activeTab === 'edit') setEditHeader({ ...editHeader, description: e.target.value });
+                                                    else setHeader({ ...header, description: e.target.value });
+                                                }}
+                                                className="w-full px-4 py-2 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all outline-none"
+                                            />
+                                        </div>
+                                    </div>
 
-                            <div className="flex items-center gap-6">
-                                <div className="text-right">
-                                    <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Grand Total</p>
-                                    <p className="text-3xl font-black text-slate-800 tracking-tight">
-                                        {rows.reduce((acc, row) => {
-                                            const qty = parseFloat(row.qty || '0');
-                                            const totalPcs = row.unit === 'CTN' ? qty * row.pcsPerCtn : qty;
-                                            return acc + (totalPcs * parseFloat(row.price || '0'));
-                                        }, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                                        <span className="text-sm ml-1 text-slate-400">AED</span>
-                                    </p>
+
                                 </div>
                             </div>
-                        </div>
-                    </div>
-                </>
+
+                            {/* Items Table */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-200 relative">
+                                <div className="overflow-visible min-h-[300px]">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-200">
+                                                <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-16 text-center">#</th>
+                                                <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider min-w-[300px] text-center">Product / Barcode</th>
+                                                <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Unit</th>
+                                                <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Qty</th>
+                                                <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Price</th>
+                                                <th className="px-6 py-4 text-sm font-bold text-slate-700 uppercase tracking-wider w-32 text-center">Total</th>
+                                                <th className="px-6 py-4 w-16"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {(activeTab === 'edit' ? editRows : rows).map((row, index) => (
+                                                <tr key={index} className="group hover:bg-slate-50/50 transition-colors">
+                                                    <td className="px-6 py-4 text-slate-500 font-medium">{index + 1}</td>
+                                                    <td className="px-6 py-4 relative">
+                                                        <div className="relative">
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Search product or scan barcode..."
+                                                                value={row.searchTerm}
+                                                                onChange={(e) => updateRow(index, 'searchTerm', e.target.value)}
+                                                                onFocus={() => setActiveDropdown(index)}
+                                                                className="w-full px-4 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all"
+                                                            />
+                                                        </div>
+
+                                                        {/* Autocomplete Dropdown */}
+                                                        {activeDropdown === index && row.searchTerm && (
+                                                            <>
+                                                                <div
+                                                                    className="fixed inset-0 z-10"
+                                                                    onClick={() => setActiveDropdown(null)}
+                                                                />
+                                                                <div
+                                                                    className={`absolute left-6 right-6 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden max-h-60 overflow-y-auto ${
+                                                                        // Show upwards if it's one of the last 2 rows and there are enough rows
+                                                                        ((activeTab === 'edit' ? editRows : rows).length > 2 && index >= (activeTab === 'edit' ? editRows : rows).length - 2)
+                                                                            ? 'bottom-full mb-2 origin-bottom'
+                                                                            : 'top-full mt-2 origin-top'
+                                                                        }`}
+                                                                >
+                                                                    {filteredInventory(row.searchTerm).length > 0 ? (
+                                                                        filteredInventory(row.searchTerm).map((item) => (
+                                                                            <button
+                                                                                key={item.barcode}
+                                                                                onClick={() => selectProduct(index, item)}
+                                                                                className="w-full px-4 py-3 text-left hover:bg-indigo-50 flex flex-col transition-colors border-b last:border-0 border-slate-100"
+                                                                            >
+                                                                                <span className="font-semibold text-slate-800">{item.product}</span>
+                                                                                <span className="text-xs text-slate-500 font-mono tracking-wider">{item.barcode}</span>
+                                                                            </button>
+                                                                        ))
+                                                                    ) : (
+                                                                        <div className="px-4 py-3 text-slate-500 text-sm flex items-center gap-2">
+                                                                            No matches found
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div
+                                                            onClick={() => updateRow(index, 'unit', row.unit === 'CTN' ? 'PCS' : 'CTN')}
+                                                            className="relative flex items-center bg-slate-100 p-1.5 rounded-2xl cursor-pointer select-none w-32 mx-auto h-11 border border-slate-200/50 group/unit hover:border-indigo-100 transition-all shadow-inner"
+                                                        >
+                                                            <div
+                                                                className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-[0.9rem] shadow-md transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) transform ${row.unit === 'PCS' ? 'translate-x-[calc(100%)]' : 'translate-x-0'}`}
+                                                            />
+                                                            <div className={`relative z-10 flex-1 text-center text-xs font-black tracking-widest transition-all duration-500 ${row.unit === 'CTN' ? 'text-indigo-600 scale-110' : 'text-slate-400 group-hover/unit:text-slate-500'}`}>
+                                                                CTN
+                                                            </div>
+                                                            <div className={`relative z-10 flex-1 text-center text-xs font-black tracking-widest transition-all duration-500 ${row.unit === 'PCS' ? 'text-indigo-600 scale-110' : 'text-slate-400 group-hover/unit:text-slate-500'}`}>
+                                                                PCS
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            placeholder="0"
+                                                            value={row.qty}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                    updateRow(index, 'qty', val);
+                                                                }
+                                                            }}
+                                                            className="w-full px-4 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-center"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <input
+                                                            type="text"
+                                                            inputMode="decimal"
+                                                            placeholder=""
+                                                            value={row.price}
+                                                            onChange={(e) => {
+                                                                const val = e.target.value;
+                                                                if (val === '' || /^\d*\.?\d*$/.test(val)) {
+                                                                    updateRow(index, 'price', val);
+                                                                }
+                                                            }}
+                                                            className="w-full px-4 py-2 bg-transparent border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none transition-all text-center"
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="text-sm font-bold text-slate-700 bg-slate-100/50 px-3 py-2 rounded-lg text-center">
+                                                            {(() => {
+                                                                const qty = parseFloat(row.qty || '0');
+                                                                const totalPcs = row.unit === 'CTN' ? qty * row.pcsPerCtn : qty;
+                                                                return (totalPcs * parseFloat(row.price || '0')).toLocaleString(undefined, { minimumFractionDigits: 2 });
+                                                            })()}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 text-center">
+                                                        <button
+                                                            onClick={() => removeRow(index)}
+                                                            disabled={(activeTab === 'edit' ? editRows : rows).length === 1}
+                                                            className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all disabled:opacity-30 disabled:hover:bg-transparent"
+                                                        >
+                                                            <Trash2 className="w-5 h-5" />
+                                                        </button>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <div className="p-6 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                                    <button
+                                        onClick={addRow}
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600/10 text-indigo-700 rounded-xl font-bold hover:bg-indigo-600/20 transition-all border border-indigo-600/20 active:scale-95"
+                                    >
+                                        <Plus className="w-5 h-5" /> Add New Row
+                                    </button>
+
+                                    <div className="flex items-center gap-6">
+                                        <div className="text-right">
+                                            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Grand Total</p>
+                                            <p className="text-3xl font-black text-slate-800 tracking-tight">
+                                                {(activeTab === 'edit' ? editRows : rows).reduce((acc, row) => {
+                                                    const qty = parseFloat(row.qty || '0');
+                                                    const totalPcs = row.unit === 'CTN' ? qty * row.pcsPerCtn : qty;
+                                                    return acc + (totalPcs * parseFloat(row.price || '0'));
+                                                }, 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                                <span className="text-sm ml-1 text-slate-400">AED</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    )}
+                </div>
             )}
 
 

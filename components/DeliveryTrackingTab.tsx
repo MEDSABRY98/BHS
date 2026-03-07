@@ -780,8 +780,7 @@ export default function DeliveryTrackingTab() {
             });
         });
         return Object.values(products).sort((a: any, b: any) =>
-            ((b as any).pending + (b as any).shipped + (b as any).canceled) -
-            ((a as any).pending + (a as any).shipped + (a as any).canceled)
+            (a.name || '').localeCompare(b.name || '')
         );
     }, [filteredOrders]);
 
@@ -1468,14 +1467,15 @@ export default function DeliveryTrackingTab() {
                             <>
 
                                 {/* KPI GRID */}
-                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-[14px] mb-[26px]">
+                                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-[14px] mb-[26px]">
                                     {[
                                         { label: 'Total Orders', value: stats.total, trend: `${stats.total} orders`, colorClass: 'green', icon: '📦' },
                                         { label: 'Delivered', value: stats.delivered, trend: `${Math.round(stats.delivered / stats.total * 100)}%`, colorClass: 'blue', icon: '✅' },
                                         { label: 'Partial', value: stats.partial, trend: `${Math.round(stats.partial / stats.total * 100)}%`, colorClass: 'orange', icon: '⚠️' },
+                                        { label: 'Canceled Orders', value: stats.canceledOrders, trend: `${Math.round(stats.canceledOrders / stats.total * 100)}%`, colorClass: 'red', icon: '❌' },
                                         { label: 'Pending', value: stats.pending, trend: `${Math.round(stats.pending / stats.total * 100)}%`, colorClass: 'gold', icon: '⏳' },
                                         { label: 'Pending Re-ship', value: stats.reship, trend: `${stats.reship} customers`, colorClass: 'orange', icon: '🔄' },
-                                        { label: 'Items Shipped', value: stats.shippedCount, trend: `Success`, colorClass: 'green', icon: '🚚' },
+                                        { label: 'Items Re-Shipped', value: stats.shippedCount, trend: `Success`, colorClass: 'green', icon: '🚚' },
                                         { label: 'Items Canceled', value: stats.canceledCount, trend: `Final`, colorClass: 'red', icon: '🚫' },
                                     ].map((kpi, i) => (
                                         <div key={i} className={`
@@ -1724,16 +1724,15 @@ export default function DeliveryTrackingTab() {
                                             <tr className="bg-[#F1F5F9]">
                                                 <th className="px-4 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider w-[50px]">#</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Product Name</th>
+                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-600">Total Canceled</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-orange-600">Pending Re-ship</th>
                                                 <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-green-600">Total Shipped</th>
-                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider text-red-600">Total Canceled</th>
-                                                <th className="px-6 py-4 text-center text-[12px] font-[800] text-[#475569] uppercase tracking-wider">Total Logs</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
                                             {productStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={6} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
+                                                    <td colSpan={5} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
                                                         No data yet
                                                     </td>
                                                 </tr>
@@ -1743,20 +1742,18 @@ export default function DeliveryTrackingTab() {
                                                         <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                                             <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{p.name}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{p.pending}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{p.shipped}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">{p.pending + p.shipped + p.canceled}</td>
                                                         </tr>
                                                     ))}
                                                     {/* TOTAL ROW */}
                                                     <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{productTotals.canceled}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{productTotals.pending}</td>
                                                         <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{productTotals.shipped}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{productTotals.canceled}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-indigo-700 bg-indigo-100/30">{productTotals.totalLogs}</td>
                                                     </tr>
                                                 </>
                                             )}

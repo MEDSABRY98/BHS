@@ -63,3 +63,39 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Failed to save transfer' }, { status: 500 });
     }
 }
+
+export async function PUT(request: Request) {
+    try {
+        const body = await request.json();
+        const { transactionNumber, header, rows, user } = body;
+
+        if (!transactionNumber || !header || !rows || rows.length === 0) {
+            return NextResponse.json({ error: 'Invalid data' }, { status: 400 });
+        }
+
+        const transfers: Wh20Transfer[] = rows.map((row: any) => ({
+            user: user || 'Unknown',
+            number: transactionNumber,
+            date: header.date,
+            operationType: header.operationType,
+            recipientName: header.receiverName,
+            customerName: header.customerName || '',
+            description: header.description || '',
+            barcode: row.barcode,
+            product: row.productName,
+            qty: parseFloat(row.qty),
+            type: row.unit,
+            price: parseFloat(row.price),
+            total: parseFloat(row.total)
+        }));
+
+        const { updateWh20Transfers } = await import('@/lib/googleSheets');
+        await updateWh20Transfers(transactionNumber, transfers);
+
+        return NextResponse.json({ success: true, transactionNumber });
+
+    } catch (error) {
+        console.error('API Error:', error);
+        return NextResponse.json({ error: 'Failed to update transfer' }, { status: 500 });
+    }
+}

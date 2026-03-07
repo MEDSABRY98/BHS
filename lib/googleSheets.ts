@@ -3356,6 +3356,86 @@ export async function getWh20TransferByNumber(transactionNumber: string): Promis
   }
 }
 
+export async function updateWh20Transfers(transactionNumber: string, transfers: Wh20Transfer[]) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const sheetName = 'TRANSFERS - WH/20 ITEMS';
+    const sheetId = await getSheetId(sheetName);
+
+    // 1. Get all data to find the rows
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetName}'!B:B`, // Just need the transaction numbers
+    });
+
+    const rows = response.data.values || [];
+    // Skip header
+    const indicesToDelete: number[] = [];
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i][0]?.toString().trim() === transactionNumber) {
+        indicesToDelete.push(i);
+      }
+    }
+
+    if (indicesToDelete.length > 0 && sheetId !== null) {
+      // Sorting indices descending to avoid index shifting problems
+      indicesToDelete.sort((a, b) => b - a);
+
+      const requests = indicesToDelete.map(idx => ({
+        deleteDimension: {
+          range: {
+            sheetId,
+            dimension: 'ROWS',
+            startIndex: idx,
+            endIndex: idx + 1
+          }
+        }
+      }));
+
+      await sheets.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: { requests }
+      });
+    }
+
+    // 2. Append new rows
+    const values = transfers.map(t => [
+      t.user,
+      t.number,
+      t.date,
+      t.operationType,
+      t.recipientName,
+      t.customerName,
+      t.description,
+      t.barcode,
+      t.product,
+      t.qty,
+      t.type,
+      t.price,
+      t.total
+    ]);
+
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetName}'!A:M`,
+      valueInputOption: 'USER_ENTERED',
+      insertDataOption: 'OVERWRITE',
+      requestBody: { values },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error updating WH/20 transfers:', error);
+    throw error;
+  }
+}
+
 
 
 export async function getEmployeeSalaries(): Promise<Record<string, number>> {
