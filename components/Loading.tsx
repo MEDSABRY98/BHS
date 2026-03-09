@@ -5,52 +5,65 @@ interface LoadingProps {
   className?: string;
 }
 
-const Loading = ({ message = 'Accessing System Data...', className = '' }: LoadingProps) => {
+const Loading = ({ message = 'BHS Analysis', className = '' }: LoadingProps) => {
   return (
-    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm transition-opacity duration-300 ${className}`}>
-      <div className="relative flex flex-col items-center">
-
-        {/* Main Logo Container Animation */}
-        <div className="relative w-24 h-24 mb-8">
-          {/* Outer Pulsing Rings */}
-          <div className="absolute inset-0 rounded-3xl bg-blue-100 animate-ping opacity-20 duration-1000"></div>
-          <div className="absolute inset-[-12px] rounded-3xl bg-indigo-50 animate-pulse opacity-30 duration-1500"></div>
-
-          {/* Central Logo Box */}
-          <div className="relative w-full h-full bg-slate-900 rounded-2xl shadow-2xl flex items-center justify-center overflow-hidden z-10">
-            {/* Animated Shine Effect */}
-            <div className="absolute top-0 left-[-100%] w-full h-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_2s_infinite]"></div>
-
-            {/* Logo Text */}
-            <span className="text-3xl font-black text-white tracking-tighter relative z-20">BH</span>
-          </div>
-
-          {/* Floating Indicators */}
-          <div className="absolute -top-1 -right-1 w-3 h-3 bg-green-400 rounded-full border-2 border-white animate-bounce shadow-sm z-20"></div>
-        </div>
-
-        {/* Text Content */}
-        <div className="flex flex-col items-center gap-3 text-center">
-          <h3 className="text-xl font-bold text-slate-800 tracking-tight">Processing Request</h3>
-
-          <div className="flex items-center gap-2 bg-slate-50 px-4 py-2 rounded-full border border-slate-100 shadow-sm">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
-            </span>
-            <span className="text-sm font-medium text-slate-500 tracking-wide uppercase text-xs">Loading Data...</span>
-          </div>
-        </div>
-
-        {/* New Global Styles for custom animations */}
-        <style jsx>{`
-          @keyframes shimmer {
-            100% {
-              left: 100%;
-            }
-          }
-        `}</style>
+    <div className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white overflow-hidden ${className}`} dir="rtl">
+      {/* Soft Modern Background Decor - Subtle & Premium */}
+      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '10s' }} />
+        <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-blue-50/50 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '12s', animationDelay: '2s' }} />
       </div>
+
+      <div className="relative z-10 flex flex-col items-center gap-14">
+        {/* Larger Logo Container - Premium & Strong */}
+        <div className="relative group scale-110">
+          <div className="w-32 h-32 rounded-[2.5rem] bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.08)] flex items-center justify-center animate-in zoom-in-95 fade-in duration-1000">
+            <span className="text-5xl font-black text-slate-900 tracking-tighter">BH</span>
+          </div>
+          {/* Expanded Minimalist Progress Ring */}
+          <div className="absolute -inset-3">
+            <svg className="w-38 h-38 transform -rotate-90 ml-[-4px] mt-[-4px]">
+              <circle
+                cx="76"
+                cy="76"
+                r="72"
+                fill="transparent"
+                stroke="#F8FAFC"
+                strokeWidth="2"
+              />
+              <circle
+                cx="76"
+                cy="76"
+                r="72"
+                fill="transparent"
+                stroke="#4F46E5"
+                strokeWidth="2"
+                strokeDasharray="452"
+                className="animate-[dash_2.5s_ease-in-out_infinite]"
+                strokeLinecap="round"
+              />
+            </svg>
+          </div>
+        </div>
+
+        {/* Text Section */}
+        <div className="flex flex-col items-center gap-4 text-center">
+          <h2 className="text-base font-black text-slate-900 tracking-[0.4em] uppercase opacity-90">BHS Analysis</h2>
+          <div className="flex items-center gap-3">
+            <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+            <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+            <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+          </div>
+        </div>
+      </div>
+
+      <style jsx>{`
+        @keyframes dash {
+          0% { stroke-dashoffset: 452; }
+          50% { stroke-dashoffset: 120; transform: rotate(0); }
+          100% { stroke-dashoffset: 452; transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };

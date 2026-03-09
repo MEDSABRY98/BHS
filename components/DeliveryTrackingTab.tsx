@@ -1348,7 +1348,7 @@ export default function DeliveryTrackingTab() {
                                 <select
                                     value={filterCity}
                                     onChange={e => setFilterCity(e.target.value)}
-                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-3 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all w-[140px] appearance-none cursor-pointer"
+                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-3 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all w-[240px] appearance-none cursor-pointer"
                                 >
                                     <option value="">All Cities</option>
                                     {uniqueCities.map(city => (
@@ -1394,7 +1394,7 @@ export default function DeliveryTrackingTab() {
                                     type="date"
                                     value={filterDateFrom}
                                     onChange={e => setFilterDateFrom(e.target.value)}
-                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-4 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all cursor-pointer"
+                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-4 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all w-[160px] cursor-pointer"
                                 />
                             </div>
 
@@ -1405,7 +1405,7 @@ export default function DeliveryTrackingTab() {
                                     type="date"
                                     value={filterDateTo}
                                     onChange={e => setFilterDateTo(e.target.value)}
-                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-4 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all cursor-pointer"
+                                    className="bg-slate-50 border-[1.5px] border-slate-200 rounded-[10px] px-4 py-2 text-[13px] font-[700] text-slate-900 outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all w-[160px] cursor-pointer"
                                 />
                             </div>
 

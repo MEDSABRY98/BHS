@@ -4,17 +4,20 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import HomeSelection from '@/components/HomeSelection';
 import Login from '@/components/Login';
+import Loading from '@/components/Loading';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
     const validateAndSetUser = async () => {
+      setIsLoading(true);
       const savedUser = localStorage.getItem('currentUser');
       const savedPassword = localStorage.getItem('userPassword');
-      
+
       if (savedUser && savedPassword) {
         try {
           const userData = JSON.parse(savedUser);
@@ -32,7 +35,7 @@ export default function Home() {
             });
 
             const result = await response.json();
-            
+
             if (response.ok && result.success) {
               // User still exists and credentials are valid
               setCurrentUser(result.user);
@@ -50,8 +53,13 @@ export default function Home() {
           localStorage.removeItem('userPassword');
         }
       }
+
+      // Ensure loading shows for at least 800ms for a smoother transition as requested
+      setTimeout(() => {
+        setIsLoading(false);
+      }, 800);
     };
-    
+
     validateAndSetUser();
   }, []);
 
@@ -67,6 +75,10 @@ export default function Home() {
     localStorage.removeItem('currentUser');
     localStorage.removeItem('userPassword');
   };
+
+  if (isLoading) {
+    return <Loading />;
+  }
 
   if (!isAuthenticated) {
     return <Login onLogin={handleLogin} />;
