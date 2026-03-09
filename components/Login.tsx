@@ -118,27 +118,27 @@ export default function Login({ onLogin }: LoginProps) {
             <div className="w-32 h-32 rounded-[2.5rem] bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.08)] flex items-center justify-center animate-in zoom-in-95 fade-in duration-1000">
               <span className="text-5xl font-black text-slate-900 tracking-tighter">BH</span>
             </div>
-            {/* Expanded Minimalist Progress Ring */}
-            <div className="absolute -inset-3">
-              <svg className="w-38 h-38 transform -rotate-90 ml-[-4px] mt-[-4px]">
+            {/* Premium Static Halo - Full Circle Pulsing */}
+            <div className="absolute -inset-4">
+              <svg className="w-40 h-40">
                 <circle
-                  cx="76"
-                  cy="76"
-                  r="72"
+                  cx="80"
+                  cy="80"
+                  r="76"
                   fill="transparent"
-                  stroke="#F8FAFC"
-                  strokeWidth="2"
+                  stroke="#E2E8F0"
+                  strokeWidth="1.5"
+                  className="opacity-50"
                 />
                 <circle
-                  cx="76"
-                  cy="76"
-                  r="72"
+                  cx="80"
+                  cy="80"
+                  r="76"
                   fill="transparent"
                   stroke="#4F46E5"
-                  strokeWidth="2"
-                  strokeDasharray="452"
-                  className="animate-[dash_2.5s_ease-in-out_infinite]"
-                  strokeLinecap="round"
+                  strokeWidth="2.5"
+                  className="animate-[breathe_3s_ease-in-out_infinite]"
+                  style={{ filter: 'drop-shadow(0 0 12px rgba(79, 70, 229, 0.4))' }}
                 />
               </svg>
             </div>
@@ -156,12 +156,11 @@ export default function Login({ onLogin }: LoginProps) {
         </div>
 
         <style jsx>{`
-          @keyframes dash {
-            0% { stroke-dashoffset: 452; }
-            50% { stroke-dashoffset: 120; transform: rotate(0); }
-            100% { stroke-dashoffset: 452; transform: rotate(360deg); }
-          }
-        `}</style>
+        @keyframes breathe {
+          0%, 100% { opacity: 0.3; transform: scale(0.98); }
+          50% { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
       </div>
     );
   }

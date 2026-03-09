@@ -63,7 +63,12 @@ const STATUS_CONFIG = {
 
 export default function DeliveryTrackingTab() {
     const [activeTab, setActiveTab] = useState('stats');
-    const [statsSubTab, setStatsSubTab] = useState<'kpis' | 'customers' | 'cities' | 'products'>('kpis');
+    const [statsSubTab, setStatsSubTab] = useState<'kpis' | 'daily' | 'customers' | 'cities' | 'products'>('kpis');
+
+    const formatStat = (val: number, prefix: string = '') => {
+        if (val === 0) return '-';
+        return `${prefix}${val.toLocaleString()}`;
+    };
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -675,9 +680,18 @@ export default function DeliveryTrackingTab() {
         let favor = 0, against = 0;
         let favorCount = 0, againstCount = 0;
 
+        let deliveredLPO = 0, deliveredInvoice = 0;
+        let partialLPO = 0, partialInvoice = 0;
+        let pendingLPO = 0, pendingInvoice = 0;
+        let canceledLPO = 0, canceledInvoice = 0;
+
+        let totalLPO = 0, totalInvoice = 0;
+
         filteredOrders.forEach(o => {
-            // Only calculate finance diff if it's NOT pending (meaning it has an invoice) 
-            // OR if it has a recorded invoice value
+            totalLPO += (o.lpoVal || 0);
+            totalInvoice += (o.invoiceVal || 0);
+
+            // Finance diff
             if (o.status !== 'pending' || o.invoiceVal > 0) {
                 const diff = (o.invoiceVal || 0) - (o.lpoVal || 0);
                 if (diff < 0) {
@@ -687,6 +701,21 @@ export default function DeliveryTrackingTab() {
                     against += diff;
                     againstCount++;
                 }
+            }
+
+            // Category Totals
+            if (o.status === 'delivered') {
+                deliveredLPO += (o.lpoVal || 0);
+                deliveredInvoice += (o.invoiceVal || 0);
+            } else if (o.status === 'partial') {
+                partialLPO += (o.lpoVal || 0);
+                partialInvoice += (o.invoiceVal || 0);
+            } else if (o.status === 'pending') {
+                pendingLPO += (o.lpoVal || 0);
+                pendingInvoice += (o.invoiceVal || 0);
+            } else if (o.status === 'canceled') {
+                canceledLPO += (o.lpoVal || 0);
+                canceledInvoice += (o.invoiceVal || 0);
             }
         });
 
@@ -698,7 +727,12 @@ export default function DeliveryTrackingTab() {
         return {
             total, delivered, pending, reship, missingCount, discCount, partial, canceledOrders,
             favor, against, favorCount, againstCount, net: against - favor,
-            shippedCount, canceledCount, totalTracked
+            shippedCount, canceledCount, totalTracked,
+            deliveredLPO, deliveredInvoice,
+            partialLPO, partialInvoice,
+            pendingLPO, pendingInvoice,
+            canceledLPO, canceledInvoice,
+            totalLPO, totalInvoice
         };
     }, [filteredOrders]);
 
@@ -733,6 +767,47 @@ export default function DeliveryTrackingTab() {
         }, {});
         return Object.values(grouped).sort((a: any, b: any) => b.lpoValue - a.lpoValue);
     }, [filteredOrders, customerToCity]);
+
+    const dailyStats = useMemo(() => {
+        const grouped = filteredOrders.reduce((acc: any, o) => {
+            const date = o.date || 'No Date';
+            if (!acc[date]) {
+                acc[date] = {
+                    date,
+                    lpoValue: 0,
+                    invoiceValue: 0,
+                    orders: 0,
+                    delivered: 0,
+                    partial: 0,
+                    pending: 0,
+                    canceled: 0
+                };
+            }
+            const d = acc[date];
+            d.lpoValue += (o.lpoVal || 0);
+            d.invoiceValue += (o.invoiceVal || 0);
+            d.orders += 1;
+            if (o.status === 'delivered') d.delivered += 1;
+            else if (o.status === 'partial') d.partial += 1;
+            else if (o.status === 'pending') d.pending += 1;
+            else if (o.status === 'canceled') d.canceled += 1;
+
+            return acc;
+        }, {});
+        return Object.values(grouped).sort((a: any, b: any) => b.date.localeCompare(a.date));
+    }, [filteredOrders]);
+
+    const dailyTotals = useMemo(() => {
+        return (dailyStats as any[]).reduce((acc: any, d: any) => ({
+            lpoValue: acc.lpoValue + (d.lpoValue || 0),
+            invoiceValue: acc.invoiceValue + (d.invoiceValue || 0),
+            orders: acc.orders + (d.orders || 0),
+            delivered: acc.delivered + (d.delivered || 0),
+            partial: acc.partial + (d.partial || 0),
+            canceled: acc.canceled + (d.canceled || 0),
+            pending: acc.pending + (d.pending || 0),
+        }), { lpoValue: 0, invoiceValue: 0, orders: 0, delivered: 0, partial: 0, canceled: 0, pending: 0 });
+    }, [dailyStats]);
 
     const customerStats = useMemo(() => {
         const grouped = filteredOrders.reduce((acc: any, o) => {
@@ -1428,6 +1503,7 @@ export default function DeliveryTrackingTab() {
                             <div className="flex items-center gap-1">
                                 {[
                                     { id: 'kpis', label: 'General KPIs', icon: Activity },
+                                    { id: 'daily', label: 'Daily Stats', icon: History },
                                     { id: 'cities', label: 'City Stats', icon: LayoutGrid },
                                     { id: 'customers', label: 'Customer Stats', icon: Users },
                                     { id: 'products', label: 'Product Stats', icon: Package },
@@ -1512,77 +1588,172 @@ export default function DeliveryTrackingTab() {
                                 </div>
 
                                 {/* BOTTOM SECTION */}
-                                <div className="mb-[24px]">
-                                    {/* STATS & FINANCES */}
+                                <div className="space-y-[24px] mb-[24px]">
+                                    {/* Order Status Breakdown - FULL WIDTH */}
                                     <div className="bg-white rounded-[16px] border-[1.5px] border-[#E4EDE8] shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-8">
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                                            {/* Breakdown */}
-                                            <div>
-                                                <div className="flex items-center gap-3 text-[16px] font-[800] text-[#0F1A14] mb-[24px]">
-                                                    <div className="w-[40px] h-[40px] bg-[#E8F7EF] rounded-[10px] flex items-center justify-center text-[20px] text-[#1A8A47] shadow-sm">📊</div>
-                                                    Order Status Breakdown
-                                                </div>
-                                                <div className="space-y-[18px]">
-                                                    {[
-                                                        { label: 'Delivered', count: stats.delivered, color: '#2DBE6C' },
-                                                        { label: 'Partial', count: stats.partial, color: '#E67E22' },
-                                                        { label: 'Pending', count: stats.pending, color: '#F5A623' },
-                                                        { label: 'Canceled', count: stats.canceledOrders, color: '#E74C3C' },
-                                                    ].map((s, i) => {
-                                                        const pct = stats.total > 0 ? Math.round(s.count / stats.total * 100) : 0;
-                                                        return (
-                                                            <div key={i} className="flex flex-col gap-2">
-                                                                <div className="flex items-center justify-between">
-                                                                    <div className="text-[12px] text-[#5A7266] font-[700] uppercase tracking-wider">{s.label}</div>
-                                                                    <div className="text-[14px] font-[900] font-mono-dm" style={{ color: s.color }}>
-                                                                        {pct}% <span className="text-[11px] opacity-60 ml-1">({s.count})</span>
+                                        <div className="flex items-center gap-3 text-[18px] font-[900] text-[#0F1A14] mb-8">
+                                            <div className="w-[44px] h-[44px] bg-[#E8F7EF] rounded-[12px] flex items-center justify-center text-[22px] text-[#1A8A47] shadow-sm">📊</div>
+                                            Order Status Breakdown
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                                            {[
+                                                { label: 'Delivered', count: stats.delivered, lpo: stats.deliveredLPO, invoice: stats.deliveredInvoice, color: '#2DBE6C', icon: '✅' },
+                                                { label: 'Partial', count: stats.partial, lpo: stats.partialLPO, invoice: stats.partialInvoice, color: '#E67E22', icon: '⚠️' },
+                                                { label: 'Pending', count: stats.pending, lpo: stats.pendingLPO, invoice: stats.pendingInvoice, color: '#F5A623', icon: '⏳' },
+                                                { label: 'Canceled', count: stats.canceledOrders, lpo: stats.canceledLPO, invoice: stats.canceledInvoice, color: '#E74C3C', icon: '❌' },
+                                            ].map((s, i) => {
+                                                const pct = stats.total > 0 ? Math.round(s.count / stats.total * 100) : 0;
+                                                return (
+                                                    <div key={i} className="bg-[#F8FAFC] rounded-[22px] p-6 border border-slate-100 flex flex-col gap-6 hover:shadow-md transition-all group hover:-translate-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-[20px] shadow-sm">{s.icon}</div>
+                                                                <div className="text-[13px] font-[900] text-[#5A7266] uppercase tracking-wider">{s.label}</div>
+                                                            </div>
+                                                            <div className="text-[17px] font-[950] font-mono-dm text-[#0F1A14] bg-white px-3 py-1 rounded-xl shadow-sm border border-slate-100">
+                                                                {pct}%
+                                                            </div>
+                                                        </div>
+
+                                                        <div className="flex items-baseline gap-2">
+                                                            <div className="text-[42px] font-[950] tracking-tighter leading-none" style={{ color: s.color }}>
+                                                                {s.count}
+                                                            </div>
+                                                            <div className="text-[12px] font-bold text-slate-400 uppercase tracking-widest">Orders</div>
+                                                        </div>
+
+                                                        <div className="space-y-4">
+                                                            <div className="w-full h-[10px] bg-slate-200 rounded-full overflow-hidden shadow-inner">
+                                                                <div
+                                                                    className="h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
+                                                                    style={{ width: `${pct}%`, backgroundColor: s.color }}
+                                                                />
+                                                            </div>
+
+                                                            <div className="grid grid-cols-1 gap-3 pt-2">
+                                                                <div className="flex items-center justify-between bg-white/60 p-3 rounded-xl border border-slate-100">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-300" />
+                                                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">LPO Value</span>
                                                                     </div>
+                                                                    <span className="text-[13px] font-[900] text-slate-700">AED {s.lpo.toLocaleString()}</span>
                                                                 </div>
-                                                                <div className="w-full h-[12px] bg-[#ECF5EF] rounded-full overflow-hidden shadow-[inset_0_1px_2px_rgba(0,0,0,0.03)]">
-                                                                    <div
-                                                                        className="h-full rounded-full transition-all duration-1000 ease-out shadow-[0_1px_3px_rgba(0,0,0,0.1)]"
-                                                                        style={{ width: `${pct}%`, backgroundColor: s.color }}
-                                                                    />
+                                                                <div className="flex items-center justify-between bg-indigo-50/40 p-3 rounded-xl border border-indigo-100/50">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                                                                        <span className="text-[10px] font-black text-indigo-400 uppercase tracking-wider">Invoice Value</span>
+                                                                    </div>
+                                                                    <span className="text-[13px] font-[900] text-indigo-600">AED {s.invoice.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-
-                                            {/* Finances */}
-                                            <div className="lg:border-l lg:border-[#E4EDE8] lg:pl-12">
-                                                <div className="flex items-center gap-3 text-[16px] font-[800] text-[#0F1A14] mb-[24px]">
-                                                    <div className="w-[40px] h-[40px] bg-[#EBF5FB] rounded-[10px] flex items-center justify-center text-[20px] text-[#2980B9] shadow-sm">💰</div>
-                                                    Financial Summary
-                                                </div>
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-[16px]">
-                                                    <div className="bg-[#FDEDEC] rounded-[18px] p-[24px_20px] text-center border border-[#E74C3C]/20 shadow-[0_8px_20px_rgba(231,76,60,0.06)] transition-transform hover:scale-[1.02]">
-                                                        <div className="text-[11px] text-[#5A7266] font-black uppercase mb-[10px] tracking-[0.1em]">Invoice Under LPO</div>
-                                                        <div className="text-[12px] text-[#A93226] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">We take less 📉</div>
-                                                        <div className="text-[32px] font-[950] font-mono-dm text-[#E74C3C] tracking-tighter leading-none mb-2">{stats.favor.toLocaleString()}</div>
-                                                        <div className="text-[14px] font-[800] text-[#A93226] bg-[#FDEDEC] border border-[#E74C3C]/20 rounded-lg py-1 px-3 inline-block">{stats.favorCount} <span className="text-[11px] opacity-70">Orders</span></div>
-                                                    </div>
-                                                    <div className="bg-[#EEF2FF] rounded-[18px] p-[24px_20px] text-center border border-[#4F46E5]/20 shadow-[0_8px_20px_rgba(79,70,229,0.06)] transition-transform hover:scale-[1.02]">
-                                                        <div className="text-[11px] text-[#64748B] font-black uppercase mb-[10px] tracking-[0.1em]">Invoice Over LPO</div>
-                                                        <div className="text-[12px] text-[#4F46E5] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">We take more 📈</div>
-                                                        <div className="text-[32px] font-[950] font-mono-dm text-[#312E81] tracking-tighter leading-none mb-2">{stats.against.toLocaleString()}</div>
-                                                        <div className="text-[14px] font-[800] text-[#4F46E5] bg-[#EEF2FF] border border-[#4F46E5]/20 rounded-lg py-1 px-3 inline-block">{stats.againstCount} <span className="text-[11px] opacity-70">Orders</span></div>
-                                                    </div>
-                                                    <div className="bg-[#F6F9F7] rounded-[18px] p-[24px_20px] text-center border border-[#B2C4BB]/40 shadow-[0_8px_20px_rgba(0,0,0,0.04)] transition-transform hover:scale-[1.02]">
-                                                        <div className="text-[11px] text-[#5A7266] font-black uppercase mb-[10px] tracking-[0.1em]">Net Difference</div>
-                                                        <div className="text-[12px] text-[#5A7266] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">Overall balance</div>
-                                                        <div className={`text-[32px] font-[950] font-mono-dm tracking-tighter leading-none mb-2 ${stats.net >= 0 ? 'text-[#4F46E5]' : 'text-[#E74C3C]'}`}>
-                                                            {stats.net >= 0 ? '+' : '-'}{Math.abs(stats.net).toLocaleString()}
                                                         </div>
-                                                        <div className="text-[14px] font-[800] text-[#5A7266] bg-white/80 border border-[#B2C4BB]/30 rounded-lg py-1 px-3 inline-block">{stats.favorCount + stats.againstCount} <span className="text-[11px] opacity-70">Issues</span></div>
                                                     </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    {/* Financial Summary - FULL WIDTH */}
+                                    <div className="bg-white rounded-[16px] border-[1.5px] border-[#E4EDE8] shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-8">
+                                        <div className="flex items-center gap-3 text-[18px] font-[800] text-[#0F1A14] mb-[24px]">
+                                            <div className="w-[40px] h-[40px] bg-[#EBF5FB] rounded-[10px] flex items-center justify-center text-[20px] text-[#2980B9] shadow-sm">💰</div>
+                                            Financial Summary
+                                        </div>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-[24px]">
+                                            <div className="bg-[#F8FAFC] rounded-[18px] p-[24px_20px] text-center border border-slate-200 shadow-[0_8px_20px_rgba(0,0,0,0.02)] transition-transform hover:scale-[1.02]">
+                                                <div className="text-[11px] text-[#64748B] font-black uppercase mb-[10px] tracking-[0.1em]">Total LPO Value</div>
+                                                <div className="text-[12px] text-[#475569] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">All selected orders</div>
+                                                <div className="text-[32px] font-[950] font-mono-dm text-[#0F172A] tracking-tighter leading-none mb-2">{stats.totalLPO.toLocaleString()}</div>
+                                                <div className="text-[14px] font-[800] text-[#64748B] bg-white/80 border border-slate-100 rounded-lg py-1 px-3 inline-block">AED</div>
+                                            </div>
+                                            <div className="bg-[#F5F3FF] rounded-[18px] p-[24px_20px] text-center border border-[#DDD6FE] shadow-[0_8px_20px_rgba(139,92,246,0.04)] transition-transform hover:scale-[1.02]">
+                                                <div className="text-[11px] text-[#7C3AED] font-black uppercase mb-[10px] tracking-[0.1em]">Total Invoice Value</div>
+                                                <div className="text-[12px] text-[#7C3AED] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">Realized Revenue</div>
+                                                <div className="text-[32px] font-[950] font-mono-dm text-[#4C1D95] tracking-tighter leading-none mb-2">{stats.totalInvoice.toLocaleString()}</div>
+                                                <div className="text-[14px] font-[800] text-[#7C3AED] bg-white/80 border border-[#DDD6FE] rounded-lg py-1 px-3 inline-block">AED</div>
+                                            </div>
+                                            <div className="bg-[#FDEDEC] rounded-[18px] p-[24px_20px] text-center border border-[#E74C3C]/20 shadow-[0_8px_20px_rgba(231,76,60,0.06)] transition-transform hover:scale-[1.02]">
+                                                <div className="text-[11px] text-[#5A7266] font-black uppercase mb-[10px] tracking-[0.1em]">Invoice Under LPO</div>
+                                                <div className="text-[12px] text-[#A93226] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">We take less 📉</div>
+                                                <div className="text-[32px] font-[950] font-mono-dm text-[#E74C3C] tracking-tighter leading-none mb-2">{stats.favor.toLocaleString()}</div>
+                                                <div className="text-[14px] font-[800] text-[#A93226] bg-[#FDEDEC] border border-[#E74C3C]/20 rounded-lg py-1 px-3 inline-block">{stats.favorCount} <span className="text-[11px] opacity-70">Orders</span></div>
+                                            </div>
+                                            <div className="bg-[#EEF2FF] rounded-[18px] p-[24px_20px] text-center border border-[#4F46E5]/20 shadow-[0_8px_20px_rgba(79,70,229,0.06)] transition-transform hover:scale-[1.02]">
+                                                <div className="text-[11px] text-[#64748B] font-black uppercase mb-[10px] tracking-[0.1em]">Invoice Over LPO</div>
+                                                <div className="text-[12px] text-[#4F46E5] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">We take more 📈</div>
+                                                <div className="text-[32px] font-[950] font-mono-dm text-[#312E81] tracking-tighter leading-none mb-2">{stats.against.toLocaleString()}</div>
+                                                <div className="text-[14px] font-[800] text-[#4F46E5] bg-[#EEF2FF] border border-[#4F46E5]/20 rounded-lg py-1 px-3 inline-block">{stats.againstCount} <span className="text-[11px] opacity-70">Orders</span></div>
+                                            </div>
+                                            <div className="bg-[#F6F9F7] rounded-[18px] p-[24px_20px] text-center border border-[#B2C4BB]/40 shadow-[0_8px_20px_rgba(0,0,0,0.04)] transition-transform hover:scale-[1.02]">
+                                                <div className="text-[11px] text-[#5A7266] font-black uppercase mb-[10px] tracking-[0.1em]">Net Difference</div>
+                                                <div className="text-[12px] text-[#5A7266] font-bold mb-[12px] bg-white/60 rounded-full py-1 px-3 inline-block shadow-sm">Overall balance</div>
+                                                <div className={`text-[32px] font-[950] font-mono-dm tracking-tighter leading-none mb-2 ${stats.net >= 0 ? 'text-[#4F46E5]' : 'text-[#E74C3C]'}`}>
+                                                    {stats.net >= 0 ? '+' : '-'}{Math.abs(stats.net).toLocaleString()}
                                                 </div>
+                                                <div className="text-[14px] font-[800] text-[#5A7266] bg-white/80 border border-[#B2C4BB]/30 rounded-lg py-1 px-3 inline-block">{stats.favorCount + stats.againstCount} <span className="text-[11px] opacity-70">Issues</span></div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </>
+                        )}
+
+                        {statsSubTab === 'daily' && (
+                            <div className="bg-white rounded-[16px] border-[1.5px] border-[#E4EDE8] shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-8 mb-[24px] animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                <div className="overflow-x-auto rounded-xl border border-slate-100">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-slate-50 border-b border-slate-200">
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Date</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Day</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">LPO Value</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Invoice Value</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Orders</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Delivered</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Partial</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Canceled</th>
+                                                <th className="px-6 py-4 text-[12px] font-black text-slate-500 uppercase tracking-widest text-center">Pending</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {dailyStats.map((d: any, idx) => {
+                                                const dayName = d.date && d.date !== 'No Date'
+                                                    ? new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(d.date))
+                                                    : '-';
+                                                return (
+                                                    <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
+                                                        <td className="px-6 py-4 font-bold text-[#0F1A14] text-center font-mono-dm">{d.date}</td>
+                                                        <td className="px-6 py-4 text-center">
+                                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-[900] uppercase tracking-wider">
+                                                                {dayName}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-6 py-4 font-black text-slate-700 text-center">{formatStat(d.lpoValue)}</td>
+                                                        <td className="px-6 py-4 font-black text-indigo-600 text-center">{formatStat(d.invoiceValue)}</td>
+                                                        <td className="px-6 py-4 font-black text-slate-600 text-center">{formatStat(d.orders)}</td>
+                                                        <td className="px-6 py-4 font-black text-[#2DBE6C] text-center">{formatStat(d.delivered)}</td>
+                                                        <td className="px-6 py-4 font-black text-orange-500 text-center">{formatStat(d.partial)}</td>
+                                                        <td className="px-6 py-4 font-black text-red-500 text-center">{formatStat(d.canceled)}</td>
+                                                        <td className="px-6 py-4 font-black text-amber-500 text-center">{formatStat(d.pending)}</td>
+                                                    </tr>
+                                                );
+                                            })}
+                                            {/* TOTAL ROW */}
+                                            <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
+                                                <td className="px-6 py-4 text-center text-[14px] font-[950] text-[#1E293B] uppercase tracking-wider" colSpan={2}>TOTAL</td>
+                                                <td className="px-6 py-4 font-[950] text-slate-900 text-center bg-slate-100/50">{formatStat(dailyTotals.lpoValue)}</td>
+                                                <td className="px-6 py-4 font-[950] text-indigo-700 text-center bg-indigo-50/50">{formatStat(dailyTotals.invoiceValue)}</td>
+                                                <td className="px-6 py-4 font-[950] text-slate-900 text-center">{formatStat(dailyTotals.orders)}</td>
+                                                <td className="px-6 py-4 font-[950] text-[#2DBE6C] text-center bg-green-50/30">{formatStat(dailyTotals.delivered)}</td>
+                                                <td className="px-6 py-4 font-[950] text-orange-700 text-center bg-orange-50/30">{formatStat(dailyTotals.partial)}</td>
+                                                <td className="px-6 py-4 font-[950] text-red-700 text-center bg-red-50/30">{formatStat(dailyTotals.canceled)}</td>
+                                                <td className="px-6 py-4 font-[950] text-amber-700 text-center bg-amber-50/30">{formatStat(dailyTotals.pending)}</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
                         )}
 
                         {statsSubTab === 'cities' && (
@@ -1618,16 +1789,16 @@ export default function DeliveryTrackingTab() {
                                                             <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                                                 <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
                                                                 <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[900] text-slate-800">AED {c.lpoValue.toLocaleString()}</td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">AED {c.invoiceValue.toLocaleString()}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[900] text-slate-800">{formatStat(c.lpoValue, 'AED ')}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[900] text-indigo-600">{formatStat(c.invoiceValue, 'AED ')}</td>
                                                                 <td className={`px-6 py-4 text-center text-[14px] font-[900] ${diff >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                                                    {diff >= 0 ? '+' : ''}{diff.toLocaleString()}
+                                                                    {diff === 0 ? '-' : (diff > 0 ? '+' : '') + diff.toLocaleString()}
                                                                 </td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.orders}</td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
-                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{c.canceled}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{formatStat(c.orders)}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{formatStat(c.delivered)}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{formatStat(c.partial)}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{formatStat(c.pending)}</td>
+                                                                <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{formatStat(c.canceled)}</td>
                                                             </tr>
                                                         );
                                                     })}
@@ -1635,16 +1806,16 @@ export default function DeliveryTrackingTab() {
                                                     <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900 bg-slate-100/50">AED {cityTotals.lpoValue.toLocaleString()}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-[#312E81] bg-slate-100/50">AED {cityTotals.invoiceValue.toLocaleString()}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900 bg-slate-100/50">{formatStat(cityTotals.lpoValue, 'AED ')}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-[#312E81] bg-slate-100/50">{formatStat(cityTotals.invoiceValue, 'AED ')}</td>
                                                         <td className={`px-6 py-4 text-center text-[14px] font-[950] bg-slate-100/50 ${(cityTotals.invoiceValue - cityTotals.lpoValue) >= 0 ? 'text-green-700' : 'text-red-700'}`}>
-                                                            {(cityTotals.invoiceValue - cityTotals.lpoValue) >= 0 ? '+' : ''}{(cityTotals.invoiceValue - cityTotals.lpoValue).toLocaleString()}
+                                                            {(cityTotals.invoiceValue - cityTotals.lpoValue) === 0 ? '-' : ((cityTotals.invoiceValue - cityTotals.lpoValue) > 0 ? '+' : '') + (cityTotals.invoiceValue - cityTotals.lpoValue).toLocaleString()}
                                                         </td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900">{cityTotals.orders}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{cityTotals.delivered}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{cityTotals.partial}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{cityTotals.pending}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{cityTotals.canceled}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900">{formatStat(cityTotals.orders)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{formatStat(cityTotals.delivered)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{formatStat(cityTotals.partial)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{formatStat(cityTotals.pending)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{formatStat(cityTotals.canceled)}</td>
                                                     </tr>
                                                 </>
                                             )}
@@ -1685,28 +1856,28 @@ export default function DeliveryTrackingTab() {
                                                         <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                                             <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{c.name}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{c.total}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{c.delivered}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{c.partial}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{c.pending}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{c.canceledOrders}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{c.missingCount}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{c.reshippedCount}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{c.canceledCount}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-slate-600">{formatStat(c.total)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{formatStat(c.delivered)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{formatStat(c.partial)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-amber-600 bg-amber-50/30">{formatStat(c.pending)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{formatStat(c.canceledOrders)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-500">{formatStat(c.missingCount)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-500">{formatStat(c.reshippedCount)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-500">{formatStat(c.canceledCount)}</td>
                                                         </tr>
                                                     ))}
                                                     {/* TOTAL ROW */}
                                                     <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900 bg-slate-100/50">{customerTotals.total}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{customerTotals.delivered}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{customerTotals.partial}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{customerTotals.pending}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{customerTotals.canceledOrders}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-800">{customerTotals.missingCount}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-800">{customerTotals.reshippedCount}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-800">{customerTotals.canceledCount}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-slate-900 bg-slate-100/50">{formatStat(customerTotals.total)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{formatStat(customerTotals.delivered)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{formatStat(customerTotals.partial)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-amber-700 bg-amber-100/30">{formatStat(customerTotals.pending)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{formatStat(customerTotals.canceledOrders)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-800">{formatStat(customerTotals.missingCount)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-800">{formatStat(customerTotals.reshippedCount)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-800">{formatStat(customerTotals.canceledCount)}</td>
                                                     </tr>
                                                 </>
                                             )}
@@ -1742,18 +1913,18 @@ export default function DeliveryTrackingTab() {
                                                         <tr key={i} className="hover:bg-slate-50/50 transition-colors">
                                                             <td className="px-4 py-4 text-center text-[13px] font-[800] text-slate-400 bg-slate-50/50">{i + 1}</td>
                                                             <td className="px-6 py-4 text-center text-[14px] font-[800] text-[#1E293B]">{p.name}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{p.canceled}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{p.pending}</td>
-                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{p.shipped}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-red-600 bg-red-50/30">{formatStat(p.canceled)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-orange-600 bg-orange-50/30">{formatStat(p.pending)}</td>
+                                                            <td className="px-6 py-4 text-center text-[14px] font-[800] text-green-600 bg-green-50/30">{formatStat(p.shipped)}</td>
                                                         </tr>
                                                     ))}
                                                     {/* TOTAL ROW */}
                                                     <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider"></td>
                                                         <td className="px-6 py-4 text-center text-[15px] font-[950] text-[#1E293B] uppercase tracking-wider">TOTAL</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{productTotals.canceled}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{productTotals.pending}</td>
-                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{productTotals.shipped}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-red-700 bg-red-100/30">{formatStat(productTotals.canceled)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-orange-700 bg-orange-100/30">{formatStat(productTotals.pending)}</td>
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-green-700 bg-green-100/30">{formatStat(productTotals.shipped)}</td>
                                                     </tr>
                                                 </>
                                             )}
@@ -2208,7 +2379,7 @@ export default function DeliveryTrackingTab() {
                                                             <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.invoiceVal && o.invoiceVal > 0 ? o.invoiceVal.toLocaleString() : '—'}</td>
                                                             <td className="p-[12px_16px] text-center">
                                                                 {!o.invoiceVal || o.invoiceVal === 0 ? '—' :
-                                                                    <span className={`text-[12px] font-[700] font-mono-dm ${diff > 0 ? 'text-[#E74C3C]' : diff < 0 ? 'text-[#1A8A47]' : 'text-[#B2C4BB]'}`}>
+                                                                    <span className={`text-[12px] font-[700] font-mono-dm ${diff < 0 ? 'text-[#E74C3C]' : diff > 0 ? 'text-[#1A8A47]' : 'text-[#B2C4BB]'}`}>
                                                                         {diff === 0 ? '0' : (diff > 0 ? `+${diff.toLocaleString()}` : `-${Math.abs(diff).toLocaleString()}`)}
                                                                     </span>
                                                                 }

@@ -7,61 +7,71 @@ interface LoadingProps {
 
 const Loading = ({ message = 'BHS Analysis', className = '' }: LoadingProps) => {
   return (
-    <div className={`fixed inset-0 z-[9999] flex items-center justify-center bg-white overflow-hidden ${className}`} dir="rtl">
-      {/* Soft Modern Background Decor - Subtle & Premium */}
-      <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '10s' }} />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-blue-50/50 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '12s', animationDelay: '2s' }} />
+    <div className={`fixed inset-0 z-[9999] flex items-center justify-center bg-slate-50 overflow-hidden ${className}`} dir="rtl">
+      {/* 
+          ANIMATED MESH GRADIENT BACKGROUND 
+          - Slow moving organic shapes for a premium, alive feel
+      */}
+      <div className="absolute inset-0 z-0 opacity-40">
+        <div className="absolute top-[-15%] left-[-10%] w-[60%] h-[60%] bg-indigo-200/40 rounded-full blur-[140px] animate-[float_15s_ease-in-out_infinite]" />
+        <div className="absolute bottom-[-15%] right-[-10%] w-[60%] h-[60%] bg-blue-200/40 rounded-full blur-[140px] animate-[float_12s_ease-in-out_infinite_reverse]" />
+        <div className="absolute top-[20%] right-[10%] w-[40%] h-[40%] bg-purple-100/30 rounded-full blur-[120px] animate-[float_18s_linear_infinite]" />
       </div>
 
-      <div className="relative z-10 flex flex-col items-center gap-14">
-        {/* Larger Logo Container - Premium & Strong */}
-        <div className="relative group scale-110">
-          <div className="w-32 h-32 rounded-[2.5rem] bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.08)] flex items-center justify-center animate-in zoom-in-95 fade-in duration-1000">
-            <span className="text-5xl font-black text-slate-900 tracking-tighter">BH</span>
+      <div className="relative z-10 flex flex-col items-center gap-16">
+        {/* 
+            CENTRAL GLASS CORE 
+            - Using glassmorphism for the logo container
+        */}
+        <div className="relative group scale-125">
+          {/* Inner Glass Box */}
+          <div className="w-32 h-32 rounded-[2.8rem] bg-white/60 backdrop-blur-xl border border-white/40 shadow-[0_32px_80px_rgba(0,0,0,0.06),inset_0_0_20px_white] flex items-center justify-center relative z-10">
+            <span className="text-5xl font-[950] text-slate-900 tracking-[-0.05em] drop-shadow-sm">BH</span>
           </div>
-          {/* Expanded Minimalist Progress Ring */}
-          <div className="absolute -inset-3">
-            <svg className="w-38 h-38 transform -rotate-90 ml-[-4px] mt-[-4px]">
-              <circle
-                cx="76"
-                cy="76"
-                r="72"
-                fill="transparent"
-                stroke="#F8FAFC"
-                strokeWidth="2"
-              />
-              <circle
-                cx="76"
-                cy="76"
-                r="72"
-                fill="transparent"
-                stroke="#4F46E5"
-                strokeWidth="2"
-                strokeDasharray="452"
-                className="animate-[dash_2.5s_ease-in-out_infinite]"
-                strokeLinecap="round"
-              />
-            </svg>
+
+          {/* DUAL MAGNETIC AURA - Two rings pulsing at different speeds */}
+          <div className="absolute -inset-6 z-0">
+            {/* Outer Ring - Slow & Subtle */}
+            <div className="absolute inset-0 rounded-full border-[1px] border-indigo-100/50 animate-[breathe_4s_ease-in-out_infinite]" />
+
+            {/* Inner Ring - Primary Accent with Glow */}
+            <div className="absolute inset-2 rounded-full border-[2.5px] border-indigo-500/30 animate-[breathe_3s_ease-in-out_infinite_0.5s]">
+              <div className="absolute inset-[-2px] rounded-full border-[2.5px] border-indigo-500 blur-[8px] opacity-10" />
+            </div>
           </div>
         </div>
 
-        {/* Text Section */}
-        <div className="flex flex-col items-center gap-4 text-center">
-          <h2 className="text-base font-black text-slate-900 tracking-[0.4em] uppercase opacity-90">BHS Analysis</h2>
-          <div className="flex items-center gap-3">
-            <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-            <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-            <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+        {/* 
+            DYNAMIC TEXT SECTION 
+            - Shimmering text instead of simple dots
+        */}
+        <div className="flex flex-col items-center gap-6">
+          <div className="relative">
+            <h2 className="text-[14px] font-[900] text-slate-900 tracking-[0.6em] uppercase text-transparent bg-clip-text bg-gradient-to-r from-slate-900 via-indigo-600 to-slate-900 bg-[length:200%_auto] animate-[shimmer_3s_linear_infinite]">
+              BHS Analysis
+            </h2>
+          </div>
+
+          <div className="flex items-center gap-3 mt-2">
+            <span className="w-1.5 h-1.5 bg-indigo-600/40 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
+            <span className="w-1.5 h-1.5 bg-indigo-600/40 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
+            <span className="w-1.5 h-1.5 bg-indigo-600/40 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
           </div>
         </div>
       </div>
 
       <style jsx>{`
-        @keyframes dash {
-          0% { stroke-dashoffset: 452; }
-          50% { stroke-dashoffset: 120; transform: rotate(0); }
-          100% { stroke-dashoffset: 452; transform: rotate(360deg); }
+        @keyframes float {
+          0%, 100% { transform: translate(0, 0) scale(1); }
+          33% { transform: translate(4%, 6%) scale(1.1); }
+          66% { transform: translate(-5%, 8%) scale(0.95); }
+        }
+        @keyframes breathe {
+          0%, 100% { transform: scale(0.96); opacity: 0.2; }
+          50% { transform: scale(1.04); opacity: 1; }
+        }
+        @keyframes shimmer {
+          to { bg-position: 200% center; }
         }
       `}</style>
     </div>
