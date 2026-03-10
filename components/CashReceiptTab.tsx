@@ -117,7 +117,7 @@ export default function CashReceiptTab() {
 
     const saved = await saveToGoogleSheets();
     if (!saved) {
-      if (!confirm('Failed to save to Google Sheets. Do you want to continue printing anyway?')) {
+      if (!confirm('Failed to save to Google Sheets. This receipt number might already exist or there was a connection error. Do you want to continue printing anyway without saving?')) {
         setLoading(false);
         return;
       }
@@ -125,7 +125,10 @@ export default function CashReceiptTab() {
 
     const originalElement = document.getElementById('receipt-original');
     const copyElement = document.getElementById('receipt-copy');
-    if (!originalElement || !copyElement) return;
+    if (!originalElement || !copyElement) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const pdf = new jsPDF('p', 'mm', 'a4');
@@ -156,6 +159,20 @@ export default function CashReceiptTab() {
 
       const cleanFilename = `${formData.receiptNumber}_${formData.date}`.replace(/[^a-z0-9]/gi, '_');
       pdf.save(`${cleanFilename}.pdf`);
+
+      // If saved successfully, clear the form
+      if (saved) {
+        setFormData({
+          receivedFrom: '',
+          sendBy: '',
+          amount: '',
+          amountInWords: '',
+          reason: '',
+          date: new Date().toISOString().split('T')[0],
+          receiptNumber: ''
+        });
+        alert('Receipt saved and PDF generated successfully!');
+      }
     } catch (error) {
       console.error('Error generating PDF:', error);
       window.print();
@@ -236,112 +253,87 @@ export default function CashReceiptTab() {
     )
     .sort((a, b) => b.receiptNumber.localeCompare(a.receiptNumber));
 
+  const availableTabs = [
+    { id: 'new', label: 'New Receipt', icon: PlusCircle },
+    { id: 'saved', label: 'Saved Receipts', icon: List }
+  ].filter(tab => {
+    try {
+      const perms = JSON.parse(currentUser?.role || '{}');
+      if (perms['cash-receipt'] && currentUser?.name !== 'MED Sabry') {
+        return perms['cash-receipt'].includes(tab.id);
+      }
+    } catch (e) { }
+    return true;
+  });
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col md:flex-row">
-      {/* Sidebar Navigation */}
-      <div className="w-full md:w-80 bg-white border-r border-gray-200 flex flex-col h-screen sticky top-0 shadow-sm no-print">
-        <div className="p-6 border-b border-gray-100">
-          <div className="flex flex-col items-center justify-center gap-2">
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+
+      {/* Top Header */}
+      <header className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-30 no-print">
+        <div className="max-w-7xl mx-auto px-4 md:px-8">
+          <div className="flex items-center gap-4 h-16">
+            {/* Back Button */}
             <button
               onClick={handleBack}
-              className="p-2 text-gray-400 hover:text-black hover:bg-gray-50 rounded-xl transition-all group"
+              className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-xl transition-all group flex-shrink-0"
               title="Back to Home"
             >
-              <ArrowLeft className="w-5 h-5 group-hover:-translate-y-1 transition-transform" />
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
             </button>
-            <div className="flex items-center gap-3 text-black">
-              <div className="p-2 bg-black rounded-lg">
-                <DollarSign className="w-5 h-5 text-white" />
+
+            {/* Logo & Title */}
+            <div className="flex items-center gap-2.5 flex-shrink-0">
+              <div className="p-1.5 bg-black rounded-lg">
+                <DollarSign className="w-4 h-4 text-white" />
               </div>
-              <h1 className="text-xl font-bold tracking-tight whitespace-nowrap">Cash Receipt</h1>
+              <h1 className="text-base font-black tracking-tight text-gray-900 whitespace-nowrap">Cash Receipt</h1>
             </div>
-          </div>
-        </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
-          {[
-            { id: 'new', label: 'New Receipt', icon: PlusCircle },
-            { id: 'saved', label: 'Saved Receipts', icon: List }
-          ].filter(tab => {
-            try {
-              const perms = JSON.parse(currentUser?.role || '{}');
-              if (perms['cash-receipt'] && currentUser?.name !== 'MED Sabry') {
-                return perms['cash-receipt'].includes(tab.id);
-              }
-            } catch (e) { }
-            return true;
-          }).map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-bold transition-all ${activeTab === tab.id
-                ? 'bg-black text-white shadow-lg'
-                : 'text-gray-500 hover:bg-gray-50'
-                }`}
-            >
-              <tab.icon className="w-5 h-5" />
-              {tab.label}
-            </button>
-          ))}
+            {/* Divider */}
+            <div className="w-px h-6 bg-gray-200 flex-shrink-0" />
 
-          {activeTab === 'saved' && (
-            <div className="mt-6 pt-6 border-t border-gray-100 space-y-4">
-              <div className="relative">
+            {/* Tab Buttons */}
+            <nav className="flex items-center gap-1">
+              {availableTabs.map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id as any); setSelectedReceipt(null); }}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all ${activeTab === tab.id
+                    ? 'bg-black text-white shadow-md'
+                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                    }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            {/* Search (shows only on saved tab) */}
+            {activeTab === 'saved' && (
+              <div className="relative ml-auto w-full max-w-xs">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
                   placeholder="Search receipts..."
-                  className="w-full pl-9 pr-4 py-2 bg-gray-50 border-none rounded-lg text-sm focus:ring-2 focus:ring-black transition-all"
+                  className="w-full pl-9 pr-4 py-2 bg-gray-100 border-none rounded-xl text-sm focus:ring-2 focus:ring-black transition-all outline-none"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-              <div className="space-y-2 pb-10">
-                {isFetchingSaved ? (
-                  <div className="flex flex-col items-center justify-center py-8">
-                    <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <span className="text-xs text-gray-400">Load Cash Receipt Data...</span>
-                  </div>
-                ) : filteredReceipts.length > 0 ? (
-                  filteredReceipts.map((receipt) => (
-                    <button
-                      key={receipt.receiptNumber}
-                      onClick={() => setSelectedReceipt(receipt)}
-                      className={`w-full text-left p-3 rounded-xl transition-all border ${selectedReceipt?.receiptNumber === receipt.receiptNumber
-                        ? 'bg-black border-black shadow-md'
-                        : 'bg-white border-transparent hover:border-gray-200'
-                        }`}
-                    >
-                      <div className={`text-xs font-bold mb-1 ${selectedReceipt?.receiptNumber === receipt.receiptNumber ? 'text-gray-400' : 'text-gray-500'
-                        }`}>
-                        {receipt.receiptNumber}
-                      </div>
-                      <div className={`text-sm font-bold truncate ${selectedReceipt?.receiptNumber === receipt.receiptNumber ? 'text-white' : 'text-gray-900'
-                        }`}>
-                        {receipt.receivedFrom}
-                      </div>
-                      <div className={`text-[10px] mt-1 ${selectedReceipt?.receiptNumber === receipt.receiptNumber ? 'text-gray-500' : 'text-gray-400'
-                        }`}>
-                        {receipt.date} • AED {receipt.amount}
-                      </div>
-                    </button>
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-400">No receipts found</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </nav>
-      </div>
+            )}
+          </div>
+        </div>
+      </header>
 
       {/* Main Content Area */}
-      <div className="flex-1 h-screen overflow-y-auto p-4 md:p-8 no-print custom-scrollbar">
-        <div className="max-w-4xl mx-auto pb-20">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 no-print custom-scrollbar">
+        <div className="max-w-7xl mx-auto pb-20">
+
+          {/* ── NEW RECEIPT TAB ── */}
           {activeTab === 'new' && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="bg-white rounded-3xl shadow-xl shadow-gray-200/50 p-8 border border-gray-100">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
                   <div>
@@ -377,7 +369,7 @@ export default function CashReceiptTab() {
                       name="receiptNumber"
                       value={formData.receiptNumber}
                       readOnly
-                      className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl font-mono text-lg font-bold text-gray-900 group-focus-within:bg-white group-focus-within:border-black transition-all outline-none"
+                      className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl font-mono text-lg font-bold text-gray-900 transition-all outline-none"
                     />
                   </div>
 
@@ -425,7 +417,7 @@ export default function CashReceiptTab() {
                     />
                   </div>
 
-                  <div className="group">
+                  <div className="md:col-span-2 group">
                     <label className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-gray-400 mb-3 transition-colors group-focus-within:text-black">
                       <DollarSign className="w-3.5 h-3.5" />
                       Amount (AED)
@@ -438,15 +430,6 @@ export default function CashReceiptTab() {
                       className="w-full px-5 py-4 bg-gray-50 border-2 border-transparent rounded-2xl text-2xl font-black text-gray-900 focus:bg-white focus:border-black transition-all outline-none"
                       placeholder="0.00"
                     />
-                  </div>
-
-                  <div className="group">
-                    <label className="text-xs font-black uppercase tracking-wider text-gray-400 mb-3 block">
-                      Amount in Words
-                    </label>
-                    <div className="w-full px-5 py-4 bg-gray-100 rounded-2xl text-sm font-bold text-gray-500 italic min-h-[60px] flex items-center">
-                      {formData.amountInWords || 'Amount in words will appear here...'}
-                    </div>
                   </div>
 
                   <div className="md:col-span-2 group">
@@ -468,18 +451,26 @@ export default function CashReceiptTab() {
             </div>
           )}
 
+          {/* ── SAVED RECEIPTS TAB ── */}
           {activeTab === 'saved' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
               {selectedReceipt ? (
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between bg-white p-6 rounded-3xl shadow-sm border border-gray-100 sticky top-4 z-10">
-                    <div className="flex items-center gap-4">
-                      <div className="p-3 bg-gray-100 rounded-2xl">
-                        <FileText className="w-6 h-6 text-black" />
+                /* Receipt Detail View */
+                <div className="max-w-4xl mx-auto space-y-6">
+                  <div className="flex items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setSelectedReceipt(null)}
+                        className="p-2 text-gray-400 hover:text-black hover:bg-gray-100 rounded-xl transition-all group"
+                      >
+                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-0.5 transition-transform" />
+                      </button>
+                      <div className="p-2.5 bg-gray-100 rounded-xl">
+                        <FileText className="w-5 h-5 text-black" />
                       </div>
                       <div>
-                        <h2 className="text-xl font-black text-gray-900">{selectedReceipt.receiptNumber}</h2>
-                        <p className="text-sm font-medium text-gray-500">{selectedReceipt.date}</p>
+                        <h2 className="text-lg font-black text-gray-900">{selectedReceipt.receiptNumber}</h2>
+                        <p className="text-xs font-medium text-gray-500">{selectedReceipt.date} • AED {parseFloat(selectedReceipt.amount).toLocaleString()}</p>
                       </div>
                     </div>
                     <button
@@ -494,24 +485,81 @@ export default function CashReceiptTab() {
                           setFormData(originalFormData);
                         }, 100);
                       }}
-                      className="flex items-center gap-3 bg-black text-white px-8 py-4 rounded-2xl font-black hover:bg-gray-800 transition-all shadow-xl"
+                      className="flex items-center gap-2.5 bg-black text-white px-6 py-3 rounded-xl font-black hover:bg-gray-800 transition-all shadow-lg text-sm"
                     >
-                      <Printer className="w-5 h-5" />
+                      <Printer className="w-4 h-4" />
                       Reprint Receipt
                     </button>
                   </div>
-                  <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden transform scale-[0.98] origin-top">
+                  <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
                     <ReceiptDocument data={selectedReceipt} />
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
-                  <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mb-6">
-                    <FileText className="w-12 h-12 text-gray-300" />
-                  </div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">Select a Receipt</h3>
-                  <p className="text-gray-500 font-medium max-w-xs">Select a record from the sidebar to view full details and options.</p>
-                </div>
+                /* Receipts Grid View */
+                <>
+                  {isFetchingSaved ? (
+                    <div className="flex flex-col items-center justify-center py-24">
+                      <div className="w-8 h-8 border-2 border-black border-t-transparent rounded-full animate-spin mb-3"></div>
+                      <span className="text-sm text-gray-400 font-medium">Loading receipts...</span>
+                    </div>
+                  ) : filteredReceipts.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                      {filteredReceipts.map((receipt) => (
+                        <button
+                          key={receipt.receiptNumber}
+                          onClick={() => setSelectedReceipt(receipt)}
+                          className="group text-left bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-gray-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+                        >
+                          {/* Card Top Accent */}
+                          <div className="h-1.5 bg-gradient-to-r from-gray-700 to-black" />
+                          <div className="p-5">
+                            {/* Receipt # Badge */}
+                            <div className="flex items-center justify-between mb-4">
+                              <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg">
+                                <Hash className="w-3 h-3" />
+                                {receipt.receiptNumber}
+                              </span>
+                              <div className="w-8 h-8 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all">
+                                <Printer className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+                              </div>
+                            </div>
+
+                            {/* Name */}
+                            <div className="mb-3">
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Received From</p>
+                              <p className="text-base font-black text-gray-900 truncate">{receipt.receivedFrom}</p>
+                            </div>
+
+                            {/* Amount */}
+                            <div className="mb-4">
+                              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Amount</p>
+                              <p className="text-xl font-black text-gray-900">
+                                AED {parseFloat(receipt.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                              </p>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="flex items-center gap-1.5 pt-3 border-t border-gray-100">
+                              <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                              <span className="text-xs text-gray-400 font-medium">{receipt.date}</span>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+                      <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-5">
+                        <FileText className="w-10 h-10 text-gray-300" />
+                      </div>
+                      <h3 className="text-xl font-black text-gray-900 mb-2">No Receipts Found</h3>
+                      <p className="text-gray-500 font-medium text-sm max-w-xs">
+                        {searchQuery ? `No results for "${searchQuery}"` : 'No saved receipts yet.'}
+                      </p>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}

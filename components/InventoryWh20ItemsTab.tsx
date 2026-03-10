@@ -196,6 +196,24 @@ export default function InventoryWh20ItemsTab() {
         return Object.values(peopleMap).sort((a, b) => a.name.localeCompare(b.name));
     }, [peopleConsignments]);
 
+    const personData = useMemo(() => {
+        if (!selectedPerson) return [];
+        return peopleConsignments
+            .filter(c => c.name === selectedPerson)
+            .sort((a, b) => b.netCtn - a.netCtn || b.netPcs - a.netPcs);
+    }, [peopleConsignments, selectedPerson]);
+
+    const totals = useMemo(() => {
+        return personData.reduce((acc, curr) => ({
+            takenCtn: acc.takenCtn + curr.takenCtn,
+            takenPcs: acc.takenPcs + curr.takenPcs,
+            returnedCtn: acc.returnedCtn + curr.returnedCtn,
+            returnedPcs: acc.returnedPcs + curr.returnedPcs,
+            netCtn: acc.netCtn + curr.netCtn,
+            netPcs: acc.netPcs + curr.netPcs,
+        }), { takenCtn: 0, takenPcs: 0, returnedCtn: 0, returnedPcs: 0, netCtn: 0, netPcs: 0 });
+    }, [personData]);
+
     const exportToExcel = (personName: string) => {
         const data = peopleConsignments.filter(c => c.name === personName);
         if (data.length === 0) return;
@@ -1678,43 +1696,54 @@ export default function InventoryWh20ItemsTab() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {peopleConsignments
-                                                    .filter(c => c.name === selectedPerson)
-                                                    .map((item, idx) => (
-                                                        <tr key={idx} className="group transition-all duration-300 hover:bg-slate-50/50">
-                                                            <td className="bg-white px-4 py-4 rounded-l-2xl border-y border-l border-slate-100 font-mono text-sm font-medium text-indigo-500 text-center truncate">
-                                                                {item.barcode}
-                                                            </td>
-                                                            <td className="bg-white px-4 py-4 border-y border-slate-100 text-center">
-                                                                <div className="text-sm font-bold text-slate-800 tracking-tight truncate px-2" title={item.product}>{item.product}</div>
-                                                            </td>
+                                                {personData.map((item, idx) => (
+                                                    <tr key={idx} className="group transition-all duration-300 hover:bg-slate-50/50">
+                                                        <td className="bg-white px-4 py-4 rounded-l-2xl border-y border-l border-slate-100 font-mono text-sm font-medium text-indigo-500 text-center truncate">
+                                                            {item.barcode}
+                                                        </td>
+                                                        <td className="bg-white px-4 py-4 border-y border-slate-100 text-center">
+                                                            <div className="text-sm font-bold text-slate-800 tracking-tight truncate px-2" title={item.product}>{item.product}</div>
+                                                        </td>
 
-                                                            {/* Stock In */}
-                                                            <td className="bg-indigo-50/40 px-4 py-4 border-y border-slate-100 text-center">
-                                                                <span className="text-xl font-black text-indigo-600">{item.takenCtn}</span>
-                                                            </td>
-                                                            <td className="bg-indigo-50/40 px-4 py-4 border-y border-slate-100 text-center">
-                                                                <span className="text-xl font-black text-indigo-400/80">{item.takenPcs}</span>
-                                                            </td>
+                                                        {/* Stock In */}
+                                                        <td className="bg-indigo-50/40 px-4 py-4 border-y border-slate-100 text-center">
+                                                            <span className="text-xl font-black text-indigo-600">{item.takenCtn}</span>
+                                                        </td>
+                                                        <td className="bg-indigo-50/40 px-4 py-4 border-y border-slate-100 text-center">
+                                                            <span className="text-xl font-black text-indigo-400/80">{item.takenPcs}</span>
+                                                        </td>
 
-                                                            {/* Stock Out */}
-                                                            <td className="bg-emerald-50/40 px-4 py-4 border-y border-slate-100 text-center">
-                                                                <span className="text-xl font-black text-emerald-600">{item.returnedCtn}</span>
-                                                            </td>
-                                                            <td className="bg-emerald-50/40 px-4 py-4 border-y border-slate-100 text-center">
-                                                                <span className="text-xl font-black text-emerald-400/80">{item.returnedPcs}</span>
-                                                            </td>
+                                                        {/* Stock Out */}
+                                                        <td className="bg-emerald-50/40 px-4 py-4 border-y border-slate-100 text-center">
+                                                            <span className="text-xl font-black text-emerald-600">{item.returnedCtn}</span>
+                                                        </td>
+                                                        <td className="bg-emerald-50/40 px-4 py-4 border-y border-slate-100 text-center">
+                                                            <span className="text-xl font-black text-emerald-400/80">{item.returnedPcs}</span>
+                                                        </td>
 
-                                                            {/* Current Position */}
-                                                            <td className="bg-amber-50/40 px-4 py-4 border-y border-slate-100 text-center">
-                                                                <span className={`text-xl font-black ${item.netCtn >= 0 ? 'text-slate-800' : 'text-rose-500'}`}>{item.netCtn}</span>
-                                                            </td>
-                                                            <td className="bg-amber-50/40 px-4 py-4 rounded-r-2xl border-y border-r border-slate-100 text-center">
-                                                                <span className={`text-xl font-black ${item.netPcs >= 0 ? 'text-slate-400' : 'text-rose-500'}`}>{item.netPcs}</span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
+                                                        {/* Current Position */}
+                                                        <td className="bg-amber-50/40 px-4 py-4 border-y border-slate-100 text-center">
+                                                            <span className={`text-xl font-black ${item.netCtn >= 0 ? 'text-slate-800' : 'text-rose-500'}`}>{item.netCtn}</span>
+                                                        </td>
+                                                        <td className="bg-amber-50/40 px-4 py-4 rounded-r-2xl border-y border-r border-slate-100 text-center">
+                                                            <span className={`text-xl font-black ${item.netPcs >= 0 ? 'text-slate-400' : 'text-rose-500'}`}>{item.netPcs}</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
                                             </tbody>
+                                            <tfoot>
+                                                <tr className="bg-slate-800 text-white rounded-2xl overflow-hidden shadow-xl transform translate-y-1">
+                                                    <td colSpan={2} className="px-6 py-5 rounded-l-2xl text-base font-black tracking-widest uppercase">
+                                                        Total Statement Summary
+                                                    </td>
+                                                    <td className="px-4 py-5 font-black text-2xl text-center bg-indigo-500/20">{totals.takenCtn}</td>
+                                                    <td className="px-4 py-5 font-black text-2xl text-center bg-indigo-500/10 border-r border-white/5">{totals.takenPcs}</td>
+                                                    <td className="px-4 py-5 font-black text-2xl text-center bg-emerald-500/20">{totals.returnedCtn}</td>
+                                                    <td className="px-4 py-5 font-black text-2xl text-center bg-emerald-500/10 border-r border-white/5">{totals.returnedPcs}</td>
+                                                    <td className="px-4 py-5 font-black text-2xl text-center bg-amber-500/30">{totals.netCtn}</td>
+                                                    <td className="px-4 py-5 font-black text-2xl rounded-r-2xl text-center bg-amber-500/20">{totals.netPcs}</td>
+                                                </tr>
+                                            </tfoot>
                                         </table>
                                     </div>
                                 </div>
