@@ -37,6 +37,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
+  const [showDownloadModal, setShowDownloadModal] = useState(false);
 
 
 
@@ -146,8 +147,9 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
     }
   };
 
-  const handleDownloadAllPDFs = async () => {
+  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist') => {
     if (filteredCustomers.length === 0) return;
+    setShowDownloadModal(false);
 
     try {
       setIsGenerating(true);
@@ -159,12 +161,17 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
         const customer = filteredCustomers[i];
         setGenerationProgress({ current: i + 1, total: filteredCustomers.length });
 
-        // Default to Order Form for ZIP
+        const productsToPrint = customer.products.map(p => ({
+          barcode: p.barcode,
+          product: p.product,
+          price: mode === 'pricelist' ? calculateMode(p.prices) : undefined
+        }));
+
         const blob = await generateDownloadFormPDF(
           customer.customer,
-          customer.products.map(p => ({ barcode: p.barcode, product: p.product })),
+          productsToPrint,
           true,
-          'order'
+          mode
         ) as Blob;
 
         const safeName = customer.customer.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
@@ -174,8 +181,12 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
         if (i % 5 === 0) await new Promise(resolve => setTimeout(resolve, 50));
       }
 
+      const zipName = mode === 'pricelist'
+        ? `Price_Lists_${new Date().toISOString().split('T')[0]}.zip`
+        : `Stock_Reports_${new Date().toISOString().split('T')[0]}.zip`;
+
       const content = await zip.generateAsync({ type: 'blob' });
-      saveAs(content, `Order_Forms_${new Date().toISOString().split('T')[0]}.zip`);
+      saveAs(content, zipName);
 
     } catch (error) {
       console.error('Error generating ZIP:', error);
@@ -230,17 +241,17 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
 
           <div className="flex flex-col items-end gap-2 shrink-0">
             <button
-              onClick={handleDownloadAllPDFs}
+              onClick={() => setShowDownloadModal(true)}
               disabled={isGenerating || filteredCustomers.length === 0}
               className="px-6 py-3 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl hover:from-green-700 hover:to-green-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md hover:shadow-lg transform hover:scale-105 flex items-center gap-2 font-bold whitespace-nowrap"
-              title="Download all filtered customers Stock Reports as ZIP"
+              title="Download all filtered customers as ZIP"
             >
               {isGenerating ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <FileDown className="w-5 h-5" />
               )}
-              {isGenerating ? 'Generating ZIP...' : 'Download Stock Reports (ZIP)'}
+              {isGenerating ? 'Generating ZIP...' : 'Download ALL'}
             </button>
             {isGenerating && generationProgress.total > 0 && (
               <p className="text-xs text-green-600 font-bold animate-pulse">
@@ -385,6 +396,55 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
           </div>
         )}
       </div>
+
+      {/* Download Type Modal */}
+      {showDownloadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 border border-gray-100 animate-in fade-in slide-in-from-bottom-4">
+            <h2 className="text-xl font-black text-gray-800 mb-2 text-center">Download ALL</h2>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              Choose what to download for all <span className="font-bold text-green-600">{filteredCustomers.length}</span> customers
+            </p>
+
+            <div className="flex flex-col gap-3">
+              {/* Stock Report option */}
+              <button
+                onClick={() => handleDownloadAllPDFs('order')}
+                className="flex items-center gap-4 w-full px-5 py-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 hover:border-green-400 rounded-xl transition-all hover:shadow-md group"
+              >
+                <div className="p-2.5 bg-green-100 group-hover:bg-green-200 rounded-lg transition-colors">
+                  <FileText className="w-5 h-5 text-green-700" />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-gray-800 text-sm">Stock Report</p>
+                  <p className="text-xs text-gray-500">Order form without prices</p>
+                </div>
+              </button>
+
+              {/* Price List option */}
+              <button
+                onClick={() => handleDownloadAllPDFs('pricelist')}
+                className="flex items-center gap-4 w-full px-5 py-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-2 border-blue-200 hover:border-blue-400 rounded-xl transition-all hover:shadow-md group"
+              >
+                <div className="p-2.5 bg-blue-100 group-hover:bg-blue-200 rounded-lg transition-colors">
+                  <DollarSign className="w-5 h-5 text-blue-700" />
+                </div>
+                <div className="text-left">
+                  <p className="font-bold text-gray-800 text-sm">Price List</p>
+                  <p className="text-xs text-gray-500">Includes product prices</p>
+                </div>
+              </button>
+            </div>
+
+            <button
+              onClick={() => setShowDownloadModal(false)}
+              className="mt-5 w-full py-2.5 text-sm text-gray-500 hover:text-gray-700 font-medium transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

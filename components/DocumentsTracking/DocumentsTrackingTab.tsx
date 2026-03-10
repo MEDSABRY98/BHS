@@ -151,6 +151,57 @@ export default function DocumentsTrackingTab() {
         return `DOC-${(index + 1).toString().padStart(4, '0')}`;
     };
 
+    // Convert any date format (dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd) to ISO yyyy-mm-dd
+    const normalizeDate = (val: string): string => {
+        if (!val) return '';
+        // Already ISO format
+        if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+        // dd/mm/yyyy or dd-mm-yyyy or dd.mm.yyyy
+        const parts = val.split(/[\/\-\.\s]/);
+        if (parts.length === 3) {
+            const [a, b, c] = parts;
+            if (c.length === 4) {
+                // dd/mm/yyyy
+                return `${c}-${b.padStart(2, '0')}-${a.padStart(2, '0')}`;
+            } else if (a.length === 4) {
+                // yyyy/mm/dd
+                return `${a}-${b.padStart(2, '0')}-${c.padStart(2, '0')}`;
+            }
+        }
+        return val;
+    };
+
+    // Format ISO date to dd/mm/yyyy for display
+    const toDisplayDate = (isoVal: string): string => {
+        if (!isoVal) return '';
+        if (/^\d{4}-\d{2}-\d{2}$/.test(isoVal)) {
+            const [y, m, d] = isoVal.split('-');
+            return `${d}/${m}/${y}`;
+        }
+        return isoVal;
+    };
+
+    // Auto-mask: يضيف / تلقائياً أثناء الكتابة بتنسيق dd/mm/yyyy
+    const applyDateMask = (raw: string, prev: string): string => {
+        // إذا المستخدم بيمسح (الإدخال الجديد أقصر من القديم) ابقى طبيعي
+        const isDeleting = raw.length < prev.length;
+        if (isDeleting) return raw;
+
+        // خلي بس الأرقام
+        const digits = raw.replace(/\D/g, '');
+
+        // ابنِ الـ mask تدريجياً
+        let masked = '';
+        if (digits.length <= 2) {
+            masked = digits;
+        } else if (digits.length <= 4) {
+            masked = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+        } else {
+            masked = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4, 8)}`;
+        }
+        return masked;
+    };
+
     const addDraftRow = () => {
         setDrafts([...drafts, { id: Date.now(), num: '', client: '', amount: '', date: new Date().toISOString().split('T')[0], checkDate: '', bank: '', notes: '' }]);
     };
@@ -191,8 +242,8 @@ export default function DocumentsTrackingTab() {
             const now = new Date().toLocaleString('ar-AE');
             const recordsToSave = validDrafts.map((draft, idx) => ({
                 documentId: genDocId(currentCount + idx),
-                receivedDate: draft.date,
-                documentDate: draft.checkDate,
+                receivedDate: normalizeDate(draft.date) || draft.date,
+                documentDate: normalizeDate(draft.checkDate) || draft.checkDate,
                 documentNumber: draft.num,
                 documentName: draft.client,
                 receivedFrom: draft.bank,
@@ -692,14 +743,70 @@ export default function DocumentsTrackingTab() {
                                     </div>
                                     <div className="field no-label">
                                         <div className="date-input-wrapper">
-                                            <input type="date" value={draft.date} onChange={(e) => updateDraft(draft.id, 'date', e.target.value)} />
-                                            <Calendar className="date-icon" size={14} />
+                                            <input
+                                                type="text"
+                                                value={toDisplayDate(draft.date)}
+                                                onChange={(e) => {
+                                                    const masked = applyDateMask(e.target.value, toDisplayDate(draft.date));
+                                                    updateDraft(draft.id, 'date', masked);
+                                                }}
+                                                onBlur={(e) => {
+                                                    const normalized = normalizeDate(e.target.value);
+                                                    if (normalized) updateDraft(draft.id, 'date', normalized);
+                                                }}
+                                                placeholder="dd/mm/yyyy"
+                                                maxLength={10}
+                                                style={{ letterSpacing: '0.5px', paddingRight: '34px' }}
+                                            />
+                                            <label
+                                                htmlFor={`date-picker-${draft.id}`}
+                                                title="اختر من التقويم"
+                                                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            >
+                                                <Calendar className="date-icon" size={14} />
+                                            </label>
+                                            <input
+                                                id={`date-picker-${draft.id}`}
+                                                type="date"
+                                                value={/^\d{4}-\d{2}-\d{2}$/.test(draft.date) ? draft.date : ''}
+                                                onChange={(e) => updateDraft(draft.id, 'date', e.target.value)}
+                                                style={{ position: 'absolute', opacity: 0, width: '28px', height: '28px', right: '6px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', zIndex: 3 }}
+                                                tabIndex={-1}
+                                            />
                                         </div>
                                     </div>
                                     <div className="field no-label">
                                         <div className="date-input-wrapper">
-                                            <input type="date" value={draft.checkDate} onChange={(e) => updateDraft(draft.id, 'checkDate', e.target.value)} />
-                                            <Calendar className="date-icon" size={14} />
+                                            <input
+                                                type="text"
+                                                value={toDisplayDate(draft.checkDate)}
+                                                onChange={(e) => {
+                                                    const masked = applyDateMask(e.target.value, toDisplayDate(draft.checkDate));
+                                                    updateDraft(draft.id, 'checkDate', masked);
+                                                }}
+                                                onBlur={(e) => {
+                                                    const normalized = normalizeDate(e.target.value);
+                                                    if (normalized) updateDraft(draft.id, 'checkDate', normalized);
+                                                }}
+                                                placeholder="dd/mm/yyyy"
+                                                maxLength={10}
+                                                style={{ letterSpacing: '0.5px', paddingRight: '34px' }}
+                                            />
+                                            <label
+                                                htmlFor={`checkdate-picker-${draft.id}`}
+                                                title="اختر من التقويم"
+                                                style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                                            >
+                                                <Calendar className="date-icon" size={14} />
+                                            </label>
+                                            <input
+                                                id={`checkdate-picker-${draft.id}`}
+                                                type="date"
+                                                value={/^\d{4}-\d{2}-\d{2}$/.test(draft.checkDate) ? draft.checkDate : ''}
+                                                onChange={(e) => updateDraft(draft.id, 'checkDate', e.target.value)}
+                                                style={{ position: 'absolute', opacity: 0, width: '28px', height: '28px', right: '6px', top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', zIndex: 3 }}
+                                                tabIndex={-1}
+                                            />
                                         </div>
                                     </div>
                                     <div className="field no-label">

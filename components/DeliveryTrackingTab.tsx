@@ -494,6 +494,25 @@ export default function DeliveryTrackingTab() {
         showToast('Product stats exported successfully', 'success');
     };
 
+    const exportDailyStatsExcel = () => {
+        const data = (dailyStats as any[]).map((d: any) => ({
+            'Date': d.date,
+            'LPO Value': d.lpoValue,
+            'Invoice Value': d.invoiceValue,
+            'Difference': d.invoiceValue - d.lpoValue,
+            'Orders': d.orders,
+            'Delivered': d.delivered,
+            'Partial': d.partial,
+            'Pending': d.pending,
+            'Canceled': d.canceled
+        }));
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Daily Stats');
+        XLSX.writeFile(wb, `Daily_Stats_${new Date().toISOString().slice(0, 10)}.xlsx`);
+        showToast('Daily stats exported successfully', 'success');
+    };
+
     const exportCityStatsExcel = () => {
         const data = cityStats.map((c: any) => ({
             'City Name': c.name,
@@ -514,7 +533,8 @@ export default function DeliveryTrackingTab() {
     };
 
     const handleStatsExport = () => {
-        if (statsSubTab === 'cities') exportCityStatsExcel();
+        if (statsSubTab === 'daily') exportDailyStatsExcel();
+        else if (statsSubTab === 'cities') exportCityStatsExcel();
         else if (statsSubTab === 'customers') exportCustomerStatsExcel();
         else if (statsSubTab === 'products') exportProductStatsExcel();
         else if (statsSubTab === 'kpis') {
@@ -904,19 +924,21 @@ export default function DeliveryTrackingTab() {
             .then(res => res.json())
             .then(data => {
                 if (data.orders) {
-                    const normalized = data.orders.map((o: any) => ({
-                        ...o,
-                        lpo: o.lpo || '',
-                        lpoId: o.lpoId || '',
-                        customer: o.customer || '',
-                        date: o.date || '',
-                        status: (o.status || 'pending').toLowerCase(),
-                        missing: Array.isArray(o.missing) ? o.missing : [],
-                        shippedItems: Array.isArray(o.shippedItems) ? o.shippedItems : [],
-                        canceledItems: Array.isArray(o.canceledItems) ? o.canceledItems : [],
-                        lpoVal: Number(o.lpoVal) || 0,
-                        invoiceVal: Number(o.invoiceVal) || 0,
-                    }));
+                    const normalized = data.orders
+                        .filter((o: any) => !((o.lpo || '').includes('مكرر')))
+                        .map((o: any) => ({
+                            ...o,
+                            lpo: o.lpo || '',
+                            lpoId: o.lpoId || '',
+                            customer: o.customer || '',
+                            date: o.date || '',
+                            status: (o.status || 'pending').toLowerCase(),
+                            missing: Array.isArray(o.missing) ? o.missing : [],
+                            shippedItems: Array.isArray(o.shippedItems) ? o.shippedItems : [],
+                            canceledItems: Array.isArray(o.canceledItems) ? o.canceledItems : [],
+                            lpoVal: Number(o.lpoVal) || 0,
+                            invoiceVal: Number(o.invoiceVal) || 0,
+                        }));
                     setOrders(normalized);
                 }
                 if (data.customers) {
@@ -942,19 +964,21 @@ export default function DeliveryTrackingTab() {
             const res = await fetch('/api/delivery');
             const data = await res.json();
             if (data.orders) {
-                const normalized = data.orders.map((o: any) => ({
-                    ...o,
-                    lpo: o.lpo || '',
-                    lpoId: o.lpoId || '',
-                    customer: o.customer || '',
-                    date: o.date || '',
-                    status: (o.status || 'pending').toLowerCase(),
-                    missing: Array.isArray(o.missing) ? o.missing : [],
-                    shippedItems: Array.isArray(o.shippedItems) ? o.shippedItems : [],
-                    canceledItems: Array.isArray(o.canceledItems) ? o.canceledItems : [],
-                    lpoVal: Number(o.lpoVal) || 0,
-                    invoiceVal: Number(o.invoiceVal) || 0,
-                }));
+                const normalized = data.orders
+                    .filter((o: any) => !((o.lpo || '').includes('مكرر')))
+                    .map((o: any) => ({
+                        ...o,
+                        lpo: o.lpo || '',
+                        lpoId: o.lpoId || '',
+                        customer: o.customer || '',
+                        date: o.date || '',
+                        status: (o.status || 'pending').toLowerCase(),
+                        missing: Array.isArray(o.missing) ? o.missing : [],
+                        shippedItems: Array.isArray(o.shippedItems) ? o.shippedItems : [],
+                        canceledItems: Array.isArray(o.canceledItems) ? o.canceledItems : [],
+                        lpoVal: Number(o.lpoVal) || 0,
+                        invoiceVal: Number(o.invoiceVal) || 0,
+                    }));
                 setOrders(normalized);
             }
             if (data.customers) {

@@ -1410,7 +1410,7 @@ export async function generateMonthlySeparatedPDF(
     doc.text(`Page ${i} of ${totalPages}`, doc.internal.pageSize.getWidth() - 15, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
   }
 
-  doc.save(`${customerName}_Detailed_Statement.pdf`);
+  doc.save(`${customerName}.pdf`);
 }
 
 export async function generateDownloadFormPDF(

@@ -1892,8 +1892,7 @@ ${debtSectionHtml}
     worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
 
     const safeName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
-    const safeLabel = monthsLabel.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '_');
-    const fileName = `${safeName}_${safeLabel}.xlsx`;
+    const fileName = `${safeName}.xlsx`;
 
     XLSX.writeFile(workbook, fileName);
   };

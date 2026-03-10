@@ -307,6 +307,28 @@
     z-index: 1;
 }
 
+/* Label wrapper for calendar trigger */
+.date-input-wrapper label {
+    position: absolute;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    z-index: 2;
+    padding: 4px;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+
+.date-input-wrapper label:hover {
+    background: rgba(201, 168, 76, 0.15);
+}
+
+.date-input-wrapper label .date-icon {
+    position: static;
+    pointer-events: none;
+}
+
 .date-input-wrapper input[type="date"] {
     text-align: center;
     padding-left: 14px;
@@ -367,7 +389,7 @@
 
 .form-row-header {
     display: grid;
-    grid-template-columns: 1.2fr 130px 130px 1fr 1fr 1fr 1.2fr 60px;
+    grid-template-columns: 1.2fr 143px 143px 1fr 1fr 1fr 1.2fr 60px;
     gap: 12px;
     padding: 0 10px 10px 10px;
     border-bottom: 1px solid rgba(201, 168, 76, 0.2);
@@ -394,7 +416,7 @@
     padding: 10px;
     transition: all 0.2s;
     display: grid;
-    grid-template-columns: 1.2fr 130px 130px 1fr 1fr 1fr 1.2fr 60px;
+    grid-template-columns: 1.2fr 143px 143px 1fr 1fr 1fr 1.2fr 60px;
     gap: 12px;
     align-items: center;
 }

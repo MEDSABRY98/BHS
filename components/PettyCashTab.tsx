@@ -1368,7 +1368,7 @@ export default function PettyCashTab() {
                       <button
                         onClick={handlePrintOnlyVoucher}
                         disabled={loading}
-                        className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-4 rounded-2xl font-bold text-lg hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
+                        className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-4 rounded-2xl font-bold text-sm hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
                       >
                         {loading ? (
                           <>
