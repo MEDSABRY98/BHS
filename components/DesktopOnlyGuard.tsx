@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-const MIN_WIDTH = 1280;
-const MIN_HEIGHT = 900;
+const MIN_WIDTH = 1500;
+const MIN_HEIGHT = 800;
 
 export default function DesktopOnlyGuard() {
     const [isTooSmall, setIsTooSmall] = useState(false);
