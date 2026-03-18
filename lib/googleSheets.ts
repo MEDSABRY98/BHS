@@ -3973,6 +3973,11 @@ export async function addLpoRecord(data: {
   lpoDeliveryDate?: string;
   customerName: string;
   lpoValue: number;
+  invoiceDate?: string;
+  invoiceNumber?: string;
+  invoiceValue?: number;
+  status?: string;
+  notes?: string;
 } | {
   lpoId: string;
   lpoNumber: string;
@@ -3980,6 +3985,11 @@ export async function addLpoRecord(data: {
   lpoDeliveryDate?: string;
   customerName: string;
   lpoValue: number;
+  invoiceDate?: string;
+  invoiceNumber?: string;
+  invoiceValue?: number;
+  status?: string;
+  notes?: string;
 }[]): Promise<{ success: boolean }> {
   try {
     const sheets = await getSheetsClient();
@@ -3998,12 +4008,12 @@ export async function addLpoRecord(data: {
           record.lpoDeliveryDate || '',      // D: LPO Delivery Date (NEW)
           record.customerName,               // E: Customer Name
           record.lpoValue,                   // F: LPO Value
-          '',                                // G: Invoice Date
-          '',                                // H: Invoice Number
-          0,                                 // I: Invoice Value
-          'pending',                         // J: Status
+          record.invoiceDate || '',          // G: Invoice Date
+          record.invoiceNumber || '',        // H: Invoice Number
+          record.invoiceValue ?? 0,          // I: Invoice Value
+          record.status || 'pending',        // J: Status
           'FALSE',                           // K: Reship?
-          '',                                // L: Notes
+          record.notes || '',                // L: Notes
           now,                               // M: Created At
           now,                               // N: Updated At
         ]),

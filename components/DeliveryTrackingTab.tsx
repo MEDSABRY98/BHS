@@ -103,6 +103,10 @@ export default function DeliveryTrackingTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
+    // Import states
+    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [importType, setImportType] = useState<'lpo' | 'loi' | 'invoice'>('lpo');
+
     // Date filters for All Orders tab
     const [filterYear, setFilterYear] = useState('');
     const [filterMonth, setFilterMonth] = useState('');
@@ -229,51 +233,123 @@ export default function DeliveryTrackingTab() {
                 setIsSaving(true);
                 showToast(`Reading ${data.length} records...`, 'info');
 
-                const lposToAdd: any[] = [];
+                if (importType === 'lpo') {
+                    const lposToAdd: any[] = [];
 
-                for (const row of data) {
-                    // Normalize keys (handle spaces or casing)
-                    const lpoNumber = row['LPO Number'] || row['lpo number'] || row['LPO_Number'];
-                    const lpoDateRaw = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
-                    const customerName = row['Customer Name'] || row['customer name'] || row['Customer_Name'];
-                    const lpoValue = row['LPO Value'] || row['lpo value'] || row['LPO_Value'];
+                    for (const row of data) {
+                        // Normalize keys (handle spaces or casing)
+                        const lpoNumber = row['LPO Number'] || row['lpo number'] || row['LPO_Number'];
+                        const lpoDateRaw = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
+                        const deliveryDateRaw = row['Delivery Date'] || row['delivery date'] || row['Delivery_Date'];
+                        const customerName = row['Customer Name'] || row['customer name'] || row['Customer_Name'];
+                        const lpoValue = row['LPO Value'] || row['lpo value'] || row['LPO_Value'];
 
-                    if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
-                        const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
-                        // Look up the customerId from the loaded customers list
-                        const matchedCustomer = customers.find(c =>
-                            c.customerName.toLowerCase().trim() === customerName.toString().toLowerCase().trim()
-                        );
-                        lposToAdd.push({
-                            lpoNumber: lpoNumber.toString(),
-                            lpoDate,
-                            customerName: matchedCustomer ? matchedCustomer.customerId : customerName.toString(),
-                            lpoValue: parseFloat(lpoValue)
-                        });
+                        if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
+                            const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
+                            const lpoDeliveryDate = deliveryDateRaw ? (typeof deliveryDateRaw === 'string' ? deliveryDateRaw : new Date((deliveryDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0]) : '';
+                            // Look up the customerId from the loaded customers list
+                            const matchedCustomer = customers.find(c =>
+                                c.customerName.toLowerCase().trim() === customerName.toString().toLowerCase().trim()
+                            );
+                            lposToAdd.push({
+                                lpoNumber: lpoNumber.toString(),
+                                lpoDate,
+                                lpoDeliveryDate,
+                                customerName: matchedCustomer ? matchedCustomer.customerId : customerName.toString(),
+                                lpoValue: parseFloat(lpoValue)
+                            });
+                        }
                     }
-                }
 
-                if (lposToAdd.length === 0) {
-                    showToast('No valid LPO records found in Excel', 'error');
-                    return;
-                }
+                    if (lposToAdd.length === 0) {
+                        showToast('No valid LPO records found in Excel', 'error');
+                        return;
+                    }
 
-                const res = await fetch('/api/delivery', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        action: 'add_lpo',
-                        lpos: lposToAdd
-                    })
-                });
+                    const res = await fetch('/api/delivery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'add_lpo',
+                            lpos: lposToAdd
+                        })
+                    });
 
-                if (res.ok) {
-                    await refreshOrders();
-                    showToast(`Successfully uploaded ${lposToAdd.length} records`, 'success');
+                    if (res.ok) {
+                        await refreshOrders();
+                        showToast(`Successfully uploaded ${lposToAdd.length} records`, 'success');
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        setActiveTab('stats');
+                    } else {
+                        showToast('Failed to upload records to database', 'error');
+                    }
+                } else if (importType === 'loi') {
+                    const lposToAdd: any[] = [];
+
+                    for (const row of data) {
+                        // Normalize keys
+                        const lpoNumber = row['LPO Number'] || row['lpo number'] || row['LPO_Number'];
+                        const lpoDateRaw = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
+                        const deliveryDateRaw = row['Delivery Date'] || row['delivery date'] || row['Delivery_Date'];
+                        const customerName = row['Customer Name'] || row['customer name'] || row['Customer_Name'];
+                        const lpoValue = row['LPO Value'] || row['lpo value'] || row['LPO_Value'];
+
+                        const invoiceDateRaw = row['Invoice Date'] || row['invoice date'] || row['Invoice_Date'];
+                        const invoiceNumber = row['Invoice Number'] || row['invoice number'] || row['Invoice_Number'];
+                        const invoiceValue = row['Invoice Value'] || row['invoice value'] || row['Invoice_Value'];
+                        const status = row['Status'] || row['status'];
+                        const notes = row['Notes'] || row['notes'];
+
+                        if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
+                            const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
+                            const lpoDeliveryDate = deliveryDateRaw ? (typeof deliveryDateRaw === 'string' ? deliveryDateRaw : new Date((deliveryDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0]) : '';
+                            const invoiceDate = invoiceDateRaw ? (typeof invoiceDateRaw === 'string' ? invoiceDateRaw : new Date((invoiceDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0]) : '';
+
+                            // Look up the customerId from the loaded customers list
+                            const matchedCustomer = customers.find(c =>
+                                c.customerName.toLowerCase().trim() === customerName.toString().toLowerCase().trim()
+                            );
+                            lposToAdd.push({
+                                lpoNumber: lpoNumber.toString(),
+                                lpoDate,
+                                lpoDeliveryDate,
+                                customerName: matchedCustomer ? matchedCustomer.customerId : customerName.toString(),
+                                lpoValue: parseFloat(lpoValue),
+                                invoiceDate,
+                                invoiceNumber: invoiceNumber ? invoiceNumber.toString() : '',
+                                invoiceValue: invoiceValue ? parseFloat(invoiceValue) : 0,
+                                status: status ? status.toString().toLowerCase() : 'pending',
+                                notes: notes ? notes.toString() : ''
+                            });
+                        }
+                    }
+
+                    if (lposToAdd.length === 0) {
+                        showToast('No valid LPO records found in Excel', 'error');
+                        return;
+                    }
+
+                    const res = await fetch('/api/delivery', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'add_lpo',
+                            lpos: lposToAdd
+                        })
+                    });
+
+                    if (res.ok) {
+                        await refreshOrders();
+                        showToast(`Successfully uploaded ${lposToAdd.length} records`, 'success');
+                        if (fileInputRef.current) fileInputRef.current.value = '';
+                        setActiveTab('stats');
+                    } else {
+                        showToast('Failed to upload records to database', 'error');
+                    }
+                } else if (importType === 'invoice') {
+                    // Placeholder for Invoice complementary steps upload logic
+                    showToast('Invoice complementary steps upload functionality to be implemented.', 'info');
                     if (fileInputRef.current) fileInputRef.current.value = '';
-                    setActiveTab('stats');
-                } else {
-                    showToast('Failed to upload records to database', 'error');
                 }
 
             } catch (error) {
@@ -433,6 +509,29 @@ export default function DeliveryTrackingTab() {
         a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const downloadTemplate = (type: 'lpo' | 'loi' | 'invoice') => {
+        let headers: string[] = [];
+        let filename = '';
+
+        if (type === 'lpo') {
+            headers = ['LPO Number', 'LPO Date', 'Delivery Date', 'Customer Name', 'LPO Value'];
+            filename = 'LPO_Only_Template.xlsx';
+        } else if (type === 'loi') {
+            headers = ['LPO Number', 'LPO Date', 'Delivery Date', 'Customer Name', 'LPO Value', 'Invoice Date', 'Invoice Number', 'Invoice Value', 'Status', 'Notes'];
+            filename = 'LPO_Complementary_Template.xlsx';
+        } else if (type === 'invoice') {
+            // These headers are speculative. Update them later if needed.
+            headers = ['LPO ID', 'Invoice Date', 'Invoice Number', 'Invoice Value', 'Status', 'Notes'];
+            filename = 'Invoice_Complementary_Template.xlsx';
+        }
+
+        const ws = XLSX.utils.aoa_to_sheet([headers]);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Template');
+        XLSX.writeFile(wb, filename);
+        showToast(`Template ${filename} downloaded`, 'success');
     };
 
     const exportOrdersCSV = () => {
@@ -631,6 +730,37 @@ export default function DeliveryTrackingTab() {
 
     const [orders, setOrders] = useState<DeliveryEntry[]>([]);
 
+    const duplicateOrders = useMemo(() => {
+        if (!orders) return { list: [], grouped: {} as Record<string, DeliveryEntry[]>, counts: {} as Record<string, number> };
+        const counts: Record<string, number> = {};
+        orders.forEach(o => {
+            const lpoNum = (o.lpo || '').toString().trim().toLowerCase();
+            if (lpoNum === 'no number' || lpoNum.includes('مكرر')) return;
+
+            const cust = (o.customer || '').toString().trim().toLowerCase();
+            const key = `${lpoNum}|${cust}`;
+            counts[key] = (counts[key] || 0) + 1;
+        });
+
+        const list = orders.filter(o => {
+            const lpoNum = (o.lpo || '').toString().trim().toLowerCase();
+            if (lpoNum === 'no number' || lpoNum.includes('مكرر')) return false;
+
+            const cust = (o.customer || '').toString().trim().toLowerCase();
+            const key = `${lpoNum}|${cust}`;
+            return counts[key] > 1;
+        });
+
+        // Group by Customer
+        const grouped: Record<string, DeliveryEntry[]> = {};
+        list.forEach(o => {
+            if (!grouped[o.customer]) grouped[o.customer] = [];
+            grouped[o.customer].push(o);
+        });
+
+        return { list, grouped, counts };
+    }, [orders]);
+
     const customerToCity = useMemo(() => {
         const map: Record<string, string> = {};
         if (customers) {
@@ -666,6 +796,14 @@ export default function DeliveryTrackingTab() {
                     invoiceNumber.toLowerCase().includes(searchQuery.toLowerCase()) ||
                     customer.toLowerCase().includes(searchQuery.toLowerCase());
 
+                // Duplicate exclusion
+                const lpoNum = (o.lpo || '').toString().trim().toLowerCase();
+                const cust = (o.customer || '').toString().trim().toLowerCase();
+                const key = `${lpoNum}|${cust}`;
+                const isAutoDuplicate = duplicateOrders.counts[key] > 1;
+
+                if (isAutoDuplicate) return false;
+
                 // Status filter - normalize status for filtering
                 const normalizedStatus = (o.status || 'pending').toLowerCase();
                 const matchesFilter = filterStatus === 'all' || normalizedStatus === filterStatus;
@@ -686,6 +824,23 @@ export default function DeliveryTrackingTab() {
             })
             .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
     }, [orders, searchQuery, filterStatus, filterYear, filterMonth, filterDateFrom, filterDateTo, filterCity, customerToCity]);
+
+    const groupedMissingItems = useMemo(() => {
+        const groups: Record<string, { order: DeliveryEntry, items: { item: string, status: 'pending' | 'canceled', id: string }[] }> = {};
+
+        filteredOrders.forEach(o => {
+            const items = [
+                ...o.missing.map((m, i) => ({ item: m, status: 'pending' as const, id: `${o.id}-m-${i}` })),
+                ...(o.canceledItems || []).map((m, i) => ({ item: m, status: 'canceled' as const, id: `${o.id}-c-${i}` }))
+            ];
+
+            if (items.length > 0) {
+                groups[o.id] = { order: o, items };
+            }
+        });
+
+        return Object.values(groups).sort((a, b) => (b.order.date || '').localeCompare(a.order.date || ''));
+    }, [filteredOrders]);
 
     const stats = useMemo(() => {
         const total = filteredOrders.length;
@@ -925,7 +1080,6 @@ export default function DeliveryTrackingTab() {
             .then(data => {
                 if (data.orders) {
                     const normalized = data.orders
-                        .filter((o: any) => !((o.lpo || '').includes('مكرر')))
                         .map((o: any) => ({
                             ...o,
                             lpo: o.lpo || '',
@@ -965,7 +1119,6 @@ export default function DeliveryTrackingTab() {
             const data = await res.json();
             if (data.orders) {
                 const normalized = data.orders
-                    .filter((o: any) => !((o.lpo || '').includes('مكرر')))
                     .map((o: any) => ({
                         ...o,
                         lpo: o.lpo || '',
@@ -1036,6 +1189,107 @@ export default function DeliveryTrackingTab() {
         <div className="min-h-screen bg-[#F8FAFC] font-inter text-[#0F172A]">
             <style dangerouslySetInnerHTML={{ __html: fontStyles }} />
 
+            {/* IMPORT MODAL */}
+            {isImportModalOpen && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+                        <div className="p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                            <h3 className="text-[16px] font-black text-slate-800 flex items-center gap-2">
+                                <Upload className="w-5 h-5 text-indigo-600" />
+                                Select Upload Type
+                            </h3>
+                            <button
+                                onClick={() => setIsImportModalOpen(false)}
+                                className="w-8 h-8 rounded-lg hover:bg-slate-200 flex items-center justify-center text-slate-500 transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+                        <div className="p-4 space-y-3">
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setImportType('loi');
+                                        fileInputRef.current?.click();
+                                        setIsImportModalOpen(false);
+                                    }}
+                                    className="flex-1 text-left p-4 rounded-xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all group flex items-center gap-4"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center flex-none group-hover:scale-110 transition-transform">
+                                        <FileText className="w-5 h-5" />
+                                    </div>
+                                    <div className="font-bold text-slate-800 text-[15px]">LPO & Complementary Steps</div>
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        downloadTemplate('loi');
+                                    }}
+                                    title="Download Template"
+                                    className="w-12 h-12 flex-none rounded-xl border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-200 hover:bg-indigo-50 transition-colors"
+                                >
+                                    <Download className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setImportType('lpo');
+                                        fileInputRef.current?.click();
+                                        setIsImportModalOpen(false);
+                                    }}
+                                    className="flex-1 text-left p-4 rounded-xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50 transition-all group flex items-center gap-4"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center flex-none group-hover:scale-110 transition-transform">
+                                        <Package className="w-5 h-5" />
+                                    </div>
+                                    <div className="font-bold text-slate-800 text-[15px]">LPO Only</div>
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        downloadTemplate('lpo');
+                                    }}
+                                    title="Download Template"
+                                    className="w-12 h-12 flex-none rounded-xl border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-colors"
+                                >
+                                    <Download className="w-5 h-5" />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => {
+                                        setImportType('invoice');
+                                        fileInputRef.current?.click();
+                                        setIsImportModalOpen(false);
+                                    }}
+                                    className="flex-1 text-left p-4 rounded-xl border-2 border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all group flex items-center gap-4"
+                                >
+                                    <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center flex-none group-hover:scale-110 transition-transform">
+                                        <FileText className="w-5 h-5" />
+                                    </div>
+                                    <div className="font-bold text-slate-800 text-[15px]">Invoice Complementary Steps</div>
+                                </button>
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        downloadTemplate('invoice');
+                                    }}
+                                    title="Download Template"
+                                    className="w-12 h-12 flex-none rounded-xl border-2 border-slate-100 flex items-center justify-center text-slate-400 hover:text-emerald-600 hover:border-emerald-200 hover:bg-emerald-50 transition-colors"
+                                >
+                                    <Download className="w-5 h-5" />
+                                </button>
+                            </div>
+
+
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* HEADER */}
             <header className="bg-[#312E81] text-white sticky top-0 z-50 shadow-[0_4px_25px_rgba(49,46,129,0.25)]">
                 <div className={`${activeTab === 'orders' ? 'max-w-[1850px]' : 'max-w-[1600px]'} mx-auto px-8 h-[64px] flex items-center relative border-b border-white/10 transition-all duration-500`}>
@@ -1086,6 +1340,7 @@ export default function DeliveryTrackingTab() {
                         { id: 'stats', label: 'Statistics', icon: BarChart3 },
                         { id: 'checking', label: 'Checking', icon: ShieldCheck },
                         { id: 'orders', label: 'All Orders', count: stats.total },
+                        { id: 'duplicates', label: 'Duplicate LPOs', icon: RefreshCcw, count: duplicateOrders.list.length },
                         { id: 'reship', label: 'Re-Shipments', count: stats.reship },
                         { id: 'missing_items', label: 'Missing Items', count: stats.totalTracked, isAlert: stats.missingCount > 0 },
                     ].map((tab) => (
@@ -1350,11 +1605,11 @@ export default function DeliveryTrackingTab() {
                                         className="hidden"
                                     />
                                     <button
-                                        onClick={() => fileInputRef.current?.click()}
+                                        onClick={() => setIsImportModalOpen(true)}
                                         disabled={isSaving}
                                         className="bg-white text-indigo-900 border border-slate-200 font-bold h-[52px] px-8 rounded-xl text-[14px] flex items-center gap-2 transition-all hover:bg-slate-100 disabled:opacity-50"
                                     >
-                                        <Upload className="w-4 h-4" /> Import Excel
+                                        <Upload className="w-4 h-4" /> Upload Excel
                                     </button>
                                 </div>
                                 <div className="flex items-center gap-4">
@@ -2472,6 +2727,88 @@ export default function DeliveryTrackingTab() {
                     </div>
                 )}
 
+                {/* DUPLICATE ORDERS TAB */}
+                {!isLoading && activeTab === 'duplicates' && (
+                    <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="flex items-center justify-between mb-8 pb-4 border-b border-white/10">
+                            <div className="flex items-center gap-4">
+                                <div className="w-[48px] h-[48px] bg-amber-500 rounded-2xl flex items-center justify-center text-[24px] shadow-lg shadow-amber-500/20 text-white">👯‍♂️</div>
+                                <div>
+                                    <h2 className="text-[22px] font-bold text-[#0F172A]">Duplicate LPO Records</h2>
+                                </div>
+                            </div>
+                        </div>
+
+                        {Object.keys(duplicateOrders.grouped).length === 0 ? (
+                            <div className="bg-white/40 backdrop-blur-md rounded-[24px] p-20 text-center border-2 border-dashed border-[#E2E8F0] shadow-inner">
+                                <Activity className="w-16 h-16 text-[#94A3B8] mx-auto mb-4" />
+                                <h3 className="text-xl font-black text-[#0F172A] mb-2">No Duplicates Found</h3>
+                                <p className="text-[#64748B]">Your database seems clean of duplicate LPO numbers for same customers.</p>
+                            </div>
+                        ) : (
+                            <div className="space-y-8 pb-12">
+                                {Object.entries(duplicateOrders.grouped).map(([customer, orders]) => (
+                                    <div key={customer} className="bg-white rounded-[24px] border-[1.5px] border-[#E4EDE8] shadow-sm overflow-hidden animate-in slide-in-from-left duration-300">
+                                        <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center">
+                                                    <Users className="w-5 h-5 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <h3 className="text-[17px] font-[800] text-[#1E293B] tracking-tight">{customer}</h3>
+                                                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">{orders.length} Duplicate Entries</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-center">
+                                                <thead>
+                                                    <tr className="bg-[#4F46E5]">
+                                                        <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center w-[110px] min-w-[110px]">LPO ID</th>
+                                                        <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center w-[150px]">LPO Number</th>
+                                                        <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center w-[130px] min-w-[130px]">LPO Date</th>
+                                                        <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center w-[130px] min-w-[130px]">Delivery Date</th>
+                                                        <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center w-[120px]">Status</th>
+                                                        <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center w-[150px]">LPO Value</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-100">
+                                                    {orders.map((o) => (
+                                                        <tr key={o.id} className="hover:bg-[#F0FAF4] transition-colors group">
+                                                            <td className="p-4 w-[110px]"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId || '—'}</span></td>
+                                                            <td className="p-4 w-[150px]"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo || '—'}</span></td>
+                                                            <td className="p-4 w-[130px] font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date || '—'}</td>
+                                                            <td className="p-4 w-[130px] font-mono-dm text-[12.5px] text-[#2980B9]">
+                                                                {o.deliveryDate
+                                                                    ? <span className="bg-[#EBF8FF] text-[#2980B9] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12 text-[12px] font-[600]">{o.deliveryDate}</span>
+                                                                    : <span className="text-[#B2C4BB]">&mdash;</span>
+                                                                }
+                                                            </td>
+                                                            <td className="p-4 w-[120px]">
+                                                                {(() => {
+                                                                    const normalizedStatus = (o.status || 'pending').toLowerCase();
+                                                                    const statusConf = STATUS_CONFIG[normalizedStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
+                                                                    return (
+                                                                        <div className={`inline-flex items-center gap-[5px] px-[10px] py-[3px] rounded-[20px] text-[11px] font-[600] border border-transparent ${statusConf.color}`}>
+                                                                            <div className={`w-[5px] h-[5px] rounded-full ${statusConf.dot}`}></div>
+                                                                            {statusConf.label}
+                                                                        </div>
+                                                                    );
+                                                                })()}
+                                                            </td>
+                                                            <td className="p-4 w-[150px] font-mono-dm text-[12.5px] text-[#5A7266]">{(o.lpoVal || 0).toLocaleString()}</td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {!isLoading && activeTab === 'missing_items' && (
                     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                         <div className="flex items-center justify-between mb-[14px]">
@@ -2555,74 +2892,67 @@ export default function DeliveryTrackingTab() {
                             )}
                         </div>
 
-                        <div className="bg-white rounded-[14px] border-[1.5px] border-[#E4EDE8] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden">
-                            <div className="overflow-x-auto">
-                                <table className="w-full text-center">
-                                    <thead>
-                                        <tr className="bg-[#4F46E5]">
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px]">LPO ID</th>
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px]">LPO Number</th>
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px]">Date</th>
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px]">Customer</th>
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px]">Missing Items</th>
-                                            <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px]">Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-[#E0E7FF]">
-                                        {/* Combine both lists */}
-                                        {filteredOrders.flatMap(o => [
-                                            ...o.missing.map((m, i) => ({ item: m, status: 'pending', id: `${o.id}-m-${i}`, order: o })),
-                                            ...(o.canceledItems || []).map((m, i) => ({ item: m, status: 'canceled', id: `${o.id}-c-${i}`, order: o }))
-                                        ]).length === 0 ? (
-                                            <tr>
-                                                <td colSpan={6} className="p-20 text-center text-[#B2C4BB] font-medium">
-                                                    No items found in the log
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            filteredOrders.flatMap(o => [
-                                                ...o.missing.map((m, i) => ({ item: m, status: 'pending', id: `${o.id}-m-${i}`, order: o })),
-                                                ...(o.canceledItems || []).map((m, i) => ({ item: m, status: 'canceled', id: `${o.id}-c-${i}`, order: o }))
-                                            ]).map((entry) => (
-                                                <tr key={entry.id} className="hover:bg-[#F0FAF4] transition-colors group">
-                                                    <td className="p-[12px_16px]">
-                                                        <span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">
-                                                            {entry.order.lpoId}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-[12px_16px]">
-                                                        <span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/15">
-                                                            {entry.order.lpo}
-                                                        </span>
-                                                    </td>
-                                                    <td className="p-[12px_16px] font-mono-dm text-[12.5px] text-[#2C3E35]">
-                                                        {entry.order.date}
-                                                    </td>
-                                                    <td className="p-[12px_16px] font-[600] text-[12.5px] text-[#0F1A14]">
-                                                        {entry.order.customer}
-                                                    </td>
-                                                    <td className="p-[12px_16px] text-[13px] font-[700] text-[#2C3E35]">
-                                                        {entry.item}
-                                                    </td>
-                                                    <td className="p-[12px_16px]">
-                                                        {entry.status === 'pending' ? (
-                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F7EF] text-[#10B981] text-[10px] font-bold border border-[#10B981]/20">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></div>
-                                                                PENDING RE-SHIP
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF2F2] text-[#EF4444] text-[10px] font-bold border border-[#EF4444]/20">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444]"></div>
-                                                                CANCELED
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
+                        <div className="space-y-6">
+                            {groupedMissingItems.length === 0 ? (
+                                <div className="bg-white/40 backdrop-blur-md rounded-[24px] p-20 text-center border-2 border-dashed border-[#E2E8F0] shadow-inner">
+                                    <Package className="w-16 h-16 text-[#94A3B8] mx-auto mb-4" />
+                                    <h3 className="text-xl font-black text-[#0F172A] mb-2">Clean Track</h3>
+                                    <p className="text-[#64748B]">No missing or canceled items recorded for current filters.</p>
+                                </div>
+                            ) : (
+                                groupedMissingItems.map(({ order, items }) => (
+                                    <div key={order.id} className="bg-white rounded-[24px] border-[1.5px] border-[#E4EDE8] shadow-sm overflow-hidden animate-in slide-in-from-left duration-300">
+                                        <div className="p-5 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center text-[18px]">📦</div>
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-mono-dm text-[11px] font-[600] text-[#4F46E5] bg-[#EEF2FF] px-2 py-0.5 rounded border border-[#4F46E5]/10">{order.lpoId}</span>
+                                                        <h3 className="text-[15px] font-[800] text-[#1E293B] tracking-tight">{order.lpo}</h3>
+                                                    </div>
+                                                    <p className="text-[14px] font-[700] text-slate-600 mt-1">{order.customer}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{order.date}</div>
+                                                <div className="text-[10px] font-bold text-indigo-500 mt-1">{items.length} Items Logged</div>
+                                            </div>
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="bg-[#F8FAFC]">
+                                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest w-[60%]">Item Description</th>
+                                                        <th className="px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Tracking Status</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50">
+                                                    {items.map((entry) => (
+                                                        <tr key={entry.id} className="hover:bg-[#F0FAF4]/30 transition-colors">
+                                                            <td className="px-6 py-4 text-[13.5px] font-[600] text-[#2C3E35]">
+                                                                {entry.item}
+                                                            </td>
+                                                            <td className="px-6 py-4 text-center">
+                                                                {entry.status === 'pending' ? (
+                                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#E8F7EF] text-[#10B981] text-[10px] font-bold border border-[#10B981]/20">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse"></div>
+                                                                        PENDING RE-SHIP
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#FEF2F2] text-[#EF4444] text-[10px] font-bold border border-[#EF4444]/20">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444]"></div>
+                                                                        CANCELED
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 )}
@@ -3232,88 +3562,94 @@ export default function DeliveryTrackingTab() {
 
 
             {/* PREMIUM CONFIRMATION MODAL */}
-            {confirmConfig.isOpen && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"></div>
-                    <div className="bg-white rounded-[24px] w-full max-w-[420px] shadow-[0_25px_70px_rgba(0,0,0,0.3)] relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
-                        <div className={`h-2 w-full ${confirmConfig.type === 'danger' ? 'bg-rose-500' : confirmConfig.type === 'warning' ? 'bg-amber-500' : confirmConfig.type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
-                        <div className="p-8">
-                            <div className="flex flex-col items-center text-center">
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 shadow-sm border ${confirmConfig.type === 'danger' ? 'bg-rose-50 text-rose-500 border-rose-100' : confirmConfig.type === 'warning' ? 'bg-amber-50 text-amber-500 border-amber-100' : confirmConfig.type === 'success' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
-                                    }`}>
-                                    {confirmConfig.type === 'danger' && <Trash2 className="w-8 h-8" />}
-                                    {confirmConfig.type === 'warning' && <AlertTriangle className="w-8 h-8" />}
-                                    {confirmConfig.type === 'success' && <CheckCircle2 className="w-8 h-8" />}
-                                    {confirmConfig.type === 'info' && <Bell className="w-8 h-8" />}
+            {
+                confirmConfig.isOpen && (
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"></div>
+                        <div className="bg-white rounded-[24px] w-full max-w-[420px] shadow-[0_25px_70px_rgba(0,0,0,0.3)] relative z-10 overflow-hidden animate-in zoom-in-95 duration-200">
+                            <div className={`h-2 w-full ${confirmConfig.type === 'danger' ? 'bg-rose-500' : confirmConfig.type === 'warning' ? 'bg-amber-500' : confirmConfig.type === 'success' ? 'bg-emerald-500' : 'bg-indigo-500'}`} />
+                            <div className="p-8">
+                                <div className="flex flex-col items-center text-center">
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 shadow-sm border ${confirmConfig.type === 'danger' ? 'bg-rose-50 text-rose-500 border-rose-100' : confirmConfig.type === 'warning' ? 'bg-amber-50 text-amber-500 border-amber-100' : confirmConfig.type === 'success' ? 'bg-emerald-50 text-emerald-500 border-emerald-100' : 'bg-indigo-50 text-indigo-500 border-indigo-100'
+                                        }`}>
+                                        {confirmConfig.type === 'danger' && <Trash2 className="w-8 h-8" />}
+                                        {confirmConfig.type === 'warning' && <AlertTriangle className="w-8 h-8" />}
+                                        {confirmConfig.type === 'success' && <CheckCircle2 className="w-8 h-8" />}
+                                        {confirmConfig.type === 'info' && <Bell className="w-8 h-8" />}
+                                    </div>
+                                    <h3 className="text-[19px] font-[900] text-slate-900 mb-2 leading-tight">{confirmConfig.title}</h3>
+                                    <p className="text-[14px] text-slate-500 font-medium leading-relaxed">{confirmConfig.message}</p>
                                 </div>
-                                <h3 className="text-[19px] font-[900] text-slate-900 mb-2 leading-tight">{confirmConfig.title}</h3>
-                                <p className="text-[14px] text-slate-500 font-medium leading-relaxed">{confirmConfig.message}</p>
-                            </div>
 
-                            <div className="grid grid-cols-2 gap-3 mt-8">
-                                <button
-                                    onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
-                                    className="px-6 py-3.5 rounded-xl text-[14px] font-[800] text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all border border-slate-100"
-                                >
-                                    No, Keep it
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        confirmConfig.onConfirm();
-                                        setConfirmConfig(prev => ({ ...prev, isOpen: false }));
-                                    }}
-                                    className={`px-6 py-3.5 rounded-xl text-[14px] font-[900] text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 ${confirmConfig.type === 'danger' ? 'bg-rose-500 shadow-rose-200 hover:bg-rose-600' :
-                                        confirmConfig.type === 'warning' ? 'bg-amber-500 shadow-amber-200 hover:bg-amber-600' :
-                                            confirmConfig.type === 'success' ? 'bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600' :
-                                                'bg-[#4F46E5] shadow-indigo-200 hover:bg-indigo-700'
-                                        }`}
-                                >
-                                    Yes, Proceed
-                                </button>
+                                <div className="grid grid-cols-2 gap-3 mt-8">
+                                    <button
+                                        onClick={() => setConfirmConfig(prev => ({ ...prev, isOpen: false }))}
+                                        className="px-6 py-3.5 rounded-xl text-[14px] font-[800] text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-all border border-slate-100"
+                                    >
+                                        No, Keep it
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            confirmConfig.onConfirm();
+                                            setConfirmConfig(prev => ({ ...prev, isOpen: false }));
+                                        }}
+                                        className={`px-6 py-3.5 rounded-xl text-[14px] font-[900] text-white shadow-lg transition-all hover:-translate-y-0.5 active:translate-y-0 ${confirmConfig.type === 'danger' ? 'bg-rose-500 shadow-rose-200 hover:bg-rose-600' :
+                                            confirmConfig.type === 'warning' ? 'bg-amber-500 shadow-amber-200 hover:bg-amber-600' :
+                                                confirmConfig.type === 'success' ? 'bg-emerald-500 shadow-emerald-200 hover:bg-emerald-600' :
+                                                    'bg-[#4F46E5] shadow-indigo-200 hover:bg-indigo-700'
+                                            }`}
+                                    >
+                                        Yes, Proceed
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* PREMIUM TOAST NOTIFICATION */}
-            {toast.show && (
-                <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[2000] animate-in slide-in-from-bottom-5 fade-in duration-300">
-                    <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)] backdrop-blur-md border border-white/20 ${toast.type === 'success' ? 'bg-emerald-500/90 text-white' :
-                        toast.type === 'error' ? 'bg-rose-500/90 text-white' :
-                            'bg-indigo-900/90 text-white'
-                        }`}>
-                        {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-100" />}
-                        {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-100" />}
-                        {toast.type === 'info' && <Bell className="w-5 h-5 text-indigo-100" />}
-                        <span className="text-[13px] font-[800] tracking-tight">{toast.message}</span>
+            {
+                toast.show && (
+                    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[2000] animate-in slide-in-from-bottom-5 fade-in duration-300">
+                        <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)] backdrop-blur-md border border-white/20 ${toast.type === 'success' ? 'bg-emerald-500/90 text-white' :
+                            toast.type === 'error' ? 'bg-rose-500/90 text-white' :
+                                'bg-indigo-900/90 text-white'
+                            }`}>
+                            {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-100" />}
+                            {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-100" />}
+                            {toast.type === 'info' && <Bell className="w-5 h-5 text-indigo-100" />}
+                            <span className="text-[13px] font-[800] tracking-tight">{toast.message}</span>
+                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
             {/* FULL PAGE LOADING OVERLAY */}
-            {isSaving && (
-                <div className="fixed inset-0 z-[3000] flex flex-col items-center justify-center animate-in fade-in duration-500">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
-                    <div className="relative z-[3001] flex flex-col items-center gap-6">
-                        <div className="relative flex items-center justify-center">
-                            <div className="w-24 h-24 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
-                            <div className="absolute inset-0 flex items-center justify-center">
-                                <RefreshCcw className="w-8 h-8 text-white animate-pulse" />
+            {
+                isSaving && (
+                    <div className="fixed inset-0 z-[3000] flex flex-col items-center justify-center animate-in fade-in duration-500">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                        <div className="relative z-[3001] flex flex-col items-center gap-6">
+                            <div className="relative flex items-center justify-center">
+                                <div className="w-24 h-24 rounded-full border-4 border-white/10 border-t-indigo-500 animate-spin" />
+                                <div className="absolute inset-0 flex items-center justify-center">
+                                    <RefreshCcw className="w-8 h-8 text-white animate-pulse" />
+                                </div>
+                            </div>
+                            <div className="text-center space-y-2">
+                                <h3 className="text-white text-[24px] font-black tracking-tight animate-pulse">Saving Records...</h3>
+                                <p className="text-white/60 text-[14px] font-bold">Please wait while we update the database</p>
+                            </div>
+                            <div className="flex gap-2">
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" />
                             </div>
                         </div>
-                        <div className="text-center space-y-2">
-                            <h3 className="text-white text-[24px] font-black tracking-tight animate-pulse">Saving Records...</h3>
-                            <p className="text-white/60 text-[14px] font-bold">Please wait while we update the database</p>
-                        </div>
-                        <div className="flex gap-2">
-                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                            <div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" />
-                        </div>
                     </div>
-                </div>
-            )}
+                )
+            }
 
         </div >
     );

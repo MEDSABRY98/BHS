@@ -9,9 +9,9 @@ export async function GET() {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch sheet data';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch sheet data',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
