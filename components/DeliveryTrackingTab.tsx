@@ -1080,6 +1080,7 @@ export default function DeliveryTrackingTab() {
             .then(data => {
                 if (data.orders) {
                     const normalized = data.orders
+                        .filter((o: any) => !(o.lpo || '').toString().includes('مكرر'))
                         .map((o: any) => ({
                             ...o,
                             lpo: o.lpo || '',
@@ -1119,6 +1120,7 @@ export default function DeliveryTrackingTab() {
             const data = await res.json();
             if (data.orders) {
                 const normalized = data.orders
+                    .filter((o: any) => !(o.lpo || '').toString().includes('مكرر'))
                     .map((o: any) => ({
                         ...o,
                         lpo: o.lpo || '',
