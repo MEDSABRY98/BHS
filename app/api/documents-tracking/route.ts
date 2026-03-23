@@ -43,7 +43,16 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
-        const { rowIndex, ...data } = body;
+        const { bulk, updates, rowIndex, ...data } = body;
+
+        if (bulk) {
+            if (!updates || !Array.isArray(updates)) {
+                return NextResponse.json({ error: 'updates array is required for bulk update' }, { status: 400 });
+            }
+            const { batchUpdateDocumentsTrackingRecords } = await import('@/lib/googleSheets');
+            await batchUpdateDocumentsTrackingRecords(updates);
+            return NextResponse.json({ success: true });
+        }
 
         if (!rowIndex) {
             return NextResponse.json({ error: 'rowIndex is required' }, { status: 400 });

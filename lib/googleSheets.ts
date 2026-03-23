@@ -4386,4 +4386,64 @@ export async function deleteDocumentsTrackingRecord(rowIndex: number): Promise<{
   }
 }
 
+// BATCH UPDATE: Update multiple Documents Tracking Records
+export async function batchUpdateDocumentsTrackingRecords(updates: { rowIndex: number, data: Partial<Omit<DocumentsTrackingRecord, 'rowIndex' | 'documentId'>> }[]): Promise<{ success: boolean }> {
+  try {
+    const sheets = await getSheetsClient();
+
+    const updateMap: Record<string, number> = {
+      receivedDate: 1,           // B
+      documentDate: 2,           // C
+      documentNumber: 3,         // D
+      documentName: 4,           // E
+      receivedFrom: 5,           // F
+      documentAmount: 6,         // G
+      documentNotes: 7,          // H
+      whoDeliveryForOffice: 8,   // I
+      whoTakeFromOffice: 9,      // J
+      documentStatus: 10,        // K
+      datedReceived: 11,         // L
+      datedRecord: 12,           // M
+      datedSendToOffice: 13,     // N
+    };
+
+    const ranges = updates.map(u => `'${DOCUMENTS_TRACKING_SHEET}'!A${u.rowIndex}:N${u.rowIndex}`);
+    const response = await sheets.spreadsheets.values.batchGet({
+      spreadsheetId: SPREADSHEET_ID,
+      ranges,
+    });
+
+    const data = (response.data.valueRanges || []).map((vr, i) => {
+      const u = updates[i];
+      const currentRow = vr.values?.[0] || [];
+      const updatedValues = [...currentRow];
+
+      Object.entries(u.data).forEach(([key, value]) => {
+        const colIndex = updateMap[key];
+        if (colIndex !== undefined) {
+          updatedValues[colIndex] = value;
+        }
+      });
+
+      return {
+        range: ranges[i],
+        values: [updatedValues]
+      };
+    });
+
+    await sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        data,
+        valueInputOption: 'USER_ENTERED',
+      },
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error('Error batch updating Documents Tracking Records:', error);
+    throw error;
+  }
+}
+
 

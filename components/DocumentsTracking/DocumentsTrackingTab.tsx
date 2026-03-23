@@ -63,6 +63,11 @@ export default function DocumentsTrackingTab() {
     const [delReceiver, setDelReceiver] = useState('');
     const [delFinal, setDelFinal] = useState('');
 
+    // Bulk delivery inputs
+    const [isBulkDeliverModalOpen, setIsBulkDeliverModalOpen] = useState(false);
+    const [bulkDelReceiver, setBulkDelReceiver] = useState('');
+    const [bulkDelFinal, setBulkDelFinal] = useState('');
+
     // PDF Modal state
     const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
     const [pdfType, setPdfType] = useState<'received' | 'delivered'>('delivered');
@@ -362,6 +367,53 @@ export default function DocumentsTrackingTab() {
         } catch (error) {
             console.error('Error advancing status:', error);
             showNotify('فشل في تحديث الحالة', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const bulkDeliver = async () => {
+        const registeredChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered');
+        if (registeredChecks.length === 0) {
+            showNotify('لا توجد شيكات "مسجلة" ليتم تسليمها', 'error');
+            return;
+        }
+
+        if (!bulkDelReceiver.trim() || !bulkDelFinal.trim()) {
+            showNotify('يرجى إدخال اسم المستلم والمستلم النهائي', 'error');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const now = new Date().toLocaleString('ar-AE');
+            const updates = registeredChecks.map(c => ({
+                rowIndex: c.rowIndex,
+                data: {
+                    documentStatus: STATUS_LABELS.delivered,
+                    datedSendToOffice: now,
+                    whoDeliveryForOffice: bulkDelReceiver,
+                    whoTakeFromOffice: bulkDelFinal
+                }
+            }));
+
+            const response = await fetch('/api/documents-tracking', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bulk: true, updates })
+            });
+
+            if (response.ok) {
+                showNotify(`تم تسليم ${registeredChecks.length} شيك بنجاح`);
+                setBulkDelReceiver('');
+                setBulkDelFinal('');
+                setIsBulkDeliverModalOpen(false);
+                setSelectedIds([]);
+                await fetchChecks();
+            }
+        } catch (error) {
+            console.error('Error bulk delivering checks:', error);
+            showNotify('فشل في تسليم الشيكات بالجملة', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -852,10 +904,21 @@ export default function DocumentsTrackingTab() {
                             <input type="text" className="search-box" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} placeholder="🔍 بحث باسم العميل أو رقم الشيك..." />
 
                             {selectedIds.length > 0 && (
-                                <button className="pdf-icon-btn" onClick={() => setIsPdfModalOpen(true)} title={`إصدار تقرير لـ ${selectedIds.length} شيك`}>
-                                    <span className="pdf-badge">{selectedIds.length}</span>
-                                    <FileCheck size={24} />
-                                </button>
+                                <div style={{ display: 'flex', gap: '8px' }}>
+                                    {checks.some(c => selectedIds.includes(c.id) && c.status === 'registered') && (
+                                        <button
+                                            className="filter-btn active"
+                                            onClick={() => setIsBulkDeliverModalOpen(true)}
+                                            style={{ background: 'var(--gold)', borderColor: 'var(--gold)', color: 'black' }}
+                                        >
+                                            🚀 تسليم {selectedIds.length} شيك للمكتب
+                                        </button>
+                                    )}
+                                    <button className="pdf-icon-btn" onClick={() => setIsPdfModalOpen(true)} title={`إصدار تقرير لـ ${selectedIds.length} شيك`}>
+                                        <span className="pdf-badge">{selectedIds.length}</span>
+                                        <FileCheck size={24} />
+                                    </button>
+                                </div>
                             )}
 
                             <button className="filter-btn" onClick={exportData} style={{ marginRight: 'auto', borderColor: 'var(--gold)', color: 'var(--gold-dark)' }}>⬇ تصدير CSV</button>
@@ -1337,6 +1400,101 @@ export default function DocumentsTrackingTab() {
 
                         <div className="tracking-footer">
                             <button className="tracking-done-btn" onClick={() => setTrackingCheck(null)}>إغلاق النافذة</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* BULK DELIVERY MODAL */}
+            {isBulkDeliverModalOpen && (
+                <div
+                    className="modal-overlay open"
+                    style={{ zIndex: 9999, display: 'flex' }}
+                    onClick={(e) => { if (e.target === e.currentTarget) setIsBulkDeliverModalOpen(false); }}
+                >
+                    <div
+                        className="modal"
+                        onClick={(e) => e.stopPropagation()}
+                        style={{
+                            maxWidth: '450px',
+                            position: 'relative',
+                            zIndex: 10000,
+                            pointerEvents: 'auto'
+                        }}
+                    >
+                        <div className="modal-title">
+                            <span>تسليم مجموعة شيكات للمكتب</span>
+                            <button className="modal-close" onClick={() => setIsBulkDeliverModalOpen(false)}>✕</button>
+                        </div>
+                        <div className="modal-content">
+                            <p style={{ marginBottom: '20px', color: 'var(--gray-400)', fontSize: '14px' }}>
+                                سيتم تحديث حالة {checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered').length} شيك إلى "مسلّمة للمكتب الرئيسي".
+                            </p>
+
+                            <div className="delivery-inputs">
+                                <div className="field" style={{ marginBottom: '15px' }}>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700, color: 'var(--black)' }}>اسم الشخص اللي استلم منك</label>
+                                    <input
+                                        type="text"
+                                        value={bulkDelReceiver}
+                                        onChange={(e) => setBulkDelReceiver(e.target.value)}
+                                        placeholder=""
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px',
+                                            borderRadius: '10px',
+                                            border: '2px solid #e2e8f0',
+                                            color: 'black',
+                                            background: 'white',
+                                            fontSize: '15px',
+                                            cursor: 'text'
+                                        }}
+                                        autoFocus
+                                    />
+                                </div>
+                                <div className="field" style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700, color: 'var(--black)' }}>اسم المستلم النهائي في المكتب</label>
+                                    <input
+                                        type="text"
+                                        value={bulkDelFinal}
+                                        onChange={(e) => setBulkDelFinal(e.target.value)}
+                                        placeholder=""
+                                        style={{
+                                            width: '100%',
+                                            padding: '12px',
+                                            borderRadius: '10px',
+                                            border: '2px solid #e2e8f0',
+                                            color: 'black',
+                                            background: 'white',
+                                            fontSize: '15px',
+                                            cursor: 'text'
+                                        }}
+                                    />
+                                </div>
+
+                                <button
+                                    className="btn-status btn-advance"
+                                    onClick={bulkDeliver}
+                                    disabled={isLoading || !bulkDelReceiver.trim() || !bulkDelFinal.trim()}
+                                    style={{
+                                        width: '100%',
+                                        padding: '14px',
+                                        borderRadius: '12px',
+                                        background: 'var(--gold)',
+                                        color: 'black',
+                                        border: 'none',
+                                        fontWeight: 800,
+                                        fontSize: '16px',
+                                        cursor: (isLoading || !bulkDelReceiver.trim() || !bulkDelFinal.trim()) ? 'not-allowed' : 'pointer',
+                                        opacity: (isLoading || !bulkDelReceiver.trim() || !bulkDelFinal.trim()) ? 0.6 : 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '10px'
+                                    }}
+                                >
+                                    {isLoading ? 'جاري التحديث...' : `✓ تأكيد تسليم ${checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered').length} شيك`}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
