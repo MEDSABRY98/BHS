@@ -5,11 +5,11 @@ import { Plus, Trash2, Download, ArrowLeft, Search, Upload, Save, Box, FileText,
 import jsPDF from 'jspdf';
 import * as XLSX from 'xlsx';
 
-interface PurchaseQuotationProps {
+interface InventoryPurchaseQuotationTabProps {
     initialItems?: any[];
 }
 
-export default function PurchaseQuotation({ initialItems }: PurchaseQuotationProps) {
+export default function InventoryPurchaseQuotationTab({ initialItems }: InventoryPurchaseQuotationTabProps) {
     const [companyName, setCompanyName] = useState('Al Marai Al Arabia Trading Sole Proprietorship L.L.C');
     const [companyAddress, setCompanyAddress] = useState('Address - City - Country');
     const [companyPhone, setCompanyPhone] = useState('+971 XXX XXX XXXX');

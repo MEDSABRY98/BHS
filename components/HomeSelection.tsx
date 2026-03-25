@@ -2,7 +2,7 @@
 
 import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
-import AdminPanel from './AdminPanel';
+import AdminPanelTab from './AdminPanelTab';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -79,8 +79,8 @@ const SystemCard = ({ title, icon: Icon, onClick, color, delay = 0 }: SystemCard
     <button
       onClick={onClick}
       className={`
-        group relative w-full sm:w-72 text-left
-        bg-white rounded-2xl p-4 h-[140px]
+        group relative w-full text-left
+        bg-white rounded-2xl p-3 sm:p-4 h-[110px] sm:h-[140px]
         border border-slate-200
         transition-all duration-300 ease-out
         hover:shadow-xl hover:shadow-black/5 hover:-translate-y-1 hover:border-transparent
@@ -98,25 +98,25 @@ const SystemCard = ({ title, icon: Icon, onClick, color, delay = 0 }: SystemCard
       <div className="flex flex-col h-full justify-between relative z-10">
         <div className="flex justify-between items-start">
           <div className={`
-            w-12 h-12 rounded-xl flex items-center justify-center
+            w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center
             transition-all duration-300 group-hover:scale-110 group-hover:rotate-3
             ${styles.base}
           `}>
-            <Icon className="w-6 h-6" strokeWidth={1.5} />
+            <Icon className="w-5 h-5 sm:w-6 sm:h-6" strokeWidth={1.5} />
           </div>
 
           <div className={`
-            w-8 h-8 rounded-full flex items-center justify-center
-            opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0
+            w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center
+            opacity-100 sm:opacity-0 sm:-translate-x-2 sm:group-hover:opacity-100 sm:group-hover:translate-x-0
             transition-all duration-300 delay-75
             bg-slate-50 text-slate-400
           `}>
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="w-3 h-3 sm:w-4 sm:h-4 text-slate-300 sm:text-slate-400 group-hover:text-slate-500" />
           </div>
         </div>
 
         <div>
-          <h3 className="text-lg font-bold text-slate-800 tracking-tight group-hover:text-slate-900 transition-colors line-clamp-2">
+          <h3 className="text-[13px] leading-tight sm:text-lg font-bold text-slate-800 tracking-tight group-hover:text-slate-900 transition-colors line-clamp-2">
             {title}
           </h3>
         </div>
@@ -166,13 +166,13 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             <h1 className="text-xl font-bold text-slate-900">Admin Control</h1>
           </div>
         </div>
-        <AdminPanel />
+        <AdminPanelTab />
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-slate-50 relative selection:bg-blue-100 selection:text-blue-900 overflow-hidden flex flex-col items-center justify-start pt-10">
+    <div className="min-h-screen bg-slate-50 relative selection:bg-blue-100 selection:text-blue-900 overflow-y-auto overflow-x-hidden flex flex-col items-center justify-start pt-6 sm:pt-10 pb-10">
       {/* Abstract Background Shapes */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-100/40 rounded-full blur-[120px]" />
@@ -183,14 +183,14 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
       <div className="relative z-10 max-w-[1600px] w-full px-6 flex flex-col items-center">
 
         {/* Header Section */}
-        <div className="text-center mb-6 animate-in fade-in zoom-in-95 duration-700 w-full relative">
-          <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-8">
+        <div className="text-center mb-4 sm:mb-6 animate-in fade-in zoom-in-95 duration-700 w-full relative">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-6 sm:mb-8">
             BHS <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">Analysis</span>
           </h1>
 
           {/* User Profile - Positioned between header and grid */}
           {currentUser && (
-            <div className="flex items-center justify-center gap-3 animate-in fade-in slide-in-from-top-4 delay-300 fill-mode-backwards mb-8 translate-y-2">
+            <div className="flex items-center justify-center gap-3 animate-in fade-in slide-in-from-top-4 delay-300 fill-mode-backwards mb-6 sm:mb-8 translate-y-2">
               <div className="flex items-center gap-3 pl-2 pr-4 py-1.5 bg-white rounded-full shadow-md shadow-slate-200/50 border border-slate-100">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
                   {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
@@ -212,7 +212,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         </div>
 
         {/* Dashboard Grid */}
-        <div className="flex flex-wrap justify-center gap-4 w-full max-w-[1400px]">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 w-full max-w-[1400px]">
 
           {/* ADMIN CARD - ONLY FOR MED SABRY */}
           {currentUser?.name === 'MED Sabry' && (

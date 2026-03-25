@@ -10,7 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
-import CustomerDetails from './CustomerDetails';
+import CustomerDetailsTab from './CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/PdfUtils';
 import * as XLSX from 'xlsx';
 
@@ -2880,7 +2880,7 @@ ${debtSectionHtml}
   // If a customer is selected, show their details
   if (selectedCustomer) {
     return (
-      <CustomerDetails
+      <CustomerDetailsTab
         customerName={selectedCustomer}
         invoices={selectedCustomerInvoices}
         onBack={() => {

@@ -82,19 +82,37 @@ export async function POST(request: Request) {
             const existingRecords = await getLpoRecords();
             let currentCount = existingRecords.length;
 
-            const normalize = (s: string) => s.trim().toLowerCase();
-            const existingKeys = new Set(existingRecords.map(r => `${normalize(r.lpoNumber)}|${normalize(r.customerName)}`));
+            const customers = await getLpoCustomers();
+            const customerIdToName = new Map<string, string>();
+            customers.forEach(c => {
+                if (c.customerId) customerIdToName.set(c.customerId, c.customerName);
+            });
+
+            const normalizeStr = (s: any) => (s || '').toString().trim().toLowerCase();
+            const resolveCustomer = (val: any) => {
+                const s = normalizeStr(val);
+                for (const [id, name] of customerIdToName.entries()) {
+                    if (normalizeStr(id) === s || normalizeStr(name) === s) {
+                        return normalizeStr(id); // Use ID as the definitive key
+                    }
+                }
+                return s; // Fallback
+            };
+
+            const existingKeys = new Set(existingRecords.map(r => `${normalizeStr(r.lpoNumber)}|${resolveCustomer(r.customerName)}`));
 
             if (lpos && Array.isArray(lpos)) {
                 // Check within the incoming list for duplicates (excluding "no number")
+                const incomingKeys = new Set();
                 for (const lpo of lpos) {
-                    const num = normalize(lpo.lpoNumber);
-                    const cust = normalize(lpo.customerName);
+                    const num = normalizeStr(lpo.lpoNumber);
+                    const cust = resolveCustomer(lpo.customerName);
                     const key = `${num}|${cust}`;
 
-                    if (num !== 'no number' && existingKeys.has(key)) {
+                    if (num !== 'no number' && (existingKeys.has(key) || incomingKeys.has(key))) {
                         return NextResponse.json({ error: `Duplicate LPO "${lpo.lpoNumber}" already exists for customer "${lpo.customerName}"` }, { status: 409 });
                     }
+                    incomingKeys.add(key);
                 }
 
                 const recordsToAdd = lpos.map((lpo: any) => {
@@ -111,8 +129,8 @@ export async function POST(request: Request) {
                     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
                 }
 
-                const num = normalize(lpoNumber);
-                const cust = normalize(customerName);
+                const num = normalizeStr(lpoNumber);
+                const cust = resolveCustomer(customerName);
                 const key = `${num}|${cust}`;
 
                 if (num !== 'no number' && existingKeys.has(key)) {

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Loading from './Loading';
 import { OrderItem, ProductOrder as BaseProductOrder } from './InventoryProductOrdersMakeTab';
-import ProductSalesAnalysisModal from './ProductSalesAnalysisModal';
+
 
 // Ensure local interface matches BaseProductOrder so we can cast it.
 interface ProductOrder extends BaseProductOrder {
@@ -62,8 +62,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const [activeTag, setActiveTag] = useState<string>('All');
     const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
 
-    // Modal State
-    const [selectedProductForAnalysis, setSelectedProductForAnalysis] = useState<ProductOrder | null>(null);
+
 
     useEffect(() => {
         fetchOrders();
@@ -675,17 +674,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 </div>
             </div>
 
-            {/* Analysis Modal */}
-            {
-                selectedProductForAnalysis && (
-                    <ProductSalesAnalysisModal
-                        product={selectedProductForAnalysis}
-                        isOpen={!!selectedProductForAnalysis}
-                        onClose={() => setSelectedProductForAnalysis(null)}
-                        packSize={parseFloat(packSizes[selectedProductForAnalysis.productId]) || 1}
-                    />
-                )
-            }
+
         </div >
     );
 }

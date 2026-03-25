@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 import CustomersTab from '@/components/CustomersTab';
-import CustomersLanding from '@/components/CustomersLanding';
+import CustomersLandingTab from '@/components/CustomersLandingTab';
 import OpenTransactionsTab from '@/components/OpenTransactionsTab';
 import AllTransactionsTab from '@/components/AllTransactionsTab';
 import PaymentTrackerTab from '@/components/PaymentTrackerTab';
@@ -187,7 +187,7 @@ function DebitPageContent() {
 
     switch (activeTab) {
       case 'customers':
-        return <CustomersLanding data={data} initialCustomer={initialCustomer} />;
+        return <CustomersLandingTab data={data} initialCustomer={initialCustomer} />;
       case 'all-transactions':
         return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':

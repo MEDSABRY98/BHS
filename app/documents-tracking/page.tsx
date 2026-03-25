@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import DocumentsTrackingTab from '@/components/DocumentsTracking/DocumentsTrackingTab';
+import DocumentsTrackingTab from '@/components/DocumentsTrackingTab';
 import { ChevronLeft } from 'lucide-react';
 import Loading from '@/components/Loading';
 

@@ -6,14 +6,14 @@ import CustomersTab from './CustomersTab';
 import CustomersMinsTab from './CustomersMinsTab';
 import { Users, CreditCard, TrendingUp, TrendingDown, ArrowLeft, Wallet, FileText, AlertCircle, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 
-interface CustomersLandingProps {
+interface CustomersLandingTabProps {
     data: InvoiceRow[];
     initialCustomer?: string;
 }
 
 const VIEWS: ('normal' | 'credit' | 'ob_pos' | 'ob_neg')[] = ['normal', 'credit', 'ob_pos', 'ob_neg'];
 
-export default function CustomersLanding({ data, initialCustomer }: CustomersLandingProps) {
+export default function CustomersLandingTab({ data, initialCustomer }: CustomersLandingTabProps) {
     const [view, setView] = useState<'landing' | 'normal' | 'credit' | 'ob_pos' | 'ob_neg'>(
         initialCustomer ? 'normal' : 'normal'
     );

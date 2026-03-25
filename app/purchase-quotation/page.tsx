@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
+import InventoryPurchaseQuotationTab from '@/components/InventoryPurchaseQuotationTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 
@@ -70,5 +70,5 @@ export default function PurchaseQuotationPage() {
         return <Login onLogin={handleLogin} />;
     }
 
-    return <PurchaseQuotationTab />;
+    return <InventoryPurchaseQuotationTab />;
 }

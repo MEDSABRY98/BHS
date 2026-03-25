@@ -5,7 +5,7 @@ import { useState, useEffect } from 'react';
 import InventoryProductOrdersTab from '@/components/InventoryProductOrdersTab';
 import InventoryNotificationOrderTab from '@/components/InventoryNotificationOrderTab';
 import InventoryProductOrdersMakeTab, { OrderItem } from '@/components/InventoryProductOrdersMakeTab';
-import PurchaseQuotationTab from '@/components/PurchaseQuotationTab';
+import InventoryPurchaseQuotationTab from '@/components/InventoryPurchaseQuotationTab';
 import InventoryItemCodeTab from '@/components/InventoryItemCodeTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
@@ -152,7 +152,7 @@ export default function InventoryPage() {
           />
         </div>
         <div className={activeTab === 'quotation' ? 'block' : 'hidden'}>
-          <PurchaseQuotationTab initialItems={quotationItems} />
+          <InventoryPurchaseQuotationTab initialItems={quotationItems} />
         </div>
         <div className={activeTab === 'item_code' ? 'block' : 'hidden'}>
           <InventoryItemCodeTab />

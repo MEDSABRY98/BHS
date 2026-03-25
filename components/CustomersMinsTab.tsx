@@ -10,7 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
-import CustomerDetails from './CustomerDetails';
+import CustomerDetailsTab from './CustomerDetailsTab';
 import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
@@ -1903,7 +1903,7 @@ export default function CustomersMinsTab({ data, onCustomerToggle }: CustomersTa
   // If a customer is selected, show their details
   if (selectedCustomer) {
     return (
-      <CustomerDetails
+      <CustomerDetailsTab
         customerName={selectedCustomer}
         invoices={selectedCustomerInvoices}
         onBack={() => {
