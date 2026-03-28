@@ -1,5 +1,5 @@
 import { google } from 'googleapis';
-import { getServiceAccountCredentials, SPREADSHEET_ID } from './googleSheets';
+import { getServiceAccountCredentials, SPREADSHEET_ID } from '@/lib/googleSheets';
 
 /**
  * Saves a cash receipt to the 'Cash Receipt' sheet.
