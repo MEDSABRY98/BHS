@@ -1,2 +1,1 @@
-# BHS Analysis Application
 
