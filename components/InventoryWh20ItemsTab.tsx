@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, Calendar, User, MapPin,
     FileText, Printer, Plus, Trash2, Edit2,
-    ChevronDown, Save, RefreshCw, X, ArrowLeft, Tag, FileDown, CheckCircle2
+    ChevronDown, Save, RefreshCw, X, ArrowLeft, Tag, FileDown, CheckCircle2, FileSpreadsheet
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import jsPDF from 'jspdf';
@@ -459,6 +459,44 @@ export default function InventoryWh20ItemsTab() {
         });
         setEditRows([{ barcode: '', productName: '', unit: 'PCS' as 'CTN' | 'PCS', qty: '', price: '', searchTerm: '', pcsPerCtn: 1 }]);
         setEditSelectedTag('');
+    };
+
+    const downloadTransactionExcel = (transactionNumber: string) => {
+        const transactions = rawHistory.filter(t => t.number === transactionNumber);
+        if (transactions.length === 0) {
+            addNotification('Transaction data not found', 'error');
+            return;
+        }
+
+        const h = transactions[0];
+        // Create CSV content
+        const headers = ["Date", "Operation Type", "Recipient", "Customer", "Barcode", "Product Name", "Unit", "Qty", "Price", "Total"];
+        const rows = transactions.map(t => [
+            t.date,
+            `"${t.operationType}"`,
+            `"${t.recipientName}"`,
+            `"${t.customerName || ''}"`,
+            `"${t.barcode}"`,
+            `"${t.product}"`,
+            t.type,
+            t.qty,
+            t.price,
+            t.total
+        ]);
+
+        const csvContent = [
+            headers.join(","),
+            ...rows.map(r => r.join(","))
+        ].join("\n");
+
+        const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.setAttribute("href", url);
+        link.setAttribute("download", `${transactionNumber}_${h.recipientName}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const fetchHistory = async (limit?: number) => {
@@ -1542,28 +1580,45 @@ export default function InventoryWh20ItemsTab() {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {filteredHistoryData.map((tx) => (
-                                    <tr key={tx.number} className="hover:bg-slate-50 transition-colors">
-                                        <td className="px-2 py-3 font-mono text-xs font-medium text-slate-700 text-center truncate" title={tx.number}>{tx.number}</td>
-                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.date}>{tx.date}</td>
-                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={translateOpType(tx.operationType)}>{translateOpType(tx.operationType)}</td>
-                                        <td className="px-2 py-3 text-sm font-medium text-slate-800 text-center truncate" title={tx.recipientName}>{tx.recipientName}</td>
-                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.customerName}>{tx.customerName || '-'}</td>
-                                        <td className="px-2 py-3 text-xs text-slate-600 text-center truncate px-2" title={tx.description}>{tx.description || '-'}</td>
-                                        <td className="px-2 py-3 text-sm font-bold text-indigo-600 text-center truncate">{tx.total?.toLocaleString()} AED</td>
-                                        <td className="px-2 py-3 text-center">
-                                            <button
-                                                onClick={() => handleReprint(tx.number)}
-                                                className="p-1 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                                title="Reprint PDF"
-                                            >
-                                                <Printer className="w-4 h-4" />
-                                            </button>
+                                {historyLoading ? (
+                                    <tr>
+                                        <td colSpan={8} className="py-20 text-center">
+                                            <RefreshCw className="w-10 h-10 text-indigo-400 animate-spin mx-auto mb-4" />
+                                            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Syncing Cloud History...</p>
                                         </td>
                                     </tr>
-                                ))}
-                                {filteredHistoryData.length === 0 && (
-                                    <tr><td colSpan={7} className="text-center py-12 text-slate-500">No history found</td></tr>
+                                ) : filteredHistoryData.length === 0 ? (
+                                    <tr><td colSpan={8} className="text-center py-12 text-slate-500">No history found</td></tr>
+                                ) : (
+                                    filteredHistoryData.map((tx) => (
+                                        <tr key={tx.number} className="hover:bg-slate-50 transition-colors">
+                                            <td className="px-2 py-3 font-mono text-xs font-medium text-slate-700 text-center truncate" title={tx.number}>{tx.number}</td>
+                                            <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.date}>{tx.date}</td>
+                                            <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={translateOpType(tx.operationType)}>{translateOpType(tx.operationType)}</td>
+                                            <td className="px-2 py-3 text-sm font-medium text-slate-800 text-center truncate" title={tx.recipientName}>{tx.recipientName}</td>
+                                            <td className="px-2 py-3 text-xs text-slate-600 text-center truncate" title={tx.customerName}>{tx.customerName || '-'}</td>
+                                            <td className="px-2 py-3 text-xs text-slate-600 text-center truncate px-2" title={tx.description}>{tx.description || '-'}</td>
+                                            <td className="px-2 py-3 text-sm font-bold text-indigo-600 text-center truncate">{tx.total?.toLocaleString()} AED</td>
+                                            <td className="px-2 py-3 text-center">
+                                                <div className="flex items-center justify-center gap-1">
+                                                    <button
+                                                        onClick={() => handleReprint(tx.number)}
+                                                        className="p-1 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                                        title="Download PDF"
+                                                    >
+                                                        <FileDown className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => downloadTransactionExcel(tx.number)}
+                                                        className="p-1 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+                                                        title="Download Excel"
+                                                    >
+                                                        <FileSpreadsheet className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
                                 )}
                             </tbody>
                         </table>

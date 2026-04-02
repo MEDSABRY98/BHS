@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { searchQuotationByNumber } from '@/lib/PurchaseQuotationSheets';
+import { searchQuotationByNumber } from '@/components/InventoryPurchaseQuotationSheets';
 
 export async function GET(request: NextRequest) {
     try {
