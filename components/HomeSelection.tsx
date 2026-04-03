@@ -150,6 +150,26 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     return true;
   };
 
+  const ALL_SYSTEMS = [
+    { id: 'cash-receipt', title: "Cash Receipt", icon: Receipt, path: '/cash-receipt', color: 'teal' as const },
+    { id: 'petty-cash', title: "Petty Cash", icon: Wallet, path: '/petty-cash', color: 'cyan' as const },
+    { id: 'documents-tracking', title: "Documents Tracking", icon: FileSpreadsheet, path: '/documents-tracking', color: 'orange' as const },
+    { id: 'debit', title: "Debit Analysis", icon: DollarSign, path: '/debit', color: 'red' as const },
+    { id: 'visit-customers', title: "Visit Customers", icon: Users, path: '/visit-customers', color: 'pink' as const },
+    { id: 'discount-tracker', title: "Discount Tracker", icon: TrendingUp, path: '/discount-tracker', color: 'yellow' as const },
+    { id: 'sales', title: "Sales Analysis", icon: LayoutGrid, path: '/sales', color: 'green' as const },
+    { id: 'delivery-tracking', title: "Delivery Tracking", icon: Truck, path: '/delivery-tracking', color: 'blue' as const },
+    { id: 'inventory', title: "Inventory", icon: Package, path: '/inventory', color: 'indigo' as const },
+    { id: 'wh20-items', title: "WH/20 ITEMS", icon: Package, path: '/wh20-items', color: 'emerald' as const },
+    { id: 'employee', title: "Employee", icon: Clock, path: '/employee', color: 'blue' as const },
+    { id: 'water-delivery-note', title: "Water - Delivery Note", icon: FileText, path: '/water-delivery-note', color: 'violet' as const },
+    { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/suppliers', color: 'emerald' as const },
+  ];
+
+  const allowedSystems = ALL_SYSTEMS
+    .filter(sys => isSystemAllowed(sys.id))
+    .sort((a, b) => a.title.localeCompare(b.title));
+
   if (activeView === 'admin') {
     return (
       <div className="min-h-screen bg-slate-50">
@@ -214,7 +234,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
         {/* Dashboard Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4 w-full max-w-[1400px]">
 
-          {/* ADMIN CARD - ONLY FOR MED SABRY */}
+          {/* ADMIN CARD - ONLY FOR MED SABRY - ALWAYS FIRST */}
           {currentUser?.name === 'MED Sabry' && (
             <SystemCard
               title="Admin Control"
@@ -225,47 +245,17 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             />
           )}
 
-          {/* DYNAMIC SYSTEMS - BASED ON PERMISSIONS */}
-          {isSystemAllowed('cash-receipt') && (
-            <SystemCard title="Cash Receipt" icon={Receipt} onClick={nav('/cash-receipt')} color="teal" delay={150} />
-          )}
-          {isSystemAllowed('petty-cash') && (
-            <SystemCard title="Petty Cash" icon={Wallet} onClick={nav('/petty-cash')} color="cyan" delay={200} />
-          )}
-          {isSystemAllowed('documents-tracking') && (
-            <SystemCard title="Documents Tracking" icon={FileSpreadsheet} onClick={nav('/documents-tracking')} color="orange" delay={225} />
-          )}
-          {isSystemAllowed('debit') && (
-            <SystemCard title="Debit Analysis" icon={DollarSign} onClick={nav('/debit')} color="red" delay={250} />
-          )}
-          {isSystemAllowed('visit-customers') && (
-            <SystemCard title="Visit Customers" icon={Users} onClick={nav('/visit-customers')} color="pink" delay={300} />
-          )}
-          {isSystemAllowed('discount-tracker') && (
-            <SystemCard title="Discount Tracker" icon={TrendingUp} onClick={nav('/discount-tracker')} color="yellow" delay={350} />
-          )}
-          {isSystemAllowed('sales') && (
-            <SystemCard title="Sales Analysis" icon={LayoutGrid} onClick={nav('/sales')} color="green" delay={400} />
-          )}
-          {isSystemAllowed('delivery-tracking') && (
-            <SystemCard title="Delivery Tracking" icon={Truck} onClick={nav('/delivery-tracking')} color="blue" delay={425} />
-          )}
-
-          {isSystemAllowed('inventory') && (
-            <SystemCard title="Inventory" icon={Package} onClick={nav('/inventory')} color="indigo" delay={450} />
-          )}
-          {isSystemAllowed('wh20-items') && (
-            <SystemCard title="WH/20 ITEMS" icon={Package} onClick={nav('/wh20-items')} color="emerald" delay={525} />
-          )}
-          {isSystemAllowed('employee') && (
-            <SystemCard title="Employee" icon={Clock} onClick={nav('/employee')} color="blue" delay={550} />
-          )}
-          {isSystemAllowed('water-delivery-note') && (
-            <SystemCard title="Water - Delivery Note" icon={FileText} onClick={nav('/water-delivery-note')} color="violet" delay={600} />
-          )}
-          {isSystemAllowed('suppliers') && (
-            <SystemCard title="Suppliers" icon={Truck} onClick={nav('/suppliers')} color="emerald" delay={650} />
-          )}
+          {/* DYNAMIC SYSTEMS - SORTED ALPHABETICALLY */}
+          {allowedSystems.map((sys, index) => (
+            <SystemCard
+              key={sys.id}
+              title={sys.title}
+              icon={sys.icon}
+              onClick={nav(sys.path)}
+              color={sys.color}
+              delay={150 + (index * 25)}
+            />
+          ))}
 
         </div>
 

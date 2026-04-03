@@ -79,6 +79,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'wh20-items': [
         { id: 'entry', label: 'Entry' },
+        { id: 'edit', label: 'Edit Transaction' },
         { id: 'history', label: 'History' },
         { id: 'people', label: 'People Inventory' }
     ],
@@ -97,6 +98,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'orders', label: 'All Orders' },
         { id: 'reship', label: 'Re-Shipments' },
         { id: 'missing_items', label: 'Missing Items' }
+    ],
+    'documents-tracking': [
+        { id: 'register', label: 'Register' },
+        { id: 'list', label: 'All Documents' },
+        { id: 'receivers', label: 'Receivers' }
     ]
 };
 
