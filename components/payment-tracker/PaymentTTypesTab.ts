@@ -47,3 +47,11 @@ export interface PdfExportSections {
   gapAnalysis: boolean;
   salesRep: boolean;
 }
+
+export interface AreaStat {
+  repName: string;
+  totalCollected: number;
+  paymentCount: number;
+  avgPaymentAmount: number;
+  avgCollectionDays: number;
+}

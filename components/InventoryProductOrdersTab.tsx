@@ -7,14 +7,25 @@ import {
     ChevronLeft, ChevronRight
 } from 'lucide-react';
 import Loading from './Loading';
-import { OrderItem, ProductOrder as BaseProductOrder } from './InventoryProductOrdersMakeTab';
+export interface BaseProductOrder {
+    productId: string;
+    productName: string;
+    barcode: string;
+    tags: string;
+    qtyFreeToUse: number;
+    qinc?: number;
+    rowIndex: number;
+    salesQty?: number;
+}
 
-
-// Ensure local interface matches BaseProductOrder so we can cast it.
-interface ProductOrder extends BaseProductOrder {
+export interface ProductOrder extends BaseProductOrder {
     salesBreakdown?: { label: string; qty: number }[];
     minQ?: number;
     maxQ?: number;
+}
+
+export interface OrderItem extends ProductOrder {
+    orderQty: number;
 }
 
 interface Props {
