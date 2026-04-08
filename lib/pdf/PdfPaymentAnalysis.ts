@@ -1,7 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from './InvoiceType';
+import { getInvoiceType } from '../InvoiceType';
 
 interface FilterContext {
     startDate?: Date;
@@ -12,6 +12,7 @@ interface FilterContext {
     obMatchingIds?: Set<string>;
     matchIdToDateMap?: Map<string, Date[]>;
     sections?: {
+        dashboard?: boolean;
         summary?: boolean;
         summaryPrevious?: boolean;
         summaryLastYear?: boolean;
@@ -19,9 +20,8 @@ interface FilterContext {
         weekly?: boolean;
         monthly?: boolean;
         customerList?: boolean;
-
-        salesRep?: boolean;
         gapAnalysis?: boolean;
+        salesRep?: boolean;
     };
     selectedCustomers?: Set<string>;
 }
@@ -919,7 +919,65 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     // Resetting y for sections (actually each section will define its own startY or y)
     y = 40;
+    const pW = doc.internal.pageSize.width;
 
+    // --- DASHBOARD PAGE ---
+    if (filters.sections?.dashboard !== false) {
+        doc.addPage('a4', 'portrait');
+
+        // Header
+        doc.setFontSize(32);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('DASHBOARD', pW / 2, 40, { align: 'center' });
+
+        // Decorative Line
+        doc.setDrawColor(59, 130, 246);
+        doc.setLineWidth(1.5);
+        doc.line(pW / 2 - 25, 52, pW / 2 + 25, 52);
+
+        // Cards Layout
+        const cardWidth = 140;
+        const startX = (pW - cardWidth) / 2;
+        let currentY = 75;
+        const cardHeight = 50;
+        const cardGap = 20;
+
+        const drawDashboardCard = (title: string, value: string, color: [number, number, number]) => {
+            // Shadow effect
+            doc.setFillColor(241, 245, 249);
+            doc.roundedRect(startX + 1.5, currentY + 1.5, cardWidth, cardHeight, 5, 5, 'F');
+
+            // Card Body
+            doc.setFillColor(255, 255, 255);
+            doc.setDrawColor(226, 232, 240);
+            doc.setLineWidth(0.2);
+            doc.roundedRect(startX, currentY, cardWidth, cardHeight, 5, 5, 'FD');
+
+            // Left Accent Bar
+            doc.setFillColor(...color);
+            doc.roundedRect(startX, currentY, 4, cardHeight, 5, 5, 'F');
+            doc.rect(startX + 2, currentY, 2, cardHeight, 'F'); // Squared inner edge for bar
+
+            // Label
+            doc.setFontSize(11);
+            doc.setTextColor(100, 116, 139);
+            doc.setFont('helvetica', 'bold');
+            doc.text(title.toUpperCase(), startX + 12, currentY + 18);
+
+            // Value
+            doc.setFontSize(28);
+            doc.setTextColor(15, 23, 42);
+            doc.setFont('helvetica', 'bold');
+            doc.text(value, startX + 12, currentY + 38);
+
+            currentY += cardHeight + cardGap;
+        };
+
+        drawDashboardCard('Total Collected Amount', `${curMet.total.toLocaleString(undefined, { maximumFractionDigits: 0 })} AED`, [59, 130, 246]);
+        drawDashboardCard('Number of Customers', `${curMet.uniqueCustomers.toLocaleString()}`, [16, 185, 129]);
+        drawDashboardCard('Number of Payments', `${curMet.count.toLocaleString()}`, [245, 158, 11]);
+    }
     if (filters.sections?.summary !== false) {
         doc.addPage('a4', 'landscape');
 

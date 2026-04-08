@@ -3,43 +3,19 @@
 import { useState, useEffect } from 'react';
 
 import InventoryProductOrdersTab from '@/components/InventoryProductOrdersTab';
-import InventoryNotificationOrderTab from '@/components/InventoryNotificationOrderTab';
-import InventoryProductOrdersMakeTab, { OrderItem } from '@/components/InventoryProductOrdersMakeTab';
-import InventoryPurchaseQuotationTab from '@/components/InventoryPurchaseQuotationTab';
 import InventoryItemCodeTab from '@/components/InventoryItemCodeTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {
-  const [activeTab, setActiveTab] = useState<'orders' | 'notification' | 'make' | 'quotation' | 'item_code'>('orders');
+  const [activeTab, setActiveTab] = useState<'orders' | 'item_code'>('orders');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
 
   // Shared state for Orders
-  const [poNumber, setPoNumber] = useState('');
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [quotationItems, setQuotationItems] = useState<any[]>([]);
+  const [orderItems, setOrderItems] = useState<any[]>([]);
 
-  useEffect(() => {
-    // Fetch next PO Number from API
-    const fetchPoNumber = async () => {
-      try {
-        const res = await fetch('/api/inventory/next-po');
-        const data = await res.json();
-        if (data.poNumber) {
-          setPoNumber(data.poNumber);
-        }
-      } catch (error) {
-        console.error('Error fetching PO number:', error);
-        // Fallback
-        const today = new Date();
-        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, '');
-        setPoNumber(`PO-${dateStr}-ERROR`);
-      }
-    };
-    fetchPoNumber();
-  }, []);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('currentUser');
@@ -63,10 +39,7 @@ export default function InventoryPage() {
     localStorage.setItem('currentUser', JSON.stringify(user));
   };
 
-  const handleSendToQuotation = (items: OrderItem[]) => {
-    setQuotationItems(items);
-    setActiveTab('quotation');
-  };
+
 
   if (isChecking) {
     return <Loading />;
@@ -101,9 +74,6 @@ export default function InventoryPage() {
             <div className="flex bg-slate-100 p-1 rounded-xl">
               {[
                 { id: 'orders', label: 'Orders Tracker' },
-                { id: 'notification', label: 'Notification Order' },
-                { id: 'make', label: 'Make Orders' },
-                { id: 'quotation', label: 'Purchase Quotation' },
                 { id: 'item_code', label: 'Item Code' }
               ].map(tab => {
                 // Check permissions
@@ -139,21 +109,6 @@ export default function InventoryPage() {
         <div className={activeTab === 'orders' ? 'block' : 'hidden'}>
           <InventoryProductOrdersTab orderItems={orderItems} setOrderItems={setOrderItems} />
         </div>
-        <div className={activeTab === 'notification' ? 'block' : 'hidden'}>
-          <InventoryNotificationOrderTab />
-        </div>
-        <div className={activeTab === 'make' ? 'block' : 'hidden'}>
-          <InventoryProductOrdersMakeTab
-            poNumber={poNumber}
-            orderItems={orderItems}
-            setOrderItems={setOrderItems}
-            setPoNumber={setPoNumber}
-            onSendToQuotation={handleSendToQuotation}
-          />
-        </div>
-        <div className={activeTab === 'quotation' ? 'block' : 'hidden'}>
-          <InventoryPurchaseQuotationTab initialItems={quotationItems} />
-        </div>
         <div className={activeTab === 'item_code' ? 'block' : 'hidden'}>
           <InventoryItemCodeTab />
         </div>
@@ -161,5 +116,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-
-

@@ -463,7 +463,7 @@ export default function VisitCustomersTab() {
         else if (monthFilter) period = `Month ${monthFilter}`;
 
         try {
-            const { generateSalesRepReportPDF } = await import('@/lib/PdfUtils');
+            const { generateSalesRepReportPDF } = await import('@/lib/pdf/PdfUtils');
             const pdfBlob = await generateSalesRepReportPDF({
                 repName,
                 period,
@@ -1903,7 +1903,7 @@ function SalesRepDetailView({
 
     const handleDownloadPDF = async (details: any) => {
         try {
-            const { generateSalesRepReportPDF } = await import('@/lib/PdfUtils');
+            const { generateSalesRepReportPDF } = await import('@/lib/pdf/PdfUtils');
             const pdfBlob = await generateSalesRepReportPDF({
                 repName: details.name,
                 period: period,

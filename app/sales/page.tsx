@@ -9,9 +9,7 @@ import SalesStatisticsTab from '@/components/SalesStatisticsTab';
 import SalesDailySalesTab from '@/components/SalesDailySalesTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesStockReportTab from '@/components/SalesStockReportTab';
-import SalesInvoiceDetailsTab from '@/components/SalesInvoiceDetailsTab';
 import SalesComparisonTab from '@/components/SalesComparisonTab';
-import SalesCategoryRankTab from '@/components/SalesCategoryRankTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -236,12 +234,10 @@ export default function SalesPage() {
     { id: 'sales-top10', label: 'Top 10' },
     { id: 'sales-comparison', label: 'Comparison' },
     { id: 'sales-customers', label: 'Customers' },
-    { id: 'sales-invoice-details', label: 'Invoice Details' },
     { id: 'sales-inactive-customers', label: 'Inactive' },
     { id: 'sales-statistics', label: 'Statistics' },
     { id: 'sales-daily-sales', label: 'Daily Sales' },
     { id: 'sales-products', label: 'Products' },
-    { id: 'sales-category-rank', label: 'Category Rank' },
     { id: 'sales-download-form', label: 'Stock Report' },
   ];
 
@@ -286,8 +282,7 @@ export default function SalesPage() {
         return <SalesComparisonTab data={globallyFilteredData} loading={loading} />;
       case 'sales-customers':
         return <SalesCustomersTab data={globallyFilteredData} loading={loading} onUploadMapping={handleUploadMapping} />;
-      case 'sales-invoice-details':
-        return <SalesInvoiceDetailsTab data={globallyFilteredData} loading={loading} />;
+
       case 'sales-inactive-customers':
         return <SalesInactiveCustomersTab data={globallyFilteredData} loading={loading} />;
       case 'sales-statistics':
@@ -296,8 +291,7 @@ export default function SalesPage() {
         return <SalesDailySalesTab data={globallyFilteredData} loading={loading} />;
       case 'sales-products':
         return <SalesProductsTab data={globallyFilteredData} loading={loading} />;
-      case 'sales-category-rank':
-        return <SalesCategoryRankTab data={globallyFilteredData} loading={loading} />;
+
       case 'sales-download-form':
         return <SalesStockReportTab data={globallyFilteredData} loading={loading} />;
       default:
@@ -420,46 +414,19 @@ export default function SalesPage() {
           <div className="w-full xl:w-auto shrink-0 flex items-center justify-end">
             <div className="relative">
               <button
-                onClick={() => setIsFilterOpen(!isFilterOpen)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm ${invoiceTypeFilter === 'all'
-                  ? 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                onClick={() => setIsFilterOpen(true)}
+                className={`group relative p-3 rounded-xl transition-all duration-300 border shadow-sm ${invoiceTypeFilter === 'all'
+                  ? 'bg-white border-slate-200 text-slate-400 hover:border-green-200 hover:text-green-600 hover:bg-green-50'
                   : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
                   }`}
+                title="Change Reporting Mode"
               >
-                {invoiceTypeFilter === 'all' ? <CheckCircle2 className="w-4 h-4 text-green-500" /> : <AlertCircle className="w-4 h-4" />}
-                <span className="hidden sm:inline">Mode: {invoiceTypeFilter === 'all' ? 'Standard' : invoiceTypeFilter.toUpperCase()}</span>
-                <ChevronDown className="w-4 h-4 opacity-50" />
+                <Filter className={`w-5 h-5 transition-transform group-hover:scale-110 ${invoiceTypeFilter !== 'all' ? 'animate-pulse' : ''}`} />
+                {invoiceTypeFilter !== 'all' && (
+                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm" />
+                )}
               </button>
 
-              {isFilterOpen && (
-                <div className="absolute top-full right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-slate-100 p-2 z-50 animate-in fade-in zoom-in-95 duration-200">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-2 py-1 mb-1">Select View Mode</div>
-                  <button
-                    onClick={() => { setInvoiceTypeFilter('all'); setIsFilterOpen(false); }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold mb-1 transition-all ${invoiceTypeFilter === 'all' ? 'bg-green-50 text-green-700' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${invoiceTypeFilter === 'all' ? 'bg-green-500' : 'bg-slate-200'}`} />
-                    All Invoices
-                  </button>
-                  <button
-                    onClick={() => { setInvoiceTypeFilter('sales'); setIsFilterOpen(false); }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold mb-1 transition-all ${invoiceTypeFilter === 'sales' ? 'bg-red-50 text-red-700' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${invoiceTypeFilter === 'sales' ? 'bg-red-500' : 'bg-slate-200'}`} />
-                    Sales Only
-                  </button>
-                  <button
-                    onClick={() => { setInvoiceTypeFilter('returns'); setIsFilterOpen(false); }}
-                    className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-bold transition-all ${invoiceTypeFilter === 'returns' ? 'bg-red-50 text-red-700' : 'text-slate-600 hover:bg-slate-50'
-                      }`}
-                  >
-                    <div className={`w-2 h-2 rounded-full ${invoiceTypeFilter === 'returns' ? 'bg-red-500' : 'bg-slate-200'}`} />
-                    Returns Only
-                  </button>
-                </div>
-              )}
             </div>
           </div>
 
@@ -472,6 +439,77 @@ export default function SalesPage() {
           {renderTabContent()}
         </main>
       </div>
+
+      {/* MODAL POPUP - MOVED TO ROOT LEVEL */}
+      {isFilterOpen && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setIsFilterOpen(false)}
+          />
+          <div className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl border border-white overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+            <div className="bg-gradient-to-br from-slate-50 to-white px-8 pt-8 pb-6 border-b border-slate-100">
+              <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center mb-4">
+                <Filter className="w-6 h-6 text-green-600" />
+              </div>
+              <h3 className="text-xl font-black text-slate-900 tracking-tight">Reporting Mode</h3>
+            </div>
+
+            <div className="p-4 space-y-2">
+              <button
+                onClick={() => { setInvoiceTypeFilter('all'); setIsFilterOpen(false); }}
+                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl text-sm font-bold transition-all ${invoiceTypeFilter === 'all'
+                  ? 'bg-green-50 text-green-700 ring-2 ring-green-100'
+                  : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-3 h-3 rounded-full ${invoiceTypeFilter === 'all' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]' : 'bg-slate-200'}`} />
+                  <div className="text-sm">Standard View</div>
+                </div>
+                {invoiceTypeFilter === 'all' && <CheckCircle2 className="w-5 h-5" />}
+              </button>
+
+              <button
+                onClick={() => { setInvoiceTypeFilter('sales'); setIsFilterOpen(false); }}
+                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl text-sm font-bold transition-all ${invoiceTypeFilter === 'sales'
+                  ? 'bg-blue-50 text-blue-700 ring-2 ring-blue-100'
+                  : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-3 h-3 rounded-full ${invoiceTypeFilter === 'sales' ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.4)]' : 'bg-slate-200'}`} />
+                  <div className="text-sm">Invoices Only</div>
+                </div>
+                {invoiceTypeFilter === 'sales' && <CheckCircle2 className="w-5 h-5" />}
+              </button>
+
+              <button
+                onClick={() => { setInvoiceTypeFilter('returns'); setIsFilterOpen(false); }}
+                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl text-sm font-bold transition-all ${invoiceTypeFilter === 'returns'
+                  ? 'bg-red-50 text-red-700 ring-2 ring-red-100'
+                  : 'text-slate-600 hover:bg-slate-50'
+                  }`}
+              >
+                <div className="flex items-center gap-4">
+                  <div className={`w-3 h-3 rounded-full ${invoiceTypeFilter === 'returns' ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]' : 'bg-slate-200'}`} />
+                  <div className="text-sm">Returns Only</div>
+                </div>
+                {invoiceTypeFilter === 'returns' && <CheckCircle2 className="w-5 h-5" />}
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50 flex justify-center">
+              <button
+                onClick={() => setIsFilterOpen(false)}
+                className="text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

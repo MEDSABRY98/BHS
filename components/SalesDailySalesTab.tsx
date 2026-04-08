@@ -924,13 +924,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
               <div className="flex items-center gap-4">
                 <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
               </div>
-              <button
-                onClick={exportAllInvoicesToExcel}
-                className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md active:scale-95"
-                title="Export to Excel"
-              >
-                <Download className="w-5 h-5" />
-              </button>
+
             </div>
 
             {dailySalesData.length > 0 && (
@@ -1079,13 +1073,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-800">Sales BY Day</h2>
-              <button
-                onClick={exportSalesByDayToExcel}
-                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-                title="Export to Excel"
-              >
-                <Download className="w-5 h-5" />
-              </button>
+
             </div>
             {salesByDayData.length === 0 ? (
               <div className="text-center py-12">
@@ -1139,13 +1127,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           <div className="bg-white rounded-xl shadow-md p-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-800">AVG Sales BY Day</h2>
-              <button
-                onClick={exportAvgSalesByDayToExcel}
-                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-                title="Export to Excel"
-              >
-                <Download className="w-5 h-5" />
-              </button>
+
             </div>
             {avgSalesByDayData.length === 0 ? (
               <div className="text-center py-12">

@@ -10,6 +10,7 @@ import {
   createColumnHelper,
   PaginationState,
 } from '@tanstack/react-table';
+import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 
 interface AllTransactionsTabProps {
@@ -337,12 +338,10 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
           </p>
           <button
             onClick={exportToExcel}
-            className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+            className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
             title="Export to Excel"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-            </svg>
+            <FileSpreadsheet className="h-5 w-5" />
           </button>
         </div>
         <div className="inline-flex items-center bg-white rounded-full shadow-sm border border-blue-100 overflow-hidden text-sm">

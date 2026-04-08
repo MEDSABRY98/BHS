@@ -29,7 +29,7 @@ import {
   PaginationState,
 } from '@tanstack/react-table';
 import { InvoiceRow } from '@/types';
-import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X } from 'lucide-react';
+import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2 } from 'lucide-react';
 import { getInvoiceType } from '@/lib/InvoiceType';
 import { useSearchParams } from 'next/navigation';
 
@@ -350,11 +350,11 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
   // PDF Export State
   const [showExportModal, setShowExportModal] = useState(false);
-  const [exportMode, setExportMode] = useState<'combined' | 'separated'>('combined');
   const [selectedMonths, setSelectedMonths] = useState<string[]>([]);
   const [pdfExportType, setPdfExportType] = useState<'all' | 'net'>('all');
   const [exportScope, setExportScope] = useState<'custom' | 'view' | 'selection'>('custom');
   const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf');
+  const [shortenInvoiceNumbers, setShortenInvoiceNumbers] = useState(true);
 
   // Notes State
   const [notes, setNotes] = useState<any[]>([]);
@@ -473,7 +473,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
 
       // Build PDFs + per-customer net debt lines
       const monthsLabel = 'All Months (Net Only)';
-      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/pdf/PdfUtils');
 
       const attachments: Array<{ fileName: string; base64: string }> = [];
       const debtByCustomer: Array<{ customer: string; netDebt: number }> = [];
@@ -919,6 +919,7 @@ ${debtSectionHtml}
       return {
         ...inv,
         credit: adjustedCredit,
+        netDebt: difference,
         difference,
         daysOverdue
       } as OverdueInvoice;
@@ -1716,7 +1717,7 @@ ${debtSectionHtml}
         cell: (info) => info.getValue().toLocaleString('en-US'),
       }),
       overdueColumnHelper.accessor('difference', {
-        header: 'Difference',
+        header: 'Net Debt',
         cell: (info) => {
           const value = info.getValue();
           return (
@@ -1841,8 +1842,8 @@ ${debtSectionHtml}
 
       const monthsLabel = 'All Months (Net Only)';
 
-      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
-      await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
+      const { generateAccountStatementPDF } = await import('@/lib/pdf/PdfUtils');
+      await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel, shortenInvoiceNumbers);
 
     } catch (error) {
       console.error('Error generating PDF:', error);
@@ -1873,10 +1874,15 @@ ${debtSectionHtml}
         }
       }
 
+      let invoiceNumber = inv.number || '';
+      if (shortenInvoiceNumbers && invoiceNumber) {
+        invoiceNumber = invoiceNumber.split(' ')[0];
+      }
+
       return [
         dateStr,
         type,
-        inv.number || '',
+        invoiceNumber,
         inv.debit || 0,
         inv.credit || 0,
         inv.netDebt || 0
@@ -1928,32 +1934,6 @@ ${debtSectionHtml}
         if (invoiceSearchQuery) {
           monthsLabel += ` (Search: ${invoiceSearchQuery})`;
         }
-
-        // Apply Net Only filter if selected
-        if (pdfExportType === 'net') {
-          finalInvoices = finalInvoices.filter(inv => {
-            // Keep if no matching ID (Unmatched)
-            if (!inv.matching) return true;
-
-            // Keep only if it carries the residual (which means it's the main open invoice of an open group)
-            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-          }).map(inv => {
-            if (inv.matching && inv.residual !== undefined) {
-              // It's a condensed open invoice
-              // Calculate "Paid" amount to show in Credit
-              // Credit = Debit - Residual
-              return {
-                ...inv,
-                credit: inv.debit - inv.residual,
-                netDebt: inv.residual
-              };
-            }
-            return inv;
-          });
-
-          monthsLabel += ' (Net Only)';
-        }
-
       } else if (exportScope === 'selection') {
         const isOverdueTab = activeTab === 'overdue';
         const selectedIds = isOverdueTab ? selectedOverdueIds : selectedInvoiceIds;
@@ -1969,7 +1949,6 @@ ${debtSectionHtml}
 
       } else {
         // Custom Selection Logic
-        // Filter invoices based on selected months
         finalInvoices = invoicesWithNetDebt.filter(inv => {
           if (!inv.date) return false;
           const date = new Date(inv.date);
@@ -1983,32 +1962,7 @@ ${debtSectionHtml}
           return;
         }
 
-        // Filter for "Net Only" (exclude fully closed matches)
-        if (pdfExportType === 'net') {
-          finalInvoices = finalInvoices.filter(inv => {
-            // Keep if no matching ID (Unmatched)
-            if (!inv.matching) return true;
-
-            // Keep only if it carries the residual (which means it's the main open invoice of an open group)
-            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-          }).map(inv => {
-            if (inv.matching && inv.residual !== undefined) {
-              // It's a condensed open invoice
-              // Calculate "Paid" amount to show in Credit
-              // Credit = Debit - Residual
-              return {
-                ...inv,
-                credit: inv.debit - inv.residual,
-                netDebt: inv.residual
-              };
-            }
-            return inv;
-          });
-        }
-
-        // Determine months label for Custom
         if (selectedMonths.length < availableMonths.length) {
-          // Sort selected months by date descending
           const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
             const dateA = new Date(`1 ${a}`);
             const dateB = new Date(`1 ${b}`);
@@ -2016,8 +1970,12 @@ ${debtSectionHtml}
           });
           monthsLabel = sortedSelectedMonths.join(', ');
         }
-        // Append filter info to label if needed
-        if (pdfExportType === 'net') {
+      }
+
+      // Apply Net Only filter/transformation if selected
+      if (pdfExportType === 'net') {
+        finalInvoices = toNetOnlyOpenInvoices(finalInvoices);
+        if (!monthsLabel.includes('(Net Only)')) {
           monthsLabel += ' (Net Only)';
         }
       }
@@ -2027,13 +1985,8 @@ ${debtSectionHtml}
         exportToExcel(finalInvoices, monthsLabel);
       } else {
         // Export to PDF
-        const { generateAccountStatementPDF, generateMonthlySeparatedPDF } = await import('@/lib/PdfUtils');
-
-        if (exportMode === 'separated') {
-          await generateMonthlySeparatedPDF(customerName, finalInvoices);
-        } else {
-          await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel);
-        }
+        const { generateAccountStatementPDF } = await import('@/lib/pdf/PdfUtils');
+        await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel, shortenInvoiceNumbers);
       }
 
       setShowExportModal(false);
@@ -2921,39 +2874,26 @@ ${debtSectionHtml}
               <ArrowLeft className="w-5 h-5" />
             </button>
             <button
-              onClick={() => {
-                setExportMode('combined');
-                setShowExportModal(true);
-              }}
-              className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center justify-center"
-              title="Export"
+              onClick={() => setShowExportModal(true)}
+              className="h-10 w-10 flex items-center justify-center bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-sm group"
+              title="Export Report (Combined)"
             >
-              <FileText className="w-5 h-5" />
+              <FileText className="h-5 w-5 transition-transform group-hover:scale-110" />
             </button>
             <button
               onClick={() => generateAnalyticalPDF()}
-              className="p-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
+              className="h-10 w-10 flex items-center justify-center bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 transition-all shadow-sm group"
               title="Analytical PDF Report"
             >
-              <BarChart3 className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => {
-                setExportMode('separated');
-                setShowExportModal(true);
-              }}
-              className="p-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center"
-              title="Export Monthly"
-            >
-              <Calendar className="w-5 h-5" />
+              <BarChart3 className="h-5 w-5 transition-transform group-hover:scale-110" />
             </button>
             {customerEmails.length > 0 && (
               <button
                 onClick={handleEmail}
-                className="p-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center justify-center"
-                title="Email"
+                className="h-10 w-10 flex items-center justify-center bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-sm group"
+                title="Email Statement"
               >
-                <Mail className="w-5 h-5" />
+                <Mail className="h-5 w-5 transition-transform group-hover:scale-110" />
               </button>
             )}
           </div>
@@ -2986,7 +2926,6 @@ ${debtSectionHtml}
               <div className="flex justify-between items-center px-8 py-5 border-b border-gray-100 bg-gray-50/50">
                 <div>
                   <h3 className="text-2xl font-bold text-gray-800">Export Options</h3>
-                  <p className="text-sm text-gray-500 mt-1">Configure and download your report</p>
                 </div>
                 <button
                   onClick={() => setShowExportModal(false)}
@@ -3048,7 +2987,6 @@ ${debtSectionHtml}
                           </div>
                           <div>
                             <span className="block font-semibold text-gray-700">Custom Selection</span>
-                            <span className="text-xs text-gray-500">Choose specific months</span>
                           </div>
                         </button>
 
@@ -3064,7 +3002,6 @@ ${debtSectionHtml}
                           </div>
                           <div>
                             <span className="block font-semibold text-gray-700">Current View</span>
-                            <span className="text-xs text-gray-500">Export active filters</span>
                           </div>
                         </button>
 
@@ -3080,7 +3017,6 @@ ${debtSectionHtml}
                           </div>
                           <div>
                             <span className="block font-semibold text-gray-700">Current Selection</span>
-                            <span className="text-xs text-gray-500">Export selected rows</span>
                           </div>
                         </button>
                       </div>
@@ -3116,6 +3052,29 @@ ${debtSectionHtml}
                         </div>
                       </section>
                     )}
+
+                    {/* Additional Options */}
+                    <section className="animate-in slide-in-from-left-5 duration-300">
+                      <h4 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Settings2 className="w-4 h-4 text-indigo-500" /> Options
+                      </h4>
+                      <div className="space-y-2">
+                        <label className={`w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm font-medium transition-all cursor-pointer ${shortenInvoiceNumbers
+                          ? 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                          }`}>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={shortenInvoiceNumbers}
+                              onChange={(e) => setShortenInvoiceNumbers(e.target.checked)}
+                              className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                            />
+                            <span>Shorten Numbers</span>
+                          </div>
+                        </label>
+                      </div>
+                    </section>
                   </div>
                 </div>
 

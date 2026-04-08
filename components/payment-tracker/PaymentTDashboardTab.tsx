@@ -1,0 +1,225 @@
+'use client';
+
+import React from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer
+} from 'recharts';
+
+interface PaymentTDashboardTabProps {
+  dashboardData: any;
+  chartPeriodType: 'weekly' | 'monthly';
+  setChartPeriodType: (type: 'weekly' | 'monthly') => void;
+  chartYear: string;
+  setChartYear: (year: string) => void;
+  chartMonth: string;
+  setChartMonth: (month: string) => void;
+  averageCollections: any;
+  averageCollectionDays: any;
+  dateFrom: string;
+  dateTo: string;
+}
+
+const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
+  dashboardData,
+  chartPeriodType,
+  setChartPeriodType,
+  chartYear,
+  setChartYear,
+  chartMonth,
+  setChartMonth,
+  averageCollections,
+  averageCollectionDays,
+  dateFrom,
+  dateTo,
+}) => {
+  return (
+    <div className="space-y-6 animate-fadeIn pb-8">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
+          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Total Collections</h3>
+          <div className="text-2xl font-bold text-green-600">
+            {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Total payments collected</p>
+        </div>
+
+        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
+          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Net Payment Count</h3>
+          <div className="text-2xl font-bold text-blue-600">
+            {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
+          </div>
+          <p className="text-xs text-gray-400 mt-1 font-medium">Payments with Credit - Debit &gt; 0</p>
+        </div>
+
+        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
+          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Avg Monthly</h3>
+          <div className="text-2xl font-bold text-teal-600">
+            {averageCollections.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-gray-400 mt-1 font-medium">
+            Based on {averageCollections.monthsCount} month(s)
+          </p>
+        </div>
+
+        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
+          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Avg Weekly</h3>
+          <div className="text-2xl font-bold text-cyan-600">
+            {averageCollections.averageWeekly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <p className="text-xs text-gray-400 mt-1 font-medium">
+            Based on {averageCollections.weeksCount} week(s)
+          </p>
+        </div>
+
+        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
+          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Avg Coll. Days</h3>
+          <div className="text-2xl font-bold text-orange-600">
+            {averageCollectionDays.averageDays > 0 ? averageCollectionDays.averageDays.toFixed(1) : '0.0'} days
+          </div>
+          <p className="text-xs text-gray-400 mt-1 font-medium">
+            Avg between sequential payments
+          </p>
+        </div>
+      </div>
+
+      {/* Chart */}
+      <div className="bg-white/90 backdrop-blur-md p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white h-[760px]">
+        <div className="flex flex-col items-center gap-4 mb-8">
+          <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
+            Collections - {
+              chartPeriodType === 'weekly' ? 'Weekly Trend' : 'Monthly Trend'
+            }
+          </h3>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <div className="px-4 py-2 rounded-2xl bg-green-50/80 border border-green-100 text-sm font-bold text-green-700 shadow-sm flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+              {dashboardData.totals.totalCollections.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{' '}
+              <span className="text-xs text-green-600/70 font-medium">
+                ({dashboardData.totals.netPaymentCount.toLocaleString('en-US')} pays)
+              </span>
+            </div>
+            
+            <div className="flex gap-1 p-1 bg-gray-100/50 rounded-2xl border border-gray-100 shadow-inner">
+              <button
+                onClick={() => setChartPeriodType('monthly')}
+                className={`px-5 py-2 rounded-xl font-bold transition-all text-xs uppercase tracking-widest ${chartPeriodType === 'monthly'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-500 hover:bg-white/40'
+                  }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setChartPeriodType('weekly')}
+                className={`px-5 py-2 rounded-xl font-bold transition-all text-xs uppercase tracking-widest ${chartPeriodType === 'weekly'
+                  ? 'bg-white text-blue-600 shadow-sm'
+                  : 'text-gray-400 hover:text-gray-500 hover:bg-white/40'
+                  }`}
+              >
+                Weekly
+              </button>
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Year"
+                value={chartYear}
+                onChange={(e) => setChartYear(e.target.value)}
+                className="px-4 py-2 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-28 text-center font-bold text-gray-700 shadow-sm"
+              />
+              <input
+                type="text"
+                placeholder="Month"
+                value={chartMonth}
+                onChange={(e) => setChartMonth(e.target.value)}
+                className="px-4 py-2 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-28 text-center font-bold text-gray-700 shadow-sm"
+              />
+            </div>
+          </div>
+        </div>
+
+        <ResponsiveContainer width="100%" height={560}>
+          <BarChart
+            data={dashboardData.chartData.slice(-12)}
+            margin={{
+              top: 40,
+              right: 30,
+              left: 20,
+              bottom: 60,
+            }}
+          >
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" strokeOpacity={0.6} />
+            <XAxis
+              dataKey="periodLabel"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#6B7280', fontSize: 13, fontWeight: '700' }}
+              height={70}
+              interval={0}
+              textAnchor="middle"
+              dy={15}
+            />
+            <YAxis
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: '#9CA3AF', fontSize: 12 }}
+              tickFormatter={(value) =>
+                new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(value)
+              }
+            />
+            <Tooltip
+              cursor={{ fill: '#F9FAFB' }}
+              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}
+              itemStyle={{ fontWeight: 'bold' }}
+              formatter={(value: number, name: string, props: any) => {
+                const rowData = props?.payload || {};
+                if (name === 'Net Collections') {
+                  return [
+                    <div key="custom-tooltip">
+                      <div className="text-green-600 text-lg">{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
+                      <div className="text-[11px] mt-1 text-gray-400 font-medium">
+                        {rowData.paymentCount || 0} Payments / {rowData.customerCount || 0} Customers
+                      </div>
+                    </div>,
+                    'Collections'
+                  ];
+                }
+                return value;
+              }}
+            />
+
+            <Bar
+              dataKey="displayCollections"
+              name="Net Collections"
+              fill="#10B981"
+              radius={[10, 10, 0, 0]}
+              barSize={chartPeriodType === 'weekly' ? 24 : 36}
+              label={{ 
+                position: 'top', 
+                fill: '#000000', 
+                fontSize: 13, 
+                fontWeight: 'bold',
+                dy: -10,
+                formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''
+              }}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
+
+export default PaymentTDashboardTab;

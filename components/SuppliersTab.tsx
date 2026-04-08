@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { generateBulkSupplierStatementsPDF } from '@/lib/PdfUtils';
+import { generateBulkSupplierStatementsPDF } from '@/lib/pdf/PdfUtils';
 import * as XLSX from 'xlsx';
 import { Printer, Search, FileSpreadsheet, FileText, CheckSquare, Save, X, CheckCircle2, AlertCircle, MinusCircle, FileDown } from 'lucide-react';
 
@@ -536,7 +536,9 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {processedData.map((supplier) => {
+                            {processedData
+                                .filter(s => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter))
+                                .map((supplier) => {
                                 const available = supplierMonths[supplier.supplierName] || [];
                                 const matchedTokens = getMatchedTokens(supplier.supplierName);
 

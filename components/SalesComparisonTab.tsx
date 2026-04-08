@@ -18,7 +18,7 @@ import {
     Check
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { addArabicFont } from '@/lib/PdfUtils';
+import { addArabicFont } from '@/lib/pdf/PdfUtils';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 

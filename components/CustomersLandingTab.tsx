@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { InvoiceRow } from '@/types';
 import CustomersTab from './CustomersTab';
-import CustomersMinsTab from './CustomersMinsTab';
 import { Users, CreditCard, TrendingUp, TrendingDown, ArrowLeft, Wallet, FileText, AlertCircle, ChevronLeft, ChevronRight, Activity } from 'lucide-react';
 
 interface CustomersLandingTabProps {
@@ -71,7 +70,7 @@ export default function CustomersLandingTab({ data, initialCustomer }: Customers
 
             <div>
                 {view === 'normal' && <CustomersTab data={data} mode="DEBIT" initialCustomer={initialCustomer} onCustomerToggle={setIsCustomerOpen} />}
-                {view === 'credit' && <CustomersMinsTab data={data} onCustomerToggle={setIsCustomerOpen} />}
+                {view === 'credit' && <CustomersTab data={data} mode="CREDIT" onCustomerToggle={setIsCustomerOpen} />}
                 {view === 'ob_pos' && <CustomersTab data={data} mode="OB_POS" onCustomerToggle={setIsCustomerOpen} />}
                 {view === 'ob_neg' && <CustomersTab data={data} mode="OB_NEG" onCustomerToggle={setIsCustomerOpen} />}
             </div>

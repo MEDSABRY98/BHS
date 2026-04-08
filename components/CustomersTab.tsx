@@ -11,12 +11,13 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import CustomerDetailsTab from './CustomerDetailsTab';
-import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/PdfUtils';
+import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/pdf/PdfUtils';
+import { FileSpreadsheet, FileText, Printer, FileArchive, Mail } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
-  mode?: 'DEBIT' | 'OB_POS' | 'OB_NEG';
+  mode?: 'DEBIT' | 'OB_POS' | 'OB_NEG' | 'CREDIT';
   onBack?: () => void;
   initialCustomer?: string;
   onCustomerToggle?: (isOpen: boolean) => void;
@@ -1803,6 +1804,9 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
       result = result.filter(c => (c.openOBAmount || 0) > 0.01);
     } else if (mode === 'OB_NEG') {
       result = result.filter(c => (c.openOBAmount || 0) < -0.01);
+    } else if (mode === 'CREDIT') {
+      // CREDIT: Filter for negative net debt
+      result = result.filter(c => c.netDebt < -0.01);
     } else {
       // Default DEBIT: Filter out zero/negative net debt
       result = result.filter(c => c.netDebt > 0.01);
@@ -2325,7 +2329,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
-      const { generateAccountStatementPDF, generateBulkDebitSummaryPDF } = await import('@/lib/PdfUtils');
+      const { generateAccountStatementPDF, generateBulkDebitSummaryPDF } = await import('@/lib/pdf/PdfUtils');
 
       const customersToDehydrate = filteredData.filter(c => selectedCustomersForDownload.has(c.customerName));
 
@@ -2352,7 +2356,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
-      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/pdf/PdfUtils');
 
       const zip = new JSZip();
       let count = 0;
@@ -2447,7 +2451,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
-      const { generateAccountStatementPDF } = await import('@/lib/PdfUtils');
+      const { generateAccountStatementPDF } = await import('@/lib/pdf/PdfUtils');
 
       const zip = new JSZip();
       let count = 0;
@@ -2977,22 +2981,18 @@ ${debtSectionHtml}
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
-                  className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-all shadow-sm border border-green-200 hover:border-green-300"
+                  className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
                   title="Export to Excel (Summary + Net Only Details)"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
+                  <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
                 </button>
 
                 <button
                   onClick={() => exportToPDF(filteredData, `customers_report_${new Date().toISOString().split('T')[0]}`, closedCustomers)}
-                  className="p-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300"
+                  className="h-10 w-10 flex items-center justify-center bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-sm group"
                   title="Export to PDF"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-                  </svg>
+                  <FileText className="h-5 w-5 transition-transform group-hover:scale-110" />
                 </button>
 
                 {/* Bulk Download Button */}
@@ -3002,20 +3002,17 @@ ${debtSectionHtml}
                       <button
                         onClick={handleBulkDownload}
                         disabled={isDownloading}
-                        className="p-2 bg-red-600 text-white hover:bg-red-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition-all shadow-sm border border-red-200 hover:border-red-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-                        title={`Summary PDF para ${selectedCustomersForDownload.size} clientes`}
+                        className="h-10 w-10 flex items-center justify-center bg-rose-600 text-white rounded-xl hover:bg-rose-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group relative"
+                        title={`Summary PDF for ${selectedCustomersForDownload.size} customers`}
                       >
                         {isDownloading ? (
-                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <div className="animate-spin h-5 w-5 border-2 border-white/20 border-t-white rounded-full"></div>
                         ) : (
                           <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                            </svg>
-                            <span className="text-xs font-bold bg-red-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            <FileText className="h-5 w-5 transition-transform group-hover:scale-110" />
+                            <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-white text-rose-600 w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-rose-100">
+                              {selectedCustomersForDownload.size}
+                            </span>
                           </>
                         )}
                       </button>
@@ -3023,20 +3020,17 @@ ${debtSectionHtml}
                       <button
                         onClick={handleBulkZIPDownload}
                         disabled={isDownloading}
-                        className="p-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border border-blue-200 hover:border-blue-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        className="h-10 w-10 flex items-center justify-center bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group relative"
                         title={`Download ${selectedCustomersForDownload.size} account statements Zip`}
                       >
                         {isDownloading ? (
-                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <div className="animate-spin h-5 w-5 border-2 border-white/20 border-t-white rounded-full"></div>
                         ) : (
                           <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-bold bg-blue-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            <FileArchive className="h-5 w-5 transition-transform group-hover:scale-110" />
+                            <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-white text-blue-600 w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-blue-100">
+                              {selectedCustomersForDownload.size}
+                            </span>
                           </>
                         )}
                       </button>
@@ -3044,20 +3038,17 @@ ${debtSectionHtml}
                       <button
                         onClick={handleBulkPrint}
                         disabled={isDownloading}
-                        className="p-2 bg-teal-600 text-white hover:bg-teal-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all shadow-sm border border-teal-200 hover:border-teal-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        className="h-10 w-10 flex items-center justify-center bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group relative"
                         title={`Print Statements for ${selectedCustomersForDownload.size} customers`}
                       >
                         {isDownloading ? (
-                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <div className="animate-spin h-5 w-5 border-2 border-white/20 border-t-white rounded-full"></div>
                         ) : (
                           <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                            </svg>
-                            <span className="text-xs font-bold bg-teal-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            <Printer className="h-5 w-5 transition-transform group-hover:scale-110" />
+                            <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-white text-teal-600 w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-teal-100">
+                              {selectedCustomersForDownload.size}
+                            </span>
                           </>
                         )}
                       </button>
@@ -3065,21 +3056,17 @@ ${debtSectionHtml}
                       <button
                         onClick={handleBulkEmail}
                         disabled={isDownloading}
-                        className="p-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all shadow-sm border border-purple-200 hover:border-purple-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+                        className="h-10 w-10 flex items-center justify-center bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group relative"
                         title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
                       >
                         {isDownloading ? (
-                          <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
+                          <div className="animate-spin h-5 w-5 border-2 border-white/20 border-t-white rounded-full"></div>
                         ) : (
                           <>
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                              <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                              <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                            </svg>
-                            <span className="text-xs font-bold bg-purple-700 px-1.5 py-0.5 rounded-full">{selectedCustomersForDownload.size}</span>
+                            <Mail className="h-5 w-5 transition-transform group-hover:scale-110" />
+                            <span className="absolute -top-1 -right-1 text-[10px] font-bold bg-white text-purple-600 w-4 h-4 rounded-full flex items-center justify-center shadow-sm border border-purple-100">
+                              {selectedCustomersForDownload.size}
+                            </span>
                           </>
                         )}
                       </button>

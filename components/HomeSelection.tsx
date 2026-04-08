@@ -2,7 +2,7 @@
 
 import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
-import AdminPanelTab from './AdminPanelTab';
+import AdminControlTab from './AdminControlTab';
 
 interface HomeSelectionProps {
   currentUser?: any;
@@ -186,7 +186,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
             <h1 className="text-xl font-bold text-slate-900">Admin Control</h1>
           </div>
         </div>
-        <AdminPanelTab />
+        <AdminControlTab />
       </div>
     );
   }

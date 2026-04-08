@@ -53,7 +53,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'orders', label: 'Orders Tracker' },
         { id: 'notification', label: 'Notification Order' },
         { id: 'make', label: 'Make Orders' },
-        { id: 'quotation', label: 'Purchase Quotation' },
         { id: 'item_code', label: 'Item Code' }
     ],
     'cash-receipt': [
@@ -117,7 +116,7 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
     ]
 };
 
-export default function AdminPanel() {
+export default function AdminControlTab() {
     const [users, setUsers] = useState<UserPermissions[]>([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
@@ -233,7 +232,7 @@ export default function AdminPanel() {
 
     const filteredUsers = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
 
-    if (loading) return <Loading message="Loading Admin Panel..." />;
+    if (loading) return <Loading message="Loading Admin Control..." />;
 
     const renderSubTabModal = () => {
         if (!modalSystem || !selectedUser) return null;
