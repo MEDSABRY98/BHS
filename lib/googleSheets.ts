@@ -207,7 +207,7 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!A:F`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION, MONTHLY, Q RENT, B RENT
+      range: `DISCOUNTS!A:G`, // CUSTOMER ID, CUSTOMER NAME, TYPE, RECONCILIATION, MONTHLY, Q RENT, B RENT
     });
 
     const rows = response.data.values;
@@ -216,10 +216,11 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
     return rows.slice(1) // skip header
       .map((row) => {
         const customerName = row[1]?.toString().trim() || ''; // Column B: CUSTOMER NAME
-        const reconciliationRaw = row[2]?.toString() || ''; // Column C: RECONCILIATION
-        const monthlyRebate = row[3]?.toString().trim() || ''; // Column D
-        const qRent = row[4]?.toString().trim() || ''; // Column E
-        const bRent = row[5]?.toString().trim() || ''; // Column F
+        const type = row[2]?.toString().trim() || ''; // Column C: TYPE
+        const reconciliationRaw = row[3]?.toString() || ''; // Column D: RECONCILIATION
+        const monthlyRebate = row[4]?.toString().trim() || ''; // Column E
+        const qRent = row[5]?.toString().trim() || ''; // Column F
+        const bRent = row[6]?.toString().trim() || ''; // Column G
 
         const tokens = reconciliationRaw
           .split(/[,;\s]+/)
@@ -230,6 +231,7 @@ export async function getDiscountTrackerEntries(): Promise<DiscountTrackerEntry[
 
         return {
           customerName,
+          type,
           reconciliationMonths: tokens,
           monthlyRebate,
           qRent,
@@ -265,7 +267,7 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!A:C`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION
+      range: `DISCOUNTS!A:D`, // CUSTOMER ID, CUSTOMER NAME, TYPE, RECONCILIATION
     });
 
     const rows = response.data.values || [];
@@ -278,7 +280,7 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
     }
 
     const rowNumber = customerIndex + 2; // account for header
-    const existingCell = rows[rowNumber - 1]?.[2]?.toString() || ''; // Column C: RECONCILIATION
+    const existingCell = rows[rowNumber - 1]?.[3]?.toString() || ''; // Column D: RECONCILIATION
     const existingNormalized = existingCell
       .split(/[,;\s]+/)
       .map((t: string) => normalizeMonthKeyFlexible(t, new Date().getFullYear()))
@@ -292,7 +294,7 @@ export async function markReconciliationMonth(customerName: string, monthKey: st
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!C${rowNumber}`, // Column C: RECONCILIATION
+      range: `DISCOUNTS!D${rowNumber}`, // Column D: RECONCILIATION
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[tokensForSheet]] },
     });
@@ -321,7 +323,7 @@ export async function unmarkReconciliationMonth(customerName: string, monthKey: 
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!A:C`, // CUSTOMER ID, CUSTOMER NAME, RECONCILIATION
+      range: `DISCOUNTS!A:D`, // CUSTOMER ID, CUSTOMER NAME, TYPE, RECONCILIATION
     });
 
     const rows = response.data.values || [];
@@ -334,7 +336,7 @@ export async function unmarkReconciliationMonth(customerName: string, monthKey: 
     }
 
     const rowNumber = customerIndex + 2; // account for header
-    const existingCell = rows[rowNumber - 1]?.[2]?.toString() || ''; // Column C: RECONCILIATION
+    const existingCell = rows[rowNumber - 1]?.[3]?.toString() || ''; // Column D: RECONCILIATION
     const existingNormalized = existingCell
       .split(/[,;\s]+/)
       .map((t: string) => normalizeMonthKeyFlexible(t, new Date().getFullYear()))
@@ -350,7 +352,7 @@ export async function unmarkReconciliationMonth(customerName: string, monthKey: 
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `DISCOUNTS!C${rowNumber}`, // Column C: RECONCILIATION
+      range: `DISCOUNTS!D${rowNumber}`, // Column D: RECONCILIATION
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[tokensForSheet]] },
     });

@@ -30,6 +30,7 @@ interface DiscountSummary {
   monthlyRebate?: string;
   qRent?: string;
   bRent?: string;
+  type?: string;
 }
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -127,6 +128,8 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
   const [isExporting, setIsExporting] = useState(false);
   const [reconcilingKey, setReconcilingKey] = useState<string | null>(null);
   const [showPostedDetails, setShowPostedDetails] = useState(false);
+  const [activeTab, setActiveTab] = useState<'monthly' | 'withPayment'>('monthly');
+  const [selectedWithPaymentSummary, setSelectedWithPaymentSummary] = useState<DiscountSummary | null>(null);
 
   useEffect(() => {
     const fetchEntries = async () => {
@@ -262,6 +265,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
         monthlyRebate: entry.monthlyRebate,
         qRent: entry.qRent,
         bRent: entry.bRent,
+        type: entry.type,
       };
     });
   }, [data, entries]);
@@ -273,6 +277,24 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
         .sort((a, b) => a.customerName.localeCompare(b.customerName)),
     [summaries, search]
   );
+
+  const displayedSummaries = useMemo(() => {
+    return filteredSummaries.filter(s => {
+      if (activeTab === 'withPayment') return s.type === 'مع السداد';
+      return s.type !== 'مع السداد';
+    });
+  }, [filteredSummaries, activeTab]);
+
+  const getWithPaymentInvoices = (customerName: string, monthKey: string) => {
+    return data.filter((row) => {
+      const type = row.number?.toUpperCase();
+      if (!type?.startsWith('BIL') && !type?.startsWith('JV')) return false;
+      if (row.customerName.trim().toLowerCase() !== customerName.trim().toLowerCase()) return false;
+      const d = parseDate(row.date);
+      const key = toMonthKey(d);
+      return key === monthKey;
+    });
+  };
 
   const exportMissingToExcel = () => {
     try {
@@ -564,7 +586,7 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
     return (
       <div className="p-6">
         <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 p-4 rounded-lg max-w-3xl mx-auto">
-          لم يتم العثور على عملاء في شيت DISCOUNTS.
+          No customers found in DISCOUNTS sheet.
         </div>
       </div>
     );
@@ -596,20 +618,54 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
         </button>
       </div>
 
+      <div className="flex items-center justify-center mb-10">
+        <div className="bg-gray-100/80 backdrop-blur-sm p-1.5 rounded-2xl flex gap-1.5 border border-gray-200 shadow-inner">
+          <button
+            onClick={() => setActiveTab('monthly')}
+            className={`w-44 py-2.5 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+              activeTab === 'monthly'
+                ? 'bg-white text-blue-600 shadow-[0_4px_12px_rgba(0,0,0,0.08)] scale-[1.02]'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${activeTab === 'monthly' ? 'bg-blue-500 animate-pulse' : 'bg-transparent'}`}></span>
+            Monthly
+          </button>
+          <button
+            onClick={() => setActiveTab('withPayment')}
+            className={`w-44 py-2.5 rounded-xl font-bold transition-all duration-300 flex items-center justify-center gap-2 ${
+              activeTab === 'withPayment'
+                ? 'bg-white text-indigo-600 shadow-[0_4px_12px_rgba(0,0,0,0.08)] scale-[1.02]'
+                : 'text-gray-400 hover:text-gray-600 hover:bg-white/50'
+            }`}
+          >
+            <span className={`w-2 h-2 rounded-full ${activeTab === 'withPayment' ? 'bg-indigo-500 animate-pulse' : 'bg-transparent'}`}></span>
+            With Payment
+          </button>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
-              <tr>
-                <th className="px-5 py-3 text-left font-semibold w-1/3">Customer Name</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/6">Avg. Discount</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/6">Missing</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/6">Posted (BIL)</th>
-                <th className="px-5 py-3 text-center font-semibold w-1/6">Reconciled</th>
-              </tr>
+              {activeTab === 'monthly' ? (
+                <tr>
+                  <th className="px-5 py-3 text-center font-semibold w-1/3">Customer Name</th>
+                  <th className="px-5 py-3 text-center font-semibold w-1/6">Avg. Discount</th>
+                  <th className="px-5 py-3 text-center font-semibold w-1/6">Missing</th>
+                  <th className="px-5 py-3 text-center font-semibold w-1/6">Posted (BIL)</th>
+                  <th className="px-5 py-3 text-center font-semibold w-1/6">Reconciled</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th className="px-5 py-3 text-center font-semibold w-1/2">Customer Name</th>
+                  <th className="px-5 py-3 text-center font-semibold w-1/2">Details</th>
+                </tr>
+              )}
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredSummaries.map((summary, index) => {
+              {displayedSummaries.map((summary, index) => {
                 const missingCount = summary.missingMonths.length;
                 const postedCount = summary.postedMonths.length;
                 const reconciledCount = summary.reconciledMonths.length;
@@ -619,76 +675,99 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
                     key={summary.customerName}
                     className="bg-white hover:bg-blue-50/40 transition-colors"
                   >
-                    <td className="px-5 py-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                          {index + 1}
-                        </div>
-                        <div className="flex flex-col">
-                          <button
-                            onClick={() => {
-                              setSelectedSummary(summary);
-                              setShowPostedDetails(false);
-                            }}
-                            className="text-left text-blue-700 hover:text-blue-900 font-semibold"
-                          >
-                            {summary.customerName}
-                          </button>
-                          <div className="text-xs text-gray-500">
-                            Started {formatDisplayDate(summary.startKey)}
+                    {activeTab === 'monthly' ? (
+                      <>
+                        <td className="px-5 py-4 text-center">
+                          <div className="flex items-center justify-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                              {index + 1}
+                            </div>
+                            <div className="flex flex-col items-center">
+                              <button
+                                onClick={() => {
+                                  setSelectedSummary(summary);
+                                  setShowPostedDetails(false);
+                                }}
+                                className="text-blue-700 hover:text-blue-900 font-semibold"
+                              >
+                                {summary.customerName}
+                              </button>
+                              <div className="text-xs text-gray-500">
+                                Started {formatDisplayDate(summary.startKey)}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-center">
-                      <div className="flex flex-col items-center">
-                        <span className="text-sm font-bold text-gray-800">
-                          {summary.averageMonthlyDiscount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                        </span>
-                        <span className="text-[10px] text-gray-400">
-                          per {summary.activeMonthsCount} mo.
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-center">
-                      {missingCount === 0 ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
-                          up to date
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
-                          {missingCount} month(s)
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-center">
-                      {postedCount === 0 ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-500 border border-gray-200">
-                          —
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                          {postedCount} month(s)
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-center">
-                      {reconciledCount === 0 ? (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-500 border border-gray-200">
-                          —
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
-                          {reconciledCount} month(s)
-                        </span>
-                      )}
-                    </td>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-center">
+                          <div className="flex flex-col items-center">
+                            <span className="text-sm font-bold text-gray-800">
+                              {summary.averageMonthlyDiscount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </span>
+                            <span className="text-[10px] text-gray-400">
+                              per {summary.activeMonthsCount} mo.
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-center">
+                          {missingCount === 0 ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-200">
+                              up to date
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 border border-red-200">
+                              {missingCount} month(s)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-center">
+                          {postedCount === 0 ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-500 border border-gray-200">
+                              —
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                              {postedCount} month(s)
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4 whitespace-nowrap text-center">
+                          {reconciledCount === 0 ? (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-500 border border-gray-200">
+                              —
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+                              {reconciledCount} month(s)
+                            </span>
+                          )}
+                        </td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-5 py-4 text-center">
+                          <div className="flex items-center justify-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                              {index + 1}
+                            </div>
+                            <span className="font-semibold text-gray-900">{summary.customerName}</span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <button
+                            onClick={() => setSelectedWithPaymentSummary(summary)}
+                            className="px-4 py-1.5 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-lg font-bold hover:bg-indigo-100 transition-colors"
+                          >
+                            Details
+                          </button>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 );
               })}
-              {filteredSummaries.length === 0 && (
+              {displayedSummaries.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
+                  <td colSpan={activeTab === 'monthly' ? 5 : 2} className="px-6 py-8 text-center text-gray-500">
                     No customers match your search.
                   </td>
                 </tr>
@@ -847,6 +926,77 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
               ) : (
                 renderHeatmap(selectedSummary)
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {selectedWithPaymentSummary && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] px-4 py-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center px-8 py-5 border-b bg-indigo-50">
+              <div className="flex flex-col">
+                <h3 className="text-2xl font-bold text-indigo-900">{selectedWithPaymentSummary.customerName}</h3>
+                <div className="flex items-center gap-4 mt-1">
+                  <div className="flex items-center gap-2 bg-white/60 px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
+                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-widest">Average Monthly</span>
+                    <span className="text-sm font-black text-indigo-700">
+                      {selectedWithPaymentSummary.averageMonthlyDiscount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedWithPaymentSummary(null)}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-2xl"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-8 overflow-y-auto bg-gray-50 flex-1">
+              {(() => {
+                const relevantRows = data.filter(row => {
+                  const num = row.number?.toUpperCase();
+                  return (num?.startsWith('BIL') || num?.startsWith('JV')) &&
+                         row.customerName.trim().toLowerCase() === selectedWithPaymentSummary.customerName.trim().toLowerCase();
+                });
+
+                const monthKeysSet = new Set<string>();
+                relevantRows.forEach(row => {
+                  const key = toMonthKey(parseDate(row.date));
+                  if (key) monthKeysSet.add(key);
+                });
+
+                const sortedMonthKeys = Array.from(monthKeysSet).sort(compareMonthKeys).reverse();
+
+                if (sortedMonthKeys.length === 0) {
+                  return (
+                    <div className="text-center py-20 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300">
+                      No BIL or JV transactions found for this customer.
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    {sortedMonthKeys.map(monthKey => {
+                      const invoices = getWithPaymentInvoices(selectedWithPaymentSummary.customerName, monthKey);
+                      const totalAmount = invoices.reduce((sum, inv) => sum + (inv.credit || 0) - (inv.debit || 0), 0);
+                      
+                      return (
+                        <div key={monthKey} className="bg-white border border-indigo-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all flex flex-col items-center justify-center gap-1 group">
+                          <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest mb-1">
+                            {formatMonthLabel(monthKey)}
+                          </span>
+                          <span className={`text-2xl font-black transition-colors ${totalAmount > 0 ? 'text-gray-900 group-hover:text-green-600' : 'text-gray-400'}`}>
+                            {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

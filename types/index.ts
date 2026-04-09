@@ -96,6 +96,7 @@ export interface Note {
 
 export interface DiscountTrackerEntry {
   customerName: string;
+  type?: string;
   /**
    * Normalized month keys in YYYY-MM format that have been reconciled manually
    * (e.g. '2025-01' for JAN25). Used to suppress alerts for those months.
