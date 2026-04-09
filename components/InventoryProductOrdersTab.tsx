@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Search, Package, ShoppingCart,
     ArrowUpDown, RotateCw, RefreshCw, AlertCircle, FileDown,
-    ChevronLeft, ChevronRight
+    ChevronLeft, ChevronRight, FileSpreadsheet
 } from 'lucide-react';
 import Loading from './Loading';
 export interface BaseProductOrder {
@@ -477,13 +477,10 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                         <button
                             onClick={handleExportExcel}
                             disabled={filteredAndSortedProducts.length === 0}
-                            className={`p-2.5 rounded-xl border-2 transition-all ${filteredAndSortedProducts.length === 0
-                                ? 'bg-gray-50 border-gray-100 text-gray-200 cursor-not-allowed'
-                                : 'bg-white border-gray-200 text-gray-500 hover:text-green-600 hover:border-green-100 hover:bg-green-50 active:scale-95 shadow-sm'
-                                }`}
+                            className={`flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors ${filteredAndSortedProducts.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
                             title="Export to Excel"
                         >
-                            <FileDown className="w-5 h-5" />
+                            <FileSpreadsheet className="w-5 h-5" />
                         </button>
                         <button
                             onClick={fetchOrders}

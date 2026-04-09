@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Clock, Plus, List, Trash2, Save, ArrowLeft, X, Edit2, Download, Search,
-  BarChart3, ChevronDown, ChevronRight, Calendar, User, Calculator, CheckCircle2, Loader2, RefreshCw
+  BarChart3, ChevronDown, ChevronRight, Calendar, User, Calculator, CheckCircle2, Loader2, RefreshCw,
+  FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -1066,10 +1067,10 @@ export default function EmployeeTab() {
               </div>
               <button
                 onClick={handleExportViewRecords}
-                className="p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg transition-colors"
+                className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
                 title="Export Records to Excel"
               >
-                <Download className="w-5 h-5" />
+                <FileSpreadsheet className="w-5 h-5" />
               </button>
               <button
                 onClick={fetchRecords}
@@ -1197,10 +1198,10 @@ export default function EmployeeTab() {
               <div className="flex items-center gap-4">
                 <button
                   onClick={handleExportStats}
-                  className="p-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors border border-green-200 shadow-sm"
+                  className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
                   title="Export to Excel"
                 >
-                  <Download className="w-5 h-5" />
+                  <FileSpreadsheet className="w-5 h-5" />
                 </button>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-widest">{getEmployeeStats.length} EMPLOYEES</div>
               </div>

@@ -3,7 +3,7 @@
 import React from 'react';
 import { FileText } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import { generatePaymentAnalysisPDF } from '@/lib/pdf/PdfPaymentAnalysis';
+import { generatePaymentAnalysisPDF } from '@/lib/pdf/PaymentUtils';
 
 // Sub-components
 import { usePaymentTDataTab } from './payment-tracker/PaymentTDataHookTab';

@@ -24,6 +24,7 @@ import {
     ArrowRight,
     Filter,
     Download,
+    FileSpreadsheet,
     ShieldCheck,
     SearchCode,
     Activity,
@@ -1812,9 +1813,9 @@ export default function DeliveryTrackingTab() {
                                     <button
                                         onClick={handleStatsExport}
                                         title="Export Excel"
-                                        className="bg-emerald-50 text-emerald-600 hover:bg-emerald-600 hover:text-white w-10 h-10 rounded-xl border border-emerald-600/20 flex items-center justify-center transition-all group/btn"
+                                        className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm flex items-center justify-center transition-colors group/btn"
                                     >
-                                        <Download className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
+                                        <FileSpreadsheet className="w-5 h-5 group-hover/btn:scale-110 transition-transform" />
                                     </button>
                                 </>
                             )}
@@ -2519,8 +2520,12 @@ export default function DeliveryTrackingTab() {
                                 ))}
                                 <div className="w-px h-4 bg-[#B2C4BB] mx-1"></div>
                                 {canDownload && (
-                                    <button onClick={exportOrdersCSV} className="flex items-center gap-1.5 text-[11px] font-[600] text-[#5A7266] bg-white border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 hover:border-[#4F46E5] hover:text-[#4F46E5] transition-all">
-                                        <Download className="w-3 h-3" /> Export List
+                                    <button
+                                        onClick={exportOrdersCSV}
+                                        title="Export Excel"
+                                        className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm flex items-center justify-center transition-colors"
+                                    >
+                                        <FileSpreadsheet className="w-5 h-5" />
                                     </button>
                                 )}
                             </div>
@@ -2819,8 +2824,12 @@ export default function DeliveryTrackingTab() {
                                 Missing & Canceled Items Track
                             </div>
                             {canDownload && (
-                                <button onClick={exportMissingItemsCSV} className="flex items-center gap-1.5 text-[11px] font-[600] text-[#5A7266] bg-white border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 hover:border-[#2980B9] transition-all">
-                                    <Download className="w-3 h-3" /> Export List
+                                <button
+                                    onClick={exportMissingItemsCSV}
+                                    title="Export Excel"
+                                    className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm flex items-center justify-center transition-colors"
+                                >
+                                    <FileSpreadsheet className="w-5 h-5" />
                                 </button>
                             )}
                         </div>

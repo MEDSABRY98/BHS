@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { DiscountTrackerEntry, InvoiceRow } from '@/types';
+import { FileSpreadsheet } from 'lucide-react';
 import Loading from './Loading';
 import * as XLSX from 'xlsx';
 
@@ -605,16 +606,10 @@ export default function DiscountTrackerTab({ data, isLoading }: DiscountTrackerT
         <button
           onClick={exportMissingToExcel}
           disabled={isExporting}
-          className="inline-flex items-center gap-2 p-2 text-green-600 hover:text-green-700 hover:bg-green-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+          className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           title="Export missing months to Excel"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-            <path
-              fillRule="evenodd"
-              d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
-              clipRule="evenodd"
-            />
-          </svg>
+          <FileSpreadsheet className="h-5 w-5" />
         </button>
       </div>
 

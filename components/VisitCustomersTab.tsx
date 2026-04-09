@@ -1320,9 +1320,9 @@ export default function VisitCustomersTab() {
                                         <button
                                             onClick={handleExportExcel}
                                             title="Export to Excel"
-                                            className="p-2.5 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all flex items-center justify-center shadow-lg shadow-emerald-100 group"
+                                            className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors group"
                                         >
-                                            <FileSpreadsheet className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                            <FileSpreadsheet className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                         </button>
                                     </div>
                                 </div>
@@ -1986,17 +1986,17 @@ function SalesRepDetailView({
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => handleDownloadPDF(details)}
-                        className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl font-bold text-sm shadow-sm hover:bg-red-600 transition-all"
+                        className="flex items-center justify-center h-10 w-10 bg-rose-600 text-white rounded-xl shadow-sm hover:bg-rose-700 transition-colors"
+                        title="Download PDF Report"
                     >
-                        <FileDown className="w-4 h-4" />
-                        PDF Report
+                        <FileText className="w-5 h-5" />
                     </button>
                     <button
                         onClick={() => handleDownloadExcel(details)}
-                        className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-xl font-bold text-sm shadow-sm hover:bg-green-700 transition-all"
+                        className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
+                        title="Export to Excel Report"
                     >
-                        <FileSpreadsheet className="w-4 h-4" />
-                        Excel Report
+                        <FileSpreadsheet className="w-5 h-5" />
                     </button>
                 </div>
             </div>

@@ -412,14 +412,16 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                                 <button
                                     onClick={handleBulkPrint}
                                     disabled={isGenerating}
-                                    className="p-3 bg-teal-600 text-white rounded-xl hover:bg-teal-700 shadow-sm transition-all disabled:opacity-70 flex-shrink-0"
+                                    className="flex items-center justify-center h-10 w-10 bg-rose-600 text-white rounded-xl shadow-sm hover:bg-rose-700 transition-colors disabled:opacity-70"
+                                    title="Export to PDF"
                                 >
-                                    {isGenerating ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Printer className="h-5 w-5" />}
+                                    {isGenerating ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <FileText className="h-5 w-5" />}
                                 </button>
                                 <button
                                     onClick={handleBulkExcel}
                                     disabled={isGenerating}
-                                    className="p-3 bg-green-600 text-white rounded-xl hover:bg-green-700 shadow-sm transition-all disabled:opacity-70 flex-shrink-0"
+                                    className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors disabled:opacity-70"
+                                    title="Export to Excel"
                                 >
                                     <FileSpreadsheet className="h-5 w-5" />
                                 </button>
@@ -516,9 +518,9 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                                     <button
                                         onClick={handleExportMatchReport}
                                         title="Export Excel Report"
-                                        className="p-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md shadow-emerald-100"
+                                        className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
                                     >
-                                        <FileDown className="w-5 h-5" />
+                                        <FileSpreadsheet className="w-5 h-5" />
                                     </button>
                                 )}
                             </div>

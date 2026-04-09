@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck, Users, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck, Users, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
@@ -914,14 +914,27 @@ export default function DocumentsTrackingTab() {
                                             🚀 تسليم {selectedIds.length} شيك للمكتب
                                         </button>
                                     )}
-                                    <button className="pdf-icon-btn" onClick={() => setIsPdfModalOpen(true)} title={`إصدار تقرير لـ ${selectedIds.length} شيك`}>
-                                        <span className="pdf-badge">{selectedIds.length}</span>
-                                        <FileCheck size={24} />
+                                    <button
+                                        onClick={() => setIsPdfModalOpen(true)}
+                                        className="flex items-center justify-center h-10 w-10 bg-rose-600 text-white rounded-xl shadow-sm hover:bg-rose-700 transition-colors relative"
+                                        title={`إصدار تقرير PDF لـ ${selectedIds.length} شيك`}
+                                    >
+                                        <span className="pdf-badge" style={{ position: 'absolute', top: '-8px', right: '-8px', background: 'var(--gold)', color: 'black', width: '20px', height: '20px', borderRadius: '50%', fontSize: '11px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, border: '2px solid white', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                                            {selectedIds.length}
+                                        </span>
+                                        <FileText className="h-5 w-5" />
                                     </button>
                                 </div>
                             )}
 
-                            <button className="filter-btn" onClick={exportData} style={{ marginRight: 'auto', borderColor: 'var(--gold)', color: 'var(--gold-dark)' }}>⬇ تصدير CSV</button>
+                            <button
+                                onClick={exportData}
+                                className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
+                                style={{ marginRight: 'auto' }}
+                                title="تصدير Excel"
+                            >
+                                <FileSpreadsheet className="h-5 w-5" />
+                            </button>
                         </div>
 
                         {/* TABLE */}

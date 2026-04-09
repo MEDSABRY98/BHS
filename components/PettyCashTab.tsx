@@ -704,10 +704,10 @@ export default function PettyCashTab() {
           {activeTab === 'stats' && (
             <button
               onClick={exportToExcel}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-green-600 hover:text-green-700"
+              className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
               title="Export to Excel"
             >
-              <FileSpreadsheet className="w-6 h-6" />
+              <FileSpreadsheet className="w-5 h-5" />
             </button>
           )}
         </div>
