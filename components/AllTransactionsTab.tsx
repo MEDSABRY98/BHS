@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
+import NoData from './NoData';
 
 interface AllTransactionsTabProps {
   data: InvoiceRow[];
@@ -473,10 +474,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                 <tbody>
                   {table.getRowModel().rows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500 text-lg">
-                        {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
-                          ? 'No transactions found matching your criteria'
-                          : 'No transactions found'}
+                      <td colSpan={8} className="px-4 py-12">
+                        <NoData />
                       </td>
                     </tr>
                   ) : (
@@ -637,13 +636,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
               <tbody>
                 {groupedByCustomer.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-8 text-center text-gray-500 text-lg"
-                    >
-                      {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
-                        ? 'No customers match your criteria'
-                        : 'No customers found'}
+                    <td colSpan={5} className="px-4 py-12">
+                      <NoData />
                     </td>
                   </tr>
                 ) : (

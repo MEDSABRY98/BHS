@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, FileDown, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, MoreVertical, ChevronDown } from 'lucide-react';
 import { generateDownloadFormPDF } from '@/lib/pdf/PdfUtils';
+import NoData from './NoData';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -284,15 +285,8 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
               <tbody>
                 {filteredCustomers.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-12 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <div className="p-4 bg-gray-100 rounded-full">
-                          <Search className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <p className="text-gray-500 font-medium">
-                          {debouncedSearchQuery ? 'No customers found' : 'No customers available'}
-                        </p>
-                      </div>
+                    <td colSpan={4} className="py-12">
+                      <NoData />
                     </td>
                   </tr>
                 ) : (

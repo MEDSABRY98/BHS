@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import NoData from './NoData';
 import {
   LineChart,
   Line,
@@ -822,8 +823,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-96 text-gray-500">
-                  <p>No sales data available for chart</p>
+                <div className="h-64 flex items-center justify-center">
+                  <NoData />
                 </div>
               )}
             </div>
@@ -891,8 +892,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                   ))}
                   {monthlySales.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500">
-                        No monthly data available
+                      <td colSpan={5} className="py-12">
+                        <NoData />
                       </td>
                     </tr>
                   )}
@@ -980,8 +981,8 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                   ))}
                   {customersData.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-8 text-center text-gray-500">
-                        No customers data available
+                      <td colSpan={6} className="py-12">
+                        <NoData />
                       </td>
                     </tr>
                   )}

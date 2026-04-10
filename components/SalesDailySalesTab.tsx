@@ -4,6 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import NoData from './NoData';
 
 interface SalesDailySalesTabProps {
   data: SalesInvoice[];
@@ -949,8 +950,8 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             )}
 
             {searchedData.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No data available for the selected filters</p>
+              <div className="py-12">
+                <NoData />
               </div>
             ) : (
               <>
@@ -1076,8 +1077,8 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
             </div>
             {salesByDayData.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No data available for the selected filters</p>
+              <div className="py-12">
+                <NoData />
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1130,8 +1131,8 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
             </div>
             {avgSalesByDayData.length === 0 ? (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">No data available for the selected filters</p>
+              <div className="py-12">
+                <NoData />
               </div>
             ) : (
               <div className="overflow-x-auto">

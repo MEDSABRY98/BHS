@@ -10,6 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
+import NoData from './NoData';
 import CustomerDetailsTab from './CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/pdf/PdfUtils';
 import { FileSpreadsheet, FileText, Printer, FileArchive, Mail } from 'lucide-react';
@@ -3124,7 +3125,10 @@ ${debtSectionHtml}
       {/* Cards Grid - Visible only in DEFAULT mode */}
       {viewMode === 'DEFAULT' && (
         <div className="space-y-3 mb-6">
-          {table.getRowModel().rows.map((row) => {
+          {table.getRowModel().rows.length === 0 ? (
+            <NoData />
+          ) : (
+            table.getRowModel().rows.map((row) => {
             const customer = row.original;
             const netDebt = customer.netDebt;
             const totalDebit = customer.totalDebit;
@@ -3348,7 +3352,8 @@ ${debtSectionHtml}
                 </div>
               </div>
             );
-          })}
+          })
+        )}
         </div>
       )}
 
@@ -3394,7 +3399,14 @@ ${debtSectionHtml}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {table.getRowModel().rows.map((row, index) => {
+                {table.getRowModel().rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={14} className="py-12">
+                      <NoData />
+                    </td>
+                  </tr>
+                ) : (
+                  table.getRowModel().rows.map((row, index) => {
                   const customer = row.original;
                   const collRate = customer.totalDebit > 0 ? ((customer.creditPayments || 0) / customer.totalDebit * 100) : 0;
                   const rating = calculateDebtRating(customer, closedCustomers);
@@ -3472,7 +3484,8 @@ ${debtSectionHtml}
                       </td>
                     </tr>
                   );
-                })}
+                })
+              )}
               </tbody>
               <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
                 <tr>
@@ -4685,14 +4698,7 @@ ${debtSectionHtml}
                     )}
 
                     {debitMonths.length === 0 && creditMonths.length === 0 && (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                        </div>
-                        <p className="text-gray-500 font-medium">No monthly data available</p>
-                      </div>
+                      <NoData />
                     )}
                   </div>
                 </div >

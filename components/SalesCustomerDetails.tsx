@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X } from 'lucide-react';
+import NoData from './NoData';
 import * as XLSX from 'xlsx';
 import {
   LineChart,
@@ -1269,8 +1270,8 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-96 text-gray-500">
-                  <p>No sales data available for chart</p>
+                <div className="h-64 flex items-center justify-center">
+                  <NoData />
                 </div>
               )}
             </div>
@@ -1338,8 +1339,8 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
                   ))}
                   {monthlySales.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-gray-500">
-                        No monthly data available
+                      <td colSpan={5} className="py-12">
+                        <NoData />
                       </td>
                     </tr>
                   )}
@@ -1428,8 +1429,8 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
                   ))}
                   {productsData.length === 0 && (
                     <tr>
-                      <td colSpan={9} className="py-8 text-center text-gray-500">
-                        No products data available
+                      <td colSpan={9} className="py-12">
+                        <NoData />
                       </td>
                     </tr>
                   )}
@@ -1537,8 +1538,8 @@ export default function SalesCustomerDetails({ customerName, customerType = 'sub
                   })}
                   {groupedInvoicesData.length === 0 && (
                     <tr>
-                      <td colSpan={customerType === 'main' ? 6 : 5} className="py-8 text-center text-gray-500">
-                        No invoices data available
+                      <td colSpan={customerType === 'main' ? 6 : 5} className="py-12">
+                        <NoData />
                       </td>
                     </tr>
                   )}

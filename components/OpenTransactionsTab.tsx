@@ -12,6 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
+import NoData from './NoData';
 
 interface CustomersOpenMatchesTabProps {
   data: InvoiceRow[];
@@ -555,10 +556,8 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
                 <tbody>
                   {table.getRowModel().rows.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-gray-500 text-lg">
-                        {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
-                          ? 'No open items found matching your criteria'
-                          : 'No open matches found'}
+                      <td colSpan={8} className="px-4 py-12">
+                        <NoData />
                       </td>
                     </tr>
                   ) : (
@@ -719,13 +718,8 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
               <tbody>
                 {groupedByCustomer.length === 0 ? (
                   <tr>
-                    <td
-                      colSpan={5}
-                      className="px-4 py-8 text-center text-gray-500 text-lg"
-                    >
-                      {searchQuery || dateFrom || dateTo || typeFilter !== 'ALL'
-                        ? 'No open customers match your criteria'
-                        : 'No customers with open matches found'}
+                    <td colSpan={5} className="px-4 py-12">
+                      <NoData />
                     </td>
                   </tr>
                 ) : (

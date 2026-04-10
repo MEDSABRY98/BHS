@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Package, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Filter, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import NoData from './NoData';
 import SalesProductDetails from './SalesProductDetails';
 
 interface SalesProductsTabProps {
@@ -611,8 +612,8 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
                 ))}
                 {filteredProducts.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="py-8 text-center text-gray-500">
-                      {searchQuery ? 'No products found matching your search' : 'No data available'}
+                    <td colSpan={6} className="py-12">
+                      <NoData />
                     </td>
                   </tr>
                 )}

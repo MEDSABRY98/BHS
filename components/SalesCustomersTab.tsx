@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, X, FileSpreadsheet, Layers, LayoutGrid, BarChart3, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
+import NoData from './NoData';
 
 interface SalesCustomersTabProps {
   data: SalesInvoice[];
@@ -979,12 +980,8 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
                 ))}
                 {paginatedCustomers.length === 0 && !loading && (
                   <tr>
-                    <td colSpan={8} className="py-20 text-center">
-                      <div className="flex flex-col items-center justify-center text-gray-400">
-                        <Users className="w-12 h-12 mb-4 opacity-20" />
-                        <p className="text-lg font-medium">No customers found matching your criteria</p>
-                        <p className="text-sm">Try adjusting your filters or search query</p>
-                      </div>
+                    <td colSpan={8} className="py-12">
+                      <NoData />
                     </td>
                   </tr>
                 )}

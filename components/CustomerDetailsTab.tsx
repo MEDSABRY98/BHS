@@ -32,6 +32,7 @@ import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2 } from 'lucide-react';
 import { getInvoiceType } from '@/lib/InvoiceType';
 import { useSearchParams } from 'next/navigation';
+import NoData from './NoData';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -3629,6 +3630,10 @@ ${debtSectionHtml}
         {/* Tab Content: Dashboard */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6 animate-in fade-in duration-300">
+            {filteredInvoices.length === 0 ? (
+              <NoData />
+            ) : (
+              <>
 
             {/* Section 0: Last Invoices */}
             <div>
@@ -4238,7 +4243,8 @@ ${debtSectionHtml}
               </div>
             </div>
 
-
+            </>
+            )}
           </div>
         )
         }
@@ -4287,30 +4293,38 @@ ${debtSectionHtml}
                     ))}
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
-                    {invoiceTable.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
-                        {row.getVisibleCells().map((cell) => {
-                          const getWidth = () => {
-                            const columnId = cell.column.id;
-                            if (columnId === 'select') return '5%';
-                            if (columnId === 'date') return '13%';
-                            if (columnId === 'type') return '10%';
-                            if (columnId === 'number') return '13%';
-                            if (columnId === 'debit') return '13%';
-                            if (columnId === 'credit') return '13%';
-                            if (columnId === 'netDebt') return '13%';
-                            if (columnId === 'matching') return '13%';
-                            if (columnId === 'residual') return '9%';
-                            return '13%';
-                          };
-                          return (
-                            <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
-                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                          );
-                        })}
+                    {invoiceTable.getRowModel().rows.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="py-12">
+                          <NoData />
+                        </td>
                       </tr>
-                    ))}
+                    ) : (
+                      invoiceTable.getRowModel().rows.map((row) => (
+                        <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
+                          {row.getVisibleCells().map((cell) => {
+                            const getWidth = () => {
+                              const columnId = cell.column.id;
+                              if (columnId === 'select') return '5%';
+                              if (columnId === 'date') return '13%';
+                              if (columnId === 'type') return '10%';
+                              if (columnId === 'number') return '13%';
+                              if (columnId === 'debit') return '13%';
+                              if (columnId === 'credit') return '13%';
+                              if (columnId === 'netDebt') return '13%';
+                              if (columnId === 'matching') return '13%';
+                              if (columnId === 'residual') return '9%';
+                              return '13%';
+                            };
+                            return (
+                              <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
+                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))
+                    )}
                     <tr className="bg-gray-50 border-t-2 border-gray-200">
                       <td className="px-6 py-4" style={{ width: '5%' }}></td>
                       <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
@@ -4459,11 +4473,8 @@ ${debtSectionHtml}
                   <tbody className="divide-y divide-gray-100 bg-white">
                     {overdueTable.getRowModel().rows.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="px-6 py-12 text-center text-gray-500 italic">
-                          <div className="flex flex-col items-center gap-2">
-                            <span className="text-2xl">🎉</span>
-                            <p>No overdue invoices found! </p>
-                          </div>
+                        <td colSpan={10} className="py-12">
+                          <NoData />
                         </td>
                       </tr>
                     ) : (
@@ -4611,8 +4622,8 @@ ${debtSectionHtml}
                 <tbody>
                   {monthlyDebt.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-4 py-8 text-center text-gray-500">
-                        No monthly data available.
+                      <td colSpan={4} className="py-12">
+                        <NoData />
                       </td>
                     </tr>
                   ) : (
@@ -4655,9 +4666,7 @@ ${debtSectionHtml}
         {activeTab === 'ages' && (
           <div>
             {agingData.total <= 0 ? (
-              <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500">
-                <p className="text-lg">No outstanding debt to display aging information.</p>
-              </div>
+              <NoData />
             ) : (
               <div className="bg-white rounded-lg shadow overflow-hidden">
                 <div className="overflow-x-auto">
@@ -4738,7 +4747,7 @@ ${debtSectionHtml}
             ) : (
               <div className="space-y-4">
                 {notes.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No notes found for this customer.</p>
+                  <NoData />
                 ) : (
                   notes.map((note, index) => {
                     const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');

@@ -10,6 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, YearAnalysis, CustomerAnalysis } from '@/types';
+import NoData from './NoData';
 
 interface YearsTabProps {
   data: InvoiceRow[];
@@ -644,27 +645,35 @@ export default function YearsTab({ data }: YearsTabProps) {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.map((row) => (
-                <tr key={row.id} className="border-b hover:bg-gray-50">
-                  {row.getVisibleCells().map((cell) => {
-                    const getWidth = () => {
-                      const columnId = cell.column.id;
-                      if (columnId === 'year') return '15%';
-                      if (columnId === 'netDebt') return '15%';
-                      if (columnId === 'collectionRate') return '15%';
-                      if (columnId === 'goodCustomersCount') return '18%';
-                      if (columnId === 'mediumCustomersCount') return '18%';
-                      if (columnId === 'badCustomersCount') return '19%';
-                      return 'auto';
-                    };
-                    return (
-                      <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12">
+                    <NoData />
+                  </td>
                 </tr>
-              ))}
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <tr key={row.id} className="border-b hover:bg-gray-50">
+                    {row.getVisibleCells().map((cell) => {
+                      const getWidth = () => {
+                        const columnId = cell.column.id;
+                        if (columnId === 'year') return '15%';
+                        if (columnId === 'netDebt') return '15%';
+                        if (columnId === 'collectionRate') return '15%';
+                        if (columnId === 'goodCustomersCount') return '18%';
+                        if (columnId === 'mediumCustomersCount') return '18%';
+                        if (columnId === 'badCustomersCount') return '19%';
+                        return 'auto';
+                      };
+                      return (
+                        <td key={cell.id} className="px-4 py-3 text-center text-lg" style={{ width: getWidth() }}>
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))
+              )}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>

@@ -5,6 +5,7 @@ import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ArrowUpDown, ArrowUp, ArrowDown, Filter, X, AlertTriangle, EyeOff } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
+import NoData from './NoData';
 
 interface SalesInactiveCustomersTabProps {
   data: SalesInvoice[];
@@ -742,7 +743,11 @@ export default function SalesInactiveCustomersTab({ data, loading }: SalesInacti
                   />
                 ))}
                 {filteredCustomers.length === 0 && (
-                  <tr><td colSpan={8} className="py-12 text-center text-gray-500 font-bold">No results matching your filters</td></tr>
+                  <tr>
+                    <td colSpan={8} className="py-12">
+                      <NoData />
+                    </td>
+                  </tr>
                 )}
                 {filteredCustomers.length > 0 && (
                   <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
