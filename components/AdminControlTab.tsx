@@ -13,7 +13,6 @@ const SYSTEMS = [
     { id: 'cash-receipt', label: 'Cash Receipt' },
     { id: 'petty-cash', label: 'Petty Cash' },
     { id: 'debit', label: 'Debit Analysis' },
-    { id: 'discount-tracker', label: 'Discount Tracker' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'wh20-items', label: 'WH/20 Items' },

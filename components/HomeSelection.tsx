@@ -156,7 +156,6 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'documents-tracking', title: "Documents Tracking", icon: FileSpreadsheet, path: '/documents-tracking', color: 'orange' as const },
     { id: 'debit', title: "Debit Analysis", icon: DollarSign, path: '/debit', color: 'red' as const },
     { id: 'visit-customers', title: "Visit Customers", icon: Users, path: '/visit-customers', color: 'pink' as const },
-    { id: 'discount-tracker', title: "Discount Tracker", icon: TrendingUp, path: '/discount-tracker', color: 'yellow' as const },
     { id: 'sales', title: "Sales Analysis", icon: LayoutGrid, path: '/sales', color: 'green' as const },
     { id: 'delivery-tracking', title: "Delivery Tracking", icon: Truck, path: '/delivery-tracking', color: 'blue' as const },
     { id: 'inventory', title: "Inventory", icon: Package, path: '/inventory', color: 'indigo' as const },

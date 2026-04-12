@@ -94,18 +94,6 @@ export interface Note {
   isSolved?: boolean;
 }
 
-export interface DiscountTrackerEntry {
-  customerName: string;
-  type?: string;
-  /**
-   * Normalized month keys in YYYY-MM format that have been reconciled manually
-   * (e.g. '2025-01' for JAN25). Used to suppress alerts for those months.
-   */
-  reconciliationMonths: string[];
-  monthlyRebate?: string;
-  qRent?: string;
-  bRent?: string;
-}
 
 export interface VisitCustomerEntry {
   date: string;
