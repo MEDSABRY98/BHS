@@ -290,7 +290,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
             >
               <div className="flex items-center gap-1.5">
                 <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Groups</span>
+                <span>Main Customers</span>
               </div>
             </button>
             <button
@@ -299,7 +299,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
             >
               <div className="flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" />
-                <span>Branches</span>
+                <span>Sub Customers</span>
               </div>
             </button>
           </div>
@@ -310,7 +310,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors" />
             <input
               type="text"
-              placeholder={`Search ${activeTab === 'main' ? 'groups' : 'branches'}...`}
+              placeholder={`Search ${activeTab === 'main' ? 'Main Customers' : 'Sub Customers'}...`}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:border-green-500 outline-none transition-all shadow-sm text-sm font-medium"
