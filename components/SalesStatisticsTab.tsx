@@ -11,86 +11,12 @@ interface SalesStatisticsTabProps {
 
 export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTabProps) {
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-
-
-  // Filter data based on filters
-  const filteredData = useMemo(() => {
-    let filtered = [...data];
-
-    // Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Date from filter
-    if (dateFrom) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          const fromDate = new Date(dateFrom);
-          return !isNaN(itemDate.getTime()) && itemDate >= fromDate;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Date to filter
-    if (dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          const toDate = new Date(dateTo);
-          toDate.setHours(23, 59, 59, 999); // Include the entire end date
-          return !isNaN(itemDate.getTime()) && itemDate <= toDate;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-
-    return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo]);
 
   // Calculate statistics for Area
   const areaStats = useMemo(() => {
     const areaMap = new Map<string, { amount: number; qty: number; count: number }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.area) return;
       const existing = areaMap.get(item.area) || { amount: 0, qty: 0, count: 0 };
       areaMap.set(item.area, {
@@ -102,7 +28,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
     // Calculate unique months for each area
     const areaMonthsMap = new Map<string, Set<string>>();
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.area || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -116,7 +42,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     // Calculate monthly data for each area (needed for growth calculation)
     const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.area || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -172,13 +98,13 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     }).sort((a, b) => b.totalAmount - a.totalAmount);
 
     return { stats, monthlyData };
-  }, [filteredData]);
+  }, [data]);
 
   // Calculate statistics for Market
   const marketStats = useMemo(() => {
     const marketMap = new Map<string, { amount: number; qty: number; count: number }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.market) return;
       const existing = marketMap.get(item.market) || { amount: 0, qty: 0, count: 0 };
       marketMap.set(item.market, {
@@ -190,7 +116,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
     // Calculate unique months for each market
     const marketMonthsMap = new Map<string, Set<string>>();
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.market || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -204,7 +130,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     // Calculate monthly data for each market (needed for growth calculation)
     const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.market || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -260,13 +186,13 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     }).sort((a, b) => b.totalAmount - a.totalAmount);
 
     return { stats, monthlyData };
-  }, [filteredData]);
+  }, [data]);
 
   // Calculate statistics for Merchandiser
   const merchandiserStats = useMemo(() => {
     const merchandiserMap = new Map<string, { amount: number; qty: number; count: number }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.merchandiser) return;
       const existing = merchandiserMap.get(item.merchandiser) || { amount: 0, qty: 0, count: 0 };
       merchandiserMap.set(item.merchandiser, {
@@ -278,7 +204,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
     // Calculate unique months for each merchandiser
     const merchandiserMonthsMap = new Map<string, Set<string>>();
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.merchandiser || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -292,7 +218,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     // Calculate monthly data for each merchandiser (needed for growth calculation)
     const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.merchandiser || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -348,13 +274,13 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     }).sort((a, b) => b.totalAmount - a.totalAmount);
 
     return { stats, monthlyData };
-  }, [filteredData]);
+  }, [data]);
 
   // Calculate statistics for Sales Rep
   const salesRepStats = useMemo(() => {
     const salesRepMap = new Map<string, { amount: number; qty: number; count: number }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.salesRep) return;
       const existing = salesRepMap.get(item.salesRep) || { amount: 0, qty: 0, count: 0 };
       salesRepMap.set(item.salesRep, {
@@ -366,7 +292,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
     // Calculate unique months for each sales rep
     const salesRepMonthsMap = new Map<string, Set<string>>();
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.salesRep || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -380,7 +306,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     // Calculate monthly data for each sales rep (needed for growth calculation)
     const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.salesRep || !item.invoiceDate) return;
       const date = new Date(item.invoiceDate);
       if (isNaN(date.getTime())) return;
@@ -436,7 +362,7 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
     }).sort((a, b) => b.totalAmount - a.totalAmount);
 
     return { stats, monthlyData };
-  }, [filteredData]);
+  }, [data]);
 
   const getCurrentStats = () => {
     switch (activeSubTab) {
@@ -520,80 +446,12 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
   const current = getCurrentStats();
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="w-full space-y-6">
+    <div className="w-full space-y-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Statistics</h1>
+          <h1 className="text-2xl font-medium text-slate-800">Sales Statistics</h1>
         </div>
 
-        {/* Filters */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Year</label>
-              <input
-                type="number"
-                value={filterYear}
-                onChange={(e) => setFilterYear(e.target.value)}
-                placeholder="e.g., 2024"
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
-                min="2000"
-                max="2100"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">Month (1-12)</label>
-              <input
-                type="number"
-                value={filterMonth}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
-                    setFilterMonth(value);
-                  }
-                }}
-                placeholder="e.g., 1-12"
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
-                min="1"
-                max="12"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">From Date</label>
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-semibold text-gray-700 mb-2">To Date</label>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-600 focus:border-green-600"
-              />
-            </div>
-          </div>
-          {(filterYear || filterMonth || dateFrom || dateTo) && (
-            <div className="mt-4">
-              <button
-                onClick={() => {
-                  setFilterYear('');
-                  setFilterMonth('');
-                  setDateFrom('');
-                  setDateTo('');
-                }}
-                className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-              >
-                Clear All Filters
-              </button>
-            </div>
-          )}
-        </div>
 
         {/* Sub-tabs */}
         <div className="bg-white rounded-xl shadow-md p-4">
@@ -759,7 +617,6 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
           )}
         </div>
       </div>
-    </div>
   );
 }
 

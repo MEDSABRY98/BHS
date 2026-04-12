@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Users, ChevronLeft, ChevronRight, Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, X, FileSpreadsheet, Layers, LayoutGrid, BarChart3, Filter } from 'lucide-react';
+import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from './NoData';
@@ -18,28 +18,24 @@ const ITEMS_PER_PAGE = 50;
 // Memoized row component for better performance
 const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (customer: string) => void }) => {
   return (
-    <tr className="border-b border-gray-100 hover:bg-gray-50">
-      <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{rowNumber}</td>
+    <tr className="border-b border-gray-100 hover:bg-gray-50 group text-center">
+      <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
       <td
-        className="py-3 px-4 text-sm text-gray-800 font-medium text-center cursor-pointer hover:text-green-600 hover:underline"
+        className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline min-w-[200px]"
         onClick={() => onCustomerClick(item.customer)}
       >
         {item.customer}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+      <td className="py-3 px-4 text-sm text-gray-800 font-bold">
         {item.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.averageAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
-        {item.averageQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-      </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.transactions}</td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">{item.productsCount}</td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-semibold">{item.productsCount}</td>
     </tr>
   );
 });
@@ -52,154 +48,26 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [filterArea, setFilterArea] = useState('');
-  const [filterMarket, setFilterMarket] = useState('');
-  const [filterMerchandiser, setFilterMerchandiser] = useState('');
-  const [filterSalesRep, setFilterSalesRep] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
   const [activeTab, setActiveTab] = useState<'main' | 'sub'>('main');
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-
-  const areaDropdownRef = useRef<HTMLDivElement>(null);
-  const marketDropdownRef = useRef<HTMLDivElement>(null);
-  const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
-  const salesRepDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'area' ? null : prev);
-      }
-      if (marketDropdownRef.current && !marketDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'market' ? null : prev);
-      }
-      if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
-      }
-      if (salesRepDropdownRef.current && !salesRepDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'salesrep' ? null : prev);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
+  const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
 
   // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearchQuery(searchQuery);
-      setCurrentPage(1); // Reset to first page when search changes
+      setCurrentPage(1);
     }, 300);
-
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Filter data based on filters
-  const filteredData = useMemo(() => {
-    let filtered = [...data];
-
-    // Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Date range filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          if (isNaN(itemDate.getTime())) return false;
-
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            fromDate.setHours(0, 0, 0, 0);
-            if (itemDate < fromDate) return false;
-          }
-
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            if (itemDate > toDate) return false;
-          }
-
-          return true;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Area filter
-    if (filterArea) {
-      filtered = filtered.filter(item => item.area === filterArea);
-    }
-
-    // Merchandiser filter
-    if (filterMerchandiser) {
-      filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
-    }
-
-    // SalesRep filter
-    if (filterSalesRep) {
-      filtered = filtered.filter(item => item.salesRep === filterSalesRep);
-    }
-
-    // Market filter
-    if (filterMarket) {
-      filtered = filtered.filter(item => item.market === filterMarket);
-    }
-
-    return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMerchandiser, filterSalesRep, filterMarket]);
-
-  // Group data by customerId - optimized
+  // Group data by customer - already using filtered data from props
   const customersData = useMemo(() => {
-    if (!filteredData || filteredData.length === 0) return [];
+    if (!data || data.length === 0) return [];
 
     const customerMap = new Map<string, {
       customerId: string;
       customer: string;
-      merchandiser: string;
-      salesRep: string;
-      area: string;
-      market: string;
       totalAmount: number;
       totalQty: number;
       barcodes: Set<string>;
@@ -207,11 +75,9 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       invoiceNumbers: Set<string>;
     }>();
 
-    // Pre-compile date parsing to avoid repeated try-catch
-    for (let i = 0; i < filteredData.length; i++) {
-      const item = filteredData[i];
+    for (let i = 0; i < data.length; i++) {
+      const item = data[i];
 
-      // Determine key and display name based on activeTab
       let key: string;
       let displayName: string;
 
@@ -219,7 +85,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
         key = item.customerMainName || item.customerName || 'Unknown';
         displayName = item.customerMainName || item.customerName || 'Unknown';
       } else {
-        key = item.customerId || item.customerName; // Use customerId for grouping, fallback to customerName
+        key = item.customerId || item.customerName;
         displayName = item.customerName;
       }
 
@@ -228,11 +94,7 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       if (!existing) {
         existing = {
           customerId: key,
-          customer: displayName, // Display name based on tab
-          merchandiser: item.merchandiser || '',
-          salesRep: item.salesRep || '',
-          area: item.area || '',
-          market: item.market || '',
+          customer: displayName,
           totalAmount: 0,
           totalQty: 0,
           barcodes: new Set<string>(),
@@ -245,17 +107,12 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       existing.totalAmount += item.amount;
       existing.totalQty += item.qty;
 
-      // Add invoice number for transaction count (only invoices starting with "SAL")
       if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
         existing.invoiceNumbers.add(item.invoiceNumber);
-
-        // Add product to count (only for invoices starting with "SAL")
-        // Use productId || barcode || product as key to match SalesCustomerDetails logic
         const productKey = item.productId || item.barcode || item.product;
         existing.barcodes.add(productKey);
       }
 
-      // Optimized date parsing
       if (item.invoiceDate) {
         const date = new Date(item.invoiceDate);
         if (!isNaN(date.getTime())) {
@@ -267,40 +124,28 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       }
     }
 
-    // Pre-calculate array length
     const result = new Array(customerMap.size);
     let index = 0;
 
-    // Get current date for calculating months span
     const currentDate = new Date();
     const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth(); // 0-based (0 = January)
+    const currentMonth = currentDate.getMonth();
 
     customerMap.forEach(item => {
-      // Calculate months from first month to current month
       let totalMonths = 1;
       if (item.months.size > 0) {
-        // Find earliest month
         const sortedMonths = Array.from(item.months).sort();
         const firstMonthKey = sortedMonths[0];
         const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
-
-        // Calculate months from first month to current month (inclusive)
         const firstDate = new Date(firstYear, firstMonth - 1, 1);
         const lastDate = new Date(currentYear, currentMonth, 1);
-
-        // Calculate difference in months
         const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
         const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
-        totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
+        totalMonths = (yearsDiff * 12) + monthsDiff + 1;
       }
 
       result[index++] = {
         customer: item.customer,
-        area: item.area,
-        market: item.market,
-        merchandiser: item.merchandiser,
-        salesRep: item.salesRep,
         totalAmount: item.totalAmount,
         totalQty: item.totalQty,
         averageAmount: item.totalAmount / totalMonths,
@@ -311,92 +156,45 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
     });
 
     return result;
-  }, [filteredData, activeTab]);
+  }, [data, activeTab]);
 
-  // Get unique values for dropdown filters
-  const uniqueAreas = useMemo(() => {
-    const areas = new Set<string>();
-    data.forEach(item => {
-      if (item.area && item.area.trim()) {
-        areas.add(item.area.trim());
-      }
-    });
-    return Array.from(areas).sort();
-  }, [data]);
-
-  const uniqueMarkets = useMemo(() => {
-    const markets = new Set<string>();
-    data.forEach(item => {
-      if (item.market && item.market.trim()) {
-        markets.add(item.market.trim());
-      }
-    });
-    return Array.from(markets).sort();
-  }, [data]);
-
-  const uniqueMerchandisers = useMemo(() => {
-    const merchandisers = new Set<string>();
-    data.forEach(item => {
-      if (item.merchandiser && item.merchandiser.trim()) {
-        merchandisers.add(item.merchandiser.trim());
-      }
-    });
-    return Array.from(merchandisers).sort();
-  }, [data]);
-
-  const uniqueSalesReps = useMemo(() => {
-    const salesReps = new Set<string>();
-    data.forEach(item => {
-      if (item.salesRep && item.salesRep.trim()) {
-        salesReps.add(item.salesRep.trim());
-      }
-    });
-    return Array.from(salesReps).sort();
-  }, [data]);
-
-  // Filter and sort customers - optimized
   const filteredCustomers = useMemo(() => {
     if (customersData.length === 0) return [];
+    let filtered = [...customersData];
 
-    let filtered: typeof customersData;
-
-    // Apply search filter using debounced query
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
-      filtered = customersData.filter(item =>
-        item.customer.toLowerCase().includes(query)
-      );
-    } else {
-      filtered = customersData;
+      filtered = filtered.filter(item => item.customer.toLowerCase().includes(query));
     }
 
-    // Sort by amount descending (in-place for better performance)
-    filtered.sort((a, b) => b.totalAmount - a.totalAmount);
+    filtered.sort((a, b) => {
+      let aValue: any = a[sortField];
+      let bValue: any = b[sortField];
 
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
     return filtered;
-  }, [customersData, debouncedSearchQuery]);
+  }, [customersData, debouncedSearchQuery, sortField, sortDirection]);
 
-  // Pagination calculations
+  const handleSort = (field: typeof sortField) => {
+    if (sortField === field) setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    else { setSortField(field); setSortDirection('desc'); }
+  };
+
+  const getSortIcon = (field: typeof sortField) => {
+    if (sortField !== field) return <ArrowUpDown className="w-4 h-4 inline ml-1 opacity-20" />;
+    return sortDirection === 'asc' ? <ArrowUp className="w-4 h-4 inline ml-1 text-green-600" /> : <ArrowDown className="w-4 h-4 inline ml-1 text-green-600" />;
+  };
+
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const endIndex = startIndex + ITEMS_PER_PAGE;
-  const paginatedCustomers = filteredCustomers.slice(startIndex, endIndex);
+  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Calculate totals (for all filtered customers, not just current page) - optimized single pass
   const totals = useMemo(() => {
-    if (filteredCustomers.length === 0) {
-      return {
-        totalAmount: 0,
-        totalAverageAmount: 0,
-        totalQty: 0,
-        totalAverageQty: 0,
-        totalProductsCount: 0,
-        totalTransactions: 0
-      };
-    }
-
-    // Single reduce pass instead of 5 separate reduces
-    const result = filteredCustomers.reduce((acc, item) => {
+    if (filteredCustomers.length === 0) return { totalAmount: 0, totalAverageAmount: 0, totalQty: 0, totalAverageQty: 0, totalProductsCount: 0, totalTransactions: 0 };
+    return filteredCustomers.reduce((acc, item) => {
       acc.totalAmount += item.totalAmount;
       acc.totalAverageAmount += item.averageAmount;
       acc.totalQty += item.totalQty;
@@ -404,789 +202,216 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       acc.totalProductsCount += item.productsCount;
       acc.totalTransactions += item.transactions;
       return acc;
-    }, {
-      totalAmount: 0,
-      totalAverageAmount: 0,
-      totalQty: 0,
-      totalAverageQty: 0,
-      totalProductsCount: 0,
-      totalTransactions: 0
-    });
-
-    return result;
+    }, { totalAmount: 0, totalAverageAmount: 0, totalQty: 0, totalAverageQty: 0, totalProductsCount: 0, totalTransactions: 0 });
   }, [filteredCustomers]);
 
-  // Reset to first page when filtered customers change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [debouncedSearchQuery]);
+  const exportToExcel = (mode: 'standard' | 'months') => {
+    if (mode === 'months') {
+      const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
+      const customerInfoMap = new Map<string, { name: string, area: string, market: string }>();
+      const allMonths = new Set<string>();
 
-  const exportCategorizedExcel = (category: 'area' | 'market' | 'merchandiser' | 'salesRep') => {
-    const workbook = XLSX.utils.book_new();
-    const headers = [
-      '#',
-      'Customer Name',
-      'Area',
-      'Market',
-      'Merchandiser',
-      'Sales Rep',
-      'Amount',
-      'Average Amount',
-      'Qty',
-      'Average Qty',
-      'Transactions',
-      'Products Count',
-    ];
+      data.forEach(item => {
+        if (!item.invoiceDate) return;
+        const date = new Date(item.invoiceDate);
+        if (isNaN(date.getTime())) return;
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        allMonths.add(monthKey);
 
-    // Helper to get rows for a list of items
-    const getRowsForItems = (items: typeof filteredCustomers) => {
-      const rows = items.map((item: any, index: number) => [
-        index + 1,
-        item.customer,
-        item.area,
-        item.market,
-        item.merchandiser,
-        item.salesRep,
-        item.totalAmount.toFixed(2),
-        item.averageAmount.toFixed(2),
-        item.totalQty.toFixed(0),
-        item.averageQty.toFixed(2),
-        item.transactions,
-        item.productsCount,
-      ]);
+        const customerId = activeTab === 'main' ? (item.customerMainName || item.customerName) : (item.customerId || item.customerName);
+        if (!customerMonthMap.has(customerId)) {
+          customerMonthMap.set(customerId, new Map());
+          customerInfoMap.set(customerId, { name: activeTab === 'main' ? (item.customerMainName || item.customerName) : item.customerName, area: item.area || '', market: item.market || '' });
+        }
 
-      // Add total row
-      if (items.length > 0) {
-        const catTotals = items.reduce((acc, item: any) => {
-          acc.totalAmount += item.totalAmount;
-          acc.totalAverageAmount += item.averageAmount;
-          acc.totalQty += item.totalQty;
-          acc.totalAverageQty += item.averageQty;
-          acc.totalProductsCount += item.productsCount;
-          acc.totalTransactions += item.transactions;
-          return acc;
-        }, {
-          totalAmount: 0, totalAverageAmount: 0, totalQty: 0, totalAverageQty: 0, totalProductsCount: 0, totalTransactions: 0
+        const cm = customerMonthMap.get(customerId)!;
+        const mData = cm.get(monthKey) || { amount: 0, qty: 0 };
+        mData.amount += item.amount;
+        mData.qty += item.qty;
+        cm.set(monthKey, mData);
+      });
+
+      const sortedMonths = Array.from(allMonths).sort();
+      const workbook = XLSX.utils.book_new();
+
+      const amountRows = Array.from(customerMonthMap.entries()).map(([cid, months]) => {
+        const info = customerInfoMap.get(cid)!;
+        const row: any[] = [info.name, info.area, info.market];
+        let total = 0;
+        sortedMonths.forEach(m => {
+          const val = months.get(m)?.amount || 0;
+          row.push(val.toFixed(2));
+          total += val;
         });
+        row.push(total.toFixed(2));
+        return row;
+      }).sort((a, b) => a[0].localeCompare(b[0]));
 
-        rows.push([
-          '',
-          'Total',
-          '',
-          '',
-          '',
-          '',
-          catTotals.totalAmount.toFixed(2),
-          catTotals.totalAverageAmount.toFixed(2),
-          catTotals.totalQty.toFixed(0),
-          catTotals.totalAverageQty.toFixed(2),
-          catTotals.totalTransactions,
-          catTotals.totalProductsCount,
-        ]);
-      }
-      return rows;
-    };
-
-    // 1. Total Sheet
-    const totalData = [headers, ...getRowsForItems(filteredCustomers)];
-    const totalSheet = XLSX.utils.aoa_to_sheet(totalData);
-    XLSX.utils.book_append_sheet(workbook, totalSheet, 'Grand Total');
-
-    // 2. Categorized Sheets
-    const grouped = new Map<string, typeof filteredCustomers>();
-    filteredCustomers.forEach(c => {
-      const val = (c as any)[category] || 'Unknown';
-      if (!grouped.has(val)) grouped.set(val, []);
-      grouped.get(val)!.push(c);
-    });
-
-    const sortedLabels = Array.from(grouped.keys()).sort();
-    sortedLabels.forEach(label => {
-      const items = grouped.get(label)!;
-      const sheetData = [headers, ...getRowsForItems(items)];
-      const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-
-      // Sheet names must be <= 31 chars and no special chars
-      const safeLabel = label.substring(0, 31).replace(/[\\:*?\/\[\]]/g, '_');
-      XLSX.utils.book_append_sheet(workbook, sheet, safeLabel || 'Sheet');
-    });
-
-    const filename = `sales_customers_by_${category}_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
-    setShowExportModal(false);
-  };
-
-  const exportToExcel = () => {
-    const workbook = XLSX.utils.book_new();
-
-    const headers = [
-      '#',
-      'Customer Name',
-      'Area',
-      'Market',
-      'Merchandiser',
-      'Sales Rep',
-      'Amount',
-      'Average Amount',
-      'Qty',
-      'Average Qty',
-      'Transactions',
-      'Products Count',
-    ];
-
-    const rows = filteredCustomers.map((item: any, index: number) => [
-      index + 1,
-      item.customer,
-      item.area,
-      item.market,
-      item.merchandiser,
-      item.salesRep,
-      item.totalAmount.toFixed(2),
-      item.averageAmount.toFixed(2),
-      item.totalQty.toFixed(0),
-      item.averageQty.toFixed(2),
-      item.transactions,
-      item.productsCount,
-    ]);
-
-    // Totals row (same as table footer)
-    if (filteredCustomers.length > 0) {
-      rows.push([
-        '',
-        'Total',
-        '',
-        '',
-        '',
-        '',
-        totals.totalAmount.toFixed(2),
-        totals.totalAverageAmount.toFixed(2),
-        totals.totalQty.toFixed(0),
-        totals.totalAverageQty.toFixed(2),
-        totals.totalTransactions,
-        totals.totalProductsCount,
+      const amountSheet = XLSX.utils.aoa_to_sheet([['Customer', 'Area', 'Market', ...sortedMonths.map(m => new Date(m).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })), 'Total'], ...amountRows]);
+      XLSX.utils.book_append_sheet(workbook, amountSheet, 'Revenue Distribution');
+      XLSX.writeFile(workbook, `customer_revenue_distribution_${new Date().toISOString().split('T')[0]}.xlsx`);
+    } else {
+      const headers = ['#', 'Customer Name', 'Amount', 'Amount Average', 'QTY', 'SKUs'];
+      const rows = filteredCustomers.map((item, i) => [
+        i + 1, item.customer, item.totalAmount.toFixed(2), item.averageAmount.toFixed(2),
+        item.totalQty.toFixed(0), item.productsCount
       ]);
+      rows.push(['', 'TOTALS', totals.totalAmount.toFixed(2), totals.totalAverageAmount.toFixed(2), totals.totalQty.toFixed(0), totals.totalProductsCount]);
+      const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Customers Analysis');
+      XLSX.writeFile(wb, `customers_analysis_${new Date().toISOString().split('T')[0]}.xlsx`);
     }
-
-    const sheetData = [headers, ...rows];
-    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(workbook, sheet, 'Customers');
-
-    const filename = `sales_customers_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
     setShowExportModal(false);
   };
 
-  const exportToExcelByMonths = () => {
-    if (!data || data.length === 0) return;
-
-    // Group data by customerId and month, but keep customerName for display
-    const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
-    const customerInfoMap = new Map<string, { name: string, area: string, market: string, merchandiser: string, salesRep: string }>();
-    const allMonths = new Set<string>();
-
-    data.forEach(item => {
-      if (!item.invoiceDate) return;
-
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-
-      const year = date.getFullYear();
-      const month = date.getMonth();
-      const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-
-      allMonths.add(monthKey);
-
-      const customerId = item.customerId || item.customerName; // Use customerId for grouping
-      if (!customerMonthMap.has(customerId)) {
-        customerMonthMap.set(customerId, new Map());
-      }
-
-      // Store customer info for this customerId (use first occurrence)
-      if (!customerInfoMap.has(customerId)) {
-        customerInfoMap.set(customerId, {
-          name: item.customerName,
-          area: item.area || '',
-          market: item.market || '',
-          merchandiser: item.merchandiser || '',
-          salesRep: item.salesRep || ''
-        });
-      }
-
-      const customerMonths = customerMonthMap.get(customerId)!;
-      if (!customerMonths.has(monthKey)) {
-        customerMonths.set(monthKey, { amount: 0, qty: 0 });
-      }
-
-      const monthData = customerMonths.get(monthKey)!;
-      monthData.amount += item.amount;
-      monthData.qty += item.qty;
-    });
-
-    // Sort months chronologically
-    const sortedMonths = Array.from(allMonths).sort();
-    const monthLabels = sortedMonths.map(monthKey => {
-      const [year, month] = monthKey.split('-');
-      const date = new Date(parseInt(year), parseInt(month) - 1);
-      return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-    });
-
-    // Create workbook
-    const workbook = XLSX.utils.book_new();
-
-    // Sheet 1: Amount
-    const amountHeaders = ['Customer', 'Area', 'Market', 'Merchandiser', 'Sales Rep', ...monthLabels, 'Total'];
-    const amountRows: any[][] = [];
-
-    customerMonthMap.forEach((months, customerId) => {
-      const info = customerInfoMap.get(customerId)!;
-      const row: any[] = [info.name, info.area, info.market, info.merchandiser, info.salesRep];
-      let total = 0;
-
-      sortedMonths.forEach(monthKey => {
-        const monthData = months.get(monthKey);
-        const value = monthData ? monthData.amount : 0;
-        row.push(value.toFixed(2));
-        total += value;
-      });
-
-      row.push(total.toFixed(2));
-      amountRows.push(row);
-    });
-
-    // Sort by customer name
-    amountRows.sort((a, b) => a[0].localeCompare(b[0]));
-
-    // Add total row - calculate from original data
-    const amountTotals = new Array(sortedMonths.length + 1).fill(0);
-    customerMonthMap.forEach((months) => {
-      sortedMonths.forEach((monthKey, index) => {
-        const monthData = months.get(monthKey);
-        if (monthData) {
-          amountTotals[index] += monthData.amount;
-        }
-      });
-    });
-    amountTotals[amountTotals.length - 1] = amountTotals.slice(0, -1).reduce((a, b) => a + b, 0);
-    amountRows.push(['Total', '', '', '', '', ...amountTotals.map(t => t.toFixed(2))]);
-
-    const amountData = [amountHeaders, ...amountRows];
-    const amountSheet = XLSX.utils.aoa_to_sheet(amountData);
-    XLSX.utils.book_append_sheet(workbook, amountSheet, 'Amount');
-
-    // Sheet 2: Quantity
-    const qtyHeaders = ['Customer', 'Area', 'Market', 'Merchandiser', 'Sales Rep', ...monthLabels, 'Total'];
-    const qtyRows: any[][] = [];
-
-    customerMonthMap.forEach((months, customerId) => {
-      const info = customerInfoMap.get(customerId)!;
-      const row: any[] = [info.name, info.area, info.market, info.merchandiser, info.salesRep];
-      let total = 0;
-
-      sortedMonths.forEach(monthKey => {
-        const monthData = months.get(monthKey);
-        const value = monthData ? monthData.qty : 0;
-        row.push(value.toFixed(0));
-        total += value;
-      });
-
-      row.push(total.toFixed(0));
-      qtyRows.push(row);
-    });
-
-    // Sort by customer name
-    qtyRows.sort((a, b) => a[0].localeCompare(b[0]));
-
-    // Add total row - calculate from original data
-    const qtyTotals = new Array(sortedMonths.length + 1).fill(0);
-    customerMonthMap.forEach((months) => {
-      sortedMonths.forEach((monthKey, index) => {
-        const monthData = months.get(monthKey);
-        if (monthData) {
-          qtyTotals[index] += monthData.qty;
-        }
-      });
-    });
-    qtyTotals[qtyTotals.length - 1] = qtyTotals.slice(0, -1).reduce((a, b) => a + b, 0);
-    qtyRows.push(['Total', ...qtyTotals.map(t => t.toFixed(0))]);
-
-    const qtyData = [qtyHeaders, ...qtyRows];
-    const qtySheet = XLSX.utils.aoa_to_sheet(qtyData);
-    XLSX.utils.book_append_sheet(workbook, qtySheet, 'Qty');
-
-    const filename = `sales_customers_by_months_${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(workbook, filename);
-    setShowExportModal(false);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading customers data...</p>
-        </div>
+  if (loading) return (
+    <div className="flex items-center justify-center p-12">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
+        <p className="text-gray-600 font-medium tracking-wide">Analyzing customer data...</p>
       </div>
-    );
-  }
+    </div>
+  );
 
-  // If a customer is selected, show their details
-  if (selectedCustomer) {
-    return (
-      <SalesCustomerDetails
-        customerName={selectedCustomer}
-        customerType={activeTab}
-        data={data}
-        onBack={() => setSelectedCustomer(null)}
-      />
-    );
-  }
+  if (selectedCustomer) return (
+    <SalesCustomerDetails customerName={selectedCustomer} customerType={activeTab} data={data} onBack={() => setSelectedCustomer(null)} />
+  );
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="w-full">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between mb-8">
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-1.5 bg-slate-200/50 p-1.5 rounded-[18px] border border-slate-200/50 shadow-inner">
-              <button
-                onClick={() => setActiveTab('main')}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'main'
-                  ? 'bg-white text-green-700 shadow-md transform scale-105'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-              >
-                Main Customers
-              </button>
-              <button
-                onClick={() => setActiveTab('sub')}
-                className={`px-5 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${activeTab === 'sub'
-                  ? 'bg-white text-green-700 shadow-md transform scale-105'
-                  : 'text-slate-500 hover:text-slate-900 hover:bg-white/50'
-                  }`}
-              >
-                Sub Customers
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 border-l border-slate-200 pl-6">
-              <button
-                onClick={() => setIsFilterModalOpen(true)}
-                className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep)
-                  ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
-                  : 'bg-white text-slate-600 border border-slate-200 shadow-sm hover:border-green-500 hover:text-green-600'
-                  }`}
-              >
-                <Filter className={`w-5 h-5 ${(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
-                <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
-                {(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep) && (
-                  <span className="flex h-2 w-2 rounded-full bg-white"></span>
-                )}
-              </button>
-
-              <button
-                onClick={() => setShowExportModal(true)}
-                className="p-2.5 bg-green-600 text-white rounded-full shadow-lg shadow-green-200 hover:bg-green-700 hover:scale-110 transition-all active:scale-95"
-                title="Export to Excel"
-              >
-                <Download className="w-5 h-5" />
-              </button>
-            </div>
+    <div className="space-y-6">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-medium text-slate-800">Sales Customers</h1>
+          <div className="flex items-center gap-1.5 bg-gray-100 p-1 rounded-xl border border-gray-200 shadow-sm transition-all overflow-hidden">
+            <button
+              onClick={() => setActiveTab('main')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'main' ? 'bg-white text-green-700 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Groups</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('sub')}
+              className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${activeTab === 'sub' ? 'bg-white text-green-700 shadow-sm border border-gray-100' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              <div className="flex items-center gap-1.5">
+                <Layers className="w-3.5 h-3.5" />
+                <span>Branches</span>
+              </div>
+            </button>
           </div>
         </div>
 
-        {/* Filters Modal */}
-        {isFilterModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsFilterModalOpen(false)} />
-            <div className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col border border-white/20 animate-in fade-in zoom-in duration-300 overflow-hidden">
-              {/* Header */}
-              <div className="px-10 py-8 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-green-100 rounded-2xl shadow-inner">
-                    <Filter className="w-7 h-7 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">Customers Filters</h2>
-                  </div>
-                </div>
-                <button onClick={() => setIsFilterModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-full transition-colors group">
-                  <X className="w-7 h-7 text-gray-400 group-hover:text-gray-700 transition-colors" />
-                </button>
-              </div>
+        <div className="flex items-center gap-3 flex-1 max-w-2xl">
+          <div className="relative flex-1 group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+            <input
+              type="text"
+              placeholder={`Search ${activeTab === 'main' ? 'groups' : 'branches'}...`}
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:border-green-500 outline-none transition-all shadow-sm text-sm font-medium"
+            />
+          </div>
+          <button
+            onClick={() => setShowExportModal(true)}
+            className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
+          </button>
+        </div>
+      </div>
 
-              {/* Body */}
-              <div className="p-10 overflow-y-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[550px]">
-                <div className="space-y-12 pb-60">
-                  {/* 01. Time Period */}
-                  <div className="space-y-6">
-                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-indigo-500" /> 01. Time Period
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-slate-50/50 p-8 rounded-[32px] border border-slate-100 shadow-sm">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Year</label>
-                        <input value={filterYear} onChange={e => setFilterYear(e.target.value)} type="number" placeholder="YYYY" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Month</label>
-                        <input value={filterMonth} onChange={e => setFilterMonth(e.target.value)} type="number" placeholder="1-12" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">From Date</label>
-                        <input value={dateFrom} onChange={e => setDateFrom(e.target.value)} type="date" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">To Date</label>
-                        <input value={dateTo} onChange={e => setDateTo(e.target.value)} type="date" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-indigo-500/5 focus:border-indigo-500 transition-all" />
-                      </div>
-                    </div>
-                  </div>
+      {/* Main Table */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-gray-50/50 border-b border-gray-100">
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-12">#</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('customer')}>
+                  Customer {getSortIcon('customer')}
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('totalAmount')}>
+                  Amount {getSortIcon('totalAmount')}
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('averageAmount')}>
+                  Amount Average {getSortIcon('averageAmount')}
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('totalQty')}>
+                  QTY {getSortIcon('totalQty')}
+                </th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('productsCount')}>
+                  SKUs {getSortIcon('productsCount')}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {paginatedCustomers.map((item, idx) => (
+                <CustomerRow key={item.customer} item={item} rowNumber={startIndex + idx + 1} onCustomerClick={setSelectedCustomer} />
+              ))}
+              {filteredCustomers.length === 0 && (
+                <tr>
+                  <td className="py-12" colSpan={6}>
+                    <NoData />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+            {filteredCustomers.length > 0 && (
+              <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
+                <tr className="text-center">
+                  <td colSpan={2} className="py-4 px-4 text-xs text-gray-500 uppercase tracking-widest">Totals</td>
+                  <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className="py-4 px-4 text-sm text-gray-800">{totals.totalAverageAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td className="py-4 px-4 text-sm text-gray-800">{totals.totalQty.toLocaleString()}</td>
+                  <td className="py-4 px-4 text-sm text-gray-800">{totals.totalProductsCount.toLocaleString()}</td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
 
-                  {/* 02. Categorization */}
-                  <div className="space-y-6">
-                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
-                      <MapPin className="w-5 h-5 text-emerald-500" /> 02. Categorization
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 bg-emerald-50/30 p-10 rounded-[32px] border border-emerald-100/50">
-                      {/* Area Dropdown */}
-                      <div className="relative" ref={areaDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Territory / Area</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-emerald-500 hover:shadow-lg transition-all group">
-                          <span className={filterArea ? 'text-slate-900' : 'text-slate-400'}>{filterArea || 'Select Area'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'area' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'area' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2 animate-in slide-in-from-top-2">
-                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                              <button onClick={() => { setFilterArea(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-emerald-700 rounded-xl font-black text-xs uppercase tracking-widest transition-colors mb-1">Clear Selection</button>
-                              {uniqueAreas.map(a => <button key={a} onClick={() => { setFilterArea(a); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-xl font-bold text-sm transition-colors border-t border-slate-50">{a}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Sales Rep Dropdown */}
-                      <div className="relative" ref={salesRepDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Account Executive</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-emerald-500 hover:shadow-lg transition-all group">
-                          <span className={filterSalesRep ? 'text-slate-900' : 'text-slate-400'}>{filterSalesRep || 'Select Sales Rep'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'salesrep' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'salesrep' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2 animate-in slide-in-from-top-2">
-                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                              <button onClick={() => { setFilterSalesRep(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-emerald-700 rounded-xl font-black text-xs uppercase tracking-widest transition-colors mb-1">Clear Selection</button>
-                              {uniqueSalesReps.map(r => <button key={r} onClick={() => { setFilterSalesRep(r); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-xl font-bold text-sm transition-colors border-t border-slate-50">{r}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Market Dropdown */}
-                      <div className="relative" ref={marketDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Market Type</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-emerald-500 hover:shadow-lg transition-all group">
-                          <span className={filterMarket ? 'text-slate-900' : 'text-slate-400'}>{filterMarket || 'Select Market'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'market' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'market' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2 animate-in slide-in-from-top-2">
-                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                              <button onClick={() => { setFilterMarket(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-emerald-700 rounded-xl font-black text-xs uppercase tracking-widest transition-colors mb-1">Clear Selection</button>
-                              {uniqueMarkets.map(m => <button key={m} onClick={() => { setFilterMarket(m); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-xl font-bold text-sm transition-colors border-t border-slate-50">{m}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Merchandiser Dropdown */}
-                      <div className="relative" ref={merchandiserDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Store Merchandiser</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-emerald-500 hover:shadow-lg transition-all group">
-                          <span className={filterMerchandiser ? 'text-slate-900' : 'text-slate-400'}>{filterMerchandiser || 'Select Merchandiser'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'merchandiser' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'merchandiser' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2 animate-in slide-in-from-top-2">
-                            <div className="max-h-60 overflow-y-auto custom-scrollbar">
-                              <button onClick={() => { setFilterMerchandiser(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-emerald-700 rounded-xl font-black text-xs uppercase tracking-widest transition-colors mb-1">Clear Selection</button>
-                              {uniqueMerchandisers.map(m => <button key={m} onClick={() => { setFilterMerchandiser(m); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 rounded-xl font-bold text-sm transition-colors border-t border-slate-50">{m}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Footer */}
-              <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
-                <button
-                  onClick={() => {
-                    setFilterYear(''); setFilterMonth(''); setDateFrom(''); setDateTo('');
-                    setFilterArea(''); setFilterMarket(''); setFilterMerchandiser(''); setFilterSalesRep('');
-                  }}
-                  className="px-6 py-4 text-[11px] font-black text-slate-400 hover:text-red-500 uppercase tracking-[0.2em] transition-all hover:bg-red-50 rounded-2xl"
-                >
-                  Clear All Filters
-                </button>
-                <button onClick={() => setIsFilterModalOpen(false)} className="px-12 py-4 bg-green-600 text-white font-black text-sm uppercase tracking-[0.2em] rounded-[20px] shadow-xl shadow-green-100 hover:bg-green-700 hover:scale-105 active:scale-95 transition-all">
-                  Apply & Close
-                </button>
-              </div>
+        {/* Pagination UI */}
+        {filteredCustomers.length > ITEMS_PER_PAGE && (
+          <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+            <span className="text-sm text-gray-500 font-medium">Found {filteredCustomers.length} results</span>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"><ChevronLeft className="w-5 h-5" /></button>
+              <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} / {totalPages}</div>
+              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"><ChevronRight className="w-5 h-5" /></button>
             </div>
           </div>
         )}
-
-        {/* Search */}
-        <div className="mb-6 relative">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="w-5 h-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Search by customer name..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-3 bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-          />
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-100">
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">#</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Customer Name</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Total Amount</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Avg Amount / Month</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Total Qty</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Avg Qty / Month</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Transactions</th>
-                  <th className="py-4 px-4 text-sm font-bold text-gray-600 uppercase tracking-wider text-center">Unique Products</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {paginatedCustomers.map((item, index) => (
-                  <CustomerRow
-                    key={item.customer}
-                    item={item}
-                    rowNumber={startIndex + index + 1}
-                    onCustomerClick={setSelectedCustomer}
-                  />
-                ))}
-                {paginatedCustomers.length === 0 && !loading && (
-                  <tr>
-                    <td colSpan={8} className="py-12">
-                      <NoData />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-              {filteredCustomers.length > 0 && (
-                <tfoot>
-                  <tr className="bg-green-50/50 font-bold border-t-2 border-green-100">
-                    <td className="py-4 px-4 text-center text-green-800" colSpan={2}>Grand Total ({filteredCustomers.length} Customers)</td>
-                    <td className="py-4 px-4 text-center text-green-900">
-                      {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-4 px-4 text-center text-green-900">
-                      {totals.totalAverageAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-4 px-4 text-center text-green-900">
-                      {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="py-4 px-4 text-center text-green-900">
-                      {totals.totalAverageQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="py-4 px-4 text-center text-green-900">{totals.totalTransactions.toLocaleString()}</td>
-                    <td className="py-4 px-4 text-center text-green-900">{totals.totalProductsCount.toLocaleString()}</td>
-                  </tr>
-                </tfoot>
-              )}
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-              <div className="text-sm text-gray-500">
-                Showing <span className="font-medium">{startIndex + 1}</span> to <span className="font-medium">{Math.min(endIndex, filteredCustomers.length)}</span> of <span className="font-medium">{filteredCustomers.length}</span> customers
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronLeft className="w-5 h-5" />
-                </button>
-                <div className="flex items-center gap-1">
-                  {[...Array(Math.min(5, totalPages))].map((_, i) => {
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setCurrentPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg text-sm font-semibold transition-all ${currentPage === pageNum
-                          ? 'bg-green-600 text-white shadow-md'
-                          : 'bg-white text-gray-600 border border-gray-200 hover:border-green-500 hover:text-green-600'
-                          }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                </div>
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                >
-                  <ChevronRight className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
 
-      {/* Export Reports Modal */}
+      {/* Export Selection Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div
-            className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden animate-in zoom-in-95 duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="bg-green-600 px-8 py-6 flex items-center justify-between text-white">
-              <div>
-                <h3 className="text-2xl font-bold">Export Reports</h3>
-                <p className="text-green-100 text-sm mt-1">Select the report format you want to download</p>
-              </div>
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowExportModal(false)} />
+          <div className="relative bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-green-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+              <FileSpreadsheet className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 text-center mb-2">Export Report</h3>
+            <p className="text-gray-500 text-center text-sm mb-8">Select the format you want to export the data in.</p>
+
+            <div className="space-y-3">
               <button
-                onClick={() => setShowExportModal(false)}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+                onClick={() => exportToExcel('standard')}
+                className="w-full py-3 bg-slate-900 text-white font-bold rounded-xl hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 active:scale-95"
               >
-                <X className="w-6 h-6" />
+                Snapshot Analysis
               </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-8">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                {/* Standard Reports Section */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Standard Reports</h4>
-
-                  <button
-                    onClick={exportToExcel}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-green-50 border border-transparent hover:border-green-100 group transition-all"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center text-green-600 group-hover:scale-110 transition-transform">
-                      <FileSpreadsheet className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-gray-800">Summary List</div>
-                      <div className="text-xs text-gray-500">Full list with basic metrics</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={exportToExcelByMonths}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-gray-50 hover:bg-green-50 border border-transparent hover:border-green-100 group transition-all"
-                  >
-                    <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 group-hover:scale-110 transition-transform">
-                      <Calendar className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-gray-800">Monthly Detailed</div>
-                      <div className="text-xs text-gray-500">Horizontal monthly breakdown</div>
-                    </div>
-                  </button>
-                </div>
-
-                {/* Categorized Reports Section */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest px-1">Categorized Sheets</h4>
-
-                  <button
-                    onClick={() => exportCategorizedExcel('area')}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50/30 group transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-100 transition-colors">
-                      <MapPin className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-gray-800">Split by AREA</div>
-                      <div className="text-[10px] text-gray-400">Total + Sheet per Area</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => exportCategorizedExcel('market')}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-amber-200 hover:bg-amber-50/30 group transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600 group-hover:bg-amber-100 transition-colors">
-                      <ShoppingBag className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-gray-800">Split by MARKET</div>
-                      <div className="text-[10px] text-gray-400">Total + Sheet per Market</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => exportCategorizedExcel('merchandiser')}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-emerald-200 hover:bg-emerald-50/30 group transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-100 transition-colors">
-                      <BarChart3 className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-gray-800">Split by MERCH</div>
-                      <div className="text-[10px] text-gray-400">Total + Sheet per Merch</div>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => exportCategorizedExcel('salesRep')}
-                    className="w-full flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-200 hover:border-rose-200 hover:bg-rose-50/30 group transition-all"
-                  >
-                    <div className="w-10 h-10 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600 group-hover:bg-rose-100 transition-colors">
-                      <UserCircle className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <div className="font-bold text-gray-800">Split by SALES REP</div>
-                      <div className="text-[10px] text-gray-400">Total + Sheet per Rep</div>
-                    </div>
-                  </button>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="bg-gray-50 px-8 py-4 text-center">
               <button
-                onClick={() => setShowExportModal(false)}
-                className="text-sm font-semibold text-gray-500 hover:text-gray-800 transition-colors"
+                onClick={() => exportToExcel('months')}
+                className="w-full py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all shadow-lg shadow-green-200 active:scale-95"
               >
-                Cancel and Return
+                Monthly Distribution
               </button>
             </div>
           </div>

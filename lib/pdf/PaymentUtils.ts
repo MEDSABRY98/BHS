@@ -926,10 +926,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.addPage('a4', 'portrait');
 
         // Header
-        doc.setFontSize(32);
+        doc.setFontSize(20);
         doc.setTextColor(15, 23, 42); // Slate 900
         doc.setFont('helvetica', 'bold');
-        doc.text('DASHBOARD', pW / 2, 40, { align: 'center' });
+        doc.text('Dashboard Stats', pW / 2, 40, { align: 'center' });
 
         // Decorative Line
         doc.setDrawColor(59, 130, 246);
@@ -986,10 +986,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.rect(0, 0, 297, 210, 'F');
 
         // --- PAGE TITLE ---
-        doc.setFontSize(18);
-        doc.setTextColor(30, 41, 59);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Executive Summary Report', 148.5, 10, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Summary Stats', 148.5, 10, { align: 'center' });
 
         // --- TOP CARDS LAYOUT ---
         const startY = 15;
@@ -1189,9 +1189,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
 
         // --- DAILY ANALYSIS PAGE ---
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        doc.text('Daily Breakdown', 105, y, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Daily Stats', 105, y, { align: 'center' });
         y += 8;
 
         if (days.length > 0) {
@@ -1266,9 +1267,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.addPage('a4', 'portrait');
         y = 20;
 
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        doc.text('Weekly Breakdown', 105, y, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Weekly Stats', 105, y, { align: 'center' });
         y += 8;
 
         if (weeks.length > 0) {
@@ -1331,9 +1333,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     if (filters.sections?.monthly !== false && months.length > 0) {
         doc.addPage('a4', 'portrait');
 
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        doc.text('Monthly Analysis', 105, 20, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Monthly Stats', 105, 20, { align: 'center' });
 
         // 1. Chart
         // Show latest 8 months if period is long
@@ -1388,10 +1391,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             doc.addPage('a4', 'landscape');
             y = 20;
 
-            doc.setFontSize(16);
-            doc.setTextColor(30, 41, 59);
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42); // Slate 900
+            doc.setFont('helvetica', 'bold');
             const pageW = doc.internal.pageSize.width;
-            doc.text('Customer Payment List', pageW / 2, 20, { align: 'center' });
+            doc.text('Customer Stats', pageW / 2, 20, { align: 'center' });
         }
 
         // Removed specific period text as requested
@@ -1676,10 +1680,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             y = 20;
 
             // HEADER
-            doc.setFontSize(22);
-            doc.setTextColor(30, 41, 59); // Slate 800
-            doc.setFont('helvetica', 'normal');
-            doc.text('Customer Retention (Gap Analysis)', doc.internal.pageSize.width / 2, y, { align: 'center' });
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42); // Slate 900
+            doc.setFont('helvetica', 'bold');
+            doc.text('Customer Retention Stats (Gap)', doc.internal.pageSize.width / 2, y, { align: 'center' });
 
             y += 10;
 
@@ -1875,9 +1879,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.addPage('a4', 'portrait');
         y = 20;
 
-        doc.setFontSize(16);
-        doc.setTextColor(30, 41, 59);
-        doc.text('Sales Representative Performance', 105, y, { align: 'center' });
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Sales Representative Stats', 105, y, { align: 'center' });
         y += 10;
 
         // 1. Data Aggregation

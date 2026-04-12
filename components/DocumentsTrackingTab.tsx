@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck, Users, ChevronDown, ChevronUp, FileSpreadsheet, FileText } from 'lucide-react';
+import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck, Users, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Edit } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 import './DocumentsTracking.css';
 
 interface TimelineEvent {
@@ -86,6 +87,10 @@ export default function DocumentsTrackingTab() {
 
     // Action modal state
     const [activeActionModal, setActiveActionModal] = useState<Check | null>(null);
+
+    // Edit modal state
+    const [editMode, setEditMode] = useState<{ isOpen: boolean; check: Check | null }>({ isOpen: false, check: null });
+    const [editFormData, setEditFormData] = useState<any>({});
 
     const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
         setNotification({ msg, type });
@@ -311,6 +316,43 @@ export default function DocumentsTrackingTab() {
         } catch (error) {
             console.error('Error deleting check:', error);
             showNotify('فشل في حذف الشيك من جوجل شيت', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const saveEdit = async () => {
+        if (!editMode.check || !editMode.check.rowIndex) return;
+
+        setIsLoading(true);
+        try {
+            const response = await fetch('/api/documents-tracking', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    rowIndex: editMode.check.rowIndex, 
+                    documentNumber: editFormData.num,
+                    documentName: editFormData.client,
+                    receivedDate: editFormData.date,
+                    documentDate: editFormData.checkDate,
+                    documentAmount: parseFloat(editFormData.amount || '0'),
+                    receivedFrom: editFormData.bank,
+                    documentNotes: editFormData.notes,
+                    whoDeliveryForOffice: editFormData.receiverName,
+                    whoTakeFromOffice: editFormData.finalReceiverName
+                })
+            });
+
+            if (response.ok) {
+                showNotify('تم تعديل بيانات الشيك بنجاح');
+                setEditMode({ isOpen: false, check: null });
+                await fetchChecks();
+            } else {
+                throw new Error('Failed to update');
+            }
+        } catch (error) {
+            console.error('Error updating check:', error);
+            showNotify('فشل في تعديل بيانات الشيك', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -570,6 +612,35 @@ export default function DocumentsTrackingTab() {
         );
     };
 
+    const exportReceiverToExcel = (e: React.MouseEvent, receiverName: string, items: Check[]) => {
+        e.stopPropagation();
+        
+        const headers = ['تاريخ التسليم', 'اسم صاحب الشيك', 'تاريخ الشيك', 'رقم الشيك', 'قيمة الشيك (د.إ)'];
+        const rows = items.map(c => {
+            const deliveryDate = c.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time.split(',')[0] || formatDate(c.date);
+            return [
+                deliveryDate,
+                c.client,
+                formatDate(c.checkDate) || '',
+                c.num,
+                c.amount
+            ];
+        });
+
+        // Add a total row
+        const totalAmount = items.reduce((sum, c) => sum + c.amount, 0);
+        rows.push(['الإجمالي', '', '', '', totalAmount as any]);
+
+        const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'شيكات المستلم');
+
+        // Auto-size columns roughly
+        worksheet['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
+
+        XLSX.writeFile(workbook, `شيكات_${receiverName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    };
+
     const exportData = () => {
         const headers = ['اسم العميل', 'تاريخ الاستلام', 'تاريخ الشيك', 'رقم الشيك', 'المبلغ', 'مستلم من مين', 'الملاحظات', 'الحالة'];
         const rows = checks.map(c => [
@@ -664,35 +735,69 @@ export default function DocumentsTrackingTab() {
     const registeredCount = checks.filter(c => c.status === 'registered').length;
     const deliveredCount = checks.filter(c => c.status === 'delivered').length;
 
-    // Calculate Stats for Receivers Tab
     const receiverStats = React.useMemo(() => {
-        const stats: Record<string, { count: number; totalAmount: number; lastDate: string; items: Check[] }> = {};
+        const stats: Record<string, { 
+            count: number; 
+            totalAmount: number; 
+            lastDate: string; 
+            items: Check[];
+            datesMap: Record<string, { count: number; totalAmount: number; items: Check[]; rawTimestamp: number }>
+        }> = {};
 
         checks.forEach(c => {
             if (c.status === 'delivered' && c.finalReceiverName) {
                 const name = c.finalReceiverName.trim();
                 const receiptTime = c.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time || c.date;
+                
+                // Extract date part, ignore time
+                let receiptDateStr = receiptTime.split(',')[0].trim();
+                if (receiptDateStr.includes(' ')) {
+                    // Sometimes there's no comma, e.g. "yyyy-mm-dd hh:mm:ss"
+                    receiptDateStr = receiptDateStr.split(' ')[0].trim();
+                }
+                const timestamp = new Date(receiptTime).getTime() || new Date(c.date).getTime() || 0;
 
                 if (!stats[name]) {
-                    stats[name] = { count: 0, totalAmount: 0, lastDate: receiptTime, items: [] };
+                    stats[name] = { count: 0, totalAmount: 0, lastDate: receiptTime, items: [], datesMap: {} };
                 }
 
                 stats[name].count += 1;
                 stats[name].totalAmount += c.amount;
                 stats[name].items.push(c);
 
+                if (!stats[name].datesMap[receiptDateStr]) {
+                    stats[name].datesMap[receiptDateStr] = { count: 0, totalAmount: 0, items: [], rawTimestamp: timestamp };
+                }
+                
+                stats[name].datesMap[receiptDateStr].count += 1;
+                stats[name].datesMap[receiptDateStr].totalAmount += c.amount;
+                stats[name].datesMap[receiptDateStr].items.push(c);
+
                 // Track latest date
-                if (new Date(receiptTime).getTime() > new Date(stats[name].lastDate).getTime()) {
+                if (timestamp > new Date(stats[name].lastDate).getTime()) {
                     stats[name].lastDate = receiptTime;
                 }
             }
         });
 
-        return Object.entries(stats).map(([name, data]) => ({
-            name,
-            ...data,
-            items: data.items.sort((a, b) => (a.client || '').localeCompare(b.client || ''))
-        })).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+        return Object.entries(stats).map(([name, data]) => {
+            const datesArray = Object.entries(data.datesMap).map(([dateStr, dVal]) => ({
+                date: dateStr,
+                count: dVal.count,
+                totalAmount: dVal.totalAmount,
+                rawTimestamp: dVal.rawTimestamp,
+                items: dVal.items.sort((a, b) => (a.client || '').localeCompare(b.client || ''))
+            })).sort((a, b) => b.rawTimestamp - a.rawTimestamp);
+            
+            return {
+                name,
+                count: data.count,
+                totalAmount: data.totalAmount,
+                lastDate: data.lastDate,
+                dates: datesArray,
+                items: data.items.sort((a, b) => (a.client || '').localeCompare(b.client || ''))
+            };
+        }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
     }, [checks]);
 
     const [expandedReceiver, setExpandedReceiver] = useState<string | null>(null);
@@ -1043,8 +1148,17 @@ export default function DocumentsTrackingTab() {
                                                     {rec.name.charAt(0).toUpperCase()}
                                                 </div>
                                                 <div className="receiver-meta">
-                                                    <h3>{rec.name}</h3>
-                                                    <p>آخر استلام: {rec.lastDate.split(',')[0]}</p>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                                                        <h3 style={{ margin: 0 }}>{rec.name}</h3>
+                                                        <button 
+                                                            onClick={(e) => exportReceiverToExcel(e, rec.name, rec.items)}
+                                                            className="flex items-center justify-center h-7 w-7 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-600 hover:text-white transition-colors"
+                                                            title="تصدير شيكات المستلم إلى إكسيل"
+                                                        >
+                                                            <FileSpreadsheet size={14} />
+                                                        </button>
+                                                    </div>
+                                                    <p style={{ margin: 0 }}>آخر استلام: {rec.lastDate.split(',')[0]}</p>
                                                 </div>
                                             </div>
                                             <div className="receiver-card-stats">
@@ -1062,23 +1176,32 @@ export default function DocumentsTrackingTab() {
                                         </div>
 
                                         {expandedReceiver === rec.name && (
-                                            <div className="receiver-details-expanded">
-                                                <div className="details-header-row">
-                                                    <span>تاريخ التسليم</span>
-                                                    <span>رقم الشيك</span>
-                                                    <span>العميل</span>
-                                                    <span>المبلغ</span>
-                                                </div>
-                                                <div className="details-items-list">
-                                                    {rec.items.map((item, idx) => (
-                                                        <div className="detail-item-row" key={idx} onClick={() => setTrackingCheck(item)}>
-                                                            <span className="d-date">{item.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time.split(',')[0] || formatDate(item.date)}</span>
-                                                            <span className="d-num gold-text">#{item.num}</span>
-                                                            <span className="d-client">{item.client}</span>
-                                                            <span className="d-amt">{item.amount.toLocaleString('ar-AE')} د.إ</span>
+                                            <div className="receiver-details-expanded" style={{ padding: '0', background: 'transparent' }}>
+                                                {rec.dates.map((dateGroup, dIdx) => (
+                                                    <div key={dIdx} className="date-group-block" style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
+                                                        <div className="date-group-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
+                                                            <span style={{ fontWeight: 800, color: '#1e293b' }}>📅 {dateGroup.date}</span>
+                                                            <div style={{ display: 'flex', gap: '16px', fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
+                                                                <span>{dateGroup.count} شيك</span>
+                                                                <span style={{ color: 'var(--gold-dark)' }}>{dateGroup.totalAmount.toLocaleString('ar-AE')} د.إ</span>
+                                                            </div>
                                                         </div>
-                                                    ))}
-                                                </div>
+                                                        <div className="details-header-row" style={{ background: 'transparent', padding: '0 12px 8px', border: 'none', display: 'flex' }}>
+                                                            <span style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>رقم الشيك</span>
+                                                            <span style={{ width: '50%', textAlign: 'center', justifyContent: 'center' }}>العميل</span>
+                                                            <span style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>المبلغ</span>
+                                                        </div>
+                                                        <div className="details-items-list">
+                                                            {dateGroup.items.map((item, idx) => (
+                                                                <div className="detail-item-row" key={idx} onClick={() => setTrackingCheck(item)} style={{ background: 'white', display: 'flex', alignItems: 'center' }}>
+                                                                    <span className="d-num gold-text" style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>#{item.num}</span>
+                                                                    <span className="d-client" style={{ width: '50%', textAlign: 'center', justifyContent: 'center' }}>{item.client}</span>
+                                                                    <span className="d-amt" style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>{item.amount.toLocaleString('ar-AE')} د.إ</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                ))}
                                             </div>
                                         )}
                                     </div>
@@ -1191,16 +1314,34 @@ export default function DocumentsTrackingTab() {
                                     <div className="btn-icon-circle blue"><Eye size={20} /></div>
                                     <div className="btn-text">
                                         <h4>عرض التفاصيل</h4>
-                                        <p>بيانات الشيك والسجل الزمني</p>
                                     </div>
                                 </button>
 
+                                <button className="action-btn-large" onClick={() => { 
+                                    setEditFormData({
+                                        num: activeActionModal.num,
+                                        client: activeActionModal.client,
+                                        amount: activeActionModal.amount.toString(),
+                                        date: activeActionModal.date,
+                                        checkDate: activeActionModal.checkDate || '',
+                                        bank: activeActionModal.bank || '',
+                                        notes: activeActionModal.notes || '',
+                                        receiverName: activeActionModal.receiverName || '',
+                                        finalReceiverName: activeActionModal.finalReceiverName || ''
+                                    });
+                                    setEditMode({ isOpen: true, check: activeActionModal }); 
+                                    setActiveActionModal(null); 
+                                }}>
+                                    <div className="btn-icon-circle" style={{ backgroundColor: '#fff8eb', color: 'var(--gold-dark)' }}><Edit size={20} /></div>
+                                    <div className="btn-text">
+                                        <h4>تعديل الشيك</h4>
+                                    </div>
+                                </button>
 
                                 <button className="action-btn-large delete" onClick={() => { requestDelete(activeActionModal.id); setActiveActionModal(null); }}>
                                     <div className="btn-icon-circle red"><Trash2 size={20} /></div>
                                     <div className="btn-text">
                                         <h4>حذف الشيك</h4>
-                                        <p>مسح السجل نهائياً من السيستم</p>
                                     </div>
                                 </button>
                             </div>
@@ -1230,6 +1371,67 @@ export default function DocumentsTrackingTab() {
                             <button className="btn-confirm-delete" onClick={deleteCheck}>
                                 <Trash2 size={16} /> تأكيد الحذف
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* EDIT MODAL */}
+            {editMode.isOpen && editMode.check && (
+                <div className="modal-overlay open" onClick={() => setEditMode({ isOpen: false, check: null })}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+                        <div className="modal-title">
+                            <span>تعديل الشيك: {editMode.check.num}</span>
+                            <button className="modal-close" onClick={() => setEditMode({ isOpen: false, check: null })}>✕</button>
+                        </div>
+                        <div className="modal-content">
+                            <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                                <div className="field" style={{ gridColumn: '1 / -1' }}>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>صاحب الشيك</label>
+                                    <input type="text" value={editFormData.client} onChange={e => setEditFormData({...editFormData, client: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+
+                                <div className="field">
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>رقم الشيك</label>
+                                    <input type="text" value={editFormData.num} onChange={e => setEditFormData({...editFormData, num: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+                                <div className="field">
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>تاريخ الشيك</label>
+                                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(editFormData.checkDate) ? editFormData.checkDate : normalizeDate(editFormData.checkDate) || ''} onChange={e => setEditFormData({...editFormData, checkDate: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+
+                                <div className="field">
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>المبلغ (د.إ)</label>
+                                    <input type="number" value={editFormData.amount} onChange={e => setEditFormData({...editFormData, amount: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+                                <div className="field">
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>تاريخ الاستلام</label>
+                                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(editFormData.date) ? editFormData.date : normalizeDate(editFormData.date) || ''} onChange={e => setEditFormData({...editFormData, date: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+
+                                <div className="field">
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>مستلم من مين؟</label>
+                                    <input type="text" value={editFormData.bank} onChange={e => setEditFormData({...editFormData, bank: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+                                <div className="field">
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>مين اللي استلم (المندوب)؟</label>
+                                    <input type="text" value={editFormData.receiverName} onChange={e => setEditFormData({...editFormData, receiverName: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+
+                                <div className="field" style={{ gridColumn: '1 / -1' }}>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>المستلم النهائي</label>
+                                    <input type="text" value={editFormData.finalReceiverName} onChange={e => setEditFormData({...editFormData, finalReceiverName: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                </div>
+                            </div>
+                            
+                            <div style={{ marginTop: '20px', display: 'flex', gap: '15px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
+                                <button className="btn-cancel-delete" style={{ flex: 1, padding: '12px', fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }} onClick={() => setEditMode({ isOpen: false, check: null })}>
+                                    إلغاء
+                                </button>
+                                <button className="btn-confirm-delete" style={{ flex: 1, background: 'var(--gold)', color: 'black', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', cursor: 'pointer', padding: '12px', fontSize: '15px', fontWeight: 700, borderRadius: '8px' }} onClick={saveEdit}>
+                                    <Save size={18} /> حفظ التعديلات
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

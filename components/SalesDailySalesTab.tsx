@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter } from 'lucide-react';
+import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from './NoData';
 
@@ -12,29 +12,12 @@ interface SalesDailySalesTabProps {
 }
 
 export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTabProps) {
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [filterArea, setFilterArea] = useState('');
-  const [filterMarket, setFilterMarket] = useState('');
-  const [filterMerchandiser, setFilterMerchandiser] = useState('');
-  const [filterSalesRep, setFilterSalesRep] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [tableSearchQuery, setTableSearchQuery] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
   const itemsPerPage = 50;
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-
-  const hasActiveFilters = !!(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep || searchQuery);
-
-  const areaDropdownRef = useRef<HTMLDivElement>(null);
-  const marketDropdownRef = useRef<HTMLDivElement>(null);
-  const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
-  const salesRepDropdownRef = useRef<HTMLDivElement>(null);
 
   // Format date as DD/MM/YYYY
   const formatDate = (dateString: string) => {
@@ -51,118 +34,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     }
   };
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'area' ? null : prev);
-      }
-      if (marketDropdownRef.current && !marketDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'market' ? null : prev);
-      }
-      if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
-      }
-      if (salesRepDropdownRef.current && !salesRepDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'salesrep' ? null : prev);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Filter data based on filters
-  const filteredData = useMemo(() => {
-    let filtered = [...data];
-
-    // Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Date from filter
-    if (dateFrom) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          const fromDate = new Date(dateFrom);
-          fromDate.setHours(0, 0, 0, 0);
-          return !isNaN(itemDate.getTime()) && itemDate >= fromDate;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Date to filter
-    if (dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          const toDate = new Date(dateTo);
-          toDate.setHours(23, 59, 59, 999);
-          return !isNaN(itemDate.getTime()) && itemDate <= toDate;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Area filter
-    if (filterArea) {
-      filtered = filtered.filter(item => item.area === filterArea);
-    }
-
-    // Merchandiser filter
-    if (filterMerchandiser) {
-      filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
-    }
-
-    // Sales Rep filter
-    if (filterSalesRep) {
-      filtered = filtered.filter(item => item.salesRep === filterSalesRep);
-    }
-
-    // Market filter
-    if (filterMarket) {
-      filtered = filtered.filter(item => item.market === filterMarket);
-    }
-
-    return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
-
   // Group invoices by invoiceNumber
   const dailySalesData = useMemo(() => {
     const invoiceMap = new Map<string, {
@@ -178,7 +49,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       priceCount: number;
     }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.invoiceNumber) return;
 
       const existing = invoiceMap.get(item.invoiceNumber) || {
@@ -246,7 +117,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
       return true;
     });
-  }, [filteredData, invoiceTypeFilter]);
+  }, [data, invoiceTypeFilter]);
 
   // Calculate statistics for All Invoices tab
   const allInvoicesStats = useMemo(() => {
@@ -281,7 +152,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       salCustomers: Set<string>; // Only customers from SAL invoices
     }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.invoiceDate) return;
 
       const dateKey = formatDate(item.invoiceDate);
@@ -351,7 +222,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       const dateB = new Date(b.date.split('/').reverse().join('-')).getTime();
       return dateB - dateA;
     });
-  }, [filteredData]);
+  }, [data]);
 
   // AVG Sales BY Day - group by month and calculate daily averages
   const avgSalesByDayData = useMemo(() => {
@@ -519,7 +390,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   // Reset to page 1 when filters change or sub-tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep, searchQuery, tableSearchQuery, activeSubTab]);
+  }, [searchQuery, tableSearchQuery, activeSubTab]);
 
   // Calculate pagination
   const totalPages = Math.ceil(searchedData.length / itemsPerPage);
@@ -527,46 +398,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   const endIndex = startIndex + itemsPerPage;
   const paginatedData = searchedData.slice(startIndex, endIndex);
 
-  // Get unique values for dropdown filters
-  const uniqueAreas = useMemo(() => {
-    const areas = new Set<string>();
-    data.forEach((item: any) => {
-      if (item.area && item.area.trim()) {
-        areas.add(item.area.trim());
-      }
-    });
-    return Array.from(areas).sort();
-  }, [data]);
-
-  const uniqueMarkets = useMemo(() => {
-    const markets = new Set<string>();
-    data.forEach(item => {
-      if (item.market && item.market.trim()) {
-        markets.add(item.market.trim());
-      }
-    });
-    return Array.from(markets).sort();
-  }, [data]);
-
-  const uniqueMerchandisers = useMemo(() => {
-    const merchandisers = new Set<string>();
-    data.forEach(item => {
-      if (item.merchandiser && item.merchandiser.trim()) {
-        merchandisers.add(item.merchandiser.trim());
-      }
-    });
-    return Array.from(merchandisers).sort();
-  }, [data]);
-
-  const uniqueSalesReps = useMemo(() => {
-    const salesReps = new Set<string>();
-    data.forEach(item => {
-      if (item.salesRep && item.salesRep.trim()) {
-        salesReps.add(item.salesRep.trim());
-      }
-    });
-    return Array.from(salesReps).sort();
-  }, [data]);
 
   // Export to Excel - All Invoices
   const exportAllInvoicesToExcel = () => {
@@ -633,11 +464,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="w-full space-y-6">
+    <div className="w-full space-y-6">
         {/* Header */}
         <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 relative">
-          <h1 className="text-3xl font-bold text-gray-800">Daily Sales</h1>
+          <h1 className="text-2xl font-medium text-slate-800">Sales Daily Sales</h1>
 
           {/* Centered Search Box */}
           <div className="flex-1 md:absolute md:left-1/2 md:-translate-x-1/2 w-full md:max-w-md group z-10">
@@ -656,181 +486,20 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           {/* Action Buttons */}
           <div className="flex items-center gap-2">
             <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${hasActiveFilters
-                ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
-                : 'bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-500 hover:text-green-600'
-                }`}
-            >
-              <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
-              <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
-              {hasActiveFilters && (
-                <span className="flex h-2 w-2 rounded-full bg-white"></span>
-              )}
-            </button>
-            <button
               onClick={() => {
                 if (activeSubTab === 'all-invoices') exportAllInvoicesToExcel();
                 else if (activeSubTab === 'sales-by-day') exportSalesByDayToExcel();
                 else exportAvgSalesByDayToExcel();
               }}
-              className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 hover:scale-110 active:scale-95 transition-all shadow-md shrink-0"
+              className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
               title="Export to Excel"
             >
-              <Download className="w-5 h-5" />
+              <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
             </button>
           </div>
         </div>
 
-        {/* Filters Modal */}
-        {isFilterModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <div className="absolute inset-0 backdrop-blur-[2px]" onClick={() => setIsFilterModalOpen(false)} />
-            <div className="relative bg-white rounded-[40px] shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col border border-white/20 animate-in fade-in zoom-in duration-300 overflow-hidden">
-              {/* Modal Header */}
-              <div className="px-10 py-8 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between shrink-0 text-slate-700">
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-green-100 rounded-2xl shadow-inner">
-                    <Filter className="w-7 h-7 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-2xl font-black text-gray-800 tracking-tight">Daily Sales Filters</h2>
-                  </div>
-                </div>
-                <button onClick={() => setIsFilterModalOpen(false)} className="p-3 hover:bg-gray-200 rounded-full transition-colors group">
-                  <X className="w-7 h-7 text-gray-400 group-hover:text-gray-700 transition-colors" />
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="p-10 overflow-y-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <div className="space-y-12 pb-20">
-
-                  {/* 01. Time Period */}
-                  <div className="space-y-6">
-                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-green-500" /> 01. Time Period
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-5 bg-slate-50/50 p-8 rounded-[32px] border border-slate-100 shadow-sm text-slate-700">
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Year</label>
-                        <input value={filterYear} onChange={e => setFilterYear(e.target.value)} type="number" placeholder="YYYY" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Month</label>
-                        <input value={filterMonth} onChange={e => setFilterMonth(e.target.value)} type="number" placeholder="1-12" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">From Date</label>
-                        <input value={dateFrom} onChange={e => setDateFrom(e.target.value)} type="date" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none" />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">To Date</label>
-                        <input value={dateTo} onChange={e => setDateTo(e.target.value)} type="date" className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl font-bold shadow-sm focus:ring-4 focus:ring-green-500/5 focus:border-green-500 transition-all outline-none" />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 02. Categorization */}
-                  <div className="space-y-6">
-                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
-                      <MapPin className="w-5 h-5 text-green-500" /> 02. Categorization
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8 bg-green-50/30 p-10 rounded-[32px] border border-green-100/50 shadow-sm text-slate-700">
-                      {/* Area Dropdown */}
-                      <div className="relative" ref={areaDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Territory / Area</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
-                          <span className={filterArea ? 'text-slate-900' : 'text-slate-400'}>{filterArea || 'Select Area'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'area' ? 'rotate-180' : ''}`} />
-                        </button>
-                        {openDropdown === 'area' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
-                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
-                              <button onClick={() => { setFilterArea(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
-                              {uniqueAreas.map(a => <button key={a} onClick={() => { setFilterArea(a); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{a}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Market Dropdown */}
-                      <div className="relative" ref={marketDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Market Category</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
-                          <span className={filterMarket ? 'text-slate-900' : 'text-slate-400'}>{filterMarket || 'Select Market'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'market' ? 'rotate-180' : ''}`} />
-                        </button>
-                        {openDropdown === 'market' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
-                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
-                              <button onClick={() => { setFilterMarket(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
-                              {uniqueMarkets.map(m => <button key={m} onClick={() => { setFilterMarket(m); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{m}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Merchandiser Dropdown */}
-                      <div className="relative" ref={merchandiserDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Store Merchandiser</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
-                          <span className={filterMerchandiser ? 'text-slate-900' : 'text-slate-400'}>{filterMerchandiser || 'Select Merchandiser'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'merchandiser' ? 'rotate-180' : ''}`} />
-                        </button>
-                        {openDropdown === 'merchandiser' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
-                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
-                              <button onClick={() => { setFilterMerchandiser(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
-                              {uniqueMerchandisers.map(m => <button key={m} onClick={() => { setFilterMerchandiser(m); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{m}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Sales Rep Dropdown */}
-                      <div className="relative" ref={salesRepDropdownRef}>
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2.5 block">Account Executive</label>
-                        <button onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')} className="w-full px-6 py-4 bg-white border border-slate-200 rounded-[20px] flex items-center justify-between font-bold text-slate-700 shadow-sm hover:border-green-500 hover:shadow-lg transition-all group outline-none">
-                          <span className={filterSalesRep ? 'text-slate-900' : 'text-slate-400'}>{filterSalesRep || 'Select Sales Rep'}</span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'salesrep' ? 'rotate-180' : ''}`} />
-                        </button>
-                        {openDropdown === 'salesrep' && (
-                          <div className="absolute z-[110] w-full mt-3 bg-white border border-slate-200 rounded-[20px] shadow-2xl overflow-hidden p-2">
-                            <div className="max-h-60 overflow-y-auto [&::-webkit-scrollbar]:hidden">
-                              <button onClick={() => { setFilterSalesRep(''); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-green-50 text-green-700 rounded-xl font-black text-xs uppercase tracking-widest mb-1 transition-colors">Clear Selection</button>
-                              {uniqueSalesReps.map(r => <button key={r} onClick={() => { setFilterSalesRep(r); setOpenDropdown(null); }} className="w-full text-left px-5 py-3.5 hover:bg-slate-50 text-slate-700 rounded-xl font-bold text-sm border-t border-slate-50 transition-colors uppercase">{r}</button>)}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Modal Footer */}
-              <div className="px-10 py-8 bg-slate-50 border-t border-slate-100 flex items-center justify-between shrink-0">
-                <button
-                  onClick={() => {
-                    setFilterYear(''); setFilterMonth(''); setDateFrom(''); setDateTo('');
-                    setFilterArea(''); setFilterMarket(''); setFilterMerchandiser(''); setFilterSalesRep('');
-                    setSearchQuery('');
-                  }}
-                  className="px-6 py-4 text-[11px] font-black text-slate-400 hover:text-red-500 uppercase tracking-[0.2em] transition-all hover:bg-red-50 rounded-2xl"
-                >
-                  Reset Analytics Criteria
-                </button>
-                <button onClick={() => setIsFilterModalOpen(false)} className="px-12 py-4 bg-green-600 text-white font-black text-sm uppercase tracking-[0.2em] rounded-[20px] shadow-xl shadow-green-100 hover:bg-green-700 hover:scale-105 active:scale-95 transition-all outline-none">
-                  Apply & Close
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-
-        {/* Sub-tabs */}
+      {/* Sub-tabs */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
           <div className="flex gap-3">
             <button
@@ -920,7 +589,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
         {/* All Invoices /LPO Tab */}
         {activeSubTab === 'all-invoices' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
             <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
               <div className="flex items-center gap-4">
                 <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
@@ -958,42 +627,42 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
                 <div className="overflow-x-auto">
                   <table className="w-full">
-                    <thead>
-                      <tr className="border-b-2 border-gray-200">
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoice Date</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoice Number</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Customer Name</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Products Count</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Cost</th>
-                        <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Price</th>
+                    <thead className="bg-gray-50/50">
+                      <tr className="border-b border-gray-100">
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Date</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Number</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customer Name</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products Count</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Cost</th>
+                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Price</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paginatedData.map((item: any, index: number) => (
-                        <tr key={`${item.invoiceNumber}-${startIndex + index}`} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                        <tr key={`${item.invoiceNumber}-${startIndex + index}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/10'}`}>
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                             {formatDate(item.invoiceDate) || '-'}
                           </td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">{item.invoiceNumber}</td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">{item.customerName || '-'}</td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.invoiceNumber}</td>
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.customerName || '-'}</td>
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                             {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                             {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                           </td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                             {item.productsCount}
                           </td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                             {item.avgCost % 1 === 0
                               ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                               : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                             }
                           </td>
-                          <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                             {item.avgPrice % 1 === 0
                               ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
                               : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -1007,57 +676,23 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
                 {/* Pagination */}
                 {totalPages > 1 && (
-                  <div className="mt-6 flex items-center justify-between">
-                    <div className="text-sm text-gray-700">
+                  <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+                    <div className="text-sm text-gray-500 font-medium">
                       Showing {startIndex + 1} to {Math.min(endIndex, searchedData.length)} of {searchedData.length} invoices
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                         disabled={currentPage === 1}
-                        className={`px-3 py-2 rounded-lg border transition-colors ${currentPage === 1
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
-                          : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
-                          }`}
+                        className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
                       >
                         <ChevronLeft className="w-5 h-5" />
                       </button>
-
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                          let pageNum;
-                          if (totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (currentPage <= 3) {
-                            pageNum = i + 1;
-                          } else if (currentPage >= totalPages - 2) {
-                            pageNum = totalPages - 4 + i;
-                          } else {
-                            pageNum = currentPage - 2 + i;
-                          }
-
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => setCurrentPage(pageNum)}
-                              className={`px-4 py-2 rounded-lg border transition-colors ${currentPage === pageNum
-                                ? 'bg-green-600 text-white border-green-600'
-                                : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
-                                }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
-                        })}
-                      </div>
-
+                      <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} of {totalPages}</div>
                       <button
                         onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                         disabled={currentPage === totalPages}
-                        className={`px-3 py-2 rounded-lg border transition-colors ${currentPage === totalPages
-                          ? 'bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200'
-                          : 'bg-white text-gray-700 hover:bg-gray-50 border-gray-300'
-                          }`}
+                        className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
                       >
                         <ChevronRight className="w-5 h-5" />
                       </button>
@@ -1071,10 +706,9 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
         {/* Sales BY Day Tab */}
         {activeSubTab === 'sales-by-day' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between p-6">
               <h2 className="text-xl font-bold text-gray-800">Sales BY Day</h2>
-
             </div>
             {salesByDayData.length === 0 ? (
               <div className="py-12">
@@ -1083,37 +717,29 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Date</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Invoices Count</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Customers Count</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Products Count</th>
+                  <thead className="bg-gray-50/50">
+                    <tr className="border-b border-gray-100">
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Date</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoices</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customers</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products</th>
                     </tr>
                   </thead>
-                  <tbody>
+                  <tbody className="divide-y divide-gray-50">
                     {salesByDayData.map((item, index) => (
-                      <tr key={`${item.date}-${index}`} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.date}
-                        </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      <tr key={`${item.date}-${index}`} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/10'}`}>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.date}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.salInvoicesCount}
-                        </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.salCustomersCount}
-                        </td>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.salProductsCount}
-                        </td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salInvoicesCount}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salCustomersCount}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salProductsCount}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1125,10 +751,9 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
         {/* AVG Sales BY Day Tab */}
         {activeSubTab === 'avg-sales-by-day' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="flex items-center justify-between p-6">
               <h2 className="text-xl font-bold text-gray-800">AVG Sales BY Day</h2>
-
             </div>
             {avgSalesByDayData.length === 0 ? (
               <div className="py-12">
@@ -1187,7 +812,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           </div>
         )}
       </div>
-    </div>
   );
 }
 

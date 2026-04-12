@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X } from 'lucide-react';
+import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   LineChart,
@@ -22,134 +22,8 @@ interface SalesOverviewTabProps {
 
 
 export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProps) {
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [filterArea, setFilterArea] = useState('');
-  const [filterMarket, setFilterMarket] = useState('');
-  const [filterMerchandiser, setFilterMerchandiser] = useState('');
-  const [filterSalesRep, setFilterSalesRep] = useState('');
-  const [openDropdown, setOpenDropdown] = useState<'area' | 'market' | 'merchandiser' | 'salesrep' | null>(null);
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-
-  const areaDropdownRef = useRef<HTMLDivElement>(null);
-  const marketDropdownRef = useRef<HTMLDivElement>(null);
-  const merchandiserDropdownRef = useRef<HTMLDivElement>(null);
-  const salesRepDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (areaDropdownRef.current && !areaDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'area' ? null : prev);
-      }
-      if (marketDropdownRef.current && !marketDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'market' ? null : prev);
-      }
-      if (merchandiserDropdownRef.current && !merchandiserDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'merchandiser' ? null : prev);
-      }
-      if (salesRepDropdownRef.current && !salesRepDropdownRef.current.contains(event.target as Node)) {
-        setOpenDropdown(prev => prev === 'salesrep' ? null : prev);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
-
-  // Filter data based on filters
-  const filteredData = useMemo(() => {
-    let filtered = [...data];
-
-    // Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Date range filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          if (isNaN(itemDate.getTime())) return false;
-
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            fromDate.setHours(0, 0, 0, 0);
-            if (itemDate < fromDate) return false;
-          }
-
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            if (itemDate > toDate) return false;
-          }
-
-          return true;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
-    // Area filter
-    if (filterArea) {
-      filtered = filtered.filter(item => item.area === filterArea);
-    }
-
-    // Merchandiser filter
-    if (filterMerchandiser) {
-      filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
-    }
-
-    // SalesRep filter
-    if (filterSalesRep) {
-      filtered = filtered.filter(item => item.salesRep === filterSalesRep);
-    }
-
-    // Market filter
-    if (filterMarket) {
-      filtered = filtered.filter(item => item.market === filterMarket);
-    }
-
-    return filtered;
-    return filtered;
-  }, [data, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
-
   const metrics = useMemo(() => {
-    if (!filteredData || filteredData.length === 0) {
+    if (!data || data.length === 0) {
       return {
         totalAmount: 0,
         totalQty: 0,
@@ -162,18 +36,18 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
       };
     }
 
-    const totalAmount = filteredData.reduce((sum, item) => sum + item.amount, 0);
-    const totalQty = filteredData.reduce((sum, item) => sum + item.qty, 0);
-    const uniqueCustomers = new Set(filteredData.map(item => item.customerName)).size;
-    const uniqueProducts = new Set(filteredData.map(item => item.product)).size;
-    const avgAmountPerSale = totalAmount / filteredData.length;
-    const avgQtyPerSale = totalQty / filteredData.length;
+    const totalAmount = data.reduce((sum, item) => sum + item.amount, 0);
+    const totalQty = data.reduce((sum, item) => sum + item.qty, 0);
+    const uniqueCustomers = new Set(data.map(item => item.customerName)).size;
+    const uniqueProducts = new Set(data.map(item => item.product)).size;
+    const avgAmountPerSale = totalAmount / data.length;
+    const avgQtyPerSale = totalQty / data.length;
 
     // Calculate monthly averages
     const monthsSet = new Set<string>();
     const monthlyData = new Map<string, { amount: number; qty: number }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (item.invoiceDate) {
         try {
           const date = new Date(item.invoiceDate);
@@ -208,58 +82,13 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
       avgMonthlyAmount,
       avgMonthlyQty,
     };
-  }, [filteredData]);
-
-  // Get unique values for dropdown filters
-  const uniqueAreas = useMemo(() => {
-    const areas = new Set<string>();
-    data.forEach(item => {
-      if (item.area && item.area.trim()) {
-        areas.add(item.area.trim());
-      }
-    });
-    return Array.from(areas).sort();
   }, [data]);
 
-  const uniqueMarkets = useMemo(() => {
-    const markets = new Set<string>();
-    data.forEach(item => {
-      if (item.market && item.market.trim()) {
-        markets.add(item.market.trim());
-      }
-    });
-    return Array.from(markets).sort();
-  }, [data]);
-
-  const uniqueMerchandisers = useMemo(() => {
-    const merchandisers = new Set<string>();
-    data.forEach(item => {
-      if (item.merchandiser && item.merchandiser.trim()) {
-        merchandisers.add(item.merchandiser.trim());
-      }
-    });
-    return Array.from(merchandisers).sort();
-  }, [data]);
-
-  const uniqueSalesReps = useMemo(() => {
-    const salesReps = new Set<string>();
-    data.forEach(item => {
-      if (item.salesRep && item.salesRep.trim()) {
-        salesReps.add(item.salesRep.trim());
-      }
-    });
-    return Array.from(salesReps).sort();
-  }, [data]);
 
   // Monthly sales data for charts - if filters are applied, show filtered data, otherwise show last 12 months
   const monthlySales = useMemo(() => {
     const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
-
-    // Check if any filters are applied
-    const hasFilters = filterYear.trim() || filterMonth.trim() || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep;
-
-    // Process data to get monthly totals
-    const dataToProcess = hasFilters ? filteredData : data;
+    const dataToProcess = data;
 
     dataToProcess.forEach(item => {
       if (!item.invoiceDate) return;
@@ -297,24 +126,16 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
 
     const latestMonth = allMonths.reduce((latest, current) => {
       return current.monthKey > latest.monthKey ? current : latest;
-    });
+    }, allMonths[0]);
 
     // Calculate the last 12 months from the latest month
     const last12MonthsKeys = new Set<string>();
     const [latestYear, latestMonthNum] = latestMonth.monthKey.split('-').map(Number);
 
-    for (let i = 0; i < 12; i++) {
-      const date = new Date(latestYear, latestMonthNum - 1 - i, 1);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
-      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-      last12MonthsKeys.add(monthKey);
-    }
-
     // Create array with all last 12 months, filling missing months with zeros
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const result: Array<{ month: string; monthKey: string; amount: number; qty: number }> = [];
 
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (let i = 11; i >= 0; i--) {
       const date = new Date(latestYear, latestMonthNum - 1 - i, 1);
       const year = date.getFullYear();
@@ -331,21 +152,13 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
       });
     }
 
-    // If filters are applied, return filtered months only, otherwise return last 12 months
-    if (hasFilters) {
-      // Return all months from filtered data, sorted by date ascending (oldest to newest)
-      return Array.from(monthMap.values()).sort((a, b) => {
-        return a.monthKey.localeCompare(b.monthKey);
-      });
-    }
-
     return result;
-  }, [data, filteredData, filterYear, filterMonth, dateFrom, dateTo]);
+  }, [data]);
 
   // Chart data for monthly sales - show last 12 months only, reverse order for chart (oldest to newest for better visualization)
   const chartData = useMemo(() => {
     // monthlySales already contains exactly last 12 months
-    const data = monthlySales.map((item, index) => {
+    const chartRes = monthlySales.map((item, index) => {
       // Calculate difference from previous month for amount
       const previousAmount = index > 0 ? monthlySales[index - 1].amount : item.amount;
       const amountDiff = item.amount - previousAmount;
@@ -369,22 +182,106 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     });
 
     // Find max month by amount (highest positive amount, or least negative if all negative)
-    if (data.length > 0) {
-      const maxAmount = Math.max(...data.map(d => d.amount));
-      data.forEach(item => {
+    if (chartRes.length > 0) {
+      const maxAmount = Math.max(...chartRes.map(d => d.amount));
+      chartRes.forEach(item => {
         item.isMaxMonth = item.amount === maxAmount;
       });
     }
 
-    return data;
+    return chartRes;
   }, [monthlySales]);
+
+  // Yearly sales table data - sorted newest to oldest
+  const yearlyTableData = useMemo(() => {
+    const yearMap = new Map<string, {
+      year: string;
+      amount: number;
+      qty: number;
+      customerCount: Set<string>;
+      invoiceNumbers: Set<string>;
+      grvNumbers: Set<string>;
+      grossSales: number;
+      grvAmount: number;
+    }>();
+
+    data.forEach(item => {
+      if (!item.invoiceDate) return;
+
+      try {
+        const date = new Date(item.invoiceDate);
+        if (isNaN(date.getTime())) return;
+
+        const year = date.getFullYear().toString();
+
+        const existing = yearMap.get(year) || {
+          year: year,
+          amount: 0,
+          qty: 0,
+          customerCount: new Set<string>(),
+          invoiceNumbers: new Set<string>(),
+          grvNumbers: new Set<string>(),
+          grossSales: 0,
+          grvAmount: 0,
+        };
+
+        existing.amount += item.amount;
+        existing.qty += item.qty;
+        existing.customerCount.add(item.customerId || item.customerName);
+
+        const invNum = item.invoiceNumber || (item as any).number || (item as any).invoiceNo;
+        const invoiceId = invNum || `missing-${Math.random()}`;
+
+        if (item.amount > 0) {
+          existing.grossSales += item.amount;
+          existing.invoiceNumbers.add(invoiceId);
+        } else if (item.amount < 0) {
+          existing.grvAmount += Math.abs(item.amount);
+          existing.grvNumbers.add(invoiceId);
+        }
+
+        yearMap.set(year, existing);
+      } catch (e) {
+        // Skip invalid dates
+      }
+    });
+
+    const sorted = Array.from(yearMap.values()).sort((a, b) => b.year.localeCompare(a.year));
+
+    return sorted.map((item, index) => {
+      const previousYear = index < sorted.length - 1 ? sorted[index + 1] : null;
+      const amountDiff = previousYear ? item.amount - previousYear.amount : 0;
+
+      return {
+        year: item.year,
+        amount: item.amount,
+        amountDiff: previousYear ? item.amount - previousYear.amount : 0,
+        qty: item.qty,
+        customerCount: item.customerCount.size,
+        grossSales: item.grossSales,
+        salesCount: item.invoiceNumbers.size,
+        grvAmount: item.grvAmount,
+        grvCount: item.grvNumbers.size,
+      };
+    });
+  }, [data]);
 
   // Monthly sales table data - sorted from newest to oldest, showing ALL months
   const monthlyTableData = useMemo(() => {
-    // Get all months from filtered data (not just last 12)
-    const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
+    // Get all months from data
+    const monthMap = new Map<string, {
+      month: string;
+      monthKey: string;
+      amount: number;
+      qty: number;
+      customerCount: Set<string>;
+      invoiceNumbers: Set<string>;
+      grvNumbers: Set<string>;
+      grossSales: number;
+      grvAmount: number;
+    }>();
 
-    filteredData.forEach(item => {
+    data.forEach(item => {
       if (!item.invoiceDate) return;
 
       try {
@@ -403,10 +300,27 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
           monthKey,
           amount: 0,
           qty: 0,
+          customerCount: new Set<string>(),
+          invoiceNumbers: new Set<string>(),
+          grvNumbers: new Set<string>(),
+          grossSales: 0,
+          grvAmount: 0,
         };
 
         existing.amount += item.amount;
         existing.qty += item.qty;
+        existing.customerCount.add(item.customerId || item.customerName);
+
+        const invNum = item.invoiceNumber || (item as any).number || (item as any).invoiceNo;
+        const invoiceId = invNum || `missing-${Math.random()}`;
+
+        if (item.amount > 0) {
+          existing.grossSales += item.amount;
+          existing.invoiceNumbers.add(invoiceId);
+        } else if (item.amount < 0) {
+          existing.grvAmount += Math.abs(item.amount);
+          existing.grvNumbers.add(invoiceId);
+        }
 
         monthMap.set(monthKey, existing);
       } catch (e) {
@@ -420,9 +334,7 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     return sorted.map((item, index) => {
       // Get previous month for comparison
       const previousMonth = index < sorted.length - 1 ? sorted[index + 1] : null;
-
       const amountDiff = previousMonth ? item.amount - previousMonth.amount : 0;
-      const qtyDiff = previousMonth ? item.qty - previousMonth.qty : 0;
 
       return {
         month: item.month,
@@ -430,22 +342,52 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         amount: item.amount,
         amountDiff: amountDiff,
         qty: item.qty,
-        qtyDiff: qtyDiff,
+        customerCount: item.customerCount.size,
+        grossSales: item.grossSales,
+        salesCount: item.invoiceNumbers.size,
+        grvAmount: item.grvAmount,
+        grvCount: item.grvNumbers.size,
       };
     });
-  }, [filteredData]);
+  }, [data]);
+
+  // Export yearly table to Excel
+  const exportYearlyTableToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+    const headers = ['Year', 'Net Amount', 'Net Change', 'Net QTY', 'Cust. Count', 'Sales Amount', 'Sales Count', 'GRV Amount', 'GRV Count'];
+    const rows = yearlyTableData.map(item => [
+      item.year,
+      item.amount,
+      item.amountDiff !== 0 ? (item.amountDiff > 0 ? '+' : '') + item.amountDiff : '-',
+      item.qty,
+      item.customerCount,
+      item.grossSales,
+      item.salesCount,
+      item.grvAmount,
+      item.grvCount,
+    ]);
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Yearly Sales');
+    const filename = `sales_yearly_table_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
 
   // Export monthly table to Excel
   const exportMonthlyTableToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    const headers = ['Month', 'Amount', 'Amount Change', 'Quantity', 'Quantity Change'];
+    const headers = ['Month', 'Net Amount', 'Net Change', 'Net QTY', 'Cust. Count', 'Sales Amount', 'Sales Count', 'GRV Amount', 'GRV Count'];
     const rows = monthlyTableData.map(item => [
       item.month,
       item.amount,
       item.amountDiff !== 0 ? (item.amountDiff > 0 ? '+' : '') + item.amountDiff : '-',
       item.qty,
-      item.qtyDiff !== 0 ? (item.qtyDiff > 0 ? '+' : '') + item.qtyDiff : '-',
+      item.customerCount,
+      item.grossSales,
+      item.salesCount,
+      item.grvAmount,
+      item.grvCount,
     ]);
 
     const sheetData = [headers, ...rows];
@@ -456,7 +398,6 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     XLSX.writeFile(workbook, filename);
   };
 
-  const hasActiveFilters = !!(filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep);
 
   if (loading) {
     return (
@@ -470,769 +411,624 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
   }
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      <div className="w-full">
-        {/* Header */}
-        <div className="mb-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-gray-800">Sales Overview</h1>
-            <button
-              onClick={() => setIsFilterModalOpen(true)}
-              className={`p-2.5 rounded-xl transition-all duration-300 flex items-center gap-2 group ${hasActiveFilters
-                ? 'bg-green-600 text-white shadow-lg shadow-green-200 ring-2 ring-green-500/20'
-                : 'bg-white text-gray-600 border border-gray-200 shadow-sm hover:border-green-500 hover:text-green-600'
-                }`}
-            >
-              <Filter className={`w-5 h-5 ${hasActiveFilters ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'}`} />
-              <span className="text-sm font-bold uppercase tracking-wider">Filters</span>
-              {hasActiveFilters && (
-                <span className="flex h-2 w-2 rounded-full bg-white"></span>
-              )}
-            </button>
+    <div className="w-full">
+      {/* Header */}
+      <div className="mb-8 p-6 bg-white rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <div className="p-3 bg-blue-50 rounded-2xl">
+            <BarChart3 className="w-6 h-6 text-blue-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-medium text-slate-800 tracking-tight">Sales Overview</h1>
+          </div>
+        </div>
+      </div>
+
+
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
+        <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Total Sales</p>
+              <p className="text-xl font-black text-gray-800 tracking-tight">
+                {metrics.totalAmount.toLocaleString('en-US', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0
+                })}
+              </p>
+            </div>
+            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
+              <DollarSign className="w-5 h-5 text-blue-600" />
+            </div>
           </div>
         </div>
 
-        {/* Filters Modal */}
-        {isFilterModalOpen && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* Backdrop */}
-            <div
-              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity"
-              onClick={() => setIsFilterModalOpen(false)}
-            />
+        <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">AVG AMOUNT / MON</p>
+              <p className="text-xl font-black text-gray-800 tracking-tight">
+                {metrics.avgMonthlyAmount.toLocaleString('en-US', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0
+                })}
+              </p>
+            </div>
+            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
+              <BarChart3 className="w-5 h-5 text-indigo-600" />
+            </div>
+          </div>
+        </div>
 
-            {/* Modal Content */}
-            <div className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col border border-white/20 animate-in fade-in zoom-in duration-300 overflow-hidden">
-              {/* Header */}
-              <div className="px-8 py-6 bg-gray-50/80 border-b border-gray-100 flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-green-100 rounded-2xl">
-                    <Filter className="w-6 h-6 text-green-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-xl font-black text-gray-800 tracking-tight">Overview Filters</h2>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsFilterModalOpen(false)}
-                  className="p-2 hover:bg-gray-200 rounded-full transition-colors"
-                >
-                  <X className="w-6 h-6 text-gray-500" />
-                </button>
-              </div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Total Qty</p>
+              <p className="text-xl font-black text-gray-800 tracking-tight">
+                {metrics.totalQty.toLocaleString('en-US', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0
+                })}
+              </p>
+            </div>
+            <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
+              <Package className="w-5 h-5 text-green-600" />
+            </div>
+          </div>
+        </div>
 
-              {/* Body */}
-              <div className="p-8 overflow-y-auto flex-1 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] min-h-[550px]">
-                <div className="space-y-12 pb-60">
-                  {/* Time Range Section */}
-                  <div className="space-y-6">
-                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
-                      <Calendar className="w-5 h-5 text-indigo-500" /> 01. Time Period
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50/50 p-6 rounded-[24px] border border-slate-100">
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Year</label>
-                        <input
-                          type="number"
-                          placeholder="YYYY"
-                          value={filterYear}
-                          onChange={(e) => setFilterYear(e.target.value)}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold placeholder:text-slate-300 shadow-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">Month</label>
-                        <input
-                          type="number"
-                          placeholder="1-12"
-                          value={filterMonth}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
-                              setFilterMonth(value);
-                            }
-                          }}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold placeholder:text-slate-300 shadow-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">From Date</label>
-                        <input
-                          type="date"
-                          value={dateFrom}
-                          onChange={(e) => setDateFrom(e.target.value)}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold shadow-sm"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1">To Date</label>
-                        <input
-                          type="date"
-                          value={dateTo}
-                          onChange={(e) => setDateTo(e.target.value)}
-                          className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all font-bold shadow-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-cyan-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Avg Qty / Mon</p>
+              <p className="text-xl font-black text-gray-800 tracking-tight">
+                {metrics.avgMonthlyQty.toLocaleString('en-US', {
+                  minimumFractionDigits: 0,
+                  maximumFractionDigits: 0
+                })}
+              </p>
+            </div>
+            <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
+              <TrendingUp className="w-5 h-5 text-cyan-600" />
+            </div>
+          </div>
+        </div>
 
-                  {/* Classification Section */}
-                  <div className="space-y-6">
-                    <h3 className="text-sm font-black text-slate-400 font-mono uppercase tracking-[0.2em] flex items-center gap-3">
-                      <MapPin className="w-5 h-5 text-emerald-500" /> 02. Categorization
-                    </h3>
+        <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Customers</p>
+              <p className="text-xl font-black text-gray-800 tracking-tight">{metrics.totalCustomers}</p>
+            </div>
+            <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
+              <Users className="w-5 h-5 text-purple-600" />
+            </div>
+          </div>
+        </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6 bg-emerald-50/30 p-8 rounded-[24px] border border-emerald-100/50">
-                      {/* Row 1, Col 1: Area */}
-                      <div className="relative" ref={areaDropdownRef}>
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Area</label>
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === 'area' ? null : 'area')}
-                          className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 transition-all shadow-sm group"
-                        >
-                          <span className={`${filterArea ? 'text-slate-900' : 'text-slate-400'}`}>
-                            {filterArea || 'All Areas'}
-                          </span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'area' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'area' && (
-                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                            <div className="max-h-56 overflow-y-auto p-1.5 custom-scrollbar">
-                              <button onClick={() => { setFilterArea(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm">All Areas</button>
-                              {uniqueAreas.map(a => (
-                                <button key={a} onClick={() => { setFilterArea(a); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm border-t border-slate-50">{a}</button>
-                              ))}
-                            </div>
+        <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Products</p>
+              <p className="text-xl font-black text-gray-800 tracking-tight">{metrics.totalProducts}</p>
+            </div>
+            <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
+              <BarChart3 className="w-5 h-5 text-orange-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Monthly Sales Chart */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+        <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Trend</h2>
+        {chartData.length > 0 ? (
+          <div className="space-y-6">
+            {/* Amount Chart */}
+            <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Amount</h3>
+              <div className="relative" style={{ height: '380px' }}>
+                {/* Top labels row with connecting lines */}
+                <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
+                  <div className="relative w-full h-full">
+                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+                      {chartData.map((item, index) => {
+                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                        return (
+                          <line
+                            key={index}
+                            x1={`${xPercent}%`}
+                            y1="30"
+                            x2={`${xPercent}%`}
+                            y2="12"
+                            stroke="#d1d5db"
+                            strokeWidth="1"
+                            strokeDasharray="2,2"
+                          />
+                        );
+                      })}
+                    </svg>
+                    <div className="relative w-full" style={{ height: '30px' }}>
+                      {chartData.map((item, index) => {
+                        const value = item.amount;
+                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                        const isNegative = value < 0;
+                        return (
+                          <div
+                            key={index}
+                            className="absolute text-base font-bold text-center"
+                            style={{
+                              left: `${xPercent}%`,
+                              transform: 'translateX(-50%)',
+                              top: 0,
+                              color: isNegative ? '#ef4444' : '#374151'
+                            }}
+                          >
+                            {value.toLocaleString('en-US', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0
+                            })}
                           </div>
-                        )}
-                      </div>
-
-                      {/* Row 1, Col 2: Sales Rep */}
-                      <div className="relative" ref={salesRepDropdownRef}>
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Sales Rep</label>
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === 'salesrep' ? null : 'salesrep')}
-                          className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 transition-all shadow-sm group"
-                        >
-                          <span className={`${filterSalesRep ? 'text-slate-900' : 'text-slate-400'}`}>
-                            {filterSalesRep || 'All Representatives'}
-                          </span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'salesrep' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'salesrep' && (
-                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                            <div className="max-h-56 overflow-y-auto p-1.5 custom-scrollbar">
-                              <button onClick={() => { setFilterSalesRep(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm">All Reps</button>
-                              {uniqueSalesReps.map(r => (
-                                <button key={r} onClick={() => { setFilterSalesRep(r); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm border-t border-slate-50">{r}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Row 2, Col 1: Market (Under Area) */}
-                      <div className="relative" ref={marketDropdownRef}>
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Market</label>
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === 'market' ? null : 'market')}
-                          className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 transition-all shadow-sm group"
-                        >
-                          <span className={`${filterMarket ? 'text-slate-900' : 'text-slate-400'}`}>
-                            {filterMarket || 'All Markets'}
-                          </span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'market' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'market' && (
-                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                            <div className="max-h-56 overflow-y-auto p-1.5 custom-scrollbar">
-                              <button onClick={() => { setFilterMarket(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm">All Markets</button>
-                              {uniqueMarkets.map(m => (
-                                <button key={m} onClick={() => { setFilterMarket(m); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm border-t border-slate-50">{m}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Row 2, Col 2: Merchandiser (Under Sales Rep) */}
-                      <div className="relative" ref={merchandiserDropdownRef}>
-                        <label className="text-[11px] font-black text-slate-500 uppercase tracking-widest ml-1 mb-2 block">Merchandiser</label>
-                        <button
-                          onClick={() => setOpenDropdown(openDropdown === 'merchandiser' ? null : 'merchandiser')}
-                          className="w-full px-5 py-3.5 bg-white border border-slate-200 rounded-2xl flex items-center justify-between font-bold text-slate-700 hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/5 transition-all shadow-sm group"
-                        >
-                          <span className={`${filterMerchandiser ? 'text-slate-900' : 'text-slate-400'}`}>
-                            {filterMerchandiser || 'All Merchandisers'}
-                          </span>
-                          <ChevronDown className={`w-5 h-5 transition-transform duration-300 ${openDropdown === 'merchandiser' ? 'rotate-180' : 'group-hover:translate-y-0.5'}`} />
-                        </button>
-                        {openDropdown === 'merchandiser' && (
-                          <div className="absolute z-[110] w-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-top-2 duration-200">
-                            <div className="max-h-56 overflow-y-auto p-1.5 custom-scrollbar">
-                              <button onClick={() => { setFilterMerchandiser(''); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm">All Merchandisers</button>
-                              {uniqueMerchandisers.map(m => (
-                                <button key={m} onClick={() => { setFilterMerchandiser(m); setOpenDropdown(null); }} className="w-full text-left px-4 py-3 hover:bg-emerald-50 hover:text-emerald-700 rounded-xl transition-colors font-bold text-sm border-t border-slate-50">{m}</button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Footer */}
-              <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                <button
-                  onClick={() => {
-                    setFilterYear('');
-                    setFilterMonth('');
-                    setDateFrom('');
-                    setDateTo('');
-                    setFilterArea('');
-                    setFilterMarket('');
-                    setFilterMerchandiser('');
-                    setFilterSalesRep('');
-                  }}
-                  className="px-6 py-3 text-slate-500 hover:text-slate-800 font-black text-sm uppercase tracking-widest transition-colors flex items-center gap-2"
-                >
-                  Reset Defaults
-                </button>
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setIsFilterModalOpen(false)}
-                    className="px-8 py-3 bg-green-600 text-white font-black text-sm uppercase tracking-widest rounded-2xl shadow-lg shadow-green-200 hover:bg-green-700 transition-all hover:-translate-y-0.5"
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart
+                    data={chartData}
+                    margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
                   >
-                    Apply Filters
-                  </button>
-                </div>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      stroke="#6b7280"
+                      style={{ fontSize: '16px', fontWeight: 700 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="#9ca3af"
+                      style={{ fontSize: '11px' }}
+                      tickFormatter={() => ''}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={['auto', 'auto']}
+                      hide={true}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        border: 'none',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        padding: '12px'
+                      }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const isNegative = value < 0;
+                        const displayName = name === 'Difference from Previous Month' || name === 'amountDiff' ? 'DIFF' : 'Amount';
+                        return [
+                          <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
+                            {value.toLocaleString('en-US', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0
+                            })}
+                          </span>,
+                          displayName
+                        ];
+                      }}
+                      labelStyle={{
+                        color: '#374151',
+                        fontWeight: 600,
+                        marginBottom: '8px'
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="amount"
+                      stroke="#10b981"
+                      strokeWidth={3}
+                      name="Amount"
+                      style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const isNegative = payload?.isNegativeAmount;
+                        const isMaxMonth = payload?.isMaxMonth;
+                        const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={radius}
+                            fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
+                            stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
+                            strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
+                            style={{
+                              filter: isMaxMonth
+                                ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
+                                : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
+                            }}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="amountDiff"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="Difference from Previous Month"
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const isNegative = payload?.isNegativeAmountDiff;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={4}
+                            fill={isNegative ? "#ef4444" : "#10b981"}
+                            stroke={isNegative ? "#dc2626" : "#059669"}
+                            strokeWidth={isNegative ? 2 : 0}
+                            style={{
+                              filter: isNegative
+                                ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
+                                : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
+                            }}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 6, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
               </div>
             </div>
+
+            {/* Quantity Chart */}
+            <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Quantity</h3>
+              <div className="relative" style={{ height: '380px' }}>
+                {/* Top labels row with connecting lines */}
+                <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
+                  <div className="relative w-full h-full">
+                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+                      {chartData.map((item, index) => {
+                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                        return (
+                          <line
+                            key={index}
+                            x1={`${xPercent}%`}
+                            y1="30"
+                            x2={`${xPercent}%`}
+                            y2="12"
+                            stroke="#d1d5db"
+                            strokeWidth="1"
+                            strokeDasharray="2,2"
+                          />
+                        );
+                      })}
+                    </svg>
+                    <div className="relative w-full" style={{ height: '30px' }}>
+                      {chartData.map((item, index) => {
+                        const value = item.qty;
+                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+                        const isNegative = value < 0;
+                        return (
+                          <div
+                            key={index}
+                            className="absolute text-base font-bold text-center"
+                            style={{
+                              left: `${xPercent}%`,
+                              transform: 'translateX(-50%)',
+                              top: 0,
+                              color: isNegative ? '#ef4444' : '#374151'
+                            }}
+                          >
+                            {value.toLocaleString('en-US', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+                <ResponsiveContainer width="100%" height={350}>
+                  <LineChart
+                    data={chartData}
+                    margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                    <XAxis
+                      dataKey="month"
+                      stroke="#6b7280"
+                      style={{ fontSize: '16px', fontWeight: 700 }}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      stroke="#9ca3af"
+                      style={{ fontSize: '11px' }}
+                      tickFormatter={() => ''}
+                      tickLine={false}
+                      axisLine={false}
+                      domain={['auto', 'auto']}
+                      hide={true}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#ffffff',
+                        border: 'none',
+                        borderRadius: '12px',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+                        padding: '12px'
+                      }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const isNegative = value < 0;
+                        const displayName = name === 'Difference from Previous Month' || name === 'qtyDiff' ? 'DIFF' : 'Quantity';
+                        return [
+                          <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
+                            {value.toLocaleString('en-US', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 0
+                            })}
+                          </span>,
+                          displayName
+                        ];
+                      }}
+                      labelStyle={{
+                        color: '#374151',
+                        fontWeight: 600,
+                        marginBottom: '8px'
+                      }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="qty"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const isNegative = payload?.isNegativeQty;
+                        const isMaxMonth = payload?.isMaxMonth;
+                        const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={radius}
+                            fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
+                            stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
+                            strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
+                            style={{
+                              filter: isMaxMonth
+                                ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
+                                : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
+                            }}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
+                    />
+                    <Line
+                      type="monotone"
+                      dataKey="qtyDiff"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      name="Difference from Previous Month"
+                      dot={(props: any) => {
+                        const { cx, cy, payload } = props;
+                        const isNegative = payload?.isNegativeQtyDiff;
+                        return (
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={4}
+                            fill={isNegative ? "#ef4444" : "#10b981"}
+                            stroke={isNegative ? "#dc2626" : "#059669"}
+                            strokeWidth={isNegative ? 2 : 0}
+                            style={{
+                              filter: isNegative
+                                ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
+                                : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
+                            }}
+                          />
+                        );
+                      }}
+                      activeDot={{ r: 6, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-center h-96 text-gray-500">
+            <p>No sales data available for chart</p>
           </div>
         )}
-
-        {/* Metrics Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-blue-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Total Sales</p>
-                <p className="text-xl font-black text-gray-800 tracking-tight">
-                  {metrics.totalAmount.toLocaleString('en-US', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  })}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
-                <DollarSign className="w-5 h-5 text-blue-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-indigo-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">AVG AMOUNT / MON</p>
-                <p className="text-xl font-black text-gray-800 tracking-tight">
-                  {metrics.avgMonthlyAmount.toLocaleString('en-US', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  })}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
-                <BarChart3 className="w-5 h-5 text-indigo-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-green-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Total Qty</p>
-                <p className="text-xl font-black text-gray-800 tracking-tight">
-                  {metrics.totalQty.toLocaleString('en-US', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  })}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-green-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
-                <Package className="w-5 h-5 text-green-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-cyan-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Avg Qty / Mon</p>
-                <p className="text-xl font-black text-gray-800 tracking-tight">
-                  {metrics.avgMonthlyQty.toLocaleString('en-US', {
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  })}
-                </p>
-              </div>
-              <div className="w-10 h-10 bg-cyan-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
-                <TrendingUp className="w-5 h-5 text-cyan-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-purple-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Customers</p>
-                <p className="text-xl font-black text-gray-800 tracking-tight">{metrics.totalCustomers}</p>
-              </div>
-              <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
-                <Users className="w-5 h-5 text-purple-600" />
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-orange-500 hover:shadow-md transition-all duration-300 min-h-[120px] flex flex-col justify-center">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-[11px] uppercase tracking-widest font-bold text-gray-500 mb-1">Products</p>
-                <p className="text-xl font-black text-gray-800 tracking-tight">{metrics.totalProducts}</p>
-              </div>
-              <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center shrink-0 ml-2">
-                <BarChart3 className="w-5 h-5 text-orange-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Monthly Sales Chart */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-          <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Trend</h2>
-          {chartData.length > 0 ? (
-            <div className="space-y-6">
-              {/* Amount Chart */}
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Amount</h3>
-                <div className="relative" style={{ height: '380px' }}>
-                  {/* Top labels row with connecting lines */}
-                  <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
-                    <div className="relative w-full h-full">
-                      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                        {chartData.map((item, index) => {
-                          const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                          return (
-                            <line
-                              key={index}
-                              x1={`${xPercent}%`}
-                              y1="30"
-                              x2={`${xPercent}%`}
-                              y2="12"
-                              stroke="#d1d5db"
-                              strokeWidth="1"
-                              strokeDasharray="2,2"
-                            />
-                          );
-                        })}
-                      </svg>
-                      <div className="relative w-full" style={{ height: '30px' }}>
-                        {chartData.map((item, index) => {
-                          const value = item.amount;
-                          const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                          const isNegative = value < 0;
-                          return (
-                            <div
-                              key={index}
-                              className="absolute text-base font-bold text-center"
-                              style={{
-                                left: `${xPercent}%`,
-                                transform: 'translateX(-50%)',
-                                top: 0,
-                                color: isNegative ? '#ef4444' : '#374151'
-                              }}
-                            >
-                              {value.toLocaleString('en-US', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <LineChart
-                      data={chartData}
-                      margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        stroke="#6b7280"
-                        style={{ fontSize: '16px', fontWeight: 700 }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        stroke="#9ca3af"
-                        style={{ fontSize: '11px' }}
-                        tickFormatter={() => ''}
-                        tickLine={false}
-                        axisLine={false}
-                        domain={['auto', 'auto']}
-                        hide={true}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: 'none',
-                          borderRadius: '12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                          padding: '12px'
-                        }}
-                        formatter={(value: number, name: string, props: any) => {
-                          const isNegative = value < 0;
-                          const displayName = name === 'Difference from Previous Month' || name === 'amountDiff' ? 'DIFF' : 'Amount';
-                          return [
-                            <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                              {value.toLocaleString('en-US', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0
-                              })}
-                            </span>,
-                            displayName
-                          ];
-                        }}
-                        labelStyle={{
-                          color: '#374151',
-                          fontWeight: 600,
-                          marginBottom: '8px'
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="amount"
-                        stroke="#10b981"
-                        strokeWidth={3}
-                        name="Amount"
-                        style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
-                        dot={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          const isNegative = payload?.isNegativeAmount;
-                          const isMaxMonth = payload?.isMaxMonth;
-                          const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                          return (
-                            <circle
-                              cx={cx}
-                              cy={cy}
-                              r={radius}
-                              fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
-                              stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
-                              strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                              style={{
-                                filter: isMaxMonth
-                                  ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
-                                  : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
-                              }}
-                            />
-                          );
-                        }}
-                        activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="amountDiff"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
-                        name="Difference from Previous Month"
-                        dot={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          const isNegative = payload?.isNegativeAmountDiff;
-                          return (
-                            <circle
-                              cx={cx}
-                              cy={cy}
-                              r={4}
-                              fill={isNegative ? "#ef4444" : "#10b981"}
-                              stroke={isNegative ? "#dc2626" : "#059669"}
-                              strokeWidth={isNegative ? 2 : 0}
-                              style={{
-                                filter: isNegative
-                                  ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
-                                  : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
-                              }}
-                            />
-                          );
-                        }}
-                        activeDot={{ r: 6, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-
-              {/* Quantity Chart */}
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
-                <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Quantity</h3>
-                <div className="relative" style={{ height: '380px' }}>
-                  {/* Top labels row with connecting lines */}
-                  <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
-                    <div className="relative w-full h-full">
-                      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                        {chartData.map((item, index) => {
-                          const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                          return (
-                            <line
-                              key={index}
-                              x1={`${xPercent}%`}
-                              y1="30"
-                              x2={`${xPercent}%`}
-                              y2="12"
-                              stroke="#d1d5db"
-                              strokeWidth="1"
-                              strokeDasharray="2,2"
-                            />
-                          );
-                        })}
-                      </svg>
-                      <div className="relative w-full" style={{ height: '30px' }}>
-                        {chartData.map((item, index) => {
-                          const value = item.qty;
-                          const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                          const isNegative = value < 0;
-                          return (
-                            <div
-                              key={index}
-                              className="absolute text-base font-bold text-center"
-                              style={{
-                                left: `${xPercent}%`,
-                                transform: 'translateX(-50%)',
-                                top: 0,
-                                color: isNegative ? '#ef4444' : '#374151'
-                              }}
-                            >
-                              {value.toLocaleString('en-US', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0
-                              })}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <ResponsiveContainer width="100%" height={350}>
-                    <LineChart
-                      data={chartData}
-                      margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                      <XAxis
-                        dataKey="month"
-                        stroke="#6b7280"
-                        style={{ fontSize: '16px', fontWeight: 700 }}
-                        tickLine={false}
-                        axisLine={false}
-                      />
-                      <YAxis
-                        stroke="#9ca3af"
-                        style={{ fontSize: '11px' }}
-                        tickFormatter={() => ''}
-                        tickLine={false}
-                        axisLine={false}
-                        domain={['auto', 'auto']}
-                        hide={true}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          backgroundColor: '#ffffff',
-                          border: 'none',
-                          borderRadius: '12px',
-                          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                          padding: '12px'
-                        }}
-                        formatter={(value: number, name: string, props: any) => {
-                          const isNegative = value < 0;
-                          const displayName = name === 'Difference from Previous Month' || name === 'qtyDiff' ? 'DIFF' : 'Quantity';
-                          return [
-                            <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                              {value.toLocaleString('en-US', {
-                                minimumFractionDigits: 0,
-                                maximumFractionDigits: 0
-                              })}
-                            </span>,
-                            displayName
-                          ];
-                        }}
-                        labelStyle={{
-                          color: '#374151',
-                          fontWeight: 600,
-                          marginBottom: '8px'
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="qty"
-                        stroke="#3b82f6"
-                        strokeWidth={3}
-                        style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
-                        dot={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          const isNegative = payload?.isNegativeQty;
-                          const isMaxMonth = payload?.isMaxMonth;
-                          const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                          return (
-                            <circle
-                              cx={cx}
-                              cy={cy}
-                              r={radius}
-                              fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
-                              stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
-                              strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                              style={{
-                                filter: isMaxMonth
-                                  ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
-                                  : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
-                              }}
-                            />
-                          );
-                        }}
-                        activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="qtyDiff"
-                        stroke="#10b981"
-                        strokeWidth={2}
-                        strokeDasharray="5 5"
-                        name="Difference from Previous Month"
-                        dot={(props: any) => {
-                          const { cx, cy, payload } = props;
-                          const isNegative = payload?.isNegativeQtyDiff;
-                          return (
-                            <circle
-                              cx={cx}
-                              cy={cy}
-                              r={4}
-                              fill={isNegative ? "#ef4444" : "#10b981"}
-                              stroke={isNegative ? "#dc2626" : "#059669"}
-                              strokeWidth={isNegative ? 2 : 0}
-                              style={{
-                                filter: isNegative
-                                  ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
-                                  : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
-                              }}
-                            />
-                          );
-                        }}
-                        activeDot={{ r: 6, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="flex items-center justify-center h-96 text-gray-500">
-              <p>No sales data available for chart</p>
-            </div>
-          )}
-        </div>
-
-        {/* Monthly Sales Table */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-xl font-bold text-gray-800">Monthly Sales</h2>
-            <button
-              onClick={exportMonthlyTableToExcel}
-              className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
-              title="Export to Excel"
-            >
-              <Download className="w-5 h-5" />
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b-2 border-gray-200">
-                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month</th>
-                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
-                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount Change</th>
-                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
-                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {monthlyTableData.map((item, index) => (
-                  <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.month}</td>
-                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                      {item.amount.toLocaleString('en-US', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      })}
-                    </td>
-                    <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
-                      ? 'text-green-600'
-                      : item.amountDiff < 0
-                        ? 'text-red-600'
-                        : 'text-gray-600'
-                      }`}>
-                      {item.amountDiff !== 0 ? (
-                        <>
-                          {item.amountDiff > 0 ? '+' : ''}
-                          {item.amountDiff.toLocaleString('en-US', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                          })}
-                        </>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
-                      {item.qty.toLocaleString('en-US', {
-                        minimumFractionDigits: 0,
-                        maximumFractionDigits: 0
-                      })}
-                    </td>
-                    <td className={`py-3 px-4 text-base text-center font-semibold ${item.qtyDiff > 0
-                      ? 'text-green-600'
-                      : item.qtyDiff < 0
-                        ? 'text-red-600'
-                        : 'text-gray-600'
-                      }`}>
-                      {item.qtyDiff !== 0 ? (
-                        <>
-                          {item.qtyDiff > 0 ? '+' : ''}
-                          {item.qtyDiff.toLocaleString('en-US', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0
-                          })}
-                        </>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {monthlyTableData.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="py-8 text-center text-gray-500">
-                      No monthly sales data available
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
       </div>
+
+      {/* Yearly Sales Table */}
+      <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Yearly Sales</h2>
+          <button
+            onClick={exportYearlyTableToExcel}
+            className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Year</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Change</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net QTY</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cust. Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {yearlyTableData.map((item, index) => (
+                <tr key={item.year} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.year}</td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.amount.toLocaleString('en-US', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    })}
+                  </td>
+                  <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
+                    ? 'text-green-600'
+                    : item.amountDiff < 0
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                    }`}>
+                    {item.amountDiff !== 0 ? (
+                      <>
+                        {item.amountDiff > 0 ? '+' : ''}
+                        {item.amountDiff.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
+                        })}
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.qty.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold text-blue-600">
+                    {item.customerCount}
+                  </td>
+                  <td className="py-3 px-4 text-base text-green-600 text-center font-bold">
+                    {item.grossSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.salesCount}
+                  </td>
+                  <td className="py-3 px-4 text-base text-red-600 text-center font-bold">
+                    {item.grvAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.grvCount}
+                  </td>
+                </tr>
+              ))}
+              {yearlyTableData.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-gray-500">
+                    No yearly sales data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Monthly Sales Table */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <h2 className="text-xl font-bold text-gray-800">Monthly Sales</h2>
+          <button
+            onClick={exportMonthlyTableToExcel}
+            className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
+          </button>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b-2 border-gray-200">
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Month</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Change</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net QTY</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cust. Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              {monthlyTableData.map((item, index) => (
+                <tr key={item.monthKey} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="py-3 px-4 text-base font-semibold text-gray-800 text-center">{item.month}</td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.amount.toLocaleString('en-US', {
+                      minimumFractionDigits: 0,
+                      maximumFractionDigits: 0
+                    })}
+                  </td>
+                  <td className={`py-3 px-4 text-base text-center font-semibold ${item.amountDiff > 0
+                    ? 'text-green-600'
+                    : item.amountDiff < 0
+                      ? 'text-red-600'
+                      : 'text-gray-600'
+                    }`}>
+                    {item.amountDiff !== 0 ? (
+                      <>
+                        {item.amountDiff > 0 ? '+' : ''}
+                        {item.amountDiff.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
+                        })}
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.qty.toLocaleString()}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold text-blue-600">
+                    {item.customerCount}
+                  </td>
+                  <td className="py-3 px-4 text-base text-green-600 text-center font-bold">
+                    {item.grossSales.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.salesCount}
+                  </td>
+                  <td className="py-3 px-4 text-base text-red-600 text-center font-bold">
+                    {item.grvAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  <td className="py-3 px-4 text-base text-gray-800 text-center font-semibold">
+                    {item.grvCount}
+                  </td>
+                </tr>
+              ))}
+              {monthlyTableData.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="py-8 text-center text-gray-500">
+                    No monthly sales data available
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
     </div>
   );
 }

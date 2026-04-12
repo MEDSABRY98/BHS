@@ -38,7 +38,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'sales': [
         { id: 'sales-overview', label: 'Overview' },
-        { id: 'sales-comparison', label: 'Comparison' },
+
         { id: 'sales-top10', label: 'Top 10' },
         { id: 'sales-customers', label: 'Customers' },
         { id: 'sales-invoice-details', label: 'Invoice Details' },

@@ -9,12 +9,88 @@ import SalesStatisticsTab from '@/components/SalesStatisticsTab';
 import SalesDailySalesTab from '@/components/SalesDailySalesTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesStockReportTab from '@/components/SalesStockReportTab';
-import SalesComparisonTab from '@/components/SalesComparisonTab';
+
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
+
+// Modern Select Component
+const ModernSelect = ({ 
+  value, 
+  onChange, 
+  options, 
+  placeholder = "Select Option",
+  className = "" 
+}: { 
+  value: string; 
+  onChange: (val: string) => void; 
+  options: { label: string; value: string }[] | string[];
+  placeholder?: string;
+  className?: string;
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const formattedOptions = options.map(opt => 
+    typeof opt === 'string' ? { label: opt, value: opt } : opt
+  );
+
+  const selectedOption = formattedOptions.find(opt => opt.value === value);
+
+  return (
+    <div className={`relative ${className}`} ref={containerRef}>
+      <button
+        type="button"
+        onMouseDown={(e) => { e.preventDefault(); setIsOpen(!isOpen); }}
+        className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-green-500/5 focus:border-green-500/20 transition-all text-xs flex items-center justify-between group text-left"
+      >
+        <span className={!value ? "text-slate-400 font-normal" : "truncate"}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 group-hover:text-slate-600 shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-[100] mt-2 w-full bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-2xl py-2 animate-in zoom-in-95 fade-in duration-200 overflow-hidden max-h-60 overflow-y-auto no-scrollbar ring-1 ring-slate-100">
+          {formattedOptions.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onMouseDown={(e) => {
+                e.preventDefault();
+                onChange(opt.value);
+                setIsOpen(false);
+              }}
+              className={`w-full px-5 py-3 text-left text-xs font-bold transition-all hover:bg-green-50 hover:text-green-600 ${
+                value === opt.value ? 'bg-green-50 text-green-600' : 'text-slate-600'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="truncate">{opt.label}</span>
+                {value === opt.value && <CheckCircle2 className="w-3.5 h-3.5" />}
+              </div>
+            </button>
+          ))}
+          {formattedOptions.length === 0 && (
+            <div className="px-5 py-3 text-xs text-slate-400 italic text-center">No options available</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export default function SalesPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -148,9 +224,26 @@ export default function SalesPage() {
     localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
   };
 
-  // Global Invoice Type Filter
+  // Centralized Filters
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
+  const [filterYear, setFilterYear] = useState('');
+  const [filterMonth, setFilterMonth] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [filterArea, setFilterArea] = useState('');
+  const [filterMarket, setFilterMarket] = useState('');
+  const [filterMerchandiser, setFilterMerchandiser] = useState('');
+  const [filterSalesRep, setFilterSalesRep] = useState('');
+
+
+
+  // Inactive Customers Specific Filters
+  const [inactiveDays, setInactiveDays] = useState('30');
+  const [inactiveMinAmount, setInactiveMinAmount] = useState('');
+
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [activeFilterTab, setActiveFilterTab] = useState<'mode' | 'timing' | 'outreach' | 'advanced'>('mode');
 
   // Augmented data based on customer mapping
   const augmentedData = useMemo(() => {
@@ -173,16 +266,123 @@ export default function SalesPage() {
     });
   }, [data, customerMapping]);
 
-  // Apply Global Filter
+  // Apply Comprehensive Global Filtering
   const globallyFilteredData = useMemo(() => {
-    if (invoiceTypeFilter === 'all') return augmentedData;
-    return augmentedData.filter(item => {
-      const num = item.invoiceNumber?.trim().toUpperCase() || '';
-      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
-      return true;
+    let filtered = [...augmentedData];
+
+    // 1. Invoice Type Filter
+    if (invoiceTypeFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        const num = item.invoiceNumber?.trim().toUpperCase() || '';
+        if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
+        if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+        return true;
+      });
+    }
+
+    // 2. Year filter
+    if (filterYear.trim()) {
+      const yearNum = parseInt(filterYear.trim(), 10);
+      if (!isNaN(yearNum)) {
+        filtered = filtered.filter(item => {
+          if (!item.invoiceDate) return false;
+          const d = new Date(item.invoiceDate);
+          return !isNaN(d.getTime()) && d.getFullYear() === yearNum;
+        });
+      }
+    }
+
+    // 3. Month filter
+    if (filterMonth.trim()) {
+      const monthNum = parseInt(filterMonth.trim(), 10);
+      if (!isNaN(monthNum)) {
+        filtered = filtered.filter(item => {
+          if (!item.invoiceDate) return false;
+          const d = new Date(item.invoiceDate);
+          return !isNaN(d.getTime()) && d.getMonth() + 1 === monthNum;
+        });
+      }
+    }
+
+    // 4. Date range filter
+    if (dateFrom || dateTo) {
+      filtered = filtered.filter(item => {
+        if (!item.invoiceDate) return false;
+        const itemDate = new Date(item.invoiceDate);
+        if (isNaN(itemDate.getTime())) return false;
+        if (dateFrom && itemDate < new Date(dateFrom)) return false;
+        if (dateTo) {
+          const toDate = new Date(dateTo);
+          toDate.setHours(23, 59, 59, 999);
+          if (itemDate > toDate) return false;
+        }
+        return true;
+      });
+    }
+
+    // 5. Area, Market, Merchandiser, SalesRep
+    if (filterArea) filtered = filtered.filter(item => item.area === filterArea);
+    if (filterMarket) filtered = filtered.filter(item => item.market === filterMarket);
+    if (filterMerchandiser) filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
+    if (filterSalesRep) filtered = filtered.filter(item => item.salesRep === filterSalesRep);
+
+    return filtered;
+  }, [augmentedData, invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
+
+  // geographyFilteredData (respects Area, Market, Rep, Merchandiser but IGNORES time)
+  const geographyFilteredData = useMemo(() => {
+    let filtered = [...augmentedData];
+    if (filterArea) filtered = filtered.filter(item => item.area === filterArea);
+    if (filterMarket) filtered = filtered.filter(item => item.market === filterMarket);
+    if (filterMerchandiser) filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
+    if (filterSalesRep) filtered = filtered.filter(item => item.salesRep === filterSalesRep);
+    return filtered;
+  }, [augmentedData, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
+
+  // Unique values for dropdowns
+  const uniqueValues = useMemo(() => {
+    const areas = new Set<string>();
+    const markets = new Set<string>();
+    const merchandisers = new Set<string>();
+    const salesReps = new Set<string>();
+    const years = new Set<string>();
+
+    augmentedData.forEach(item => {
+      if (item.area) areas.add(item.area);
+      if (item.market) markets.add(item.market);
+      if (item.merchandiser) merchandisers.add(item.merchandiser);
+      if (item.salesRep) salesReps.add(item.salesRep);
+      if (item.invoiceDate) {
+        const d = new Date(item.invoiceDate);
+        if (!isNaN(d.getTime())) years.add(d.getFullYear().toString());
+      }
     });
-  }, [augmentedData, invoiceTypeFilter]);
+
+    return {
+      areas: Array.from(areas).sort(),
+      markets: Array.from(markets).sort(),
+      merchandisers: Array.from(merchandisers).sort(),
+      salesReps: Array.from(salesReps).sort(),
+      years: Array.from(years).sort((a, b) => b.localeCompare(a))
+    };
+  }, [augmentedData]);
+
+  const hasAnyFilter = useMemo(() => {
+    return invoiceTypeFilter !== 'all' || filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep;
+  }, [invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
+
+  const resetFilters = () => {
+    setInvoiceTypeFilter('all');
+    setFilterYear('');
+    setFilterMonth('');
+    setDateFrom('');
+    setDateTo('');
+    setFilterArea('');
+    setFilterMarket('');
+    setFilterMerchandiser('');
+    setFilterSalesRep('');
+    // Don't reset comparison/inactive defaults as they are usually stable settings
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -232,7 +432,7 @@ export default function SalesPage() {
   const allTabs = [
     { id: 'sales-overview', label: 'Overview' },
     { id: 'sales-top10', label: 'Top 10' },
-    { id: 'sales-comparison', label: 'Comparison' },
+
     { id: 'sales-customers', label: 'Customers' },
     { id: 'sales-inactive-customers', label: 'Inactive' },
     { id: 'sales-statistics', label: 'Statistics' },
@@ -278,13 +478,21 @@ export default function SalesPage() {
         return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
       case 'sales-top10':
         return <SalesTop10Tab data={globallyFilteredData} loading={loading} />;
-      case 'sales-comparison':
-        return <SalesComparisonTab data={globallyFilteredData} loading={loading} />;
+
       case 'sales-customers':
         return <SalesCustomersTab data={globallyFilteredData} loading={loading} onUploadMapping={handleUploadMapping} />;
 
       case 'sales-inactive-customers':
-        return <SalesInactiveCustomersTab data={globallyFilteredData} loading={loading} />;
+        return (
+          <SalesInactiveCustomersTab
+            data={geographyFilteredData}
+            loading={loading}
+            // @ts-ignore
+            days={inactiveDays}
+            // @ts-ignore
+            minAmount={inactiveMinAmount}
+          />
+        );
       case 'sales-statistics':
         return <SalesStatisticsTab data={globallyFilteredData} loading={loading} />;
       case 'sales-daily-sales':
@@ -415,18 +623,20 @@ export default function SalesPage() {
             <div className="relative">
               <button
                 onClick={() => setIsFilterOpen(true)}
-                className={`group relative p-3 rounded-xl transition-all duration-300 border shadow-sm ${invoiceTypeFilter === 'all'
+                className={`group relative p-3 rounded-xl transition-all duration-300 border shadow-sm ${!hasAnyFilter
                   ? 'bg-white border-slate-200 text-slate-400 hover:border-green-200 hover:text-green-600 hover:bg-green-50'
-                  : 'bg-red-50 border-red-200 text-red-600 hover:bg-red-100'
+                  : 'bg-green-600 border-green-700 text-white shadow-lg shadow-green-200'
                   }`}
-                title="Change Reporting Mode"
+                title="Open Global Filters"
               >
-                <Filter className={`w-5 h-5 transition-transform group-hover:scale-110 ${invoiceTypeFilter !== 'all' ? 'animate-pulse' : ''}`} />
-                {invoiceTypeFilter !== 'all' && (
-                  <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white shadow-sm" />
+                <div className="flex items-center gap-2">
+                  <Filter className={`w-5 h-5 transition-transform group-hover:scale-110 ${hasAnyFilter ? 'animate-pulse' : ''}`} />
+                  <span className="text-sm font-bold hidden sm:inline uppercase tracking-widest">Filters</span>
+                </div>
+                {hasAnyFilter && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm" />
                 )}
               </button>
-
             </div>
           </div>
 
@@ -434,79 +644,265 @@ export default function SalesPage() {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
+      <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)] p-8">
           {renderTabContent()}
         </main>
       </div>
 
-      {/* MODAL POPUP - MOVED TO ROOT LEVEL */}
+      {/* GLOBAL FILTER MODAL */}
       {isFilterOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300"
+            className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300"
             onClick={() => setIsFilterOpen(false)}
           />
-          <div className="relative w-full max-w-sm bg-white rounded-[32px] shadow-2xl border border-white overflow-hidden animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
-            <div className="bg-gradient-to-br from-slate-50 to-white px-8 pt-8 pb-6 border-b border-slate-100">
-              <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center mb-4">
-                <Filter className="w-6 h-6 text-green-600" />
+          <div className="relative w-full max-w-5xl h-[850px] bg-white rounded-[40px] shadow-2xl border border-white/20 animate-in zoom-in-95 slide-in-from-bottom-8 duration-500 flex flex-col overflow-hidden">
+
+            {/* Modal Header */}
+            <div className="bg-slate-50/80 backdrop-blur-sm px-10 py-5 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-5">
+                <div className="w-12 h-12 bg-green-600 rounded-[18px] flex items-center justify-center shadow-lg shadow-green-100">
+                  <Filter className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Search & Filters</h3>
+                </div>
               </div>
-              <h3 className="text-xl font-black text-slate-900 tracking-tight">Reporting Mode</h3>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={resetFilters}
+                  title="Reset All Filters"
+                  className="p-3 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                >
+                  <RotateCcw className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => setIsFilterOpen(false)}
+                  title="Apply Filters"
+                  className="p-3 bg-green-600 text-white rounded-xl shadow-lg shadow-green-100 hover:bg-green-700 hover:scale-[1.05] active:scale-95 transition-all"
+                >
+                  <CheckCircle2 className="w-6 h-6" />
+                </button>
+                <div className="w-[1px] h-8 bg-slate-200 mx-2"></div>
+                <button
+                  onClick={() => setIsFilterOpen(false)}
+                  className="p-3 hover:bg-slate-100 rounded-xl transition-colors group"
+                >
+                  <X className="w-6 h-6 text-slate-300 group-hover:text-slate-600 transition-colors" />
+                </button>
+              </div>
             </div>
 
-            <div className="p-4 space-y-2">
-              <button
-                onClick={() => { setInvoiceTypeFilter('all'); setIsFilterOpen(false); }}
-                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl text-sm font-bold transition-all ${invoiceTypeFilter === 'all'
-                  ? 'bg-green-50 text-green-700 ring-2 ring-green-100'
-                  : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${invoiceTypeFilter === 'all' ? 'bg-green-500 shadow-[0_0_12px_rgba(34,197,94,0.4)]' : 'bg-slate-200'}`} />
-                  <div className="text-sm">Standard View</div>
-                </div>
-                {invoiceTypeFilter === 'all' && <CheckCircle2 className="w-5 h-5" />}
-              </button>
+            {/* Modal Body - Tabbed Interface */}
+            <div className="flex flex-col flex-1 bg-white">
+              {/* Tab Navigation */}
+              <div className="px-10 py-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2 shrink-0">
+                {[
+                  { id: 'mode', label: 'Reporting Mode', icon: LayoutGrid },
+                  { id: 'timing', label: 'Timing & Periods', icon: Calendar },
+                  { id: 'outreach', label: 'Team & Territory', icon: Users },
+                  ...(activeTab === 'sales-inactive-customers' ? [{ id: 'advanced', label: 'Comprehensive Filters', icon: MoreVertical }] : [])
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveFilterTab(tab.id as any)}
+                    className={`flex-1 flex items-center justify-center gap-2.5 px-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFilterTab === tab.id
+                        ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 ring-4 ring-slate-900/10'
+                        : 'text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent hover:border-slate-100'
+                      }`}
+                  >
+                    <tab.icon className={`w-4 h-4 ${activeFilterTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
+                    <span className="truncate">{tab.label}</span>
+                  </button>
+                ))}
+              </div>
 
-              <button
-                onClick={() => { setInvoiceTypeFilter('sales'); setIsFilterOpen(false); }}
-                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl text-sm font-bold transition-all ${invoiceTypeFilter === 'sales'
-                  ? 'bg-blue-50 text-blue-700 ring-2 ring-blue-100'
-                  : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${invoiceTypeFilter === 'sales' ? 'bg-blue-500 shadow-[0_0_12px_rgba(59,130,246,0.4)]' : 'bg-slate-200'}`} />
-                  <div className="text-sm">Invoices Only</div>
-                </div>
-                {invoiceTypeFilter === 'sales' && <CheckCircle2 className="w-5 h-5" />}
-              </button>
+              {/* Tab Content */}
+              <div className="p-10 overflow-y-auto custom-scrollbar flex-1 min-h-[450px] relative">
+                <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+                  {activeFilterTab === 'mode' && (
+                    <div className="space-y-8 h-full flex flex-col justify-center">
+                      <div className="grid grid-cols-3 gap-6">
+                        {[
+                          { id: 'all', label: 'NET SALES' },
+                          { id: 'sales', label: 'SALES ONLY' },
+                          { id: 'returns', label: 'GRV ONLY' }
+                        ].map((t) => (
+                          <button
+                            key={t.id}
+                            disabled={isFiltering}
+                            onClick={() => {
+                                if (invoiceTypeFilter === t.id) return;
+                                setIsFiltering(true);
+                                // Give UI a frame to show the loader
+                                setTimeout(() => {
+                                    setInvoiceTypeFilter(t.id as any);
+                                    setIsFiltering(false);
+                                }, 100);
+                            }}
+                            className={`flex flex-col items-center justify-center gap-4 text-center p-8 rounded-[40px] transition-all border-2 h-44 w-full ${invoiceTypeFilter === t.id
+                                ? 'bg-green-50/50 border-green-600 shadow-2xl shadow-green-100/50'
+                                : 'bg-white border-slate-100 hover:border-slate-300'
+                              } ${isFiltering ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            <div className={`w-14 h-14 rounded-[20px] flex items-center justify-center shadow-lg transition-all ${invoiceTypeFilter === t.id ? 'bg-green-600 text-white shadow-green-200' : 'bg-slate-50 text-slate-400'
+                              }`}>
+                              {t.id === 'all' ? <CheckCircle2 className="w-7 h-7" /> : t.id === 'sales' ? <Layers className="w-7 h-7" /> : <RefreshCcw className="w-7 h-7" />}
+                            </div>
+                            <p className={`font-black text-sm uppercase tracking-[0.2em] ${invoiceTypeFilter === t.id ? 'text-green-700' : 'text-slate-800'}`}>
+                              {t.label}
+                            </p>
+                          </button>
+                        ))}
+                      </div>
 
-              <button
-                onClick={() => { setInvoiceTypeFilter('returns'); setIsFilterOpen(false); }}
-                className={`w-full flex items-center justify-between px-5 py-4 rounded-2xl text-sm font-bold transition-all ${invoiceTypeFilter === 'returns'
-                  ? 'bg-red-50 text-red-700 ring-2 ring-red-100'
-                  : 'text-slate-600 hover:bg-slate-50'
-                  }`}
-              >
-                <div className="flex items-center gap-4">
-                  <div className={`w-3 h-3 rounded-full ${invoiceTypeFilter === 'returns' ? 'bg-red-500 shadow-[0_0_12px_rgba(239,68,68,0.4)]' : 'bg-slate-200'}`} />
-                  <div className="text-sm">Returns Only</div>
+                      {/* Loading Overlay inside the tab content area */}
+                      {isFiltering && (
+                          <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-[50] flex items-center justify-center rounded-[40px] animate-in fade-in duration-200">
+                              <div className="flex flex-col items-center gap-4">
+                                  <div className="w-12 h-12 border-4 border-green-600/20 border-t-green-600 rounded-full animate-spin"></div>
+                                  <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.2em]">Applying Mode...</p>
+                              </div>
+                          </div>
+                      )}
+                    </div>
+                  )}
+
+                  {activeFilterTab === 'timing' && (
+                    <div className="space-y-10">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                        <div className="space-y-6">
+                          <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <Calendar className="w-3 h-3" /> Standard Period
+                          </h5>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Year</label>
+                              <ModernSelect 
+                                value={filterYear} 
+                                onChange={setFilterYear} 
+                                options={uniqueValues.years} 
+                                placeholder="All Years"
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Month</label>
+                              <ModernSelect 
+                                value={filterMonth} 
+                                onChange={setFilterMonth} 
+                                options={[
+                                  { label: "All Months", value: "" },
+                                  ...Array.from({ length: 12 }, (_, i) => ({
+                                    label: new Date(2000, i).toLocaleString('en-US', { month: 'long' }),
+                                    value: (i + 1).toString()
+                                  }))
+                                ]} 
+                                placeholder="All Months"
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="space-y-6">
+                          <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <TrendingUp className="w-3 h-3" /> Custom Interval
+                          </h5>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">From Date</label>
+                              <input 
+                                type="date" 
+                                value={dateFrom} 
+                                onChange={e => setDateFrom(e.target.value)} 
+                                className="w-full px-5 py-4 bg-slate-50 border border-transparent rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-green-500/20 focus:ring-4 focus:ring-green-500/5 transition-all text-xs" 
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">To Date</label>
+                              <input 
+                                type="date" 
+                                value={dateTo} 
+                                onChange={e => setDateTo(e.target.value)} 
+                                className="w-full px-5 py-4 bg-slate-50 border border-transparent rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-green-500/20 focus:ring-4 focus:ring-green-500/5 transition-all text-xs" 
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeFilterTab === 'outreach' && (
+                    <div className="space-y-10">
+                      <div className="grid grid-cols-2 gap-x-12 gap-y-8 bg-slate-50 p-10 rounded-[40px] border border-slate-100">
+                         <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Area</label>
+                           <ModernSelect 
+                             value={filterArea} 
+                             onChange={setFilterArea} 
+                             options={[{ label: "All Areas", value: "" }, ...uniqueValues.areas.map(v => ({ label: v, value: v }))]} 
+                             placeholder="All Areas"
+                           />
+                         </div>
+                         <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Market</label>
+                           <ModernSelect 
+                             value={filterMarket} 
+                             onChange={setFilterMarket} 
+                             options={[{ label: "All Markets", value: "" }, ...uniqueValues.markets.map(v => ({ label: v, value: v }))]} 
+                             placeholder="All Markets"
+                           />
+                         </div>
+                         <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Merchandiser</label>
+                           <ModernSelect 
+                             value={filterMerchandiser} 
+                             onChange={setFilterMerchandiser} 
+                             options={[{ label: "All", value: "" }, ...uniqueValues.merchandisers.map(v => ({ label: v, value: v }))]} 
+                             placeholder="All"
+                           />
+                         </div>
+                         <div className="space-y-2">
+                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sales Rep</label>
+                           <ModernSelect 
+                             value={filterSalesRep} 
+                             onChange={setFilterSalesRep} 
+                             options={[{ label: "All", value: "" }, ...uniqueValues.salesReps.map(v => ({ label: v, value: v }))]} 
+                             placeholder="All"
+                           />
+                         </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeFilterTab === 'advanced' && (
+                    <div className="space-y-8 animate-in slide-in-from-right-4 duration-500">
+
+
+                      {activeTab === 'sales-inactive-customers' && (
+                        <div className="bg-orange-50/50 p-10 rounded-[44px] border border-orange-100/50">
+                          <h4 className="flex items-center gap-3 text-sm font-black text-orange-400 uppercase tracking-[0.3em] mb-10">
+                            <span className="w-12 h-[2px] bg-orange-200"></span> Inactivity Logic
+                          </h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tolerance Threshold (Days)</label>
+                              <input type="number" value={inactiveDays} onChange={e => setInactiveDays(e.target.value)} placeholder="e.g. 30" className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-700 outline-none shadow-sm focus:ring-4 focus:ring-orange-500/5 transition-all" />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Minimum Revenue Filter (AED)</label>
+                              <input type="number" value={inactiveMinAmount} onChange={e => setInactiveMinAmount(e.target.value)} placeholder="e.g. 500" className="w-full px-6 py-4 bg-white border border-slate-100 rounded-2xl font-bold text-slate-700 outline-none shadow-sm focus:ring-4 focus:ring-orange-500/5 transition-all" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-                {invoiceTypeFilter === 'returns' && <CheckCircle2 className="w-5 h-5" />}
-              </button>
+              </div>
             </div>
 
-            <div className="p-4 bg-slate-50 flex justify-center">
-              <button
-                onClick={() => setIsFilterOpen(false)}
-                className="text-sm font-bold text-slate-400 hover:text-slate-600 transition-colors"
-              >
-                Close
-              </button>
-            </div>
           </div>
         </div>
       )}
