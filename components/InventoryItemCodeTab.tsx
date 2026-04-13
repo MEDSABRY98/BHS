@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
 import Loading from './Loading';
+import NoData from './Unified/NoData';
 
 interface ItemCodeEntry {
     tags: string;
@@ -171,15 +172,11 @@ export default function InventoryItemCodeTab() {
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={4} className="px-6 py-12 text-center text-gray-400">
-                                        <div className="flex flex-col items-center gap-2">
-                                            <AlertCircle className="w-8 h-8 opacity-50" />
-                                            <p>
-                                                {searchQuery
-                                                    ? 'No results found for your search.'
-                                                    : 'No item codes available.'}
-                                            </p>
-                                        </div>
+                                    <td colSpan={4} className="py-20">
+                                        <NoData
+                                            title="No Item Codes"
+                                            message={searchQuery ? 'No results match your search query.' : 'No item codes currently available in the database.'}
+                                        />
                                     </td>
                                 </tr>
                             )}

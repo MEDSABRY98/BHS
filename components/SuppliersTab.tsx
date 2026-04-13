@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { generateBulkSupplierStatementsPDF } from '@/lib/pdf/PdfUtils';
 import * as XLSX from 'xlsx';
 import { Printer, Search, FileSpreadsheet, FileText, CheckSquare, Save, X, CheckCircle2, AlertCircle, MinusCircle, FileDown } from 'lucide-react';
+import NoData from './Unified/NoData';
 
 interface SupplierTransaction {
     date: string;
@@ -473,13 +474,8 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                                 ))}
                                 {processedData.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="px-6 py-16">
-                                            <div className="flex items-center justify-center gap-3 text-gray-500">
-                                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center">
-                                                    <Search className="w-5 h-5 text-gray-400" />
-                                                </div>
-                                                <span className="font-medium">No suppliers found</span>
-                                            </div>
+                                        <td colSpan={5} className="py-10">
+                                            <NoData />
                                         </td>
                                     </tr>
                                 )}
@@ -608,6 +604,13 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                                     </tr>
                                 );
                             })}
+                            {processedData.filter(s => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter)).length === 0 && (
+                                <tr>
+                                    <td colSpan={reportMonthFilter ? 4 : 3} className="py-10">
+                                        <NoData />
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>
@@ -654,11 +657,8 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                                     );
                                 })}
                                 {(supplierMonths[selectedSupplierForModal] || []).length === 0 && (
-                                    <div className="col-span-full py-12 text-center">
-                                        <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                            <Search className="w-8 h-8 text-slate-300" />
-                                        </div>
-                                        <p className="text-slate-400 font-bold italic">No transaction data available for this supplier</p>
+                                    <div className="col-span-full py-12">
+                                        <NoData />
                                     </div>
                                 )}
                             </div>

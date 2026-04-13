@@ -33,6 +33,7 @@ import {
     Users
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import NoData from './Unified/NoData';
 
 interface DeliveryEntry {
     id: string;
@@ -1999,39 +2000,52 @@ export default function DeliveryTrackingTab() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {dailyStats.map((d: any, idx) => {
-                                                const dayName = d.date && d.date !== 'No Date'
-                                                    ? new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(d.date))
-                                                    : '-';
-                                                return (
-                                                    <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
-                                                        <td className="px-6 py-4 font-bold text-[#0F1A14] text-center font-mono-dm">{d.date}</td>
-                                                        <td className="px-6 py-4 text-center">
-                                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-[900] uppercase tracking-wider">
-                                                                {dayName}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 font-black text-slate-700 text-center">{formatStat(d.lpoValue)}</td>
-                                                        <td className="px-6 py-4 font-black text-indigo-600 text-center">{formatStat(d.invoiceValue)}</td>
-                                                        <td className="px-6 py-4 font-black text-slate-600 text-center">{formatStat(d.orders)}</td>
-                                                        <td className="px-6 py-4 font-black text-[#2DBE6C] text-center">{formatStat(d.delivered)}</td>
-                                                        <td className="px-6 py-4 font-black text-orange-500 text-center">{formatStat(d.partial)}</td>
-                                                        <td className="px-6 py-4 font-black text-red-500 text-center">{formatStat(d.canceled)}</td>
-                                                        <td className="px-6 py-4 font-black text-amber-500 text-center">{formatStat(d.pending)}</td>
+                                            {dailyStats.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan={9} className="py-20">
+                                                        <NoData
+                                                            title="No Daily Stats"
+                                                            message="No daily sales or distribution activity found for the selected period."
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            ) : (
+                                                <>
+                                                    {dailyStats.map((d: any, idx) => {
+                                                        const dayName = d.date && d.date !== 'No Date'
+                                                            ? new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(new Date(d.date))
+                                                            : '-';
+                                                        return (
+                                                            <tr key={idx} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors group">
+                                                                <td className="px-6 py-4 font-bold text-[#0F1A14] text-center font-mono-dm">{d.date}</td>
+                                                                <td className="px-6 py-4 text-center">
+                                                                    <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[11px] font-[900] uppercase tracking-wider">
+                                                                        {dayName}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-6 py-4 font-black text-slate-700 text-center">{formatStat(d.lpoValue)}</td>
+                                                                <td className="px-6 py-4 font-black text-indigo-600 text-center">{formatStat(d.invoiceValue)}</td>
+                                                                <td className="px-6 py-4 font-black text-slate-600 text-center">{formatStat(d.orders)}</td>
+                                                                <td className="px-6 py-4 font-black text-[#2DBE6C] text-center">{formatStat(d.delivered)}</td>
+                                                                <td className="px-6 py-4 font-black text-orange-500 text-center">{formatStat(d.partial)}</td>
+                                                                <td className="px-6 py-4 font-black text-red-500 text-center">{formatStat(d.canceled)}</td>
+                                                                <td className="px-6 py-4 font-black text-amber-500 text-center">{formatStat(d.pending)}</td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                    {/* TOTAL ROW */}
+                                                    <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
+                                                        <td className="px-6 py-4 text-center text-[14px] font-[950] text-[#1E293B] uppercase tracking-wider" colSpan={2}>TOTAL</td>
+                                                        <td className="px-6 py-4 font-[950] text-slate-900 text-center bg-slate-100/50">{formatStat(dailyTotals.lpoValue)}</td>
+                                                        <td className="px-6 py-4 font-[950] text-indigo-700 text-center bg-indigo-50/50">{formatStat(dailyTotals.invoiceValue)}</td>
+                                                        <td className="px-6 py-4 font-[950] text-slate-900 text-center">{formatStat(dailyTotals.orders)}</td>
+                                                        <td className="px-6 py-4 font-[950] text-[#2DBE6C] text-center bg-green-50/30">{formatStat(dailyTotals.delivered)}</td>
+                                                        <td className="px-6 py-4 font-[950] text-orange-700 text-center bg-orange-50/30">{formatStat(dailyTotals.partial)}</td>
+                                                        <td className="px-6 py-4 font-[950] text-red-700 text-center bg-red-50/30">{formatStat(dailyTotals.canceled)}</td>
+                                                        <td className="px-6 py-4 font-[950] text-amber-700 text-center bg-amber-50/30">{formatStat(dailyTotals.pending)}</td>
                                                     </tr>
-                                                );
-                                            })}
-                                            {/* TOTAL ROW */}
-                                            <tr className="bg-slate-50 border-t-2 border-slate-200 sticky bottom-0">
-                                                <td className="px-6 py-4 text-center text-[14px] font-[950] text-[#1E293B] uppercase tracking-wider" colSpan={2}>TOTAL</td>
-                                                <td className="px-6 py-4 font-[950] text-slate-900 text-center bg-slate-100/50">{formatStat(dailyTotals.lpoValue)}</td>
-                                                <td className="px-6 py-4 font-[950] text-indigo-700 text-center bg-indigo-50/50">{formatStat(dailyTotals.invoiceValue)}</td>
-                                                <td className="px-6 py-4 font-[950] text-slate-900 text-center">{formatStat(dailyTotals.orders)}</td>
-                                                <td className="px-6 py-4 font-[950] text-[#2DBE6C] text-center bg-green-50/30">{formatStat(dailyTotals.delivered)}</td>
-                                                <td className="px-6 py-4 font-[950] text-orange-700 text-center bg-orange-50/30">{formatStat(dailyTotals.partial)}</td>
-                                                <td className="px-6 py-4 font-[950] text-red-700 text-center bg-red-50/30">{formatStat(dailyTotals.canceled)}</td>
-                                                <td className="px-6 py-4 font-[950] text-amber-700 text-center bg-amber-50/30">{formatStat(dailyTotals.pending)}</td>
-                                            </tr>
+                                                </>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
@@ -2059,8 +2073,11 @@ export default function DeliveryTrackingTab() {
                                         <tbody className="divide-y divide-slate-100">
                                             {cityStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
-                                                        No data yet
+                                                    <td colSpan={10} className="py-20">
+                                                        <NoData
+                                                            title="No City Data"
+                                                            message="No distribution data found for cities under current filters."
+                                                        />
                                                     </td>
                                                 </tr>
                                             ) : (
@@ -2128,8 +2145,11 @@ export default function DeliveryTrackingTab() {
                                         <tbody className="divide-y divide-slate-100">
                                             {customerStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={9} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
-                                                        No data yet
+                                                    <td colSpan={10} className="py-20">
+                                                        <NoData
+                                                            title="No Customer Data"
+                                                            message="No customer-specific tracking statistics available for these filters."
+                                                        />
                                                     </td>
                                                 </tr>
                                             ) : (
@@ -2185,8 +2205,11 @@ export default function DeliveryTrackingTab() {
                                         <tbody className="divide-y divide-slate-100">
                                             {productStats.length === 0 ? (
                                                 <tr>
-                                                    <td colSpan={5} className="px-6 py-20 text-center text-[15px] font-bold text-slate-400">
-                                                        No data yet
+                                                    <td colSpan={5} className="py-20">
+                                                        <NoData
+                                                            title="No Product Data"
+                                                            message="No product-level status logs found for the selected orders."
+                                                        />
                                                     </td>
                                                 </tr>
                                             ) : (
@@ -2623,7 +2646,14 @@ export default function DeliveryTrackingTab() {
                                     </thead>
                                     <tbody className="divide-y divide-[#E0E7FF]">
                                         {filteredOrders.length === 0 ? (
-                                            <tr><td colSpan={14} className="text-center py-20 text-[#B2C4BB] font-medium">No orders matching your filters</td></tr>
+                                            <tr>
+                                                <td colSpan={14} className="py-24">
+                                                    <NoData
+                                                        title="No Orders Found"
+                                                        message="Try adjusting your filters or search query to find the LPOs you're looking for."
+                                                    />
+                                                </td>
+                                            </tr>
                                         ) : (
                                             filteredOrders.map((o, index) => {
                                                 const diff = o.invoiceVal > 0 ? o.invoiceVal - o.lpoVal : 0;
@@ -2747,10 +2777,11 @@ export default function DeliveryTrackingTab() {
                         </div>
 
                         {Object.keys(duplicateOrders.grouped).length === 0 ? (
-                            <div className="bg-white/40 backdrop-blur-md rounded-[24px] p-20 text-center border-2 border-dashed border-[#E2E8F0] shadow-inner">
-                                <Activity className="w-16 h-16 text-[#94A3B8] mx-auto mb-4" />
-                                <h3 className="text-xl font-black text-[#0F172A] mb-2">No Duplicates Found</h3>
-                                <p className="text-[#64748B]">Your database seems clean of duplicate LPO numbers for same customers.</p>
+                            <div className="py-24">
+                                <NoData
+                                    title="No Duplicates Detected"
+                                    message="Great! Your database is clean of duplicate LPO records for the same customers."
+                                />
                             </div>
                         ) : (
                             <div className="space-y-8 pb-12">
@@ -2905,10 +2936,11 @@ export default function DeliveryTrackingTab() {
 
                         <div className="space-y-6">
                             {groupedMissingItems.length === 0 ? (
-                                <div className="bg-white/40 backdrop-blur-md rounded-[24px] p-20 text-center border-2 border-dashed border-[#E2E8F0] shadow-inner">
-                                    <Package className="w-16 h-16 text-[#94A3B8] mx-auto mb-4" />
-                                    <h3 className="text-xl font-black text-[#0F172A] mb-2">Clean Track</h3>
-                                    <p className="text-[#64748B]">No missing or canceled items recorded for current filters.</p>
+                                <div className="py-24">
+                                    <NoData
+                                        title="Clean Tracking"
+                                        message="No missing or canceled items recorded for the current filters."
+                                    />
                                 </div>
                             ) : (
                                 groupedMissingItems.map(({ order, items }) => (
@@ -3084,8 +3116,11 @@ export default function DeliveryTrackingTab() {
                                         ))}
                                         {!filteredOrders.some(o => o.reship) && (
                                             <tr>
-                                                <td colSpan={6} className="py-20 text-center text-[#B2C4BB] font-medium">
-                                                    No re-shipments matching filters
+                                                <td colSpan={6} className="py-24">
+                                                    <NoData
+                                                        title="No Re-Shipments"
+                                                        message="There are no active re-shipment records matching your filters."
+                                                    />
                                                 </td>
                                             </tr>
                                         )}

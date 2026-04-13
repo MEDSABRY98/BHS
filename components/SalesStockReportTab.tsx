@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, FileDown, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText } from 'lucide-react';
 import { generateDownloadFormPDF } from '@/lib/pdf/PdfUtils';
-import NoData from './NoData';
+import NoData from './Unified/NoData';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -139,7 +139,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
     <div className="space-y-6">
       <div className="flex flex-col lg:flex-row items-center justify-between gap-6">
         <div className="flex flex-col">
-            <h1 className="text-2xl font-medium text-slate-800 tracking-tight">Sales Stock Reports</h1>
+          <h1 className="text-2xl font-medium text-slate-800 tracking-tight">Sales Stock Reports</h1>
         </div>
 
         <div className="flex items-center gap-3 w-full max-w-2xl">
@@ -154,17 +154,17 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
             />
           </div>
           <div className="flex flex-col items-center gap-1">
-              <button
-                onClick={() => setShowDownloadModal(true)}
-                disabled={isGenerating || filteredCustomers.length === 0}
-                className="p-2.5 bg-green-600 text-white rounded-xl shadow-md shadow-green-100 hover:bg-green-700 transition-all active:scale-95 shrink-0 flex items-center gap-2"
-                title="Bulk Export"
-              >
-                {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileDown className="w-5 h-5" />}
-              </button>
-              {isGenerating && (
-                  <span className="text-[8px] font-black text-green-600 uppercase animate-pulse">{generationProgress.current}/{generationProgress.total}</span>
-              )}
+            <button
+              onClick={() => setShowDownloadModal(true)}
+              disabled={isGenerating || filteredCustomers.length === 0}
+              className="p-2.5 bg-green-600 text-white rounded-xl shadow-md shadow-green-100 hover:bg-green-700 transition-all active:scale-95 shrink-0 flex items-center gap-2"
+              title="Bulk Export"
+            >
+              {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <FileDown className="w-5 h-5" />}
+            </button>
+            {isGenerating && (
+              <span className="text-[8px] font-black text-green-600 uppercase animate-pulse">{generationProgress.current}/{generationProgress.total}</span>
+            )}
           </div>
         </div>
       </div>
@@ -234,7 +234,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
           <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300" onClick={() => setShowDownloadModal(false)} />
           <div className="relative bg-white rounded-[40px] shadow-2xl p-10 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
             <div className="w-20 h-20 bg-green-100 rounded-[30px] flex items-center justify-center mx-auto mb-8">
-                <FileDown className="w-10 h-10 text-green-600" />
+              <FileDown className="w-10 h-10 text-green-600" />
             </div>
             <h2 className="text-2xl font-black text-slate-900 text-center mb-2 tracking-tight">Bulk Document Engine</h2>
             <p className="text-slate-400 text-center text-xs font-bold uppercase tracking-[0.1em] mb-10">Exporting {filteredCustomers.length} entities</p>

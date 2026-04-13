@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './NoData';
+import NoData from './Unified/NoData';
 
 interface SalesDailySalesTabProps {
   data: SalesInvoice[];
@@ -465,353 +465,353 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
   return (
     <div className="w-full space-y-6">
-        {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 relative">
-          <h1 className="text-2xl font-medium text-slate-800">Sales Daily Sales</h1>
+      {/* Header */}
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 relative">
+        <h1 className="text-2xl font-medium text-slate-800">Sales Daily Sales</h1>
 
-          {/* Centered Search Box */}
-          <div className="flex-1 md:absolute md:left-1/2 md:-translate-x-1/2 w-full md:max-w-md group z-10">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors" />
-              <input
-                type="text"
-                placeholder="Search invoices..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium text-sm shadow-sm"
-              />
-            </div>
-          </div>
-
-          {/* Action Buttons */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                if (activeSubTab === 'all-invoices') exportAllInvoicesToExcel();
-                else if (activeSubTab === 'sales-by-day') exportSalesByDayToExcel();
-                else exportAvgSalesByDayToExcel();
-              }}
-              className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
-              title="Export to Excel"
-            >
-              <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
-            </button>
+        {/* Centered Search Box */}
+        <div className="flex-1 md:absolute md:left-1/2 md:-translate-x-1/2 w-full md:max-w-md group z-10">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors" />
+            <input
+              type="text"
+              placeholder="Search invoices..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium text-sm shadow-sm"
+            />
           </div>
         </div>
+
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              if (activeSubTab === 'all-invoices') exportAllInvoicesToExcel();
+              else if (activeSubTab === 'sales-by-day') exportSalesByDayToExcel();
+              else exportAvgSalesByDayToExcel();
+            }}
+            className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
+            title="Export to Excel"
+          >
+            <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
+          </button>
+        </div>
+      </div>
 
       {/* Sub-tabs */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="flex gap-3">
-            <button
-              onClick={() => setActiveSubTab('all-invoices')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'all-invoices'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              All Invoices /LPO
-            </button>
-            <button
-              onClick={() => setActiveSubTab('sales-by-day')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'sales-by-day'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              Sales BY Day
-            </button>
-            <button
-              onClick={() => setActiveSubTab('avg-sales-by-day')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'avg-sales-by-day'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              AVG Sales BY Day
-            </button>
+      <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+        <div className="flex gap-3">
+          <button
+            onClick={() => setActiveSubTab('all-invoices')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'all-invoices'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            All Invoices /LPO
+          </button>
+          <button
+            onClick={() => setActiveSubTab('sales-by-day')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'sales-by-day'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            Sales BY Day
+          </button>
+          <button
+            onClick={() => setActiveSubTab('avg-sales-by-day')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all ${activeSubTab === 'avg-sales-by-day'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            AVG Sales BY Day
+          </button>
+        </div>
+      </div>
+
+
+      {/* Statistics Cards - Distributed Layout */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        {/* Net Sales Card */}
+        <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-green-100 text-xs uppercase font-bold tracking-wider">Net Sales</span>
+            <span className="text-3xl font-black tracking-tight leading-none my-0.5">
+              {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span className="text-[10px] text-green-50 opacity-90 font-medium">AED (Sales - Returns)</span>
           </div>
         </div>
 
-
-        {/* Statistics Cards - Distributed Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Net Sales Card */}
-          <div className="bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-green-100 text-xs uppercase font-bold tracking-wider">Net Sales</span>
-              <span className="text-3xl font-black tracking-tight leading-none my-0.5">
-                {allInvoicesStats.netSales.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-              <span className="text-[10px] text-green-50 opacity-90 font-medium">AED (Sales - Returns)</span>
-            </div>
+        {/* Sales Invoices Count Card */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-blue-100 text-xs uppercase font-bold tracking-wider">Sales Invoices</span>
+            <span className="text-3xl font-black tracking-tight leading-none my-0.5">
+              {allInvoicesStats.salesCount.toLocaleString('en-US')}
+            </span>
+            <span className="text-[10px] text-blue-50 opacity-90 font-medium">Count</span>
           </div>
-
-          {/* Sales Invoices Count Card */}
-          <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-blue-100 text-xs uppercase font-bold tracking-wider">Sales Invoices</span>
-              <span className="text-3xl font-black tracking-tight leading-none my-0.5">
-                {allInvoicesStats.salesCount.toLocaleString('en-US')}
+          <div className="flex flex-col items-end justify-center">
+            <div className="text-right">
+              <span className="block text-[10px] text-blue-100 opacity-80 uppercase font-bold">Total Val</span>
+              <span className="block text-2xl font-bold leading-none">
+                {allInvoicesStats.totalSales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
               </span>
-              <span className="text-[10px] text-blue-50 opacity-90 font-medium">Count</span>
-            </div>
-            <div className="flex flex-col items-end justify-center">
-              <div className="text-right">
-                <span className="block text-[10px] text-blue-100 opacity-80 uppercase font-bold">Total Val</span>
-                <span className="block text-2xl font-bold leading-none">
-                  {allInvoicesStats.totalSales.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                </span>
-                <span className="text-[10px] text-blue-100 opacity-90">AED</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Returns Invoices Count Card */}
-          <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
-            <div className="flex flex-col">
-              <span className="text-red-100 text-xs uppercase font-bold tracking-wider">Return Invoices</span>
-              <span className="text-3xl font-black tracking-tight leading-none my-0.5">
-                {allInvoicesStats.returnsCount.toLocaleString('en-US')}
-              </span>
-              <span className="text-[10px] text-red-50 opacity-90 font-medium">Count</span>
-            </div>
-            <div className="flex flex-col items-end justify-center">
-              <div className="text-right">
-                <span className="block text-[10px] text-red-100 opacity-80 uppercase font-bold">Total Val</span>
-                <span className="block text-2xl font-bold leading-none">
-                  {allInvoicesStats.totalReturns.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                </span>
-                <span className="text-[10px] text-red-100 opacity-90">AED</span>
-              </div>
+              <span className="text-[10px] text-blue-100 opacity-90">AED</span>
             </div>
           </div>
         </div>
 
-        {/* All Invoices /LPO Tab */}
-        {activeSubTab === 'all-invoices' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-              <div className="flex items-center gap-4">
-                <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
-              </div>
-
-            </div>
-
-            {dailySalesData.length > 0 && (
-              <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                <Search className="w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Quick search in table (Invoice #, Customer, Amount, etc.)..."
-                  value={tableSearchQuery}
-                  onChange={(e) => setTableSearchQuery(e.target.value)}
-                  className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
-                />
-                {tableSearchQuery && (
-                  <button
-                    onClick={() => setTableSearchQuery('')}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
-              </div>
-            )}
-
-            {searchedData.length === 0 ? (
-              <div className="py-12">
-                <NoData />
-              </div>
-            ) : (
-              <>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50/50">
-                      <tr className="border-b border-gray-100">
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Date</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Number</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customer Name</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products Count</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Cost</th>
-                        <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Price</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedData.map((item: any, index: number) => (
-                        <tr key={`${item.invoiceNumber}-${startIndex + index}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/10'}`}>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                            {formatDate(item.invoiceDate) || '-'}
-                          </td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.invoiceNumber}</td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.customerName || '-'}</td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                            {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                            {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                            {item.productsCount}
-                          </td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                            {item.avgCost % 1 === 0
-                              ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                              : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            }
-                          </td>
-                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                            {item.avgPrice % 1 === 0
-                              ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                              : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                            }
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
-                    <div className="text-sm text-gray-500 font-medium">
-                      Showing {startIndex + 1} to {Math.min(endIndex, searchedData.length)} of {searchedData.length} invoices
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                        disabled={currentPage === 1}
-                        className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
-                      >
-                        <ChevronLeft className="w-5 h-5" />
-                      </button>
-                      <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} of {totalPages}</div>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                        disabled={currentPage === totalPages}
-                        className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
-                      >
-                        <ChevronRight className="w-5 h-5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+        {/* Returns Invoices Count Card */}
+        <div className="bg-gradient-to-br from-red-500 to-red-600 rounded-xl px-5 py-3 shadow-lg text-white flex items-center justify-between">
+          <div className="flex flex-col">
+            <span className="text-red-100 text-xs uppercase font-bold tracking-wider">Return Invoices</span>
+            <span className="text-3xl font-black tracking-tight leading-none my-0.5">
+              {allInvoicesStats.returnsCount.toLocaleString('en-US')}
+            </span>
+            <span className="text-[10px] text-red-50 opacity-90 font-medium">Count</span>
           </div>
-        )}
-
-        {/* Sales BY Day Tab */}
-        {activeSubTab === 'sales-by-day' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between p-6">
-              <h2 className="text-xl font-bold text-gray-800">Sales BY Day</h2>
+          <div className="flex flex-col items-end justify-center">
+            <div className="text-right">
+              <span className="block text-[10px] text-red-100 opacity-80 uppercase font-bold">Total Val</span>
+              <span className="block text-2xl font-bold leading-none">
+                {allInvoicesStats.totalReturns.toLocaleString('en-US', { maximumFractionDigits: 0 })}
+              </span>
+              <span className="text-[10px] text-red-100 opacity-90">AED</span>
             </div>
-            {salesByDayData.length === 0 ? (
-              <div className="py-12">
-                <NoData />
-              </div>
-            ) : (
+          </div>
+        </div>
+      </div>
+
+      {/* All Invoices /LPO Tab */}
+      {activeSubTab === 'all-invoices' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+            <div className="flex items-center gap-4">
+              <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
+            </div>
+
+          </div>
+
+          {dailySalesData.length > 0 && (
+            <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
+              <Search className="w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Quick search in table (Invoice #, Customer, Amount, etc.)..."
+                value={tableSearchQuery}
+                onChange={(e) => setTableSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
+              />
+              {tableSearchQuery && (
+                <button
+                  onClick={() => setTableSearchQuery('')}
+                  className="text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          )}
+
+          {searchedData.length === 0 ? (
+            <div className="py-12">
+              <NoData />
+            </div>
+          ) : (
+            <>
+
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50/50">
                     <tr className="border-b border-gray-100">
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Date</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Date</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Number</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customer Name</th>
                       <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
                       <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoices</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customers</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products Count</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Cost</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Price</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50">
-                    {salesByDayData.map((item, index) => (
-                      <tr key={`${item.date}-${index}`} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/10'}`}>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.date}</td>
+                  <tbody>
+                    {paginatedData.map((item: any, index: number) => (
+                      <tr key={`${item.invoiceNumber}-${startIndex + index}`} className={`border-b border-gray-100 hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/10'}`}>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                          {formatDate(item.invoiceDate) || '-'}
+                        </td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.invoiceNumber}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.customerName || '-'}</td>
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                         </td>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salInvoicesCount}</td>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salCustomersCount}</td>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salProductsCount}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                          {item.productsCount}
+                        </td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                          {item.avgCost % 1 === 0
+                            ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                            : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }
+                        </td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                          {item.avgPrice % 1 === 0
+                            ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                            : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-        )}
 
-        {/* AVG Sales BY Day Tab */}
-        {activeSubTab === 'avg-sales-by-day' && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="flex items-center justify-between p-6">
-              <h2 className="text-xl font-bold text-gray-800">AVG Sales BY Day</h2>
-            </div>
-            {avgSalesByDayData.length === 0 ? (
-              <div className="py-12">
-                <NoData />
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b-2 border-gray-200">
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month/Year</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Amount</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Quantity</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Invoices</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Customers</th>
-                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Products</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {avgSalesByDayData.map((item, index) => (
-                      <tr key={`${item.monthKey}-${index}`} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                        <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                          {item.monthYear}
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <span style={getHeatMapStyle(item.avgAmount, 'avgAmount')}>
-                            {item.avgAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <span style={getHeatMapStyle(item.avgQty, 'avgQty')}>
-                            {item.avgQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <span style={getHeatMapStyle(item.avgInvoices, 'avgInvoices')}>
-                            {item.avgInvoices.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <span style={getHeatMapStyle(item.avgCustomers, 'avgCustomers')}>
-                            {item.avgCustomers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                        <td className="text-center py-3 px-4">
-                          <span style={getHeatMapStyle(item.avgProducts, 'avgProducts')}>
-                            {item.avgProducts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+                  <div className="text-sm text-gray-500 font-medium">
+                    Showing {startIndex + 1} to {Math.min(endIndex, searchedData.length)} of {searchedData.length} invoices
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} of {totalPages}</div>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Sales BY Day Tab */}
+      {activeSubTab === 'sales-by-day' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between p-6">
+            <h2 className="text-xl font-bold text-gray-800">Sales BY Day</h2>
           </div>
-        )}
-      </div>
+          {salesByDayData.length === 0 ? (
+            <div className="py-12">
+              <NoData />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50/50">
+                  <tr className="border-b border-gray-100">
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Date</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoices</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customers</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {salesByDayData.map((item, index) => (
+                    <tr key={`${item.date}-${index}`} className={`hover:bg-gray-50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/10'}`}>
+                      <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.date}</td>
+                      <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                        {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                        {item.qty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                      <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salInvoicesCount}</td>
+                      <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salCustomersCount}</td>
+                      <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.salProductsCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* AVG Sales BY Day Tab */}
+      {activeSubTab === 'avg-sales-by-day' && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="flex items-center justify-between p-6">
+            <h2 className="text-xl font-bold text-gray-800">AVG Sales BY Day</h2>
+          </div>
+          {avgSalesByDayData.length === 0 ? (
+            <div className="py-12">
+              <NoData />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b-2 border-gray-200">
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month/Year</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Invoices</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Customers</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Products</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {avgSalesByDayData.map((item, index) => (
+                    <tr key={`${item.monthKey}-${index}`} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                        {item.monthYear}
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span style={getHeatMapStyle(item.avgAmount, 'avgAmount')}>
+                          {item.avgAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span style={getHeatMapStyle(item.avgQty, 'avgQty')}>
+                          {item.avgQty.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span style={getHeatMapStyle(item.avgInvoices, 'avgInvoices')}>
+                          {item.avgInvoices.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span style={getHeatMapStyle(item.avgCustomers, 'avgCustomers')}>
+                          {item.avgCustomers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                      <td className="text-center py-3 px-4">
+                        <span style={getHeatMapStyle(item.avgProducts, 'avgProducts')}>
+                          {item.avgProducts.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

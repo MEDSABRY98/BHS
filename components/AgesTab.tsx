@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from './NoData';
+import NoData from './Unified/NoData';
 
 interface AgesTabProps {
   data: InvoiceRow[];
@@ -512,22 +512,22 @@ export default function AgesTab({ data }: AgesTabProps) {
               ) : (
                 table.getRowModel().rows.map((row, idx) => (
                   <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
-                  {row.getVisibleCells().map((cell) => {
-                    const getWidth = () => {
-                      const columnId = cell.column.id;
-                      if (columnId === 'customerName') return '30%';
-                      return '11.6%';
-                    };
-                    return (
-                      <td
-                        key={cell.id}
-                        className="px-6 py-4 text-center text-sm whitespace-nowrap"
-                        style={{ width: getWidth() }}
-                      >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    );
-                  })}
+                    {row.getVisibleCells().map((cell) => {
+                      const getWidth = () => {
+                        const columnId = cell.column.id;
+                        if (columnId === 'customerName') return '30%';
+                        return '11.6%';
+                      };
+                      return (
+                        <td
+                          key={cell.id}
+                          className="px-6 py-4 text-center text-sm whitespace-nowrap"
+                          style={{ width: getWidth() }}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))
               )}

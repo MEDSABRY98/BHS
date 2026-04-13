@@ -7,6 +7,7 @@ import {
     ChevronLeft, ChevronRight, FileSpreadsheet
 } from 'lucide-react';
 import Loading from './Loading';
+import NoData from './Unified/NoData';
 export interface BaseProductOrder {
     productId: string;
     productName: string;
@@ -671,10 +672,11 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
 
                 </div>
                 {filteredAndSortedProducts.length === 0 && (
-                    <div className="py-20 text-center flex flex-col items-center justify-center text-gray-400">
-                        <Package className="w-16 h-16 mb-4 opacity-20" />
-                        <p className="text-lg font-semibold">No products found</p>
-                        <p className="text-sm">Try adjusting your search criteria</p>
+                    <div className="py-20">
+                        <NoData
+                            title="No Products Found"
+                            message="No items match your current search or filter criteria in the inventory."
+                        />
                     </div>
                 )}
                 <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 text-xs text-gray-500">

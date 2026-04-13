@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './NoData';
+import NoData from './Unified/NoData';
 import SalesProductDetails from './SalesProductDetails';
 
 interface SalesProductsTabProps {
@@ -288,7 +288,7 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
               >
                 <ChevronLeft className="w-5 h-5" />
               </button>
-              
+
               <div className="hidden sm:flex items-center gap-1.5">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum;
@@ -296,16 +296,15 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
                   else if (currentPage <= 3) pageNum = i + 1;
                   else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
                   else pageNum = currentPage - 2 + i;
-                  
+
                   return (
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`min-w-[40px] h-10 px-3 rounded-lg text-sm font-bold transition-all ${
-                        currentPage === pageNum
-                        ? 'bg-green-600 text-white shadow-md shadow-green-100'
-                        : 'bg-white border border-gray-200 text-gray-600 hover:border-green-500 hover:text-green-600'
-                      }`}
+                      className={`min-w-[40px] h-10 px-3 rounded-lg text-sm font-bold transition-all ${currentPage === pageNum
+                          ? 'bg-green-600 text-white shadow-md shadow-green-100'
+                          : 'bg-white border border-gray-200 text-gray-600 hover:border-green-500 hover:text-green-600'
+                        }`}
                     >
                       {pageNum}
                     </button>

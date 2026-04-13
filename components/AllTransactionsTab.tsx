@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from './NoData';
+import NoData from './Unified/NoData';
 
 interface AllTransactionsTabProps {
   data: InvoiceRow[];
