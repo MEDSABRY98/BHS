@@ -36,22 +36,17 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'all-notes', label: 'All Notes' }
     ],
     'sales': [
-        { id: 'sales-overview', label: 'Overview' },
-
+        { id: 'sales-overview', label: 'Sales Overview' },
         { id: 'sales-top10', label: 'Top 10' },
         { id: 'sales-customers', label: 'Customers' },
-        { id: 'sales-invoice-details', label: 'Invoice Details' },
         { id: 'sales-inactive-customers', label: 'Inactive' },
         { id: 'sales-statistics', label: 'Statistics' },
         { id: 'sales-daily-sales', label: 'Daily Sales' },
         { id: 'sales-products', label: 'Products' },
-        { id: 'sales-category-rank', label: 'Category Rank' },
         { id: 'sales-download-form', label: 'Stock Report' }
     ],
     'inventory': [
         { id: 'orders', label: 'Orders Tracker' },
-        { id: 'notification', label: 'Notification Order' },
-        { id: 'make', label: 'Make Orders' },
         { id: 'item_code', label: 'Item Code' }
     ],
     'cash-receipt': [
@@ -93,7 +88,9 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'delivery-tracking': [
         { id: 'new_order', label: 'New LPO' },
         { id: 'stats', label: 'Statistics' },
+        { id: 'checking', label: 'Checking' },
         { id: 'orders', label: 'All Orders' },
+        { id: 'duplicates', label: 'Duplicate LPOs' },
         { id: 'reship', label: 'Re-Shipments' },
         { id: 'missing_items', label: 'Missing Items' }
     ],
