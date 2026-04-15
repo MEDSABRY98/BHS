@@ -1772,10 +1772,11 @@ ${debtSectionHtml}
 
   // Calculate totals based on selected invoices, or all if none selected
   const selectedInvoices = filteredInvoices.filter(inv => selectedInvoiceIds.has(inv.originalIndex));
-  const invoicesToSum = selectedInvoices.length > 0 ? selectedInvoices : filteredInvoices;
-  const totalNetDebt = invoicesToSum.reduce((sum, inv) => sum + inv.netDebt, 0);
-  const totalDebit = invoicesToSum.reduce((sum, inv) => sum + inv.debit, 0);
-  const totalCredit = invoicesToSum.reduce((sum, inv) => sum + inv.credit, 0);
+  const totalNetDebt = selectedInvoices.length > 0 
+    ? selectedInvoices.reduce((sum, inv) => sum + inv.netDebt, 0)
+    : agingData.total;
+  const totalDebit = (selectedInvoices.length > 0 ? selectedInvoices : filteredInvoices).reduce((sum, inv) => sum + inv.debit, 0);
+  const totalCredit = (selectedInvoices.length > 0 ? selectedInvoices : filteredInvoices).reduce((sum, inv) => sum + inv.credit, 0);
 
   // Calculate totals for overdue invoices based on selected, or all if none selected
   const selectedOverdueInvoices = filteredOverdueInvoices.filter(inv => selectedOverdueIds.has(inv.originalIndex));
@@ -2718,7 +2719,7 @@ ${debtSectionHtml}
       payments3m,
       paymentsCount3m
     };
-  }, [filteredInvoices, filteredOverdueInvoices, totalNetDebt, agingData]);
+  }, [filteredInvoices, filteredOverdueInvoices, agingData]);
 
   // Use the sum of pieData to keep chart and pills perfectly aligned
   const agingTotal = useMemo(

@@ -154,6 +154,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'cash-receipt', title: "Cash Receipt", icon: Receipt, path: '/cash-receipt', color: 'teal' as const },
     { id: 'petty-cash', title: "Petty Cash", icon: Wallet, path: '/petty-cash', color: 'cyan' as const },
     { id: 'documents-tracking', title: "Documents Tracking", icon: FileSpreadsheet, path: '/documents-tracking', color: 'orange' as const },
+    { id: 'customers-summaries', title: "Customers Summaries", icon: FileSpreadsheet, path: '/customers-summaries', color: 'sky' as const },
     { id: 'debit', title: "Debit Analysis", icon: DollarSign, path: '/debit', color: 'red' as const },
     { id: 'visit-customers', title: "Visit Customers", icon: Users, path: '/visit-customers', color: 'pink' as const },
     { id: 'sales', title: "Sales Analysis", icon: LayoutGrid, path: '/sales', color: 'green' as const },

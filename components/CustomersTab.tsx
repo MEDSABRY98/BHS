@@ -1015,6 +1015,8 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
   // Bulk download state
   const [selectedCustomersForDownload, setSelectedCustomersForDownload] = useState<Set<string>>(new Set());
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isEmailDateModalOpen, setIsEmailDateModalOpen] = useState(false);
+  const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Advanced Filters
   const [debtOperator, setDebtOperator] = useState<'GT' | 'LT' | ''>('');
@@ -2449,13 +2451,23 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
   };
 
   // Bulk Email function
-  const handleBulkEmail = async () => {
+  const handleBulkEmail = async (overrideDate?: string) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
     }
 
+    if (!overrideDate && !isEmailDateModalOpen) {
+      setIsEmailDateModalOpen(true);
+      return;
+    }
+
+    const effectiveDate = overrideDate || emailStatementDate;
+    const cutoffDate = new Date(effectiveDate);
+    cutoffDate.setHours(23, 59, 59, 999);
+
     setIsDownloading(true);
+    setIsEmailDateModalOpen(false);
     try {
       const JSZip = (await import('jszip')).default;
       const { saveAs } = await import('file-saver');
@@ -2467,7 +2479,15 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
       // Process each customer
       for (const customerName of selectedCustomersForDownload) {
         // Get customer invoices
-        const customerInvoices = data.filter(row => row.customerName === customerName);
+        let customerInvoices = data.filter(row => row.customerName === customerName);
+
+        // Apply date filter
+        if (effectiveDate) {
+          customerInvoices = customerInvoices.filter(row => {
+            const d = parseDate(row.date);
+            return d && d <= cutoffDate;
+          });
+        }
 
         if (customerInvoices.length === 0) continue;
 
@@ -2517,7 +2537,8 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + inv.netDebt, 0);
 
         // Generate PDF
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, 'All Months (Net Only)');
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
         if (!pdfBlob) continue;
 
         const pdfBase64 = await blobToBase64(pdfBlob as Blob);
@@ -2530,7 +2551,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
 
         const debtSectionHtml = `<p style="margin: 0 0 10px 0; line-height: 1.5;">Please find attached your account statement.</p>
 <ul style="margin: 0 0 10px 0; padding-left: 20px; line-height: 1.5;">
-<li style="line-height: 1.5; margin-bottom: 5px;"><b>Your current balance is:</b> <span style="color: blue; font-weight: bold; font-size: 16px;">${netDebt.toLocaleString('en-US')} AED</span></li>
+<li style="line-height: 1.5; margin-bottom: 5px;"><b>Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is:</b> <span style="color: blue; font-weight: bold; font-size: 16px;">${netDebt.toLocaleString('en-US')} AED</span></li>
 </ul>`;
 
         const htmlBody = `<!DOCTYPE html>
@@ -3062,7 +3083,7 @@ ${debtSectionHtml}
                       </button>
 
                       <button
-                        onClick={handleBulkEmail}
+                        onClick={() => handleBulkEmail()}
                         disabled={isDownloading}
                         className="h-10 w-10 flex items-center justify-center bg-purple-600 text-white rounded-xl hover:bg-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed group relative"
                         title={`Generate Emails for ${selectedCustomersForDownload.size} customers`}
@@ -4714,6 +4735,69 @@ ${debtSectionHtml}
           );
         })()
       }
+
+      {/* Email Date Selection Modal */}
+      {isEmailDateModalOpen && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[60] px-4 py-8 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-gray-200">
+            <div className="flex justify-between items-center px-6 py-4 bg-gradient-to-r from-purple-500 to-indigo-600">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center backdrop-blur-sm">
+                  <Mail className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-white">Generate Statements</h3>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsEmailDateModalOpen(false)}
+                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors flex items-center justify-center"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="p-8">
+              <div className="mb-6">
+
+                <div className="relative group">
+                  <input
+                    type="date"
+                    className="w-full bg-gray-50 border-2 border-gray-200 text-gray-900 text-base py-3 px-4 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-semibold"
+                    value={emailStatementDate}
+                    onChange={(e) => setEmailStatementDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-4">
+                <button
+                  onClick={() => setIsEmailDateModalOpen(false)}
+                  className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleBulkEmail(emailStatementDate)}
+                  disabled={isDownloading}
+                  className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 shadow-lg shadow-purple-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                >
+                  {isDownloading ? (
+                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      <Mail className="h-4 w-4" />
+                      Generate ZIP
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div >
   );
 }

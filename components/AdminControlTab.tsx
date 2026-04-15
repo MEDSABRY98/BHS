@@ -19,6 +19,7 @@ const SYSTEMS = [
     { id: 'employee', label: 'Employee' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
+    { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'visit-customers', label: 'Visit Customers' },
     { id: 'delivery-tracking', label: 'Delivery Tracking' },
     { id: 'documents-tracking', label: 'Documents Tracking' }
