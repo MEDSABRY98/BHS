@@ -10,7 +10,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart, RefreshCcw } from 'lucide-react';
+import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { SalesInvoice } from '@/lib/googleSheets';
 import NoData from './Unified/NoData';
@@ -475,15 +475,6 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           </div>
         </div>
         <div className="shrink-0 flex items-center gap-2">
-          {onRefresh && (
-            <button
-              onClick={onRefresh}
-              className="flex items-center justify-center h-10 w-10 bg-blue-600 text-white rounded-xl shadow-sm hover:bg-blue-700 transition-colors"
-              title="Refresh Data"
-            >
-              <RefreshCcw className="h-5 w-5" />
-            </button>
-          )}
           <button
             onClick={exportToExcel}
             className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
