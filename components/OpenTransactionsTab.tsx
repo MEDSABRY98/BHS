@@ -52,7 +52,7 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -196,7 +196,18 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
 
     // Type filter
     if (typeFilter !== 'ALL') {
-      filtered = filtered.filter(item => item.type === typeFilter);
+      if (typeFilter === 'ALL - R') {
+        filtered = filtered.filter(item => Math.abs(item.debit) > 0.01 && Math.abs(item.credit) > 0.01);
+      } else if (typeFilter.endsWith(' - R')) {
+        const baseType = typeFilter.replace(' - R', '');
+        filtered = filtered.filter(item =>
+          item.type === baseType &&
+          Math.abs(item.debit) > 0.01 &&
+          Math.abs(item.credit) > 0.01
+        );
+      } else {
+        filtered = filtered.filter(item => item.type === typeFilter);
+      }
     }
 
     // Date range filter
@@ -451,70 +462,79 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="mb-4 flex flex-col gap-4">
+      {/* Filters - Unified Row */}
+      <div className="mb-6 flex flex-wrap items-center justify-center gap-4 bg-gray-50 p-4 rounded-xl border border-gray-100 shadow-sm">
         {/* Search Box */}
-        <div className="flex justify-center">
-          <div className="w-full max-w-2xl">
-            <input
-              type="text"
-              placeholder="Search by customer name, invoice number, date, amounts, or matching..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
-            />
-          </div>
+        <div className="flex-1 min-w-[300px] max-w-md">
+          <input
+            type="text"
+            placeholder="Search transactions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          />
         </div>
 
-        {/* Date Range and Type Filters */}
-        <div className="flex justify-center gap-4 flex-wrap">
+        {/* Date Filters Wrapper */}
+        <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">From Date:</label>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">From:</span>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white shadow-sm"
             />
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">To Date:</label>
+            <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">To:</span>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg"
+              className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white shadow-sm"
             />
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">Type:</label>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value as any)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg bg-white"
-            >
-              <option value="ALL">All Types</option>
-              <option value="Payment">Payments</option>
-              <option value="R-Payment">R-Payment</option>
-              <option value="Discount">Discounts</option>
-              <option value="Return">Returns</option>
-              <option value="Sales">Sales</option>
-              <option value="OB">Opening Balance</option>
-              <option value="Our-Paid">Our-Paid</option>
-            </select>
-          </div>
-          {(dateFrom || dateTo) && (
-            <button
-              onClick={() => {
-                setDateFrom('');
-                setDateTo('');
-              }}
-              className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm font-medium"
-            >
-              Clear Dates
-            </button>
-          )}
         </div>
+
+        {/* Type Filter */}
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold text-gray-500 uppercase tracking-wider">Type:</span>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white shadow-sm min-w-[160px]"
+          >
+            <option value="ALL">All Types</option>
+            <option value="ALL - R">All Types - R</option>
+            <option value="Payment">Payments</option>
+            <option value="Payment - R">Payments - R</option>
+            <option value="R-Payment">R-Payment</option>
+            <option value="R-Payment - R">R-Payment - R</option>
+            <option value="Discount">Discounts</option>
+            <option value="Discount - R">Discounts - R</option>
+            <option value="Return">Returns</option>
+            <option value="Return - R">Returns - R</option>
+            <option value="Sales">Sales</option>
+            <option value="Sales - R">Sales - R</option>
+            <option value="OB">Opening Balance</option>
+            <option value="OB - R">Opening Balance - R</option>
+            <option value="Our-Paid">Our-Paid</option>
+            <option value="Our-Paid - R">Our-Paid - R</option>
+          </select>
+        </div>
+
+        {(dateFrom || dateTo) && (
+          <button
+            onClick={() => {
+              setDateFrom('');
+              setDateTo('');
+            }}
+            className="px-4 py-2 bg-white text-red-600 border border-red-100 rounded-lg hover:bg-red-50 transition-colors text-xs font-bold uppercase tracking-wider shadow-sm"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-lg shadow overflow-hidden">

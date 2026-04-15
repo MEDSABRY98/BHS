@@ -7,7 +7,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import html2canvas from 'html2canvas';
 import * as XLSX from 'xlsx';
-import './DocumentsTracking.css';
+import './DocumentsTrackingTab.css';
 
 interface TimelineEvent {
     event: string;
@@ -329,8 +329,8 @@ export default function DocumentsTrackingTab() {
             const response = await fetch('/api/documents-tracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
-                    rowIndex: editMode.check.rowIndex, 
+                body: JSON.stringify({
+                    rowIndex: editMode.check.rowIndex,
                     documentNumber: editFormData.num,
                     documentName: editFormData.client,
                     receivedDate: editFormData.date,
@@ -587,7 +587,6 @@ export default function DocumentsTrackingTab() {
         }
     };
 
-
     const formatDate = (d: string) => {
         if (!d) return '—';
         const date = new Date(d);
@@ -612,9 +611,7 @@ export default function DocumentsTrackingTab() {
         );
     };
 
-    const exportReceiverToExcel = (e: React.MouseEvent, receiverName: string, items: Check[]) => {
-        e.stopPropagation();
-        
+    const exportReceiverToExcel = (fileName: string, items: Check[]) => {
         const headers = ['تاريخ التسليم', 'اسم صاحب الشيك', 'تاريخ الشيك', 'رقم الشيك', 'قيمة الشيك (د.إ)'];
         const rows = items.map(c => {
             const deliveryDate = c.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time.split(',')[0] || formatDate(c.date);
@@ -638,7 +635,7 @@ export default function DocumentsTrackingTab() {
         // Auto-size columns roughly
         worksheet['!cols'] = [{ wch: 15 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 15 }];
 
-        XLSX.writeFile(workbook, `شيكات_${receiverName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(workbook, `${fileName}.xlsx`);
     };
 
     const exportData = () => {
@@ -702,13 +699,7 @@ export default function DocumentsTrackingTab() {
         const formatGroupLabel = (key: string): string => {
             // key is yyyy-mm-dd
             if (/^\d{4}-\d{2}-\d{2}$/.test(key)) {
-                const d = new Date(key + 'T00:00:00');
-                return d.toLocaleDateString('ar-EG', {
-                    weekday: 'long',
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric'
-                });
+                return toDisplayDate(key);
             }
             return key;
         };
@@ -736,10 +727,10 @@ export default function DocumentsTrackingTab() {
     const deliveredCount = checks.filter(c => c.status === 'delivered').length;
 
     const receiverStats = React.useMemo(() => {
-        const stats: Record<string, { 
-            count: number; 
-            totalAmount: number; 
-            lastDate: string; 
+        const stats: Record<string, {
+            count: number;
+            totalAmount: number;
+            lastDate: string;
             items: Check[];
             datesMap: Record<string, { count: number; totalAmount: number; items: Check[]; rawTimestamp: number }>
         }> = {};
@@ -748,13 +739,46 @@ export default function DocumentsTrackingTab() {
             if (c.status === 'delivered' && c.finalReceiverName) {
                 const name = c.finalReceiverName.trim();
                 const receiptTime = c.timeline.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time || c.date;
-                
-                // Extract date part, ignore time
-                let receiptDateStr = receiptTime.split(',')[0].trim();
-                if (receiptDateStr.includes(' ')) {
-                    // Sometimes there's no comma, e.g. "yyyy-mm-dd hh:mm:ss"
-                    receiptDateStr = receiptDateStr.split(' ')[0].trim();
-                }
+
+                // Improved date extraction for grouping
+                const getCleanDate = (str: string) => {
+                    if (!str) return '—';
+                    
+                    // 1. Handle commas (both standard and Arabic) and take the date part
+                    let part = str.replace('،', ',').split(',')[0].trim();
+                    if (part.includes(' ')) {
+                        part = part.split(' ')[0].trim();
+                    }
+                    
+                    // 2. Convert Arabic digits to English digits
+                    const arDigits = "٠١٢٣٤٥٦٧٨٩";
+                    let clean = part.split('').map(char => {
+                        const idx = arDigits.indexOf(char);
+                        return idx !== -1 ? idx.toString() : char;
+                    }).join('');
+                    
+                    // 3. Keep only digits and separators
+                    clean = clean.replace(/[^\d/\-.]/g, '');
+                    
+                    // 4. Split and normalize to DD/MM/YYYY
+                    const parts = clean.split(/[/.\-]/).filter(p => p.length > 0);
+                    if (parts.length === 3) {
+                        let d, m, y;
+                        if (parts[0].length === 4) {
+                            // yyyy/mm/dd
+                            [y, m, d] = parts;
+                        } else if (parts[2].length === 4) {
+                            // dd/mm/yyyy
+                            [d, m, y] = parts;
+                        } else {
+                            return clean;
+                        }
+                        return `${d.padStart(2, '0')}/${m.padStart(2, '0')}/${y}`;
+                    }
+                    return clean || '—';
+                };
+
+                const receiptDateStr = getCleanDate(receiptTime);
                 const timestamp = new Date(receiptTime).getTime() || new Date(c.date).getTime() || 0;
 
                 if (!stats[name]) {
@@ -768,7 +792,7 @@ export default function DocumentsTrackingTab() {
                 if (!stats[name].datesMap[receiptDateStr]) {
                     stats[name].datesMap[receiptDateStr] = { count: 0, totalAmount: 0, items: [], rawTimestamp: timestamp };
                 }
-                
+
                 stats[name].datesMap[receiptDateStr].count += 1;
                 stats[name].datesMap[receiptDateStr].totalAmount += c.amount;
                 stats[name].datesMap[receiptDateStr].items.push(c);
@@ -788,7 +812,7 @@ export default function DocumentsTrackingTab() {
                 rawTimestamp: dVal.rawTimestamp,
                 items: dVal.items.sort((a, b) => (a.client || '').localeCompare(b.client || ''))
             })).sort((a, b) => b.rawTimestamp - a.rawTimestamp);
-            
+
             return {
                 name,
                 count: data.count,
@@ -801,6 +825,8 @@ export default function DocumentsTrackingTab() {
     }, [checks]);
 
     const [expandedReceiver, setExpandedReceiver] = useState<string | null>(null);
+    const [expandedDate, setExpandedDate] = useState<string | null>(null);
+    const [exportReceiverModal, setExportReceiverModal] = useState<any>(null);
 
     const selectedCheck = checks.find(c => c.id === selectedCheckId);
 
@@ -1142,7 +1168,10 @@ export default function DocumentsTrackingTab() {
                             ) : (
                                 receiverStats.map((rec) => (
                                     <div className={`receiver-card ${expandedReceiver === rec.name ? 'expanded' : ''}`} key={rec.name}>
-                                        <div className="receiver-card-main" onClick={() => setExpandedReceiver(expandedReceiver === rec.name ? null : rec.name)}>
+                                        <div className="receiver-card-main" onClick={() => {
+                                            setExpandedReceiver(expandedReceiver === rec.name ? null : rec.name);
+                                            setExpandedDate(null); // Reset date toggle when switching receivers
+                                        }}>
                                             <div className="receiver-card-info">
                                                 <div className="receiver-avatar">
                                                     {rec.name.charAt(0).toUpperCase()}
@@ -1150,15 +1179,18 @@ export default function DocumentsTrackingTab() {
                                                 <div className="receiver-meta">
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                                                         <h3 style={{ margin: 0 }}>{rec.name}</h3>
-                                                        <button 
-                                                            onClick={(e) => exportReceiverToExcel(e, rec.name, rec.items)}
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                setExportReceiverModal(rec);
+                                                            }}
                                                             className="flex items-center justify-center h-7 w-7 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-600 hover:text-white transition-colors"
                                                             title="تصدير شيكات المستلم إلى إكسيل"
                                                         >
                                                             <FileSpreadsheet size={14} />
                                                         </button>
                                                     </div>
-                                                    <p style={{ margin: 0 }}>آخر استلام: {rec.lastDate.split(',')[0]}</p>
+
                                                 </div>
                                             </div>
                                             <div className="receiver-card-stats">
@@ -1177,31 +1209,54 @@ export default function DocumentsTrackingTab() {
 
                                         {expandedReceiver === rec.name && (
                                             <div className="receiver-details-expanded" style={{ padding: '0', background: 'transparent' }}>
-                                                {rec.dates.map((dateGroup, dIdx) => (
-                                                    <div key={dIdx} className="date-group-block" style={{ background: '#f8fafc', borderRadius: '12px', padding: '16px', marginBottom: '12px', border: '1px solid #e2e8f0' }}>
-                                                        <div className="date-group-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                                                            <span style={{ fontWeight: 800, color: '#1e293b' }}>📅 {dateGroup.date}</span>
-                                                            <div style={{ display: 'flex', gap: '16px', fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
-                                                                <span>{dateGroup.count} شيك</span>
-                                                                <span style={{ color: 'var(--gold-dark)' }}>{dateGroup.totalAmount.toLocaleString('ar-AE')} د.إ</span>
-                                                            </div>
-                                                        </div>
-                                                        <div className="details-header-row" style={{ background: 'transparent', padding: '0 12px 8px', border: 'none', display: 'flex' }}>
-                                                            <span style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>رقم الشيك</span>
-                                                            <span style={{ width: '50%', textAlign: 'center', justifyContent: 'center' }}>العميل</span>
-                                                            <span style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>المبلغ</span>
-                                                        </div>
-                                                        <div className="details-items-list">
-                                                            {dateGroup.items.map((item, idx) => (
-                                                                <div className="detail-item-row" key={idx} onClick={() => setTrackingCheck(item)} style={{ background: 'white', display: 'flex', alignItems: 'center' }}>
-                                                                    <span className="d-num gold-text" style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>#{item.num}</span>
-                                                                    <span className="d-client" style={{ width: '50%', textAlign: 'center', justifyContent: 'center' }}>{item.client}</span>
-                                                                    <span className="d-amt" style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>{item.amount.toLocaleString('ar-AE')} د.إ</span>
+                                                {rec.dates.map((dateGroup, dIdx) => {
+                                                    const isDateExpanded = expandedDate === `${rec.name}-${dateGroup.date}`;
+                                                    return (
+                                                        <div key={dIdx} className="date-group-block" style={{ background: '#f8fafc', borderRadius: '12px', padding: '0', marginBottom: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+                                                            <div
+                                                                className="date-group-header"
+                                                                onClick={() => setExpandedDate(isDateExpanded ? null : `${rec.name}-${dateGroup.date}`)}
+                                                                style={{
+                                                                    display: 'flex',
+                                                                    justifyContent: 'space-between',
+                                                                    alignItems: 'center',
+                                                                    padding: '12px 16px',
+                                                                    cursor: 'pointer',
+                                                                    background: isDateExpanded ? '#eff6ff' : 'transparent',
+                                                                    transition: 'background 0.2s'
+                                                                }}
+                                                            >
+                                                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                                    {isDateExpanded ? <ChevronUp size={16} className="text-blue-600" /> : <ChevronDown size={16} className="text-slate-400" />}
+                                                                    <span style={{ fontWeight: 800, color: '#1e293b' }}>📅 {dateGroup.date}</span>
                                                                 </div>
-                                                            ))}
+                                                                <div style={{ display: 'flex', gap: '16px', fontSize: '13px', fontWeight: 700, color: '#64748b' }}>
+                                                                    <span>{dateGroup.count} شيك</span>
+                                                                    <span style={{ color: 'var(--gold-dark)' }}>{dateGroup.totalAmount.toLocaleString('ar-AE')} د.إ</span>
+                                                                </div>
+                                                            </div>
+
+                                                            {isDateExpanded && (
+                                                                <div className="date-group-content" style={{ padding: '0 16px 16px' }}>
+                                                                    <div className="details-header-row" style={{ background: 'transparent', padding: '8px 12px', border: 'none', display: 'flex', borderBottom: '1px solid #f1f5f9', marginBottom: '8px' }}>
+                                                                        <span style={{ width: '25%', textAlign: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>رقم الشيك</span>
+                                                                        <span style={{ width: '50%', textAlign: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>العميل</span>
+                                                                        <span style={{ width: '25%', textAlign: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 700, color: '#94a3b8' }}>المبلغ</span>
+                                                                    </div>
+                                                                    <div className="details-items-list">
+                                                                        {dateGroup.items.map((item, idx) => (
+                                                                            <div className="detail-item-row" key={idx} onClick={() => setTrackingCheck(item)} style={{ background: 'white', display: 'flex', alignItems: 'center', marginBottom: '4px', borderRadius: '8px', border: '1px solid #f1f5f9' }}>
+                                                                                <span className="d-num gold-text" style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>#{item.num}</span>
+                                                                                <span className="d-client" style={{ width: '50%', textAlign: 'center', justifyContent: 'center' }}>{item.client}</span>
+                                                                                <span className="d-amt" style={{ width: '25%', textAlign: 'center', justifyContent: 'center' }}>{item.amount.toLocaleString('ar-AE')} د.إ</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -1317,7 +1372,7 @@ export default function DocumentsTrackingTab() {
                                     </div>
                                 </button>
 
-                                <button className="action-btn-large" onClick={() => { 
+                                <button className="action-btn-large" onClick={() => {
                                     setEditFormData({
                                         num: activeActionModal.num,
                                         client: activeActionModal.client,
@@ -1329,8 +1384,8 @@ export default function DocumentsTrackingTab() {
                                         receiverName: activeActionModal.receiverName || '',
                                         finalReceiverName: activeActionModal.finalReceiverName || ''
                                     });
-                                    setEditMode({ isOpen: true, check: activeActionModal }); 
-                                    setActiveActionModal(null); 
+                                    setEditMode({ isOpen: true, check: activeActionModal });
+                                    setActiveActionModal(null);
                                 }}>
                                     <div className="btn-icon-circle" style={{ backgroundColor: '#fff8eb', color: 'var(--gold-dark)' }}><Edit size={20} /></div>
                                     <div className="btn-text">
@@ -1388,42 +1443,42 @@ export default function DocumentsTrackingTab() {
                             <div className="form-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                                 <div className="field" style={{ gridColumn: '1 / -1' }}>
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>صاحب الشيك</label>
-                                    <input type="text" value={editFormData.client} onChange={e => setEditFormData({...editFormData, client: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="text" value={editFormData.client} onChange={e => setEditFormData({ ...editFormData, client: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
 
                                 <div className="field">
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>رقم الشيك</label>
-                                    <input type="text" value={editFormData.num} onChange={e => setEditFormData({...editFormData, num: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="text" value={editFormData.num} onChange={e => setEditFormData({ ...editFormData, num: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
                                 <div className="field">
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>تاريخ الشيك</label>
-                                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(editFormData.checkDate) ? editFormData.checkDate : normalizeDate(editFormData.checkDate) || ''} onChange={e => setEditFormData({...editFormData, checkDate: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(editFormData.checkDate) ? editFormData.checkDate : normalizeDate(editFormData.checkDate) || ''} onChange={e => setEditFormData({ ...editFormData, checkDate: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
 
                                 <div className="field">
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>المبلغ (د.إ)</label>
-                                    <input type="number" value={editFormData.amount} onChange={e => setEditFormData({...editFormData, amount: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="number" value={editFormData.amount} onChange={e => setEditFormData({ ...editFormData, amount: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
                                 <div className="field">
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>تاريخ الاستلام</label>
-                                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(editFormData.date) ? editFormData.date : normalizeDate(editFormData.date) || ''} onChange={e => setEditFormData({...editFormData, date: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="date" value={/^\d{4}-\d{2}-\d{2}$/.test(editFormData.date) ? editFormData.date : normalizeDate(editFormData.date) || ''} onChange={e => setEditFormData({ ...editFormData, date: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
 
                                 <div className="field">
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>مستلم من مين؟</label>
-                                    <input type="text" value={editFormData.bank} onChange={e => setEditFormData({...editFormData, bank: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="text" value={editFormData.bank} onChange={e => setEditFormData({ ...editFormData, bank: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
                                 <div className="field">
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>مين اللي استلم (المندوب)؟</label>
-                                    <input type="text" value={editFormData.receiverName} onChange={e => setEditFormData({...editFormData, receiverName: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="text" value={editFormData.receiverName} onChange={e => setEditFormData({ ...editFormData, receiverName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
 
                                 <div className="field" style={{ gridColumn: '1 / -1' }}>
                                     <label style={{ display: 'block', marginBottom: '8px', fontWeight: 700 }}>المستلم النهائي</label>
-                                    <input type="text" value={editFormData.finalReceiverName} onChange={e => setEditFormData({...editFormData, finalReceiverName: e.target.value})} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
+                                    <input type="text" value={editFormData.finalReceiverName} onChange={e => setEditFormData({ ...editFormData, finalReceiverName: e.target.value })} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #d1d5db', color: '#000' }} />
                                 </div>
                             </div>
-                            
+
                             <div style={{ marginTop: '20px', display: 'flex', gap: '15px', borderTop: '1px solid #e2e8f0', paddingTop: '15px' }}>
                                 <button className="btn-cancel-delete" style={{ flex: 1, padding: '12px', fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px' }} onClick={() => setEditMode({ isOpen: false, check: null })}>
                                     إلغاء
@@ -1709,6 +1764,57 @@ export default function DocumentsTrackingTab() {
                                 >
                                     {isLoading ? 'جاري التحديث...' : `✓ تأكيد تسليم ${checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered').length} شيك`}
                                 </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* RECEIVER EXCEL EXPORT MODAL */}
+            {exportReceiverModal && (
+                <div className="modal-overlay open" onClick={(e) => { if (e.target === e.currentTarget) setExportReceiverModal(null); }}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+                        <div className="modal-title">
+                            <span>تصدير شيكات: {exportReceiverModal.name}</span>
+                            <button className="modal-close" onClick={() => setExportReceiverModal(null)}>✕</button>
+                        </div>
+                        <div className="modal-content" style={{ padding: '20px 0' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
+                                <button 
+                                    className="flex items-center justify-between p-4 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-600 hover:text-white transition-colors border-2 border-emerald-100 font-bold"
+                                    onClick={() => {
+                                        exportReceiverToExcel(`شيكات_${exportReceiverModal.name.replace(/\s+/g, '_')}_الكل`, exportReceiverModal.items);
+                                        setExportReceiverModal(null);
+                                    }}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <FileSpreadsheet size={20} />
+                                        <span>تصدير الكل</span>
+                                    </div>
+                                    <span className="bg-white/30 px-2 py-1 rounded text-sm">{exportReceiverModal.count} شيك</span>
+                                </button>
+                                
+                                <div className="text-gray-400 font-bold text-sm mt-2 mb-1 px-2">أو اختر بحسب تاريخ التسليم:</div>
+                                
+                                {exportReceiverModal.dates.map((dGrp: any, idx: number) => (
+                                    <button 
+                                        key={idx}
+                                        className="flex items-center justify-between p-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors border border-gray-200 font-semibold"
+                                        onClick={() => {
+                                            exportReceiverToExcel(`شيكات_${exportReceiverModal.name.replace(/\s+/g, '_')}_التاريخ_${dGrp.date.replace(/\//g, '-')}`, dGrp.items);
+                                            setExportReceiverModal(null);
+                                        }}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <Calendar size={16} className="text-gray-400" />
+                                            <span>{dGrp.date}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="text-xs text-gray-500">{dGrp.totalAmount.toLocaleString('ar-AE')} د.إ</span>
+                                            <span className="bg-gray-200 text-gray-600 px-2 py-1 rounded text-xs">{dGrp.count} شيك</span>
+                                        </div>
+                                    </button>
+                                ))}
                             </div>
                         </div>
                     </div>

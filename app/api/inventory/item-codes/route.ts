@@ -15,7 +15,7 @@ export async function GET() {
 
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: `'Item Code'!A:C`, // TAGS, ITEM CODE, BARCODE
+            range: `'Inventory - Item Code'!A:C`, // TAGS, ITEM CODE, BARCODE
         });
 
         const rows = response.data.values;

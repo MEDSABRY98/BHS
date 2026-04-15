@@ -1240,12 +1240,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
         };
       }
 
-      existing.totalDebit += row.debit;
-      existing.totalCredit += row.credit;
-      existing.netDebt = existing.totalDebit - existing.totalCredit;
-      existing.transactionCount += 1;
-
-      // Classification of Credits/Collections
+      // Aggregation logic - Collection types use net (Credit - Debit)
       const n = (row.number || '').toUpperCase();
       let type = '';
 
@@ -1265,13 +1260,25 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
         }
       }
 
+      const netCollection = row.credit - row.debit;
+
       if (type === 'Payment') {
-        existing.creditPayments += (row.credit - row.debit);
+        existing.creditPayments += netCollection;
+        existing.totalCredit += netCollection;
       } else if (type === 'Return') {
-        existing.creditReturns += row.credit;
+        existing.creditReturns += netCollection;
+        existing.totalCredit += netCollection;
       } else if (type === 'Discount') {
-        existing.creditDiscounts += row.credit;
+        existing.creditDiscounts += netCollection;
+        existing.totalCredit += netCollection;
+      } else {
+        // Sales, OB, Other
+        existing.totalDebit += row.debit;
+        existing.totalCredit += row.credit;
       }
+
+      existing.netDebt = existing.totalDebit - existing.totalCredit;
+      existing.transactionCount += 1;
 
       const rowDate = parseDate(row.date);
       if (rowDate && rowDate >= date90DaysAgo) {

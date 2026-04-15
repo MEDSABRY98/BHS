@@ -38,6 +38,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
   const [currentPage, setCurrentPage] = useState(1);
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [showDownloadModal, setShowDownloadModal] = useState(false);
+  const [selectedCustomerForPriceList, setSelectedCustomerForPriceList] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -89,21 +90,24 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
 
   useEffect(() => { setCurrentPage(1); }, [debouncedSearchQuery]);
 
-  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist') => {
+  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist', strategy: 'most' | 'last' = 'most') => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
     try {
       setIsGenerating(true);
+      setSelectedCustomerForPriceList(null);
       const productsToPrint = customer.products.map(p => ({
         barcode: p.barcode,
         product: p.product,
-        price: mode === 'pricelist' ? calculateMode(p.prices) : undefined
+        price: mode === 'pricelist' 
+          ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices)) 
+          : undefined
       }));
-      await generateDownloadFormPDF(customer.customer, productsToPrint, false, mode);
+      await generateDownloadFormPDF(customer.customer, productsToPrint, false, mode, strategy);
     } catch (error) { console.error(error); } finally { setIsGenerating(false); }
   };
 
-  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist') => {
+  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist', strategy: 'most' | 'last' = 'most') => {
     if (filteredCustomers.length === 0) return;
     setShowDownloadModal(false);
     try {
@@ -116,9 +120,11 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
         const productsToPrint = customer.products.map(p => ({
           barcode: p.barcode,
           product: p.product,
-          price: mode === 'pricelist' ? calculateMode(p.prices) : undefined
+          price: mode === 'pricelist' 
+            ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices)) 
+            : undefined
         }));
-        const blob = await generateDownloadFormPDF(customer.customer, productsToPrint, true, mode) as Blob;
+        const blob = await generateDownloadFormPDF(customer.customer, productsToPrint, true, mode, strategy) as Blob;
         const safeName = customer.customer.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
         zip.file(`${safeName}.pdf`, blob);
         if (i % 5 === 0) await new Promise(r => setTimeout(r, 50));
@@ -202,7 +208,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
                     </td>
                     <td className="py-3 px-8 text-center">
                       <button
-                        onClick={() => handleDownload(c.customer, 'pricelist')}
+                        onClick={() => setSelectedCustomerForPriceList(c.customer)}
                         disabled={isGenerating}
                         className="px-4 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 mx-auto disabled:opacity-30"
                       >
@@ -216,6 +222,43 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
             </tbody>
           </table>
         </div>
+
+        {selectedCustomerForPriceList && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedCustomerForPriceList(null)} />
+            <div className="relative bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
+              <div className="w-16 h-16 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <DollarSign className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 text-center mb-1 tracking-tight">Select Strategy</h2>
+              <p className="text-slate-500 text-center text-[10px] font-bold uppercase tracking-widest mb-8">{selectedCustomerForPriceList}</p>
+              
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'most')}
+                  className="w-full py-4 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-between px-6 group"
+                >
+                  <span>Most Price</span>
+                  <span className="text-[9px] text-white/50 font-medium">Frequent</span>
+                </button>
+                <button
+                  onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'last')}
+                  className="w-full py-4 bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-between px-6 group"
+                >
+                  <span>Last Price</span>
+                  <span className="text-[9px] text-white/50 font-medium">Recent</span>
+                </button>
+              </div>
+              
+              <button 
+                onClick={() => setSelectedCustomerForPriceList(null)} 
+                className="mt-6 w-full text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         {filteredCustomers.length > ITEMS_PER_PAGE && (
           <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
@@ -241,16 +284,30 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
             <div className="flex flex-col gap-4">
               <button
                 onClick={() => handleDownloadAllPDFs('order')}
-                className="w-full py-5 bg-slate-900 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 transition-all shadow-xl"
+                className="w-full py-5 bg-slate-900 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-slate-800 transition-all shadow-xl flex items-center justify-center gap-3"
               >
+                <div className="w-6 h-6 bg-white/10 rounded-lg flex items-center justify-center">
+                  <FileText className="w-3.5 h-3.5" />
+                </div>
                 Generate Stock Reports
               </button>
-              <button
-                onClick={() => handleDownloadAllPDFs('pricelist')}
-                className="w-full py-5 bg-green-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-2xl hover:bg-green-700 transition-all shadow-xl"
-              >
-                Generate Price Lists
-              </button>
+              
+              <div className="grid grid-cols-2 gap-3 mt-2">
+                <button
+                  onClick={() => handleDownloadAllPDFs('pricelist', 'most')}
+                  className="py-5 bg-emerald-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-emerald-700 transition-all shadow-lg flex flex-col items-center gap-2"
+                >
+                  <span className="text-white/70 text-[8px]">Option 1</span>
+                  <span>Most Price</span>
+                </button>
+                <button
+                  onClick={() => handleDownloadAllPDFs('pricelist', 'last')}
+                  className="py-5 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex flex-col items-center gap-2"
+                >
+                  <span className="text-white/70 text-[8px]">Option 2</span>
+                  <span>Last Price</span>
+                </button>
+              </div>
             </div>
             <button onClick={() => setShowDownloadModal(false)} className="mt-8 w-full text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Abort Engine</button>
           </div>

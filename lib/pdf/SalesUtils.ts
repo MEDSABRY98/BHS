@@ -6,7 +6,8 @@ export async function generateDownloadFormPDF(
   customerName: string,
   products: Array<{ barcode: string; product: string; price?: number }>,
   returnBlob: boolean = false,
-  mode: 'order' | 'pricelist' = 'order'
+  mode: 'order' | 'pricelist' = 'order',
+  pricingStrategy?: 'most' | 'last'
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
@@ -24,7 +25,11 @@ export async function generateDownloadFormPDF(
   doc.setFontSize(16); doc.setTextColor(0, 155, 77); doc.setFont('helvetica', 'bold');
   doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 8;
-  doc.setFontSize(12); doc.setTextColor(100, 100, 100); doc.text(mode === 'pricelist' ? 'Price List' : 'Order Form', pageWidth / 2, yPosition, { align: 'center' });
+  doc.setFontSize(12); doc.setTextColor(100, 100, 100); 
+  const subtitle = mode === 'pricelist' 
+    ? `Price List (${pricingStrategy === 'last' ? 'Last Price' : 'Most Price'})` 
+    : 'Order Form';
+  doc.text(subtitle, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 8;
 
   doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold');
