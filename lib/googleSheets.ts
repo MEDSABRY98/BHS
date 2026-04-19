@@ -2393,7 +2393,7 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     const [inventoryResponse, salesResponse] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - Orders'!A:Z`, // Expanded range
+        range: `'Inventory - PRODUCTS'!A:Z`, // Expanded range
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
@@ -2570,7 +2570,7 @@ export async function updateProductColumn(rowIndex: number, columnName: string, 
     // Read header row to find column index
     const headerRes = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - Orders'!1:1`,
+      range: `'Inventory - PRODUCTS'!1:1`,
     });
     const header = (headerRes.data.values?.[0] || []).map((h: string) => h.toLowerCase().trim());
 
@@ -2593,7 +2593,7 @@ export async function updateProductColumn(rowIndex: number, columnName: string, 
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - Orders'!${colLetter}${rowIndex}`,
+      range: `'Inventory - PRODUCTS'!${colLetter}${rowIndex}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: [[value]],
@@ -4220,5 +4220,291 @@ export async function batchUpdateDocumentsTrackingRecords(updates: { rowIndex: n
     throw error;
   }
 }
+
+/**
+ * Fetches and aggregates product movement data (Sales, Returns, Net Purchases)
+ * from the 'Inventory - MOVES' sheet.
+ * Logic:
+ * - Sales: TO = 'Partners/Customers'
+ * - Returns: FROM = 'Partners/Customers'
+ * - Purchases: FROM = 'Partners/Vendors'
+ * - Purchase Returns: TO = 'Partners/Vendors'
+ * - Net Purchases = Purchases - Purchase Returns
+ */
+export async function getProductMovementsData() {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - MOVES'!A:I`,
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length === 0) return {};
+
+    const header = rows[0].map((h: string) => h.toLowerCase().trim());
+    const idx = {
+      from: header.indexOf('location from'),
+      to: header.indexOf('location to'),
+      productId: header.indexOf('product id'),
+      qty: header.indexOf('qty')
+    };
+
+    // Fallbacks if header logic fails
+    if (idx.from === -1) idx.from = 2;
+    if (idx.to === -1) idx.to = 3;
+    if (idx.productId === -1) idx.productId = 4;
+    if (idx.qty === -1) idx.qty = 8;
+
+    const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
+
+    rows.slice(1).forEach(row => {
+      const from = row[idx.from]?.toString().trim();
+      const to = row[idx.to]?.toString().trim();
+      const productId = row[idx.productId]?.toString().trim();
+      const qtyStr = row[idx.qty]?.toString().replace(/,/g, '') || '0';
+      const qty = parseFloat(qtyStr);
+
+      if (!productId || isNaN(qty)) return;
+
+      if (!movements[productId]) {
+        movements[productId] = { sales: 0, returns: 0, netPurchases: 0 };
+      }
+
+      // Logic:
+      // Sales: TO === 'Partners/Customers'
+      if (to === 'Partners/Customers') {
+        movements[productId].sales += qty;
+      }
+      // Returns: FROM === 'Partners/Customers'
+      if (from === 'Partners/Customers') {
+        movements[productId].returns += qty;
+      }
+      // Purchases: FROM === 'Partners/Vendors'
+      if (from === 'Partners/Vendors') {
+        movements[productId].netPurchases += qty;
+      }
+      // Purchase Returns: TO === 'Partners/Vendors'
+      if (to === 'Partners/Vendors') {
+        movements[productId].netPurchases -= qty;
+      }
+    });
+
+    return movements;
+  } catch (error) {
+    console.error('Error fetching movements data:', error);
+    throw error;
+  }
+}
+
+/**
+ * Provides detailed analysis for a single product over the last 12 months.
+ */
+export async function getSingleProductAnalysis(productId: string, filters?: { year?: string, month?: string, from?: string, to?: string, preset?: string }) {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // 1. Fetch Move Data
+    const movesResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - MOVES'!A:I`,
+    });
+
+    // 2. Fetch Product Info for Current Stock
+    const productsResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'Inventory - PRODUCTS'!A:Z`,
+    });
+
+    const rows = movesResponse.data.values || [];
+    if (rows.length === 0) return null;
+
+    // --- Process Products to find Current Stock ---
+    const prodRows = productsResponse.data.values || [];
+    let currentStock = 0;
+    let minQ = 0;
+    
+    if (prodRows.length > 0) {
+      const pHeader = prodRows[0].map(h => h.toString().toLowerCase().trim());
+      const pIdx = {
+        id: pHeader.findIndex(h => h === 'product id' || h.includes('id') || h.includes('code')),
+        stock: pHeader.findIndex(h => h === 'qty'),
+        min: pHeader.findIndex(h => h === 'min q' || h.includes('min'))
+      };
+
+      // Fallback only if qty is not found
+      if (pIdx.stock === -1) {
+        pIdx.stock = pHeader.findIndex(h => h.includes('on hand') || h.includes('stock'));
+      }
+      
+      const productRow = prodRows.slice(1).find(r => r[pIdx.id]?.toString().trim() === productId);
+      if (productRow) {
+        currentStock = parseFloat(productRow[pIdx.stock]?.toString().replace(/,/g, '') || '0');
+        minQ = parseFloat(productRow[pIdx.min]?.toString().replace(/,/g, '') || '0');
+      }
+    }
+
+    const header = rows[0].map((h: string) => h.toLowerCase().trim());
+    const idx = {
+      date: header.indexOf('date'),
+      from: header.indexOf('location from'),
+      to: header.indexOf('location to'),
+      productId: header.indexOf('product id'),
+      qty: header.indexOf('qty')
+    };
+
+    if (idx.date === -1) idx.date = 0;
+    if (idx.from === -1) idx.from = 2;
+    if (idx.to === -1) idx.to = 3;
+    if (idx.productId === -1) idx.productId = 4;
+    if (idx.qty === -1) idx.qty = 8;
+
+    // Determine Filter Range
+    let filterStart: Date | null = null;
+    let filterEnd: Date | null = new Date();
+    filterEnd.setHours(23, 59, 59, 999);
+
+    if (filters?.preset && filters.preset !== 'all') {
+      const now = new Date();
+      if (filters.preset === '7days') {
+        filterStart = new Date(now.setDate(now.getDate() - 7));
+      } else if (filters.preset === '1month') {
+        filterStart = new Date(now.setMonth(now.getMonth() - 1));
+      } else if (filters.preset === '3months') {
+        filterStart = new Date(now.setMonth(now.getMonth() - 3));
+      } else if (filters.preset === '6months') {
+        filterStart = new Date(now.setMonth(now.getMonth() - 6));
+      }
+      if (filterStart) filterStart.setHours(0, 0, 0, 0);
+    } else if (filters?.from || filters?.to) {
+      if (filters.from) filterStart = new Date(filters.from);
+      if (filters.to) {
+        filterEnd = new Date(filters.to);
+        filterEnd.setHours(23, 59, 59, 999);
+      }
+    } else if (filters?.year || filters?.month) {
+      const year = filters.year ? parseInt(filters.year) : new Date().getFullYear();
+      if (filters.month) {
+        const monthNum = parseInt(filters.month) - 1; // 0-based
+        filterStart = new Date(year, monthNum, 1);
+        filterEnd = new Date(year, monthNum + 1, 0, 23, 59, 59, 999);
+      } else {
+        filterStart = new Date(year, 0, 1);
+        filterEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+      }
+    }
+
+    // Determine the months to display
+    let minDate = filterStart;
+    if (!minDate) {
+      // If no start filter, find the earliest record for this product
+      minDate = new Date();
+      rows.slice(1).forEach(row => {
+        const pid = row[idx.productId]?.toString().trim();
+        if (pid !== productId) return;
+        const dateStr = row[idx.date]?.toString().trim();
+        const d = new Date(dateStr);
+        if (!isNaN(d.getTime()) && d < minDate!) {
+          minDate = d;
+        }
+      });
+    }
+
+    // Start from the beginning of that month
+    const rangeStart = new Date(minDate!.getFullYear(), minDate!.getMonth(), 1);
+    const rangeEnd = filterEnd || new Date();
+    const allMonths: { monthKey: string, label: string, sales: number, returns: number, purchases: number }[] = [];
+
+    let tempDate = new Date(rangeStart);
+    while (tempDate <= rangeEnd) {
+      const monthKey = `${tempDate.getFullYear()}-${tempDate.getMonth() + 1}`;
+      const label = tempDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      allMonths.push({ monthKey, label, sales: 0, returns: 0, purchases: 0 });
+      tempDate.setMonth(tempDate.getMonth() + 1);
+      
+      // Safety break for very long ranges
+      if (allMonths.length > 240) break; // 20 years max
+    }
+
+    let totalSales = 0;
+    let totalReturns = 0;
+    let totalPurchases = 0;
+    let totalPurchaseReturns = 0;
+
+    rows.slice(1).forEach(row => {
+      const pid = row[idx.productId]?.toString().trim();
+      if (pid !== productId) return;
+
+      const dateStr = row[idx.date]?.toString().trim();
+      const from = row[idx.from]?.toString().trim();
+      const to = row[idx.to]?.toString().trim();
+      const qty = parseFloat(row[idx.qty]?.toString().replace(/,/g, '') || '0');
+      if (isNaN(qty)) return;
+
+      const moveDate = new Date(dateStr);
+      if (isNaN(moveDate.getTime())) return;
+
+      // Filter check
+      if (filterStart && moveDate < filterStart) return;
+      if (filterEnd && moveDate > filterEnd) return;
+
+      const monthKey = `${moveDate.getFullYear()}-${moveDate.getMonth() + 1}`;
+
+      if (to === 'Partners/Customers') {
+        totalSales += qty;
+        const mData = allMonths.find(m => m.monthKey === monthKey);
+        if (mData) mData.sales += qty;
+      }
+      if (from === 'Partners/Customers') {
+        totalReturns += qty;
+        const mData = allMonths.find(m => m.monthKey === monthKey);
+        if (mData) mData.returns += qty;
+      }
+      if (from === 'Partners/Vendors') {
+        totalPurchases += qty;
+        const mData = allMonths.find(m => m.monthKey === monthKey);
+        if (mData) mData.purchases += qty;
+      }
+      if (to === 'Partners/Vendors') {
+        totalPurchaseReturns += qty;
+        const mData = allMonths.find(m => m.monthKey === monthKey);
+        if (mData) mData.purchases -= qty;
+      }
+    });
+
+    const netPurchases = totalPurchases - totalPurchaseReturns;
+    const returnsRate = totalSales > 0 ? (totalReturns / totalSales) * 100 : 0;
+    const netFlow = netPurchases - totalSales;
+
+    return {
+      summary: {
+        sales: totalSales,
+        returns: totalReturns,
+        returnsRate: returnsRate.toFixed(2),
+        netPurchases: netPurchases,
+        netFlow: netFlow,
+        currentStock,
+        minQ
+      },
+      monthlyData: [...allMonths].reverse()
+    };
+  } catch (error) {
+    console.error('Error fetching single product analysis:', error);
+    throw error;
+  }
+}
+
+
 
 

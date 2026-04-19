@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-import InventoryProductOrdersTab from '@/components/InventoryProductOrdersTab';
+import InventoryProductOrdersTab from '@/components/InventoryCategoriesTab';
 import InventoryItemCodeTab from '@/components/InventoryItemCodeTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
@@ -73,7 +73,7 @@ export default function InventoryPage() {
           <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div className="flex bg-slate-100 p-1 rounded-xl">
               {[
-                { id: 'orders', label: 'Orders Tracker' },
+                { id: 'orders', label: 'Products' },
                 { id: 'item_code', label: 'Item Code' }
               ].map(tab => {
                 // Check permissions

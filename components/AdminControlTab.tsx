@@ -47,7 +47,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales-download-form', label: 'Stock Report' }
     ],
     'inventory': [
-        { id: 'orders', label: 'Orders Tracker' },
+        { id: 'orders', label: 'Products' },
         { id: 'item_code', label: 'Item Code' }
     ],
     'cash-receipt': [
