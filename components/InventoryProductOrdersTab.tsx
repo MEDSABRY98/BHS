@@ -306,19 +306,18 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
             // Prepare data for export
             const exportData = filteredAndSortedProducts.map(product => {
                 const packSize = parseFloat(packSizes[product.productId]) || 1;
-                const cartons = product.qtyFreeToUse / packSize;
                 const minLimit = limits[product.productId]?.min || '';
                 const maxLimit = limits[product.productId]?.max || '';
 
                 return {
-                    'Barcode': product.barcode || '---',
-                    'Product Name': product.productName,
-                    'Tags': product.tags || '',
-                    'Min (Ctn)': minLimit,
-                    'Max (Ctn)': maxLimit,
-                    'Free (Pcs)': product.qtyFreeToUse,
-                    'Free (Ctns)': cartons.toFixed(1),
-                    'Units/Carton': packSize
+                    'PRODUCT ID': product.productId,
+                    'PRODUCT BARCODE': product.barcode || '---',
+                    'PRODUCT NAME': product.productName,
+                    'TAGS': product.tags || '',
+                    'MIN Q BY CTN': minLimit,
+                    'MAX Q BY CTN': maxLimit,
+                    'QINC': packSize,
+                    'QTY': product.qtyFreeToUse
                 };
             });
 
@@ -327,14 +326,14 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
 
             // Set column widths
             ws['!cols'] = [
-                { wch: 15 }, // Barcode
-                { wch: 35 }, // Product Name
-                { wch: 15 }, // Tags
-                { wch: 12 }, // Min
-                { wch: 12 }, // Max
-                { wch: 12 }, // Free Pcs
-                { wch: 12 }, // Free Ctns
-                { wch: 12 }  // Units/Carton
+                { wch: 15 }, // PRODUCT ID
+                { wch: 20 }, // PRODUCT BARCODE
+                { wch: 40 }, // PRODUCT NAME
+                { wch: 15 }, // TAGS
+                { wch: 15 }, // MIN Q BY CTN
+                { wch: 15 }, // MAX Q BY CTN
+                { wch: 10 }, // QINC
+                { wch: 10 }  // QTY
             ];
 
             // Create workbook
@@ -507,41 +506,50 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                         <thead>
                             <tr className="bg-gray-900 text-white">
                                 <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[15%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[10%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md text-[11px]"
+                                    onClick={() => handleSort('productId')}
+                                >
+                                    <div className="flex items-center justify-center gap-1">
+                                        PRODUCT ID
+                                        {getSortIcon('productId')}
+                                    </div>
+                                </th>
+                                <th
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[12%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md text-[11px]"
                                     onClick={() => handleSort('barcode')}
                                 >
-                                    <div className="flex items-center justify-center gap-2">
-                                        Barcode
+                                    <div className="flex items-center justify-center gap-1">
+                                        BARCODE
                                         {getSortIcon('barcode')}
                                     </div>
                                 </th>
                                 <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[30%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[25%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md text-[11px]"
                                     onClick={() => handleSort('productName')}
                                 >
-                                    <div className="flex items-center justify-center gap-2">
-                                        Product Name
+                                    <div className="flex items-center justify-center gap-1">
+                                        PRODUCT NAME
                                         {getSortIcon('productName')}
                                     </div>
                                 </th>
-                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[9%] shadow-md">Min (Ctn)</th>
-                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[9%] shadow-md">Max (Ctn)</th>
-                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[9%] shadow-md">Units/Carton</th>
+                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[8%] shadow-md text-[10px] leading-tight">MIN Q<br />BY CTN</th>
+                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[8%] shadow-md text-[10px] leading-tight">MAX Q<br />BY CTN</th>
+                                <th className="sticky top-20 z-30 bg-indigo-900 text-indigo-100 border border-indigo-800 p-3 text-sm font-bold w-[8%] shadow-md text-[10px]">QINC</th>
                                 <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[8%] cursor-pointer hover:bg-gray-800 transition-colors shadow-md text-[11px]"
                                     onClick={() => handleSort('qtyFreeToUse')}
                                 >
-                                    <div className="flex items-center justify-center gap-2">
-                                        Stock (Pcs)
+                                    <div className="flex items-center justify-center gap-1">
+                                        QTY (Pcs)
                                         {getSortIcon('qtyFreeToUse')}
                                     </div>
                                 </th>
                                 <th
-                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[9%] shadow-md"
+                                    className="sticky top-20 z-30 bg-gray-900 text-white border border-gray-700 p-3 text-sm font-bold w-[8%] shadow-md text-[11px]"
                                 >
                                     Stock (Ctns)
                                 </th>
-                                <th className="sticky top-20 z-30 bg-amber-600 text-white border border-amber-700 p-3 text-sm font-bold w-[9%] shadow-md text-center">Make Order</th>
+                                <th className="sticky top-20 z-30 bg-amber-600 text-white border border-amber-700 p-3 text-[11px] font-bold w-[13%] shadow-md text-center">MAKE ORDER</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -554,7 +562,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                                             className="bg-gray-100 border-y-2 border-gray-300 cursor-pointer hover:bg-gray-200 transition-colors"
                                             onClick={() => toggleGroup(tag)}
                                         >
-                                            <td colSpan={8} className="p-3 text-sm font-bold text-gray-700">
+                                            <td colSpan={9} className="p-3 text-sm font-bold text-gray-700">
                                                 <div className="flex items-center justify-between w-full">
                                                     <div className="flex items-center gap-2">
                                                         <span className="text-blue-600 w-5 text-center transition-transform duration-200 inline-block"
@@ -585,6 +593,11 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                                                     key={`${product.productId}-${idx}`}
                                                     className="hover:bg-blue-50 group transition-colors"
                                                 >
+                                                    <td className="border border-gray-300 p-2 text-center">
+                                                        <span className="font-mono text-[11px] text-gray-500 font-bold bg-gray-50 px-1 py-0.5 rounded border border-gray-100 block w-full truncate">
+                                                            {product.productId}
+                                                        </span>
+                                                    </td>
                                                     <td className="border border-gray-300 p-2 text-center">
                                                         <span className="font-mono text-sm text-gray-700 font-bold bg-gray-50 px-2 py-1 rounded border border-gray-200 block w-full">
                                                             {product.barcode || '---'}

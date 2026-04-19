@@ -2490,27 +2490,28 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
     // Dynamic Column Mapping for Inventory Sheet
     const invHeader = rows[0].map((h: string) => h.toString().toLowerCase().trim());
     const idx = {
-      id: invHeader.findIndex((h: string) => h.includes('id') || h.includes('code')),
-      barcode: invHeader.findIndex((h: string) => h.includes('barcode')),
-      name: invHeader.findIndex((h: string) => (h.includes('name') || h.includes('product') || h.includes('item')) && !h.includes('id') && !h.includes('code')),
-      minQ: invHeader.findIndex((h: string) => h.includes('min q') || h.includes('min')),
-      maxQ: invHeader.findIndex((h: string) => h.includes('max q') || h.includes('max')),
-      qinc: invHeader.findIndex((h: string) => (h.includes('qinc') || h.includes('units') || h.includes('ctn')) && !h.includes('min') && !h.includes('max')),
-      tags: invHeader.findIndex((h: string) => h.includes('tag')),
-      onHand: invHeader.findIndex((h: string) => h.includes('on hand') || h.includes('stock')),
-      free: invHeader.findIndex((h: string) => h.includes('free') || h.includes('avail'))
+      id: invHeader.findIndex((h: string) => h === 'product id' || h.includes('id') || h.includes('code')),
+      barcode: invHeader.findIndex((h: string) => h === 'product barcode' || h.includes('barcode')),
+      name: invHeader.findIndex((h: string) => h === 'product name' || ((h.includes('name') || h.includes('product') || h.includes('item')) && !h.includes('id') && !h.includes('code'))),
+      minQ: invHeader.findIndex((h: string) => h === 'min q by ctn' || h.includes('min q') || h.includes('min')),
+      maxQ: invHeader.findIndex((h: string) => h === 'max q by ctn' || h.includes('max q') || h.includes('max')),
+      qinc: invHeader.findIndex((h: string) => h === 'qinc' || ((h.includes('qinc') || h.includes('units') || h.includes('ctn')) && !h.includes('min') && !h.includes('max'))),
+      tags: invHeader.findIndex((h: string) => h === 'tags' || h.includes('tag')),
+      onHand: invHeader.findIndex((h: string) => h === 'qty' || h.includes('on hand') || h.includes('stock')),
+      free: invHeader.findIndex((h: string) => h === 'qty' || h.includes('free') || h.includes('avail'))
     };
 
     // Fallback mappings if headers not found (based on user description)
+    // Fallback mappings if headers not found (based on new structure: ID, BARCODE, NAME, TAGS, MIN, MAX, QINC, QTY)
     if (idx.id === -1) idx.id = 0;
     if (idx.barcode === -1) idx.barcode = 1;
     if (idx.name === -1) idx.name = 2;
-    if (idx.minQ === -1) idx.minQ = 3;
-    if (idx.maxQ === -1) idx.maxQ = 4;
-    if (idx.qinc === -1) idx.qinc = 5;
-    if (idx.tags === -1) idx.tags = 6;
+    if (idx.tags === -1) idx.tags = 3;
+    if (idx.minQ === -1) idx.minQ = 4;
+    if (idx.maxQ === -1) idx.maxQ = 5;
+    if (idx.qinc === -1) idx.qinc = 6;
     if (idx.onHand === -1) idx.onHand = 7;
-    if (idx.free === -1) idx.free = 8;
+    if (idx.free === -1) idx.free = 7; // Map QTY to free by default if only one column exists
 
     // Skip header row
     const data = rows.slice(1).map((row, index) => {
