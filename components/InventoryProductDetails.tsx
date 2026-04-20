@@ -99,21 +99,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
         );
     }
 
-    if (!data && !loading) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[400px] gap-4 text-slate-500">
-                <Activity className="w-12 h-12 text-slate-200" />
-                <p className="text-lg">No analytical data found for this product.</p>
-                <button
-                    onClick={onBack}
-                    className="px-6 py-2 bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-all font-medium"
-                >
-                    Go Back
-                </button>
-            </div>
-        );
-    }
-
+    if (!data) return null;
     const { summary, monthlyData } = data;
 
     // --- Predictive Insights Logic ---
