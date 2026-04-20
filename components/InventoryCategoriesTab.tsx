@@ -55,7 +55,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
     const fetchOrders = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/inventory/orders');
+            const res = await fetch('/api/inventory');
             const json = await res.json();
 
             if (!res.ok) throw new Error(json.details || json.error || 'Failed to fetch orders data');

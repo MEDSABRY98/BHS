@@ -111,18 +111,10 @@ export default function InventoryProductOrdersDetailsTab({
 
         try {
             setUpdating(product.productId);
-            let endpoint = '/api/inventory/update-limit';
-            let body: any = { rowIndex: product.rowIndex, field, value: numValue };
-
-            if (field === 'qinc') {
-                endpoint = '/api/inventory/update-qinc';
-                body = { rowIndex: product.rowIndex, qinc: numValue };
-            }
-
-            const res = await fetch(endpoint, {
+            const res = await fetch('/api/inventory', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
+                body: JSON.stringify({ rowIndex: product.rowIndex, field, value: numValue })
             });
 
             if (!res.ok) throw new Error('Failed to update');

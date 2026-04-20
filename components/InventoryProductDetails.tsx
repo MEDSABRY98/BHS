@@ -24,12 +24,13 @@ interface AnalysisData {
         minQ: number;
     };
     monthlyData: {
-        monthKey: string;
+        key: string;
         label: string;
         sales: number;
         returns: number;
         purchases: number;
     }[];
+    granularity?: 'day' | 'month';
 }
 
 interface Props {
@@ -128,8 +129,8 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                     <div className="flex flex-col">
                         <h3 className="text-slate-400 text-[10px] font-black uppercase tracking-[0.15em] mb-0.5">{title}</h3>
                         <div className="flex items-center gap-2">
-                             {isAvg && <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded leading-none">Monthly Avg</span>}
-                             {subValue && <span className="text-[9px] font-black text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded leading-none">{subValue}</span>}
+                            {isAvg && <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-slate-100 px-1.5 py-0.5 rounded leading-none">Monthly Avg</span>}
+                            {subValue && <span className="text-[9px] font-black text-rose-500 uppercase bg-rose-50 px-1.5 py-0.5 rounded leading-none">{subValue}</span>}
                         </div>
                     </div>
                 </div>
@@ -166,7 +167,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                             <h2 className="text-2xl font-black text-slate-800 tracking-tight leading-none">
                                 {productName}
                             </h2>
-                            <button 
+                            <button
                                 onClick={() => setShowInsights(true)}
                                 className="p-1.5 bg-blue-50 text-blue-500 rounded-lg hover:bg-blue-100 transition-all group/info animate-pulse"
                             >
@@ -189,11 +190,10 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                             <button
                                 key={p}
                                 onClick={() => handlePreset(p)}
-                                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                                    preset === p 
-                                        ? 'bg-slate-900 text-white shadow-lg' 
+                                className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${preset === p
+                                        ? 'bg-slate-900 text-white shadow-lg'
                                         : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
-                                }`}
+                                    }`}
                             >
                                 {p === 'all' ? 'All' : p.replace('days', 'D').replace('month', 'M').replace('s', '')}
                             </button>
@@ -202,7 +202,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
 
                     {/* Manual Filters */}
                     <div className="h-10 w-[1px] bg-slate-200 mx-2" />
-                    
+
                     <div className="flex items-center gap-3 bg-white px-4 py-1.5 rounded-2xl border border-slate-100 shadow-sm">
                         <Filter className="w-4 h-4 text-slate-300" />
                         <div className="flex flex-col border-r border-slate-100 pr-3 w-14">
@@ -222,7 +222,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                 type="text"
                                 inputMode="numeric"
                                 value={month}
-                                onChange={(e) => { 
+                                onChange={(e) => {
                                     const val = e.target.value.replace(/[^0-9]/g, '');
                                     if (val === '' || (parseInt(val) >= 1 && parseInt(val) <= 12)) {
                                         setMonth(val);
@@ -257,7 +257,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                         </div>
                     </div>
 
-                    <button 
+                    <button
                         onClick={() => {
                             setPreset('all');
                             setYear(''); setMonth(''); setFromDate(''); setToDate('');
@@ -273,34 +273,34 @@ export default function ProductDetails({ productId, productName, barcode, onBack
             <div className="flex flex-col gap-4">
                 {/* Row 1: Inventory Health & Sales Performance */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <StatCard 
+                    <StatCard
                         title="Live Stock"
                         value={summary.currentStock}
                         icon={Box}
                         color="bg-blue-600"
                     />
-                    <StatCard 
+                    <StatCard
                         title="Coverage"
                         value={coverageDays}
                         suffix="Days"
                         icon={Clock}
                         color={coverageDays < 15 ? "bg-rose-500" : "bg-blue-400"}
                     />
-                    <StatCard 
+                    <StatCard
                         title="Turnover"
                         value={turnoverRatio}
                         suffix="x/y"
                         icon={RefreshCw}
                         color="bg-emerald-500"
                     />
-                    <StatCard 
+                    <StatCard
                         title="Total Sales"
                         value={summary.sales}
                         subValue={`${summary.returnsRate}% RET`}
                         icon={ShoppingCart}
                         color="bg-rose-500"
                     />
-                    <StatCard 
+                    <StatCard
                         title="Sales Avg"
                         value={Math.round(summary.sales / (monthlyData.length || 1))}
                         icon={ShoppingCart}
@@ -311,33 +311,33 @@ export default function ProductDetails({ productId, productName, barcode, onBack
 
                 {/* Row 2: Returns, Supply & Flow */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    <StatCard 
+                    <StatCard
                         title="Returns"
                         value={summary.returns}
                         icon={TrendingDown}
                         color="bg-amber-500"
                     />
-                    <StatCard 
+                    <StatCard
                         title="Returns Avg"
                         value={Math.round(summary.returns / (monthlyData.length || 1))}
                         icon={TrendingDown}
                         color="bg-slate-500"
                         isAvg
                     />
-                    <StatCard 
+                    <StatCard
                         title="Net Purchases"
                         value={summary.netPurchases}
                         icon={Truck}
                         color="bg-emerald-600"
                     />
-                    <StatCard 
-                        title="Buy Avg"
+                    <StatCard
+                        title="Purchases Avg"
                         value={Math.round(summary.netPurchases / (monthlyData.length || 1))}
                         icon={Truck}
                         color="bg-slate-500"
                         isAvg
                     />
-                    <StatCard 
+                    <StatCard
                         title="Net Flow"
                         value={summary.netFlow}
                         icon={Activity}
@@ -350,8 +350,12 @@ export default function ProductDetails({ productId, productName, barcode, onBack
             <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden p-10">
                 <div className="flex items-center justify-between mb-10">
                     <div>
-                        <h3 className="text-lg font-medium text-slate-800 tracking-tight">Movement Trends</h3>
-                        <p className="text-slate-400 text-xs font-medium">Monthly performance over the last 12 months</p>
+                        <h3 className="text-lg font-medium text-slate-800 tracking-tight">
+                            {data.granularity === 'day' ? 'Daily Activity' : 'Movement Trends'}
+                        </h3>
+                        <p className="text-slate-400 text-xs font-medium">
+                            {data.granularity === 'day' ? 'Performance over the last 7 days' : 'Monthly performance over the tracking period'}
+                        </p>
                     </div>
                     <div className="flex items-center gap-4">
                         <div className="flex items-center gap-1.5">
@@ -410,9 +414,9 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                                     {payload.map((entry: any, index: number) => (
                                                         <div key={index} className="flex items-center justify-between gap-6">
                                                             <div className="flex items-center gap-2">
-                                                                <div 
-                                                                    className="w-2 h-2 rounded-full" 
-                                                                    style={{ backgroundColor: entry.color }} 
+                                                                <div
+                                                                    className="w-2 h-2 rounded-full"
+                                                                    style={{ backgroundColor: entry.color }}
                                                                 />
                                                                 <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{entry.name}</span>
                                                             </div>
@@ -466,22 +470,26 @@ export default function ProductDetails({ productId, productName, barcode, onBack
             <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden border-b-0">
                 <div className="px-10 py-8 border-b border-slate-50 flex items-center justify-between">
                     <div>
-                        <h3 className="text-xl font-medium text-slate-800 tracking-tight">Monthly Breakdown</h3>
+                        <h3 className="text-xl font-medium text-slate-800 tracking-tight">
+                            {data.granularity === 'day' ? 'Daily Tracking' : 'Monthly Breakdown'}
+                        </h3>
                     </div>
                 </div>
                 <div className="overflow-x-auto">
                     <table className="w-full text-left">
                         <thead>
                             <tr className="bg-slate-50/50">
-                                <th className="px-10 py-5 text-[13px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Reporting Period</th>
+                                <th className="px-10 py-5 text-[13px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">
+                                    {data.granularity === 'day' ? 'Full Date' : 'Reporting Period'}
+                                </th>
                                 <th className="px-10 py-5 text-[13px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Sales Qty</th>
                                 <th className="px-10 py-5 text-[13px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Returns Qty</th>
                                 <th className="px-10 py-5 text-[13px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Net Purchases</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {monthlyData.map((m) => (
-                                <tr key={m.monthKey} className="hover:bg-slate-50/70 transition-colors group">
+                            {monthlyData.map((m, idx) => (
+                                <tr key={`${m.key}-${idx}`} className="hover:bg-slate-50/70 transition-colors group">
                                     <td className="px-10 py-6 text-slate-600 font-medium text-sm text-center">{m.label}</td>
                                     <td className="px-10 py-6 text-center text-slate-800 font-medium text-base">
                                         {m.sales === 0 ? <span className="opacity-20">-</span> : m.sales.toLocaleString()}
@@ -518,7 +526,7 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                 <X className="w-6 h-6" />
                             </button>
                         </div>
-                        
+
                         <div className="p-8 space-y-8">
                             {(() => {
                                 const { summary, monthlyData } = data;
@@ -526,10 +534,10 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                 const m3 = monthlyData.slice(0, 3);
                                 const avgSales3M = m3.reduce((sum, m) => sum + m.sales, 0) / (m3.length || 1);
                                 const avgPurchases3M = m3.reduce((sum, m) => sum + m.purchases, 0) / (m3.length || 1);
-                                
+
                                 const dailySales = avgSales3M / 30;
                                 const coverageDays = dailySales > 0 ? summary.currentStock / dailySales : (summary.currentStock > 0 ? 999 : 0);
-                                
+
                                 // Turnover (Qty Sold in Period / Avg Inventory... or just Qty Sold / Current)
                                 const turnoverRatio = summary.currentStock > 0 ? summary.sales / summary.currentStock : (summary.sales > 0 ? 12 : 0);
                                 const daysPerTurn = turnoverRatio > 0 ? 365 / turnoverRatio : 0;
@@ -587,36 +595,34 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                         </div>
 
                                         {/* AI Diagnostic Message */}
-                                        <div className={`p-6 rounded-3xl border-2 ${
-                                            coverageDays < 15 ? 'bg-rose-50 border-rose-100' : 
-                                            coverageDays > 180 ? 'bg-indigo-50 border-indigo-100' :
-                                            coverageDays < 30 ? 'bg-orange-50 border-orange-100' : 
-                                            'bg-emerald-50 border-emerald-100'
-                                        }`}>
+                                        <div className={`p-6 rounded-3xl border-2 ${coverageDays < 15 ? 'bg-rose-50 border-rose-100' :
+                                                coverageDays > 180 ? 'bg-indigo-50 border-indigo-100' :
+                                                    coverageDays < 30 ? 'bg-orange-50 border-orange-100' :
+                                                        'bg-emerald-50 border-emerald-100'
+                                            }`}>
                                             <div className="flex gap-4">
-                                                <div className={`mt-1 ${
-                                                    coverageDays < 15 ? 'text-rose-500' : 
-                                                    coverageDays > 180 ? 'text-indigo-500' :
-                                                    coverageDays < 30 ? 'text-orange-500' : 
-                                                    'text-emerald-500'
-                                                }`}>
-                                                    {coverageDays < 15 ? <AlertCircle className="w-6 h-6" /> : 
-                                                     coverageDays > 180 ? <TrendingDown className="w-6 h-6" /> :
-                                                     coverageDays < 30 ? <Activity className="w-6 h-6" /> : 
-                                                     <CheckCircle2 className="w-6 h-6" />}
+                                                <div className={`mt-1 ${coverageDays < 15 ? 'text-rose-500' :
+                                                        coverageDays > 180 ? 'text-indigo-500' :
+                                                            coverageDays < 30 ? 'text-orange-500' :
+                                                                'text-emerald-500'
+                                                    }`}>
+                                                    {coverageDays < 15 ? <AlertCircle className="w-6 h-6" /> :
+                                                        coverageDays > 180 ? <TrendingDown className="w-6 h-6" /> :
+                                                            coverageDays < 30 ? <Activity className="w-6 h-6" /> :
+                                                                <CheckCircle2 className="w-6 h-6" />}
                                                 </div>
                                                 <div>
                                                     <h4 className="font-black text-slate-800 text-sm uppercase mb-1">Diagnostic Report</h4>
                                                     <p className="text-slate-600 text-sm leading-relaxed text-justify">
-                                                        {coverageDays < 15 
+                                                        {coverageDays < 15
                                                             ? `Critical Alert: At current sales velocity (${Math.round(avgSales3M)}/mo), your physical stock will be depleted in ${Math.round(coverageDays)} days. Urgent restocking is required despite any recent purchase activity.`
                                                             : coverageDays > 180
-                                                            ? `Inventory Bloat Detected: You have ${Math.round(coverageDays)} days of coverage—far exceeding optimal levels. This represents tied-up capital. Recommendation: Cease all purchases and consider liquidating excess stock through promotions.`
-                                                            : coverageDays > 60 && avgSales3M > avgPurchases3M
-                                                            ? `Strategic Optimization: You are successfully utilizing existing buffer stock to meet market demand. Even though sales exceed recent purchases, your ${Math.round(coverageDays)} days of coverage provides a safe operational margin.`
-                                                            : coverageDays < 30
-                                                            ? `Precautionary Notice: Stock is entering a monitoring phase. While immediate action isn't mandatory, your current coverage (${Math.round(coverageDays)} days) suggests planning a purchase order within the next 2 weeks.`
-                                                            : `System Healthy: Your current stock levels are perfectly synchronized with sales velocity. You have a robust ${Math.round(coverageDays)} days of coverage, maintaining an ideal balance.`}
+                                                                ? `Inventory Bloat Detected: You have ${Math.round(coverageDays)} days of coverage—far exceeding optimal levels. This represents tied-up capital. Recommendation: Cease all purchases and consider liquidating excess stock through promotions.`
+                                                                : coverageDays > 60 && avgSales3M > avgPurchases3M
+                                                                    ? `Strategic Optimization: You are successfully utilizing existing buffer stock to meet market demand. Even though sales exceed recent purchases, your ${Math.round(coverageDays)} days of coverage provides a safe operational margin.`
+                                                                    : coverageDays < 30
+                                                                        ? `Precautionary Notice: Stock is entering a monitoring phase. While immediate action isn't mandatory, your current coverage (${Math.round(coverageDays)} days) suggests planning a purchase order within the next 2 weeks.`
+                                                                        : `System Healthy: Your current stock levels are perfectly synchronized with sales velocity. You have a robust ${Math.round(coverageDays)} days of coverage, maintaining an ideal balance.`}
                                                     </p>
                                                 </div>
                                             </div>

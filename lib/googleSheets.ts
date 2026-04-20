@@ -4334,7 +4334,7 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
     const prodRows = productsResponse.data.values || [];
     let currentStock = 0;
     let minQ = 0;
-    
+
     if (prodRows.length > 0) {
       const pHeader = prodRows[0].map(h => h.toString().toLowerCase().trim());
       const pIdx = {
@@ -4343,11 +4343,10 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
         min: pHeader.findIndex(h => h === 'min q' || h.includes('min'))
       };
 
-      // Fallback only if qty is not found
       if (pIdx.stock === -1) {
         pIdx.stock = pHeader.findIndex(h => h.includes('on hand') || h.includes('stock'));
       }
-      
+
       const productRow = prodRows.slice(1).find(r => r[pIdx.id]?.toString().trim() === productId);
       if (productRow) {
         currentStock = parseFloat(productRow[pIdx.stock]?.toString().replace(/,/g, '') || '0');
@@ -4370,7 +4369,6 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
     if (idx.productId === -1) idx.productId = 4;
     if (idx.qty === -1) idx.qty = 8;
 
-    // Determine Filter Range
     let filterStart: Date | null = null;
     let filterEnd: Date | null = new Date();
     filterEnd.setHours(23, 59, 59, 999);
@@ -4396,7 +4394,7 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
     } else if (filters?.year || filters?.month) {
       const year = filters.year ? parseInt(filters.year) : new Date().getFullYear();
       if (filters.month) {
-        const monthNum = parseInt(filters.month) - 1; // 0-based
+        const monthNum = parseInt(filters.month) - 1;
         filterStart = new Date(year, monthNum, 1);
         filterEnd = new Date(year, monthNum + 1, 0, 23, 59, 59, 999);
       } else {
@@ -4405,10 +4403,8 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
       }
     }
 
-    // Determine the months to display
     let minDate = filterStart;
     if (!minDate) {
-      // If no start filter, find the earliest record for this product
       minDate = new Date();
       rows.slice(1).forEach(row => {
         const pid = row[idx.productId]?.toString().trim();
@@ -4421,20 +4417,41 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
       });
     }
 
-    // Start from the beginning of that month
-    const rangeStart = new Date(minDate!.getFullYear(), minDate!.getMonth(), 1);
+    const isDaily = filters?.preset === '7days';
+    const granularity = isDaily ? 'day' : 'month';
+
+    let rangeStart: Date;
+    if (isDaily) {
+      rangeStart = new Date(filterStart!);
+    } else {
+      rangeStart = new Date(minDate!.getFullYear(), minDate!.getMonth(), 1);
+    }
+
     const rangeEnd = filterEnd || new Date();
-    const allMonths: { monthKey: string, label: string, sales: number, returns: number, purchases: number }[] = [];
+    const allPeriods: { key: string, label: string, sales: number, returns: number, purchases: number }[] = [];
 
     let tempDate = new Date(rangeStart);
     while (tempDate <= rangeEnd) {
-      const monthKey = `${tempDate.getFullYear()}-${tempDate.getMonth() + 1}`;
-      const label = tempDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-      allMonths.push({ monthKey, label, sales: 0, returns: 0, purchases: 0 });
-      tempDate.setMonth(tempDate.getMonth() + 1);
+      let key: string;
+      let label: string;
+
+      if (isDaily) {
+        key = tempDate.toISOString().split('T')[0];
+        label = tempDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      } else {
+        key = `${tempDate.getFullYear()}-${tempDate.getMonth() + 1}`;
+        label = tempDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+      }
+
+      allPeriods.push({ key, label, sales: 0, returns: 0, purchases: 0 });
+
+      if (isDaily) {
+        tempDate.setDate(tempDate.getDate() + 1);
+      } else {
+        tempDate.setMonth(tempDate.getMonth() + 1);
+      }
       
-      // Safety break for very long ranges
-      if (allMonths.length > 240) break; // 20 years max
+      if (allPeriods.length > 400) break; 
     }
 
     let totalSales = 0;
@@ -4455,31 +4472,35 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
       const moveDate = new Date(dateStr);
       if (isNaN(moveDate.getTime())) return;
 
-      // Filter check
       if (filterStart && moveDate < filterStart) return;
       if (filterEnd && moveDate > filterEnd) return;
 
-      const monthKey = `${moveDate.getFullYear()}-${moveDate.getMonth() + 1}`;
+      let key: string;
+      if (isDaily) {
+        key = moveDate.toISOString().split('T')[0];
+      } else {
+        key = `${moveDate.getFullYear()}-${moveDate.getMonth() + 1}`;
+      }
 
       if (to === 'Partners/Customers') {
         totalSales += qty;
-        const mData = allMonths.find(m => m.monthKey === monthKey);
-        if (mData) mData.sales += qty;
+        const pData = allPeriods.find(p => p.key === key);
+        if (pData) pData.sales += qty;
       }
       if (from === 'Partners/Customers') {
         totalReturns += qty;
-        const mData = allMonths.find(m => m.monthKey === monthKey);
-        if (mData) mData.returns += qty;
+        const pData = allPeriods.find(p => p.key === key);
+        if (pData) pData.returns += qty;
       }
       if (from === 'Partners/Vendors') {
         totalPurchases += qty;
-        const mData = allMonths.find(m => m.monthKey === monthKey);
-        if (mData) mData.purchases += qty;
+        const pData = allPeriods.find(p => p.key === key);
+        if (pData) pData.purchases += qty;
       }
       if (to === 'Partners/Vendors') {
         totalPurchaseReturns += qty;
-        const mData = allMonths.find(m => m.monthKey === monthKey);
-        if (mData) mData.purchases -= qty;
+        const pData = allPeriods.find(p => p.key === key);
+        if (pData) pData.purchases -= qty;
       }
     });
 
@@ -4492,19 +4513,19 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
         sales: totalSales,
         returns: totalReturns,
         returnsRate: returnsRate.toFixed(2),
-        netPurchases: netPurchases,
-        netFlow: netFlow,
+        netPurchases,
+        netFlow,
         currentStock,
         minQ
       },
-      monthlyData: [...allMonths].reverse()
+      monthlyData: [...allPeriods].reverse(),
+      granularity
     };
   } catch (error) {
     console.error('Error fetching single product analysis:', error);
     throw error;
   }
 }
-
 
 
 
