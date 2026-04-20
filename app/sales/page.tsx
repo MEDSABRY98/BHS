@@ -13,24 +13,25 @@ import SalesStockReportTab from '@/components/SalesStockReportTab';
 import Login from '@/components/Login';
 import Loading from '@/components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 // Modern Select Component
-const ModernSelect = ({ 
-  value, 
-  onChange, 
-  options, 
+const ModernSelect = ({
+  value,
+  onChange,
+  options,
   placeholder = "Select Option",
-  className = "" 
-}: { 
-  value: string; 
-  onChange: (val: string) => void; 
+  className = ""
+}: {
+  value: string;
+  onChange: (val: string) => void;
   options: { label: string; value: string }[] | string[];
   placeholder?: string;
   className?: string;
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -43,8 +44,16 @@ const ModernSelect = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const formattedOptions = options.map(opt => 
+  useEffect(() => {
+    if (!isOpen) setSearchTerm('');
+  }, [isOpen]);
+
+  const formattedOptions = options.map(opt =>
     typeof opt === 'string' ? { label: opt, value: opt } : opt
+  );
+
+  const filteredOptions = formattedOptions.filter(opt =>
+    opt.label.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const selectedOption = formattedOptions.find(opt => opt.value === value);
@@ -54,7 +63,7 @@ const ModernSelect = ({
       <button
         type="button"
         onMouseDown={(e) => { e.preventDefault(); setIsOpen(!isOpen); }}
-        className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-green-500/5 focus:border-green-500/20 transition-all text-xs flex items-center justify-between group text-left"
+        className="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl font-bold text-slate-700 outline-none focus:ring-4 focus:ring-green-500/5 focus:border-green-500/20 transition-all text-sm flex items-center justify-between group text-left"
       >
         <span className={!value ? "text-slate-400 font-normal" : "truncate"}>
           {selectedOption ? selectedOption.label : placeholder}
@@ -63,29 +72,49 @@ const ModernSelect = ({
       </button>
 
       {isOpen && (
-        <div className="absolute z-[100] mt-2 w-full bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-2xl py-2 animate-in zoom-in-95 fade-in duration-200 overflow-hidden max-h-60 overflow-y-auto no-scrollbar ring-1 ring-slate-100">
-          {formattedOptions.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onMouseDown={(e) => {
-                e.preventDefault();
-                onChange(opt.value);
-                setIsOpen(false);
-              }}
-              className={`w-full px-5 py-3 text-left text-xs font-bold transition-all hover:bg-green-50 hover:text-green-600 ${
-                value === opt.value ? 'bg-green-50 text-green-600' : 'text-slate-600'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="truncate">{opt.label}</span>
-                {value === opt.value && <CheckCircle2 className="w-3.5 h-3.5" />}
+        <div className="absolute z-[100] mt-2 w-full bg-white/95 backdrop-blur-xl border border-slate-100 rounded-2xl shadow-2xl pb-2 animate-in zoom-in-95 fade-in duration-200 overflow-hidden ring-1 ring-slate-100 flex flex-col">
+          {/* Search Box */}
+          <div className="p-2 border-b border-slate-100 bg-slate-50/50 sticky top-0">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onMouseDown={(e) => e.stopPropagation()}
+                placeholder="Search..."
+                className="w-full pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500/40 transition-all"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="max-h-60 overflow-y-auto no-scrollbar scroll-smooth">
+            {filteredOptions.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                className={`w-full px-5 py-3 text-left text-xs font-bold transition-all hover:bg-green-50 hover:text-green-600 ${value === opt.value ? 'bg-green-50 text-green-600' : 'text-slate-600'
+                  }`}
+              >
+                <div className="flex items-center justify-between font-outfit">
+                  <span className="truncate">{opt.label}</span>
+                  {value === opt.value && <CheckCircle2 className="w-3.5 h-3.5" />}
+                </div>
+              </button>
+            ))}
+            {filteredOptions.length === 0 && (
+              <div className="px-5 py-8 text-xs text-slate-400 italic text-center">
+                <Search className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                No results found
               </div>
-            </button>
-          ))}
-          {formattedOptions.length === 0 && (
-            <div className="px-5 py-3 text-xs text-slate-400 italic text-center">No options available</div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -234,6 +263,7 @@ export default function SalesPage() {
   const [filterMarket, setFilterMarket] = useState('');
   const [filterMerchandiser, setFilterMerchandiser] = useState('');
   const [filterSalesRep, setFilterSalesRep] = useState('');
+  const [filterProductTag, setFilterProductTag] = useState('');
 
 
 
@@ -243,7 +273,7 @@ export default function SalesPage() {
 
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isFiltering, setIsFiltering] = useState(false);
-  const [activeFilterTab, setActiveFilterTab] = useState<'mode' | 'timing' | 'outreach' | 'advanced'>('mode');
+  const [activeFilterTab, setActiveFilterTab] = useState<'mode' | 'timing' | 'product' | 'outreach' | 'advanced'>('mode');
 
   // Augmented data based on customer mapping
   const augmentedData = useMemo(() => {
@@ -325,9 +355,10 @@ export default function SalesPage() {
     if (filterMarket) filtered = filtered.filter(item => item.market === filterMarket);
     if (filterMerchandiser) filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
     if (filterSalesRep) filtered = filtered.filter(item => item.salesRep === filterSalesRep);
+    if (filterProductTag) filtered = filtered.filter(item => item.productTag === filterProductTag);
 
     return filtered;
-  }, [augmentedData, invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
+  }, [augmentedData, invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep, filterProductTag]);
 
   // geographyFilteredData (respects Area, Market, Rep, Merchandiser but IGNORES time)
   const geographyFilteredData = useMemo(() => {
@@ -345,6 +376,7 @@ export default function SalesPage() {
     const markets = new Set<string>();
     const merchandisers = new Set<string>();
     const salesReps = new Set<string>();
+    const productTags = new Set<string>();
     const years = new Set<string>();
 
     augmentedData.forEach(item => {
@@ -352,6 +384,7 @@ export default function SalesPage() {
       if (item.market) markets.add(item.market);
       if (item.merchandiser) merchandisers.add(item.merchandiser);
       if (item.salesRep) salesReps.add(item.salesRep);
+      if (item.productTag) productTags.add(item.productTag);
       if (item.invoiceDate) {
         const d = new Date(item.invoiceDate);
         if (!isNaN(d.getTime())) years.add(d.getFullYear().toString());
@@ -363,12 +396,13 @@ export default function SalesPage() {
       markets: Array.from(markets).sort(),
       merchandisers: Array.from(merchandisers).sort(),
       salesReps: Array.from(salesReps).sort(),
+      productTags: Array.from(productTags).sort(),
       years: Array.from(years).sort((a, b) => b.localeCompare(a))
     };
   }, [augmentedData]);
 
   const hasAnyFilter = useMemo(() => {
-    return invoiceTypeFilter !== 'all' || filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep;
+    return invoiceTypeFilter !== 'all' || filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep || filterProductTag;
   }, [invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
 
   const resetFilters = () => {
@@ -381,6 +415,7 @@ export default function SalesPage() {
     setFilterMarket('');
     setFilterMerchandiser('');
     setFilterSalesRep('');
+    setFilterProductTag('');
     // Don't reset comparison/inactive defaults as they are usually stable settings
   };
 
@@ -666,7 +701,7 @@ export default function SalesPage() {
                   <Filter className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">Search & Filters</h3>
+                  <h3 className="text-2xl font-black text-slate-900 tracking-tight">Search & Filters</h3>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -701,15 +736,16 @@ export default function SalesPage() {
                 {[
                   { id: 'mode', label: 'Reporting Mode', icon: LayoutGrid },
                   { id: 'timing', label: 'Timing & Periods', icon: Calendar },
+                  { id: 'product', label: 'Product Category', icon: ShoppingBag },
                   { id: 'outreach', label: 'Team & Territory', icon: Users },
                   ...(activeTab === 'sales-inactive-customers' ? [{ id: 'advanced', label: 'Comprehensive Filters', icon: MoreVertical }] : [])
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveFilterTab(tab.id as any)}
-                    className={`flex-1 flex items-center justify-center gap-2.5 px-2 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all ${activeFilterTab === tab.id
-                        ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 ring-4 ring-slate-900/10'
-                        : 'text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent hover:border-slate-100'
+                    className={`flex-1 flex items-center justify-center gap-2.5 px-2 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeFilterTab === tab.id
+                      ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 ring-4 ring-slate-900/10'
+                      : 'text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent hover:border-slate-100'
                       }`}
                   >
                     <tab.icon className={`w-4 h-4 ${activeFilterTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
@@ -733,24 +769,24 @@ export default function SalesPage() {
                             key={t.id}
                             disabled={isFiltering}
                             onClick={() => {
-                                if (invoiceTypeFilter === t.id) return;
-                                setIsFiltering(true);
-                                // Give UI a frame to show the loader
-                                setTimeout(() => {
-                                    setInvoiceTypeFilter(t.id as any);
-                                    setIsFiltering(false);
-                                }, 100);
+                              if (invoiceTypeFilter === t.id) return;
+                              setIsFiltering(true);
+                              // Give UI a frame to show the loader
+                              setTimeout(() => {
+                                setInvoiceTypeFilter(t.id as any);
+                                setIsFiltering(false);
+                              }, 100);
                             }}
                             className={`flex flex-col items-center justify-center gap-4 text-center p-8 rounded-[40px] transition-all border-2 h-44 w-full ${invoiceTypeFilter === t.id
-                                ? 'bg-green-50/50 border-green-600 shadow-2xl shadow-green-100/50'
-                                : 'bg-white border-slate-100 hover:border-slate-300'
+                              ? 'bg-green-50/50 border-green-600 shadow-2xl shadow-green-100/50'
+                              : 'bg-white border-slate-100 hover:border-slate-300'
                               } ${isFiltering ? 'opacity-50 cursor-not-allowed' : ''}`}
                           >
                             <div className={`w-14 h-14 rounded-[20px] flex items-center justify-center shadow-lg transition-all ${invoiceTypeFilter === t.id ? 'bg-green-600 text-white shadow-green-200' : 'bg-slate-50 text-slate-400'
                               }`}>
                               {t.id === 'all' ? <CheckCircle2 className="w-7 h-7" /> : t.id === 'sales' ? <Layers className="w-7 h-7" /> : <RefreshCcw className="w-7 h-7" />}
                             </div>
-                            <p className={`font-black text-sm uppercase tracking-[0.2em] ${invoiceTypeFilter === t.id ? 'text-green-700' : 'text-slate-800'}`}>
+                            <p className={`font-black text-base uppercase tracking-[0.2em] ${invoiceTypeFilter === t.id ? 'text-green-700' : 'text-slate-800'}`}>
                               {t.label}
                             </p>
                           </button>
@@ -759,12 +795,12 @@ export default function SalesPage() {
 
                       {/* Loading Overlay inside the tab content area */}
                       {isFiltering && (
-                          <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-[50] flex items-center justify-center rounded-[40px] animate-in fade-in duration-200">
-                              <div className="flex flex-col items-center gap-4">
-                                  <div className="w-12 h-12 border-4 border-green-600/20 border-t-green-600 rounded-full animate-spin"></div>
-                                  <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.2em]">Applying Mode...</p>
-                              </div>
+                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-[50] flex items-center justify-center rounded-[40px] animate-in fade-in duration-200">
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="w-12 h-12 border-4 border-green-600/20 border-t-green-600 rounded-full animate-spin"></div>
+                            <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.2em]">Applying Mode...</p>
                           </div>
+                        </div>
                       )}
                     </div>
                   )}
@@ -773,31 +809,31 @@ export default function SalesPage() {
                     <div className="space-y-10">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                         <div className="space-y-6">
-                          <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <h5 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                             <Calendar className="w-3 h-3" /> Standard Period
                           </h5>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Year</label>
-                              <ModernSelect 
-                                value={filterYear} 
-                                onChange={setFilterYear} 
-                                options={uniqueValues.years} 
+                              <label className="text-xs font-black text-slate-300 uppercase tracking-widest ml-1">Year</label>
+                              <ModernSelect
+                                value={filterYear}
+                                onChange={setFilterYear}
+                                options={uniqueValues.years}
                                 placeholder="All Years"
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">Month</label>
-                              <ModernSelect 
-                                value={filterMonth} 
-                                onChange={setFilterMonth} 
+                              <label className="text-xs font-black text-slate-300 uppercase tracking-widest ml-1">Month</label>
+                              <ModernSelect
+                                value={filterMonth}
+                                onChange={setFilterMonth}
                                 options={[
                                   { label: "All Months", value: "" },
                                   ...Array.from({ length: 12 }, (_, i) => ({
                                     label: new Date(2000, i).toLocaleString('en-US', { month: 'long' }),
                                     value: (i + 1).toString()
                                   }))
-                                ]} 
+                                ]}
                                 placeholder="All Months"
                               />
                             </div>
@@ -805,26 +841,49 @@ export default function SalesPage() {
                         </div>
 
                         <div className="space-y-6">
-                          <h5 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                          <h5 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
                             <TrendingUp className="w-3 h-3" /> Custom Interval
                           </h5>
                           <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
-                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">From Date</label>
-                              <input 
-                                type="date" 
-                                value={dateFrom} 
-                                onChange={e => setDateFrom(e.target.value)} 
-                                className="w-full px-5 py-4 bg-slate-50 border border-transparent rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-green-500/20 focus:ring-4 focus:ring-green-500/5 transition-all text-xs" 
+                              <label className="text-xs font-black text-slate-300 uppercase tracking-widest ml-1">From Date</label>
+                              <input
+                                type="date"
+                                value={dateFrom}
+                                onChange={e => setDateFrom(e.target.value)}
+                                className="w-full px-5 py-4 bg-slate-50 border border-transparent rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-green-500/20 focus:ring-4 focus:ring-green-500/5 transition-all text-xs"
                               />
                             </div>
                             <div className="space-y-2">
-                              <label className="text-[10px] font-black text-slate-300 uppercase tracking-widest ml-1">To Date</label>
-                              <input 
-                                type="date" 
-                                value={dateTo} 
-                                onChange={e => setDateTo(e.target.value)} 
-                                className="w-full px-5 py-4 bg-slate-50 border border-transparent rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-green-500/20 focus:ring-4 focus:ring-green-500/5 transition-all text-xs" 
+                              <label className="text-xs font-black text-slate-300 uppercase tracking-widest ml-1">To Date</label>
+                              <input
+                                type="date"
+                                value={dateTo}
+                                onChange={e => setDateTo(e.target.value)}
+                                className="w-full px-5 py-4 bg-slate-50 border border-transparent rounded-2xl font-bold text-slate-700 outline-none focus:bg-white focus:border-green-500/20 focus:ring-4 focus:ring-green-500/5 transition-all text-xs"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeFilterTab === 'product' && (
+                    <div className="space-y-10">
+                      <div className="bg-slate-50 p-10 rounded-[40px] border border-slate-100">
+                        <div className="space-y-4">
+                          <h5 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                            <Tag className="w-3 h-3" /> Product Category (Tag)
+                          </h5>
+                          <div className="grid grid-cols-1 gap-6">
+                            <div className="space-y-2">
+                              <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Select Category</label>
+                              <ModernSelect
+                                value={filterProductTag}
+                                onChange={setFilterProductTag}
+                                options={[{ label: "All Categories", value: "" }, ...uniqueValues.productTags.map(v => ({ label: v, value: v }))]}
+                                placeholder="All Categories"
                               />
                             </div>
                           </div>
@@ -836,42 +895,42 @@ export default function SalesPage() {
                   {activeFilterTab === 'outreach' && (
                     <div className="space-y-10">
                       <div className="grid grid-cols-2 gap-x-12 gap-y-8 bg-slate-50 p-10 rounded-[40px] border border-slate-100">
-                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Area</label>
-                           <ModernSelect 
-                             value={filterArea} 
-                             onChange={setFilterArea} 
-                             options={[{ label: "All Areas", value: "" }, ...uniqueValues.areas.map(v => ({ label: v, value: v }))]} 
-                             placeholder="All Areas"
-                           />
-                         </div>
-                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Market</label>
-                           <ModernSelect 
-                             value={filterMarket} 
-                             onChange={setFilterMarket} 
-                             options={[{ label: "All Markets", value: "" }, ...uniqueValues.markets.map(v => ({ label: v, value: v }))]} 
-                             placeholder="All Markets"
-                           />
-                         </div>
-                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Merchandiser</label>
-                           <ModernSelect 
-                             value={filterMerchandiser} 
-                             onChange={setFilterMerchandiser} 
-                             options={[{ label: "All", value: "" }, ...uniqueValues.merchandisers.map(v => ({ label: v, value: v }))]} 
-                             placeholder="All"
-                           />
-                         </div>
-                         <div className="space-y-2">
-                           <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Sales Rep</label>
-                           <ModernSelect 
-                             value={filterSalesRep} 
-                             onChange={setFilterSalesRep} 
-                             options={[{ label: "All", value: "" }, ...uniqueValues.salesReps.map(v => ({ label: v, value: v }))]} 
-                             placeholder="All"
-                           />
-                         </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Area</label>
+                          <ModernSelect
+                            value={filterArea}
+                            onChange={setFilterArea}
+                            options={[{ label: "All Areas", value: "" }, ...uniqueValues.areas.map(v => ({ label: v, value: v }))]}
+                            placeholder="All Areas"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Market</label>
+                          <ModernSelect
+                            value={filterMarket}
+                            onChange={setFilterMarket}
+                            options={[{ label: "All Markets", value: "" }, ...uniqueValues.markets.map(v => ({ label: v, value: v }))]}
+                            placeholder="All Markets"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Merchandiser</label>
+                          <ModernSelect
+                            value={filterMerchandiser}
+                            onChange={setFilterMerchandiser}
+                            options={[{ label: "All", value: "" }, ...uniqueValues.merchandisers.map(v => ({ label: v, value: v }))]}
+                            placeholder="All"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Sales Rep</label>
+                          <ModernSelect
+                            value={filterSalesRep}
+                            onChange={setFilterSalesRep}
+                            options={[{ label: "All", value: "" }, ...uniqueValues.salesReps.map(v => ({ label: v, value: v }))]}
+                            placeholder="All"
+                          />
+                        </div>
                       </div>
                     </div>
                   )}

@@ -986,7 +986,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [initialCustomerTab, setInitialCustomerTab] = useState<'dashboard' | 'invoices' | 'monthly' | 'ages' | 'notes' | 'overdue' | undefined>(undefined);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY'>('DEFAULT');
+  const [viewMode, setViewMode] = useState<'DEFAULT' | 'SUMMARY' | 'YEARLY'>('DEFAULT');
 
   // Modal State
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -1187,6 +1187,60 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
       return true;
     });
   }, [data, filterYear, filterMonth, dateRangeFrom, dateRangeTo]);
+
+  // Dynamic Yearly Pivot Data
+  const yearlyPivotData = useMemo(() => {
+    // 1. Find all available years
+    const yearsSet = new Set<string>();
+    data.forEach(row => {
+      const d = parseDate(row.date);
+      if (d) yearsSet.add(d.getFullYear().toString());
+    });
+    const sortedYears = Array.from(yearsSet).sort((a, b) => b.localeCompare(a)); // Newest first
+
+    // 2. Group by customer
+    const customerYearMap = new Map<string, {
+      customerName: string;
+      region: string;
+      totalNetDebt: number;
+      yearlyAmounts: Record<string, number>;
+    }>();
+
+    // Apply basic search filter to yearly view as well
+    const query = searchQuery.toLowerCase().trim();
+
+    data.forEach(row => {
+      // Filter by search query
+      if (query && !row.customerName?.toLowerCase().includes(query) && !row.number?.toString().toLowerCase().includes(query)) {
+        return;
+      }
+
+      const d = parseDate(row.date);
+      if (!d) return;
+      const yr = d.getFullYear().toString();
+      const net = row.debit - row.credit;
+
+      if (!customerYearMap.has(row.customerName)) {
+        customerYearMap.set(row.customerName, {
+          customerName: row.customerName,
+          region: row.salesRep || row.area || '-',
+          totalNetDebt: 0,
+          yearlyAmounts: {}
+        });
+      }
+
+      const entry = customerYearMap.get(row.customerName)!;
+      entry.totalNetDebt += net;
+      entry.yearlyAmounts[yr] = (entry.yearlyAmounts[yr] || 0) + net;
+    });
+
+    return {
+      sortedYears,
+      rows: Array.from(customerYearMap.values())
+        .filter(row => Math.abs(row.totalNetDebt) > 0.01)
+        .sort((a, b) => b.totalNetDebt - a.totalNetDebt)
+    };
+  }, [data, searchQuery]);
 
   // Calculate customer analysis based on the FILTERED raw data
   const customerAnalysis = useMemo(() => {
@@ -2989,20 +3043,28 @@ ${debtSectionHtml}
 
               {/* View Mode Toggle */}
               <button
-                onClick={() => setViewMode(prev => prev === 'DEFAULT' ? 'SUMMARY' : 'DEFAULT')}
-                className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${viewMode === 'SUMMARY'
+                onClick={() => setViewMode(prev => {
+                  if (prev === 'DEFAULT') return 'SUMMARY';
+                  if (prev === 'SUMMARY') return 'YEARLY';
+                  return 'DEFAULT';
+                })}
+                className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${viewMode !== 'DEFAULT'
                   ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
                   : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
                   }`}
-                title={viewMode === 'DEFAULT' ? "Switch to Summary View" : "Switch to Default View"}
+                title={viewMode === 'DEFAULT' ? "Switch to Summary View" : viewMode === 'SUMMARY' ? "Switch to Yearly View" : "Switch to Default View"}
               >
                 {viewMode === 'DEFAULT' ? (
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.414V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
                   </svg>
-                ) : (
+                ) : viewMode === 'SUMMARY' ? (
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" />
                   </svg>
                 )}
               </button>
@@ -3156,7 +3218,7 @@ ${debtSectionHtml}
           {table.getRowModel().rows.length === 0 ? (
             <NoData />
           ) : (
-            table.getRowModel().rows.map((row) => {
+            table.getRowModel().rows.map((row, index) => {
               const customer = row.original;
               const netDebt = customer.netDebt;
               const totalDebit = customer.totalDebit;
@@ -3179,9 +3241,10 @@ ${debtSectionHtml}
                 >
                   <div className="p-5">
                     <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
-                      {/* Customer Name with Checkbox */}
+                      {/* Customer Name with Checkbox and Number */}
                       <div className="md:col-span-2">
                         <div className="flex items-center gap-2">
+                          <span className="text-xs font-black text-slate-400 min-w-[24px]">#{index + 1}</span>
                           <input
                             type="checkbox"
                             checked={selectedCustomersForDownload.has(customer.customerName)}
@@ -3529,46 +3592,155 @@ ${debtSectionHtml}
         </div>
       )}
 
-      {/* Total Summary Card */}
-      < div className="bg-gray-50 rounded-lg border border-gray-200 p-4" >
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div className="md:col-span-2">
-            <p className="text-sm font-semibold text-gray-700">Summary</p>
-          </div>
-          <div className="md:col-span-1">
-            <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
-              ? 'text-red-600'
-              : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
-                ? 'text-green-600'
-                : 'text-gray-600'
-              }`}>
-              {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
-            </p>
-          </div>
-          <div className="md:col-span-1">
-            {(() => {
-              const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-              if (totalNetDebt < 0) {
-                return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
-              }
-              const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
-              const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
-              const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
-              const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
-              return (
-                <p className={`text-xl font-bold text-center ${rateColor}`}>
-                  {avgCollectionRate.toFixed(1)}%
-                </p>
-              );
-            })()}
-          </div>
-          <div className="md:col-span-1">
-            <p className="text-xl font-bold text-blue-600 text-center">
-              {filteredData.length}
-            </p>
+      {/* YEARLY View */}
+      {viewMode === 'YEARLY' && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 border-collapse table-auto">
+              <thead className="bg-[#0f172a]">
+                <tr>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-20">#</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 min-w-[350px]">
+                    <div className="flex items-center justify-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={yearlyPivotData.rows.length > 0 && yearlyPivotData.rows.every(r => selectedCustomersForDownload.has(r.customerName))}
+                        onChange={() => {
+                          const allChecked = yearlyPivotData.rows.every(r => selectedCustomersForDownload.has(r.customerName));
+                          const newSelection = new Set(selectedCustomersForDownload);
+                          yearlyPivotData.rows.forEach(r => {
+                            if (allChecked) {
+                              newSelection.delete(r.customerName);
+                            } else {
+                              newSelection.add(r.customerName);
+                            }
+                          });
+                          setSelectedCustomersForDownload(newSelection);
+                        }}
+                        className="w-4 h-4 text-white bg-slate-700 border-slate-500 rounded focus:ring-blue-500 cursor-pointer"
+                        title="Select All"
+                      />
+                      <span>Customer Name</span>
+                    </div>
+                  </th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48">City</th>
+                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48">Net Debt</th>
+                  {yearlyPivotData.sortedYears.map(year => (
+                    <th key={year} className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-40">
+                      {year}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-100">
+                {yearlyPivotData.rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={yearlyPivotData.sortedYears.length + 4} className="py-20 text-center text-gray-500 font-medium italic">
+                      No customer data found for yearly view.
+                    </td>
+                  </tr>
+                ) : (
+                  yearlyPivotData.rows.map((row, index) => (
+                    <tr key={row.customerName} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-center text-sm font-medium text-slate-500 border-r border-gray-100">
+                        {index + 1}
+                      </td>
+                      <td className="px-6 py-4 border-r border-gray-100 font-bold text-slate-900 text-center">
+                        <div className="flex items-center justify-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedCustomersForDownload.has(row.customerName)}
+                            onChange={() => toggleCustomerSelection(row.customerName)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                          />
+                          <button
+                            onClick={() => setSelectedCustomer(row.customerName)}
+                            className="hover:text-blue-600 transition-colors truncate"
+                          >
+                            {row.customerName}
+                          </button>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center text-sm font-medium text-slate-600 border-r border-gray-100">
+                        {row.region}
+                      </td>
+                      <td className={`px-6 py-4 text-center text-lg font-black border-r border-gray-100 ${row.totalNetDebt > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        {row.totalNetDebt.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                      </td>
+                      {yearlyPivotData.sortedYears.map(year => {
+                        const amount = row.yearlyAmounts[year] || 0;
+                        return (
+                          <td key={year} className={`px-6 py-4 text-center text-base font-bold border-r border-gray-100 ${amount > 0 ? 'text-red-500' : amount < 0 ? 'text-green-500' : 'text-gray-200'}`}>
+                            {amount !== 0 ? amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) : '-'}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+              <tfoot className="bg-slate-100 font-black border-t-4 border-slate-300">
+                <tr>
+                  <td colSpan={3} className="px-8 py-6 text-center text-sm uppercase tracking-widest text-slate-700">Grand Total</td>
+                  <td className="px-6 py-6 text-center text-lg text-slate-900 bg-slate-200/50">
+                    {yearlyPivotData.rows.reduce((sum, r) => sum + r.totalNetDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </td>
+                  {yearlyPivotData.sortedYears.map(year => (
+                    <td key={year} className="px-6 py-6 text-center text-lg text-slate-900">
+                      {yearlyPivotData.rows.reduce((sum, r) => sum + (r.yearlyAmounts[year] || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
-      </div >
+      )}
+
+
+      {/* Total Summary Card - Hidden in Yearly View to avoid redundancy */}
+      {viewMode !== 'YEARLY' && (
+        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+            <div className="md:col-span-2">
+              <p className="text-sm font-semibold text-gray-700">Summary</p>
+            </div>
+            <div className="md:col-span-1">
+              <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
+                ? 'text-red-600'
+                : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
+                  ? 'text-green-600'
+                  : 'text-gray-600'
+                }`}>
+                {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
+              </p>
+            </div>
+            <div className="md:col-span-1">
+              {(() => {
+                const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+                if (totalNetDebt < 0) {
+                  return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
+                }
+                const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
+                const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
+                const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
+                const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
+                return (
+                  <p className={`text-xl font-bold text-center ${rateColor}`}>
+                    {avgCollectionRate.toFixed(1)}%
+                  </p>
+                );
+              })()}
+            </div>
+            <div className="md:col-span-1">
+              <p className="text-xl font-bold text-blue-600 text-center">
+                {filteredData.length}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
 
 

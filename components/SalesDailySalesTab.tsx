@@ -43,6 +43,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       amount: number;
       qty: number;
       products: Set<string>;
+      searchTerms: Set<string>;
       totalCost: number;
       totalPrice: number;
       costCount: number;
@@ -59,6 +60,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         amount: 0,
         qty: 0,
         products: new Set<string>(),
+        searchTerms: new Set<string>(),
         totalCost: 0,
         totalPrice: 0,
         costCount: 0,
@@ -68,7 +70,12 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       existing.amount += item.amount || 0;
       existing.qty += item.qty || 0;
 
-      // Add product to set
+      // Add product info to search terms
+      if (item.product) existing.searchTerms.add(item.product.toLowerCase());
+      if (item.barcode) existing.searchTerms.add(item.barcode.toLowerCase());
+      if (item.productId) existing.searchTerms.add(item.productId.toLowerCase());
+
+      // Add product to set for count
       const productKey = item.productId || item.barcode || item.product;
       if (productKey) {
         existing.products.add(productKey);
@@ -99,6 +106,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         amount: invoice.amount,
         qty: invoice.qty,
         productsCount: invoice.products.size,
+        searchTerms: Array.from(invoice.searchTerms),
         avgCost,
         avgPrice
       };
@@ -363,6 +371,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         if (item.productsCount.toString().includes(query)) return true;
         if (item.avgCost.toString().includes(query)) return true;
         if (item.avgPrice.toString().includes(query)) return true;
+        if (item.searchTerms && item.searchTerms.some((term: string) => term.includes(query))) return true;
         return false;
       });
     }
@@ -380,6 +389,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         if (item.productsCount.toString().includes(query)) return true;
         if (item.avgCost.toString().includes(query)) return true;
         if (item.avgPrice.toString().includes(query)) return true;
+        if (item.searchTerms && item.searchTerms.some((term: string) => term.includes(query))) return true;
         return false;
       });
     }
@@ -509,7 +519,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
           >
-            All Invoices /LPO
+            All Invoices
           </button>
           <button
             onClick={() => setActiveSubTab('sales-by-day')}
@@ -587,14 +597,10 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         </div>
       </div>
 
-      {/* All Invoices /LPO Tab */}
+      {/* All Invoices Tab */}
       {activeSubTab === 'all-invoices' && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-4">
-              <h2 className="text-xl font-bold text-gray-800">All Invoices /LPO</h2>
-            </div>
-
           </div>
 
           {dailySalesData.length > 0 && (
