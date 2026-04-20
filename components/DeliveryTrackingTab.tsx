@@ -33,7 +33,7 @@ import {
     Users
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 
 interface DeliveryEntry {
     id: string;
@@ -268,7 +268,7 @@ export default function DeliveryTrackingTab() {
                         return;
                     }
 
-                    const res = await fetch('/api/delivery', {
+                    const res = await fetch('/api/delivery-tracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -331,7 +331,7 @@ export default function DeliveryTrackingTab() {
                         return;
                     }
 
-                    const res = await fetch('/api/delivery', {
+                    const res = await fetch('/api/delivery-tracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -418,7 +418,7 @@ export default function DeliveryTrackingTab() {
             const finalLpoVal = editingOrder.lpoVal === 0 ? editingOrder.invoiceVal : editingOrder.lpoVal;
 
             // 1) Update the LPO record fields in LPO Records sheet
-            await fetch('/api/delivery', {
+            await fetch('/api/delivery-tracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -442,7 +442,7 @@ export default function DeliveryTrackingTab() {
 
             if (newMissingItems.length > 0) {
                 await Promise.all(newMissingItems.map(item =>
-                    fetch('/api/delivery', {
+                    fetch('/api/delivery-tracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -459,7 +459,7 @@ export default function DeliveryTrackingTab() {
             // 3) If reship = false → cancel all still-missing items in the sheet
             if (!editingOrder.reship && originalMissing.length > 0) {
                 await Promise.all(originalMissing.map(item =>
-                    fetch('/api/delivery', {
+                    fetch('/api/delivery-tracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -682,7 +682,7 @@ export default function DeliveryTrackingTab() {
         try {
             // 1) Update Main Record in Sheets
             const rowIndex = (o as any)._rowIndex;
-            await fetch('/api/delivery', {
+            await fetch('/api/delivery-tracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -694,7 +694,7 @@ export default function DeliveryTrackingTab() {
             });
 
             // 2) Log Item Action in Sheets
-            await fetch('/api/delivery', {
+            await fetch('/api/delivery-tracking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1077,7 +1077,7 @@ export default function DeliveryTrackingTab() {
     // Fetch from Google Sheets on mount
     useEffect(() => {
         setIsLoading(true);
-        fetch('/api/delivery')
+        fetch('/api/delivery-tracking')
             .then(res => res.json())
             .then(data => {
                 if (data.orders) {
@@ -1118,7 +1118,7 @@ export default function DeliveryTrackingTab() {
     const refreshOrders = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/delivery');
+            const res = await fetch('/api/delivery-tracking');
             const data = await res.json();
             if (data.orders) {
                 const normalized = data.orders
@@ -1174,7 +1174,7 @@ export default function DeliveryTrackingTab() {
             async () => {
                 try {
                     const rowIndex = (target as any)._rowIndex;
-                    await fetch('/api/delivery', {
+                    await fetch('/api/delivery-tracking', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ rowIndex }),
@@ -1628,7 +1628,7 @@ export default function DeliveryTrackingTab() {
 
                                             setIsSaving(true);
                                             try {
-                                                const res = await fetch('/api/delivery', {
+                                                const res = await fetch('/api/delivery-tracking', {
                                                     method: 'POST',
                                                     headers: { 'Content-Type': 'application/json' },
                                                     body: JSON.stringify({

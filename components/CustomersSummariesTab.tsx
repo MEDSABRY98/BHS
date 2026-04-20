@@ -13,7 +13,7 @@ import {
 import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { SalesInvoice } from '@/lib/googleSheets';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 
 interface CustomersSummariesTabProps {
   data: InvoiceRow[];
@@ -120,7 +120,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           const date = parseInvoiceDate(inv.date);
           const year = date ? date.getFullYear() : null;
           const number = inv.number ? inv.number.toUpperCase() : '';
-          
+
           if (year === previousYear) {
             if (number.startsWith('SAL')) salesPrev += inv.debit;
             else if (number.startsWith('RSAL')) returnsPrev += inv.credit;
@@ -223,7 +223,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           const year = date ? date.getFullYear() : null;
           const number = inv.invoiceNumber ? inv.invoiceNumber.toUpperCase() : '';
           const amount = inv.amount || 0;
-          
+
           if (year === previousYear) {
             if (number.startsWith('RSAL')) returnsPrev += Math.abs(amount);
             else salesPrev += amount;
@@ -236,7 +236,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
         // Aging data from 'Invoices' sheet
         let oneToThirty = 0, thirtyOneToSixty = 0, sixtyOneToNinety = 0, ninetyOneToOneTwenty = 0, older = 0;
         const matchingInvoices = financialCustomerMap.get(customerName) || [];
-        
+
         if (matchingInvoices.length > 0) {
           const mTotals = new Map<string, number>();
           const mDebits = new Map<string, number>();
@@ -426,22 +426,20 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
           <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner shrink-0">
             <button
               onClick={() => setLogic('full')}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${
-                logic === 'full' 
-                  ? 'bg-blue-600 text-white shadow-md' 
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${logic === 'full'
+                  ? 'bg-blue-600 text-white shadow-md'
                   : 'text-slate-500 hover:bg-slate-200'
-              }`}
+                }`}
             >
               <LayoutGrid className="w-4 h-4" />
               Full Sales
             </button>
             <button
               onClick={() => setLogic('almarai')}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${
-                logic === 'almarai'
+              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${logic === 'almarai'
                   ? 'bg-emerald-600 text-white shadow-md'
                   : 'text-slate-500 hover:bg-slate-200'
-              }`}
+                }`}
             >
               <PieChart className="w-4 h-4" />
               Almarai Sales
@@ -459,14 +457,12 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             <span className="text-[10px] font-bold text-slate-500 ml-2 uppercase tracking-wider">Negatives</span>
             <button
               onClick={() => setHideNegative(!hideNegative)}
-              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none shadow-sm ${
-                hideNegative ? 'bg-slate-300' : 'bg-emerald-500'
-              }`}
+              className={`relative inline-flex h-7 w-12 items-center rounded-full transition-all duration-300 focus:outline-none shadow-sm ${hideNegative ? 'bg-slate-300' : 'bg-emerald-500'
+                }`}
             >
               <span
-                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 shadow-md ${
-                  hideNegative ? 'translate-x-1' : 'translate-x-6'
-                }`}
+                className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform duration-300 shadow-md ${hideNegative ? 'translate-x-1' : 'translate-x-6'
+                  }`}
               />
             </button>
             <span className={`text-[10px] font-bold mr-2 uppercase tracking-wider transition-colors ${hideNegative ? 'text-slate-400' : 'text-emerald-600'}`}>

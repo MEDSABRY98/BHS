@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
 import Loading from './Loading';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 
 interface ItemCodeEntry {
     tags: string;

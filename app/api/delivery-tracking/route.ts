@@ -12,7 +12,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-// ── GET /api/delivery ──────────────────────────────────────────
+// ── GET /api/delivery-tracking ──────────────────────────────────
 // Returns all LPO records merged with their items (missing, shipped, canceled)
 export async function GET() {
     try {
@@ -63,12 +63,12 @@ export async function GET() {
 
         return NextResponse.json({ orders: merged, customers });
     } catch (error) {
-        console.error('GET /api/delivery error:', error);
+        console.error('GET /api/delivery-tracking error:', error);
         return NextResponse.json({ error: 'Failed to fetch delivery data' }, { status: 500 });
     }
 }
 
-// ── POST /api/delivery ─────────────────────────────────────────
+// ── POST /api/delivery-tracking ─────────────────────────────────
 // Add new LPO record  OR  Add/Update item log entry
 // body: { action: 'add_lpo' | 'add_item' | 'ship_item' | 'cancel_item', ...data }
 export async function POST(request: Request) {
@@ -174,12 +174,12 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
     } catch (error) {
-        console.error('POST /api/delivery error:', error);
+        console.error('POST /api/delivery-tracking error:', error);
         return NextResponse.json({ error: 'Failed to save data' }, { status: 500 });
     }
 }
 
-// ── PUT /api/delivery ──────────────────────────────────────────
+// ── PUT /api/delivery-tracking ──────────────────────────────────
 // Update LPO record fields (invoice info, status, reship, notes)
 // body: { rowIndex, ...fields }
 export async function PUT(request: Request) {
@@ -199,12 +199,12 @@ export async function PUT(request: Request) {
         await updateLpoRecord(rowIndex, fields);
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('PUT /api/delivery error:', error);
+        console.error('PUT /api/delivery-tracking error:', error);
         return NextResponse.json({ error: 'Failed to update record' }, { status: 500 });
     }
 }
 
-// ── DELETE /api/delivery ───────────────────────────────────────
+// ── DELETE /api/delivery-tracking ───────────────────────────────
 // Delete LPO record by rowIndex
 // body: { rowIndex }
 export async function DELETE(request: Request) {
@@ -219,7 +219,7 @@ export async function DELETE(request: Request) {
         await deleteLpoRecord(rowIndex);
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('DELETE /api/delivery error:', error);
+        console.error('DELETE /api/delivery-tracking error:', error);
         return NextResponse.json({ error: 'Failed to delete record' }, { status: 500 });
     }
 }

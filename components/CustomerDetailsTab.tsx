@@ -32,7 +32,7 @@ import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2 } from 'lucide-react';
 import { getInvoiceType } from '@/lib/InvoiceType';
 import { useSearchParams } from 'next/navigation';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -1772,7 +1772,7 @@ ${debtSectionHtml}
 
   // Calculate totals based on selected invoices, or all if none selected
   const selectedInvoices = filteredInvoices.filter(inv => selectedInvoiceIds.has(inv.originalIndex));
-  const totalNetDebt = selectedInvoices.length > 0 
+  const totalNetDebt = selectedInvoices.length > 0
     ? selectedInvoices.reduce((sum, inv) => sum + inv.netDebt, 0)
     : agingData.total;
   const totalDebit = (selectedInvoices.length > 0 ? selectedInvoices : filteredInvoices).reduce((sum, inv) => sum + inv.debit, 0);

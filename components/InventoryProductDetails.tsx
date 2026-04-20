@@ -191,8 +191,8 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                                 key={p}
                                 onClick={() => handlePreset(p)}
                                 className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${preset === p
-                                        ? 'bg-slate-900 text-white shadow-lg'
-                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                                    ? 'bg-slate-900 text-white shadow-lg'
+                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'
                                     }`}
                             >
                                 {p === 'all' ? 'All' : p.replace('days', 'D').replace('month', 'M').replace('s', '')}
@@ -596,15 +596,15 @@ export default function ProductDetails({ productId, productName, barcode, onBack
 
                                         {/* AI Diagnostic Message */}
                                         <div className={`p-6 rounded-3xl border-2 ${coverageDays < 15 ? 'bg-rose-50 border-rose-100' :
-                                                coverageDays > 180 ? 'bg-indigo-50 border-indigo-100' :
-                                                    coverageDays < 30 ? 'bg-orange-50 border-orange-100' :
-                                                        'bg-emerald-50 border-emerald-100'
+                                            coverageDays > 180 ? 'bg-indigo-50 border-indigo-100' :
+                                                coverageDays < 30 ? 'bg-orange-50 border-orange-100' :
+                                                    'bg-emerald-50 border-emerald-100'
                                             }`}>
                                             <div className="flex gap-4">
                                                 <div className={`mt-1 ${coverageDays < 15 ? 'text-rose-500' :
-                                                        coverageDays > 180 ? 'text-indigo-500' :
-                                                            coverageDays < 30 ? 'text-orange-500' :
-                                                                'text-emerald-500'
+                                                    coverageDays > 180 ? 'text-indigo-500' :
+                                                        coverageDays < 30 ? 'text-orange-500' :
+                                                            'text-emerald-500'
                                                     }`}>
                                                     {coverageDays < 15 ? <AlertCircle className="w-6 h-6" /> :
                                                         coverageDays > 180 ? <TrendingDown className="w-6 h-6" /> :

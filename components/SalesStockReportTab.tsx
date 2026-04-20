@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, FileDown, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText } from 'lucide-react';
 import { generateDownloadFormPDF } from '@/lib/pdf/PdfUtils';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 
@@ -99,8 +99,8 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
       const productsToPrint = customer.products.map(p => ({
         barcode: p.barcode,
         product: p.product,
-        price: mode === 'pricelist' 
-          ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices)) 
+        price: mode === 'pricelist'
+          ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices))
           : undefined
       }));
       await generateDownloadFormPDF(customer.customer, productsToPrint, false, mode, strategy);
@@ -120,8 +120,8 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
         const productsToPrint = customer.products.map(p => ({
           barcode: p.barcode,
           product: p.product,
-          price: mode === 'pricelist' 
-            ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices)) 
+          price: mode === 'pricelist'
+            ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices))
             : undefined
         }));
         const blob = await generateDownloadFormPDF(customer.customer, productsToPrint, true, mode, strategy) as Blob;
@@ -232,7 +232,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
               </div>
               <h2 className="text-xl font-black text-slate-900 text-center mb-1 tracking-tight">Select Strategy</h2>
               <p className="text-slate-500 text-center text-[10px] font-bold uppercase tracking-widest mb-8">{selectedCustomerForPriceList}</p>
-              
+
               <div className="grid grid-cols-1 gap-3">
                 <button
                   onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'most')}
@@ -249,9 +249,9 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
                   <span className="text-[9px] text-white/50 font-medium">Recent</span>
                 </button>
               </div>
-              
-              <button 
-                onClick={() => setSelectedCustomerForPriceList(null)} 
+
+              <button
+                onClick={() => setSelectedCustomerForPriceList(null)}
                 className="mt-6 w-full text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
               >
                 Cancel
@@ -291,7 +291,7 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
                 </div>
                 Generate Stock Reports
               </button>
-              
+
               <div className="grid grid-cols-2 gap-3 mt-2">
                 <button
                   onClick={() => handleDownloadAllPDFs('pricelist', 'most')}

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import Loading from './Loading';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 
 const formatCategory = (tag: string) => {
     if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;

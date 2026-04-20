@@ -10,7 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 import CustomerDetailsTab from './CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/pdf/PdfUtils';
 import { FileSpreadsheet, FileText, Printer, FileArchive, Mail } from 'lucide-react';

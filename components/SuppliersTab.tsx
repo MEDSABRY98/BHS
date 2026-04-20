@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { generateBulkSupplierStatementsPDF } from '@/lib/pdf/PdfUtils';
 import * as XLSX from 'xlsx';
 import { Printer, Search, FileSpreadsheet, FileText, CheckSquare, Save, X, CheckCircle2, AlertCircle, MinusCircle, FileDown } from 'lucide-react';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 
 interface SupplierTransaction {
     date: string;
@@ -537,73 +537,73 @@ export default function SuppliersTab({ data, activeTab }: SuppliersTabProps) {
                             {processedData
                                 .filter(s => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter))
                                 .map((supplier) => {
-                                const available = supplierMonths[supplier.supplierName] || [];
-                                const matchedTokens = getMatchedTokens(supplier.supplierName);
+                                    const available = supplierMonths[supplier.supplierName] || [];
+                                    const matchedTokens = getMatchedTokens(supplier.supplierName);
 
-                                // Specific Status for Report (Normalized Comparison)
-                                const targetStandardToken = standardizeToken(reportMonthFilter);
-                                const hasDataInTargetMonth = available.includes(reportMonthFilter);
-                                const isMatchedInTargetMonth = matchedTokens.includes(targetStandardToken);
+                                    // Specific Status for Report (Normalized Comparison)
+                                    const targetStandardToken = standardizeToken(reportMonthFilter);
+                                    const hasDataInTargetMonth = available.includes(reportMonthFilter);
+                                    const isMatchedInTargetMonth = matchedTokens.includes(targetStandardToken);
 
-                                return (
-                                    <tr
-                                        key={supplier.supplierName}
-                                        className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
-                                        onClick={() => setSelectedSupplierForModal(supplier.supplierName)}
-                                    >
-                                        <td className="px-6 py-4 text-center border-r border-gray-50">
-                                            <span className="font-black text-teal-600 group-hover:underline transition-all uppercase tracking-wide">
-                                                {supplier.supplierName}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-center border-r border-gray-50">
-                                            <span className="bg-slate-100 text-slate-800 px-4 py-2 rounded-full font-black text-sm border border-slate-200 shadow-sm">
-                                                {available.length}
-                                            </span>
-                                        </td>
-                                        <td className="px-6 py-4 text-center border-r border-gray-50">
-                                            <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-black text-sm border border-emerald-100 shadow-sm">
-                                                {matchedTokens.length}
-                                            </span>
-                                        </td>
-                                        {reportMonthFilter && (
-                                            <td className="px-6 py-4 text-center">
-                                                <div className="flex justify-center">
-                                                    {!hasDataInTargetMonth ? (
-                                                        <div className="flex items-center gap-1.5 text-slate-300">
-                                                            <MinusCircle className="w-4 h-4" />
-                                                            <span className="text-[10px] font-bold uppercase">No Data</span>
-                                                        </div>
-                                                    ) : (
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                toggleMatchingMonth(supplier.supplierName, reportMonthFilter);
-                                                            }}
-                                                            className={`group/status flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 ${isMatchedInTargetMonth
-                                                                ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
-                                                                : 'bg-rose-50 border-rose-100 text-rose-500 animate-pulse hover:animate-none'
-                                                                }`}
-                                                        >
-                                                            {isMatchedInTargetMonth ? (
-                                                                <>
-                                                                    <CheckCircle2 className="w-4 h-4 fill-emerald-500 text-white" />
-                                                                    <span className="text-[10px] font-black uppercase tracking-wider">Matched</span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <AlertCircle className="w-4 h-4 fill-rose-500 text-white group-hover/status:rotate-12 transition-transform" />
-                                                                    <span className="text-[10px] font-black uppercase tracking-wider">Pending</span>
-                                                                </>
-                                                            )}
-                                                        </button>
-                                                    )}
-                                                </div>
+                                    return (
+                                        <tr
+                                            key={supplier.supplierName}
+                                            className="hover:bg-gray-50/50 transition-colors cursor-pointer group"
+                                            onClick={() => setSelectedSupplierForModal(supplier.supplierName)}
+                                        >
+                                            <td className="px-6 py-4 text-center border-r border-gray-50">
+                                                <span className="font-black text-teal-600 group-hover:underline transition-all uppercase tracking-wide">
+                                                    {supplier.supplierName}
+                                                </span>
                                             </td>
-                                        )}
-                                    </tr>
-                                );
-                            })}
+                                            <td className="px-6 py-4 text-center border-r border-gray-50">
+                                                <span className="bg-slate-100 text-slate-800 px-4 py-2 rounded-full font-black text-sm border border-slate-200 shadow-sm">
+                                                    {available.length}
+                                                </span>
+                                            </td>
+                                            <td className="px-6 py-4 text-center border-r border-gray-50">
+                                                <span className="bg-emerald-50 text-emerald-600 px-4 py-2 rounded-full font-black text-sm border border-emerald-100 shadow-sm">
+                                                    {matchedTokens.length}
+                                                </span>
+                                            </td>
+                                            {reportMonthFilter && (
+                                                <td className="px-6 py-4 text-center">
+                                                    <div className="flex justify-center">
+                                                        {!hasDataInTargetMonth ? (
+                                                            <div className="flex items-center gap-1.5 text-slate-300">
+                                                                <MinusCircle className="w-4 h-4" />
+                                                                <span className="text-[10px] font-bold uppercase">No Data</span>
+                                                            </div>
+                                                        ) : (
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    toggleMatchingMonth(supplier.supplierName, reportMonthFilter);
+                                                                }}
+                                                                className={`group/status flex items-center gap-2 px-4 py-2 rounded-full border-2 transition-all duration-300 ${isMatchedInTargetMonth
+                                                                    ? 'bg-emerald-50 border-emerald-100 text-emerald-600'
+                                                                    : 'bg-rose-50 border-rose-100 text-rose-500 animate-pulse hover:animate-none'
+                                                                    }`}
+                                                            >
+                                                                {isMatchedInTargetMonth ? (
+                                                                    <>
+                                                                        <CheckCircle2 className="w-4 h-4 fill-emerald-500 text-white" />
+                                                                        <span className="text-[10px] font-black uppercase tracking-wider">Matched</span>
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <AlertCircle className="w-4 h-4 fill-rose-500 text-white group-hover/status:rotate-12 transition-transform" />
+                                                                        <span className="text-[10px] font-black uppercase tracking-wider">Pending</span>
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            )}
+                                        </tr>
+                                    );
+                                })}
                             {processedData.filter(s => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter)).length === 0 && (
                                 <tr>
                                     <td colSpan={reportMonthFilter ? 4 : 3} className="py-10">

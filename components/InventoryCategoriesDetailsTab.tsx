@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
-import NoData from './Unified/NoData';
+import NoData from './Unified/NoDataTab';
 import ProductDetails from './InventoryProductDetails';
 
 interface Props {
@@ -198,8 +198,8 @@ export default function InventoryProductOrdersDetailsTab({
                     <button
                         onClick={() => setViewMode('inventory')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm transition-all ${viewMode === 'inventory'
-                                ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]'
-                                : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         <Box className="w-4 h-4" />
@@ -208,8 +208,8 @@ export default function InventoryProductOrdersDetailsTab({
                     <button
                         onClick={() => setViewMode('movements')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm transition-all ${viewMode === 'movements'
-                                ? 'bg-white text-indigo-600 shadow-md transform scale-[1.02]'
-                                : 'text-slate-500 hover:text-slate-700'
+                            ? 'bg-white text-indigo-600 shadow-md transform scale-[1.02]'
+                            : 'text-slate-500 hover:text-slate-700'
                             }`}
                     >
                         <Activity className="w-4 h-4" />
@@ -270,13 +270,13 @@ export default function InventoryProductOrdersDetailsTab({
                         <thead className="sticky top-0 z-10">
                             {viewMode === 'inventory' ? (
                                 <tr className="bg-[#0f172a] text-white">
-                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[15%]">BARCODE</th>
-                                    <th className="px-4 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[45%]">PRODUCT NAME</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[8%]">MIN Q</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[8%]">MAX Q</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[8%]">QINC</th>
-                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[8%]">QTY (Pcs)</th>
-                                    <th className="px-3 py-4 text-[12px) font-black uppercase tracking-wider text-center bg-slate-800 w-[8%]">QTY (CTN)</th>
+                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[14%]">BARCODE</th>
+                                    <th className="px-4 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[30%]">PRODUCT NAME</th>
+                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[12%]">QTY (Pcs)</th>
+                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[12%]">QTY (CTN)</th>
+                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[10%]">MIN CTN</th>
+                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[10%]">MAX CTN</th>
+                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center bg-indigo-900/50 w-[12%]">QTY IN CTN</th>
                                 </tr>
                             ) : (
                                 <tr className="bg-[#1e1e2d] text-white">
@@ -315,22 +315,22 @@ export default function InventoryProductOrdersDetailsTab({
                                                 >
                                                     {product.productName}
                                                 </td>
+                                                <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
+                                                    <span className={`px-2 py-1 rounded text-[14px] font-black shadow-sm ${product.onHand <= 0 ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                                                        {product.onHand === 0 ? '-' : product.onHand}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
+                                                    <span className="text-[14px] font-black text-slate-700">{Number(stockCtns) === 0 ? '-' : stockCtns}</span>
+                                                </td>
                                                 <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
                                                     <EditableCell product={product} field="minQ" value={product.minQ} />
                                                 </td>
                                                 <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
                                                     <EditableCell product={product} field="maxQ" value={product.maxQ} />
                                                 </td>
-                                                <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
+                                                <td className="px-2 py-4 text-center bg-indigo-50/20">
                                                     <EditableCell product={product} field="qinc" value={product.qinc} />
-                                                </td>
-                                                <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
-                                                    <span className={`px-2 py-1 rounded text-[14px] font-black shadow-sm ${product.onHand <= 0 ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
-                                                        {product.onHand === 0 ? '-' : product.onHand}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-4 text-center bg-slate-50/30">
-                                                    <span className="text-[14px] font-black text-slate-700">{Number(stockCtns) === 0 ? '-' : stockCtns}</span>
                                                 </td>
                                             </tr>
                                         );
