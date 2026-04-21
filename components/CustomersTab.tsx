@@ -116,44 +116,17 @@ const formatMonthLabel = (key: string) => {
 const calculateCustomerMonthlyBreakdown = (customerName: string, invoices: InvoiceRow[]) => {
   const customerInvoices = invoices.filter(row => row.customerName === customerName);
 
-  // 1) Prepare matching residuals
-  const matchingTotals = new Map<string, number>();
-  const maxDebits = new Map<string, number>();
-  const mainInvoiceIndices = new Map<string, number>();
-
-  customerInvoices.forEach((inv, idx) => {
-    if (inv.matching) {
-      const net = inv.debit - inv.credit;
-      matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
-
-      const currentMax = maxDebits.get(inv.matching) ?? -1;
-      if (inv.debit > currentMax) {
-        maxDebits.set(inv.matching, inv.debit);
-        mainInvoiceIndices.set(inv.matching, idx);
-      } else if (!mainInvoiceIndices.has(inv.matching)) {
-        maxDebits.set(inv.matching, inv.debit);
-        mainInvoiceIndices.set(inv.matching, idx);
-      }
-    }
-  });
-
-  // 2) Build open items (unmatched or residual holder)
+  // 1) Build open items (unmatched or residual holder)
   const openItems: { date: Date | null; amount: number }[] = [];
 
-  customerInvoices.forEach((inv, idx) => {
+  customerInvoices.forEach((inv) => {
     const netDebt = inv.debit - inv.credit;
-    let residual: number | undefined;
-
-    if (inv.matching && mainInvoiceIndices.get(inv.matching) === idx) {
-      const total = matchingTotals.get(inv.matching) || 0;
-      if (Math.abs(total) > 0.01) residual = total;
-    }
-
     let amountToUse: number | null = null;
+
     if (!inv.matching && Math.abs(netDebt) > 0.01) {
       amountToUse = netDebt;
-    } else if (residual !== undefined && Math.abs(residual) > 0.01) {
-      amountToUse = residual;
+    } else if (inv.matching && inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
+      amountToUse = inv.residualAmount;
     }
 
     if (amountToUse !== null) {

@@ -230,43 +230,15 @@ const renderNoteWithLinks = (text: string) => {
 };
 
 const buildInvoicesWithNetDebt = (invList: InvoiceRow[]): InvoiceWithNetDebt[] => {
-  // 1. Calculate totals for each matching group
-  const matchingTotals = new Map<string, number>();
-  invList.forEach((invoice) => {
-    if (invoice.matching) {
-      const current = matchingTotals.get(invoice.matching) || 0;
-      matchingTotals.set(invoice.matching, current + (invoice.debit - invoice.credit));
-    }
-  });
+  // We now strictly rely on the 'residualAmount' from Google Sheets.
+  // Legacy fallback calculations (matchingTotals, maxDebits) have been removed.
 
-  // 2. Identify which invoice should display the residual per matching group (largest debit)
-  const matchingTargetIndex = new Map<string, number>();
-  invList.forEach((invoice, index) => {
-    if (!invoice.matching) return;
-    const existingTarget = matchingTargetIndex.get(invoice.matching);
-    if (existingTarget === undefined) {
-      matchingTargetIndex.set(invoice.matching, index);
-      return;
-    }
-    const existingInvoice = invList[existingTarget];
-    if ((invoice.debit || 0) > (existingInvoice?.debit || 0)) {
-      matchingTargetIndex.set(invoice.matching, index);
-    }
-  });
-
-  // 3. Map invoices preserving original order
   return invList.map((invoice, index) => {
     let residual: number | undefined = undefined;
     const parsedDate = parseInvoiceDate(invoice.date);
 
-    if (invoice.matching) {
-      const targetIndex = matchingTargetIndex.get(invoice.matching);
-      if (targetIndex === index) {
-        const total = matchingTotals.get(invoice.matching) || 0;
-        if (Math.abs(total) > 0.01) {
-          residual = total;
-        }
-      }
+    if (invoice.matching && invoice.residualAmount !== undefined && Math.abs(invoice.residualAmount) > 0.01) {
+      residual = invoice.residualAmount;
     }
 
     return {
