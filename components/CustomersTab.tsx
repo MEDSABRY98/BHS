@@ -116,17 +116,44 @@ const formatMonthLabel = (key: string) => {
 const calculateCustomerMonthlyBreakdown = (customerName: string, invoices: InvoiceRow[]) => {
   const customerInvoices = invoices.filter(row => row.customerName === customerName);
 
-  // 1) Build open items (unmatched or residual holder)
+  // 1) Prepare matching residuals
+  const matchingTotals = new Map<string, number>();
+  const maxDebits = new Map<string, number>();
+  const mainInvoiceIndices = new Map<string, number>();
+
+  customerInvoices.forEach((inv, idx) => {
+    if (inv.matching) {
+      const net = inv.debit - inv.credit;
+      matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+
+      const currentMax = maxDebits.get(inv.matching) ?? -1;
+      if (inv.debit > currentMax) {
+        maxDebits.set(inv.matching, inv.debit);
+        mainInvoiceIndices.set(inv.matching, idx);
+      } else if (!mainInvoiceIndices.has(inv.matching)) {
+        maxDebits.set(inv.matching, inv.debit);
+        mainInvoiceIndices.set(inv.matching, idx);
+      }
+    }
+  });
+
+  // 2) Build open items (unmatched or residual holder)
   const openItems: { date: Date | null; amount: number }[] = [];
 
-  customerInvoices.forEach((inv) => {
+  customerInvoices.forEach((inv, idx) => {
     const netDebt = inv.debit - inv.credit;
-    let amountToUse: number | null = null;
+    let residual: number | undefined;
 
+    if (inv.matching && mainInvoiceIndices.get(inv.matching) === idx) {
+      const total = matchingTotals.get(inv.matching) || 0;
+      if (Math.abs(total) > 0.01) residual = total;
+    }
+
+    let amountToUse: number | null = null;
     if (!inv.matching && Math.abs(netDebt) > 0.01) {
       amountToUse = netDebt;
-    } else if (inv.matching && inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
-      amountToUse = inv.residualAmount;
+    } else if (residual !== undefined && Math.abs(residual) > 0.01) {
+      amountToUse = residual;
     }
 
     if (amountToUse !== null) {
@@ -416,7 +443,7 @@ const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string 
 
     // 1. Check for manual Google Sheet residual amount on any invoice in the group
     const sheetOverrideIndex = group.findIndex(inv => inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01);
-    
+
     if (sheetOverrideIndex !== -1) {
       matchingResiduals.set(matchingKey, {
         residual: group[sheetOverrideIndex].residualAmount!,
@@ -490,7 +517,7 @@ const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string 
 const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[], spiData: Array<{ number: string, matching: string }> = []) => {
   // We now strictly rely on the 'residualAmount' from Google Sheets.
   // Legacy fallback calculations have been fully removed.
-  
+
   return invList.map((invoice) => {
     let residual: number | undefined = undefined;
 
@@ -851,7 +878,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
   if (yearlyData && yearlyData.rows.length > 0) {
     const years = yearlyData.sortedYears;
     const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...years];
-    
+
     const yearlyRows = yearlyData.rows.map((row: any, index: number) => {
       const rowData = [
         index + 1,
@@ -859,12 +886,12 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
         row.region,
         row.totalNetDebt.toFixed(2)
       ];
-      
+
       // Add each year amount
       years.forEach((yr: string) => {
         rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2));
       });
-      
+
       return rowData;
     });
 
@@ -897,7 +924,7 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null; d
     return 'Discount';
   } else if (credit > 0.01) {
     return 'Payment';
-}
+  }
   return 'Invoice/Txn';
 };
 
@@ -1132,40 +1159,40 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
 
     const query = searchQuery.toLowerCase().trim();
 
-      // 2. Process each Customer identically to CustomerDetailsTab
-      customerTransactions.forEach((invoices, customerName) => {
-        // Basic Search Filter
-        if (query && !customerName.toLowerCase().includes(query)) {
-          return;
+    // 2. Process each Customer identically to CustomerDetailsTab
+    customerTransactions.forEach((invoices, customerName) => {
+      // Basic Search Filter
+      if (query && !customerName.toLowerCase().includes(query)) {
+        return;
+      }
+
+      let customerTotal = 0;
+      const customerYearly: Record<string, number> = {};
+
+      invoices.forEach((inv, index) => {
+        let isOverdueItem = false;
+        let amount = 0;
+
+        if (!inv.matching) {
+          isOverdueItem = true;
+          amount = inv.debit - inv.credit;
+        } else if (inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
+          isOverdueItem = true;
+          amount = inv.residualAmount;
         }
 
-        let customerTotal = 0;
-        const customerYearly: Record<string, number> = {};
-
-        invoices.forEach((inv, index) => {
-          let isOverdueItem = false;
-          let amount = 0;
-
-          if (!inv.matching) {
-            isOverdueItem = true;
-            amount = inv.debit - inv.credit;
-          } else if (inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
-            isOverdueItem = true;
-            amount = inv.residualAmount;
-          }
-
-          if (isOverdueItem) {
-            const d = parseDate(inv.date);
-            const yr = d ? d.getFullYear().toString() : 'Unknown';
-            if (yr !== 'Unknown') yearsSet.add(yr);
+        if (isOverdueItem) {
+          const d = parseDate(inv.date);
+          const yr = d ? d.getFullYear().toString() : 'Unknown';
+          if (yr !== 'Unknown') yearsSet.add(yr);
 
           customerTotal += amount;
           customerYearly[yr] = (customerYearly[yr] || 0) + amount;
-          
+
           if (!customerPivotMap.has(customerName)) {
             customerPivotMap.set(customerName, {
               customerName,
-              region: inv.salesRep || '-',
+              region: inv.salesRep || inv.area || '-',
               totalNetDebt: 0,
               yearlyAmounts: {}
             });
@@ -3589,7 +3616,7 @@ ${debtSectionHtml}
               <thead className="bg-[#0f172a]">
                 <tr>
                   <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-20">#</th>
-                  <th 
+                  <th
                     className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 min-w-[350px] cursor-pointer hover:bg-slate-800 transition-colors"
                     onClick={() => handleYearlySort('name')}
                   >
@@ -3616,21 +3643,21 @@ ${debtSectionHtml}
                       <span>Customer Name {yearlySorting.id === 'name' && (yearlySorting.desc ? '↓' : '↑')}</span>
                     </div>
                   </th>
-                  <th 
+                  <th
                     className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48 cursor-pointer hover:bg-slate-800 transition-colors"
                     onClick={() => handleYearlySort('city')}
                   >
                     City {yearlySorting.id === 'city' && (yearlySorting.desc ? '↓' : '↑')}
                   </th>
-                  <th 
+                  <th
                     className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48 cursor-pointer hover:bg-slate-800 transition-colors"
                     onClick={() => handleYearlySort('netDebt')}
                   >
                     Net Debt {yearlySorting.id === 'netDebt' && (yearlySorting.desc ? '↓' : '↑')}
                   </th>
                   {yearlyPivotData.sortedYears.map(year => (
-                    <th 
-                      key={year} 
+                    <th
+                      key={year}
                       className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-40 cursor-pointer hover:bg-slate-800 transition-colors"
                       onClick={() => handleYearlySort(year)}
                     >
