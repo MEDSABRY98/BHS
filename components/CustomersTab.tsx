@@ -441,22 +441,15 @@ const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string 
   matchingGroups.forEach((group, matchingKey) => {
     if (matchingKey === 'UNMATCHED') return;
 
-    let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
-    if (Math.abs(groupNetDebt) <= 0.01) return;
-
-    let maxDebit = -1;
-    let residualHolderIndex = 0;
-    group.forEach((inv, idx) => {
-      if (inv.debit > maxDebit) {
-        maxDebit = inv.debit;
-        residualHolderIndex = idx;
-      }
-    });
-
-    matchingResiduals.set(matchingKey, {
-      residual: groupNetDebt,
-      residualHolderIndex
-    });
+    // 1. Check for manual Google Sheet residual amount on any invoice in the group
+    const sheetOverrideIndex = group.findIndex(inv => inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01);
+    
+    if (sheetOverrideIndex !== -1) {
+      matchingResiduals.set(matchingKey, {
+        residual: group[sheetOverrideIndex].residualAmount!,
+        residualHolderIndex: sheetOverrideIndex
+      });
+    }
   });
 
   // Collect overdue SAL invoices (unmatched or with residual)
@@ -522,84 +515,14 @@ const getOverdueMonths = (customerName: string, invoices: InvoiceRow[]): string 
 
 // Helper function to build invoices with net debt and residual (extracted for reuse)
 const buildInvoicesWithNetDebtForExport = (invList: InvoiceRow[], spiData: Array<{ number: string, matching: string }> = []) => {
-  // 1. Calculate totals for each matching group
-  const matchingTotals = new Map<string, number>();
-  invList.forEach((invoice) => {
-    if (invoice.matching) {
-      const current = matchingTotals.get(invoice.matching) || 0;
-      matchingTotals.set(invoice.matching, current + (invoice.debit - invoice.credit));
-    }
-  });
-
-  // 2. Identify which invoice should display the residual per matching group
-  const matchingTargetIndex = new Map<string, number>();
-  const maxDebits = new Map<string, number>(); // Track max debit per group
-  const overrideIndices = new Map<string, number>(); // Track SPI overrides
-
-  // Pre-scan for SPI Overrides
-  if (spiData.length > 0) {
-    invList.forEach((inv, index) => {
-      if (inv.matching && inv.number) {
-        const invNum = inv.number.toString().trim().toLowerCase();
-        const matchCode = inv.matching.toString().trim().toLowerCase();
-        const isOverride = spiData.some(s =>
-          s.number.toString().trim().toLowerCase() === invNum &&
-          s.matching.toString().trim().toLowerCase() === matchCode
-        );
-        if (isOverride) {
-          overrideIndices.set(inv.matching, index);
-        }
-      }
-    });
-  }
-
-  invList.forEach((invoice, index) => {
-    if (!invoice.matching) return;
-
-    // A. Check for Override
-    if (overrideIndices.has(invoice.matching)) {
-      matchingTargetIndex.set(invoice.matching, overrideIndices.get(invoice.matching)!);
-      return;
-    }
-
-    // B. Default Logic: Largest Debit
-    // Only proceed if we haven't already locked this group with an override?
-    // Actually, since we iterate all invoices, if we found an override, we set it.
-    // But we need to make sure we don't overwrite the override with a "larger debit" invoice later in the loop.
-    // The previous block sets it once.
-    // Here we should check: if override exists for this matching group, DO NOTHING.
-
-    // However, the cleanest way is to separate the "find target" logic completely or check the map.
-    // Let's rely on the fact that if overrideIndices has it, we use it. 
-    // BUT we need to iterate to fill matchingTargetIndex for groups WITHOUT overrides.
-
-    // Determine max debit logic
-    const currentMax = maxDebits.get(invoice.matching) ?? -1;
-    if ((invoice.debit || 0) > currentMax) {
-      maxDebits.set(invoice.matching, invoice.debit);
-      // Only update target if NO override exists
-      if (!overrideIndices.has(invoice.matching)) {
-        matchingTargetIndex.set(invoice.matching, index);
-      }
-    } else if (!matchingTargetIndex.has(invoice.matching) && !overrideIndices.has(invoice.matching)) {
-      // Initialize for group if needed
-      maxDebits.set(invoice.matching, invoice.debit);
-      matchingTargetIndex.set(invoice.matching, index);
-    }
-  });
-
-  // 3. Map invoices preserving original order
-  return invList.map((invoice, index) => {
+  // We now strictly rely on the 'residualAmount' from Google Sheets.
+  // Legacy fallback calculations have been fully removed.
+  
+  return invList.map((invoice) => {
     let residual: number | undefined = undefined;
 
-    if (invoice.matching) {
-      const targetIndex = matchingTargetIndex.get(invoice.matching);
-      if (targetIndex === index) {
-        const total = matchingTotals.get(invoice.matching) || 0;
-        if (Math.abs(total) > 0.01) {
-          residual = total;
-        }
-      }
+    if (invoice.matching && invoice.residualAmount !== undefined && Math.abs(invoice.residualAmount) > 0.01) {
+      residual = invoice.residualAmount;
     }
 
     return {
@@ -807,7 +730,7 @@ const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'custome
   }
 };
 
-const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = []) => {
+const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = [], yearlyData?: any) => {
   // Sheet 1: Customer Summary
   const summaryHeaders = [
     'Customer Name',
@@ -951,6 +874,32 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     XLSX.utils.book_append_sheet(workbook, netOnlySheet, 'Net Only Details');
   }
 
+  // Sheet 3: Customers Yearly (Newly Added)
+  if (yearlyData && yearlyData.rows.length > 0) {
+    const years = yearlyData.sortedYears;
+    const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...years];
+    
+    const yearlyRows = yearlyData.rows.map((row: any, index: number) => {
+      const rowData = [
+        index + 1,
+        row.customerName,
+        row.region,
+        row.totalNetDebt.toFixed(2)
+      ];
+      
+      // Add each year amount
+      years.forEach((yr: string) => {
+        rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2));
+      });
+      
+      return rowData;
+    });
+
+    const yearlySheetData = [yearlyHeaders, ...yearlyRows];
+    const yearlySheet = XLSX.utils.aoa_to_sheet(yearlySheetData);
+    XLSX.utils.book_append_sheet(workbook, yearlySheet, 'Customers Yearly');
+  }
+
   // Write and download
   XLSX.writeFile(workbook, `${filename}.xlsx`);
 };
@@ -975,12 +924,13 @@ const getInvoiceType = (inv: { number?: string | null; credit?: number | null; d
     return 'Discount';
   } else if (credit > 0.01) {
     return 'Payment';
-  }
+}
   return 'Invoice/Txn';
 };
 
 export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCustomer, onCustomerToggle }: CustomersTabProps) {
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'netDebt', desc: true }]);
+  const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'netDebt', desc: true });
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<string | null>(initialCustomer || null);
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
@@ -1188,59 +1138,118 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     });
   }, [data, filterYear, filterMonth, dateRangeFrom, dateRangeTo]);
 
-  // Dynamic Yearly Pivot Data
+  // Dynamic Yearly Pivot Data (STRICTLY matching CustomerDetailsTab Overdue Logic)
   const yearlyPivotData = useMemo(() => {
-    // 1. Find all available years
-    const yearsSet = new Set<string>();
-    data.forEach(row => {
-      const d = parseDate(row.date);
-      if (d) yearsSet.add(d.getFullYear().toString());
-    });
-    const sortedYears = Array.from(yearsSet).sort((a, b) => b.localeCompare(a)); // Newest first
-
-    // 2. Group by customer
-    const customerYearMap = new Map<string, {
+    const customerPivotMap = new Map<string, {
       customerName: string;
       region: string;
       totalNetDebt: number;
       yearlyAmounts: Record<string, number>;
     }>();
+    const yearsSet = new Set<string>();
 
-    // Apply basic search filter to yearly view as well
+    // 1. Group by Customer
+    const customerTransactions = new Map<string, InvoiceRow[]>();
+    data.forEach(row => {
+      if (!customerTransactions.has(row.customerName)) {
+        customerTransactions.set(row.customerName, []);
+      }
+      customerTransactions.get(row.customerName)!.push(row);
+    });
+
     const query = searchQuery.toLowerCase().trim();
 
-    data.forEach(row => {
-      // Filter by search query
-      if (query && !row.customerName?.toLowerCase().includes(query) && !row.number?.toString().toLowerCase().includes(query)) {
-        return;
+      // 2. Process each Customer identically to CustomerDetailsTab
+      customerTransactions.forEach((invoices, customerName) => {
+        // Basic Search Filter
+        if (query && !customerName.toLowerCase().includes(query)) {
+          return;
+        }
+
+        let customerTotal = 0;
+        const customerYearly: Record<string, number> = {};
+
+        invoices.forEach((inv, index) => {
+          let isOverdueItem = false;
+          let amount = 0;
+
+          if (!inv.matching) {
+            isOverdueItem = true;
+            amount = inv.debit - inv.credit;
+          } else if (inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
+            isOverdueItem = true;
+            amount = inv.residualAmount;
+          }
+
+          if (isOverdueItem) {
+            const d = parseDate(inv.date);
+            const yr = d ? d.getFullYear().toString() : 'Unknown';
+            if (yr !== 'Unknown') yearsSet.add(yr);
+
+          customerTotal += amount;
+          customerYearly[yr] = (customerYearly[yr] || 0) + amount;
+          
+          if (!customerPivotMap.has(customerName)) {
+            customerPivotMap.set(customerName, {
+              customerName,
+              region: inv.salesRep || inv.area || '-',
+              totalNetDebt: 0,
+              yearlyAmounts: {}
+            });
+          }
+        }
+      });
+      // -- End Overdue Logic Mirror --
+
+      if (customerPivotMap.has(customerName)) {
+        const entry = customerPivotMap.get(customerName)!;
+        entry.totalNetDebt = customerTotal;
+        entry.yearlyAmounts = customerYearly;
+      }
+    });
+
+    const sortedYears = Array.from(yearsSet)
+      .sort((a, b) => b.localeCompare(a));
+
+    const finalRows = Array.from(customerPivotMap.values())
+      .filter(row => row.totalNetDebt > 0.01);
+
+    // Dynamic sorting
+    finalRows.sort((a, b) => {
+      let valA: any = 0;
+      let valB: any = 0;
+
+      if (yearlySorting.id === 'name') {
+        valA = a.customerName;
+        valB = b.customerName;
+      } else if (yearlySorting.id === 'city') {
+        valA = a.region;
+        valB = b.region;
+      } else if (yearlySorting.id === 'netDebt') {
+        valA = a.totalNetDebt;
+        valB = b.totalNetDebt;
+      } else {
+        // Sort by specific year
+        valA = a.yearlyAmounts[yearlySorting.id] || 0;
+        valB = b.yearlyAmounts[yearlySorting.id] || 0;
       }
 
-      const d = parseDate(row.date);
-      if (!d) return;
-      const yr = d.getFullYear().toString();
-      const net = row.debit - row.credit;
-
-      if (!customerYearMap.has(row.customerName)) {
-        customerYearMap.set(row.customerName, {
-          customerName: row.customerName,
-          region: row.salesRep || row.area || '-',
-          totalNetDebt: 0,
-          yearlyAmounts: {}
-        });
+      if (typeof valA === 'string') {
+        return yearlySorting.desc
+          ? (valB as string).localeCompare(valA as string)
+          : (valA as string).localeCompare(valB as string);
+      } else {
+        return yearlySorting.desc
+          ? (valB as number) - (valA as number)
+          : (valA as number) - (valB as number);
       }
-
-      const entry = customerYearMap.get(row.customerName)!;
-      entry.totalNetDebt += net;
-      entry.yearlyAmounts[yr] = (entry.yearlyAmounts[yr] || 0) + net;
     });
 
     return {
       sortedYears,
-      rows: Array.from(customerYearMap.values())
-        .filter(row => Math.abs(row.totalNetDebt) > 0.01)
-        .sort((a, b) => b.totalNetDebt - a.totalNetDebt)
+      rows: finalRows
     };
-  }, [data, searchQuery]);
+  }, [data, searchQuery, yearlySorting]);
 
   // Calculate customer analysis based on the FILTERED raw data
   const customerAnalysis = useMemo(() => {
@@ -2382,6 +2391,13 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     });
   };
 
+  const handleYearlySort = (id: string) => {
+    setYearlySorting(prev => ({
+      id,
+      desc: prev.id === id ? !prev.desc : true
+    }));
+  };
+
   // Bulk download function with Net Only filter
   const handleBulkDownload = async () => {
     if (selectedCustomersForDownload.size === 0) {
@@ -3071,7 +3087,7 @@ ${debtSectionHtml}
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data)}
+                  onClick={() => exportToExcel(filteredData, `customers_export_${new Date().toISOString().split('T')[0]}`, closedCustomers, data, yearlyPivotData)}
                   className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group"
                   title="Export to Excel (Summary + Net Only Details)"
                 >
@@ -3600,12 +3616,16 @@ ${debtSectionHtml}
               <thead className="bg-[#0f172a]">
                 <tr>
                   <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-20">#</th>
-                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 min-w-[350px]">
+                  <th 
+                    className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 min-w-[350px] cursor-pointer hover:bg-slate-800 transition-colors"
+                    onClick={() => handleYearlySort('name')}
+                  >
                     <div className="flex items-center justify-center gap-3">
                       <input
                         type="checkbox"
                         checked={yearlyPivotData.rows.length > 0 && yearlyPivotData.rows.every(r => selectedCustomersForDownload.has(r.customerName))}
-                        onChange={() => {
+                        onChange={(e) => {
+                          e.stopPropagation(); // Prevent sorting when clicking checkbox
                           const allChecked = yearlyPivotData.rows.every(r => selectedCustomersForDownload.has(r.customerName));
                           const newSelection = new Set(selectedCustomersForDownload);
                           yearlyPivotData.rows.forEach(r => {
@@ -3620,14 +3640,28 @@ ${debtSectionHtml}
                         className="w-4 h-4 text-white bg-slate-700 border-slate-500 rounded focus:ring-blue-500 cursor-pointer"
                         title="Select All"
                       />
-                      <span>Customer Name</span>
+                      <span>Customer Name {yearlySorting.id === 'name' && (yearlySorting.desc ? '↓' : '↑')}</span>
                     </div>
                   </th>
-                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48">City</th>
-                  <th className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48">Net Debt</th>
+                  <th 
+                    className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48 cursor-pointer hover:bg-slate-800 transition-colors"
+                    onClick={() => handleYearlySort('city')}
+                  >
+                    City {yearlySorting.id === 'city' && (yearlySorting.desc ? '↓' : '↑')}
+                  </th>
+                  <th 
+                    className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-48 cursor-pointer hover:bg-slate-800 transition-colors"
+                    onClick={() => handleYearlySort('netDebt')}
+                  >
+                    Net Debt {yearlySorting.id === 'netDebt' && (yearlySorting.desc ? '↓' : '↑')}
+                  </th>
                   {yearlyPivotData.sortedYears.map(year => (
-                    <th key={year} className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-40">
-                      {year}
+                    <th 
+                      key={year} 
+                      className="px-6 py-4 text-center text-xs font-bold text-white uppercase tracking-wider border-r border-slate-700 w-40 cursor-pointer hover:bg-slate-800 transition-colors"
+                      onClick={() => handleYearlySort(year)}
+                    >
+                      {year} {yearlySorting.id === year && (yearlySorting.desc ? '↓' : '↑')}
                     </th>
                   ))}
                 </tr>

@@ -7,6 +7,7 @@ export interface InvoiceRow {
   credit: number;
   salesRep: string;
   matching?: string;
+  residualAmount?: number;
 }
 
 export interface CustomerAnalysis {

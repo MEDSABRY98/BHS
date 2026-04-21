@@ -704,80 +704,16 @@ ${debtSectionHtml}
 
   // Prepare invoices data with Net Debt and Residual
   const invoicesWithNetDebt = useMemo(() => {
-    // 1. Calculate totals for each matching group
-    const matchingTotals = new Map<string, number>();
-
-    invoices.forEach(inv => {
-      if (inv.matching) {
-        const currentTotal = matchingTotals.get(inv.matching) || 0;
-        matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
-      }
-    });
-
-    // 2. Find the index of the row with the largest DEBIT for each matching code
-    //    OR use SPI override if available
-    const targetResidualIndices = new Map<string, number>();
-    const maxDebits = new Map<string, number>();
-    const overrideIndices = new Map<string, number>();
-
-    // Pre-scan for SPI Overrides
-    if (spiData.length > 0) {
-      invoices.forEach((inv, index) => {
-        if (inv.matching && inv.number) {
-          // Check if this invoice is flagged in SPI for this matching code
-          // Normalize for comparison (Lowercase, Trim)
-          const invNum = inv.number.toString().trim().toLowerCase();
-          const matchCode = inv.matching.toString().trim().toLowerCase();
-
-          const isOverride = spiData.some(s =>
-            s.number.toString().trim().toLowerCase() === invNum &&
-            s.matching.toString().trim().toLowerCase() === matchCode
-          );
-
-          if (isOverride) {
-            overrideIndices.set(inv.matching, index); // Use original Match Code as key
-          }
-        }
-      });
-    }
-
-    invoices.forEach((inv, index) => {
-      if (inv.matching) {
-        // If there is an override for this matching group, use it
-        if (overrideIndices.has(inv.matching)) {
-          targetResidualIndices.set(inv.matching, overrideIndices.get(inv.matching)!);
-          return;
-        }
-
-        // Normal Logic: Largest Debit
-        const currentMax = maxDebits.get(inv.matching) ?? -1;
-        // Update if we find a larger debit
-        // If debits are equal, we keep the first one found (strict greater than)
-        if (inv.debit > currentMax) {
-          maxDebits.set(inv.matching, inv.debit);
-          targetResidualIndices.set(inv.matching, index);
-        } else if (!targetResidualIndices.has(inv.matching)) {
-          // Ensure at least one index is set (e.g. if all debits are 0)
-          maxDebits.set(inv.matching, inv.debit);
-          targetResidualIndices.set(inv.matching, index);
-        }
-      }
-    });
-
-    // 3. Map invoices preserving original order from Google Sheets
+    // We now strictly rely on the 'residualAmount' from Google Sheets.
+    // Legacy fallback calculations (matchingTotals, maxDebits) and SPI overrides have been fully removed 
+    // to prevent any overlap or interference.
+    
     return invoices.map((invoice, index) => {
       let residual: number | undefined = undefined;
       const parsedDate = parseInvoiceDate(invoice.date);
 
-      if (invoice.matching) {
-        const targetIndex = targetResidualIndices.get(invoice.matching);
-        // Show residual only on the invoice with the largest debit (or SPI override)
-        if (targetIndex === index) {
-          const total = matchingTotals.get(invoice.matching) || 0;
-          if (Math.abs(total) > 0.01) {
-            residual = total;
-          }
-        }
+      if (invoice.matching && invoice.residualAmount !== undefined && Math.abs(invoice.residualAmount) > 0.01) {
+        residual = invoice.residualAmount;
       }
 
       return {
@@ -788,7 +724,7 @@ ${debtSectionHtml}
         parsedDate
       };
     });
-  }, [invoices, spiData]);
+  }, [invoices]);
 
   // Get matchings with residual for filtering
   const availableMatchingsWithResidual = useMemo(() => {
