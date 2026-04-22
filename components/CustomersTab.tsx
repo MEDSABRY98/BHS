@@ -1192,7 +1192,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
           if (!customerPivotMap.has(customerName)) {
             customerPivotMap.set(customerName, {
               customerName,
-              region: inv.salesRep || inv.area || '-',
+              region: inv.salesRep || '-',
               totalNetDebt: 0,
               yearlyAmounts: {}
             });

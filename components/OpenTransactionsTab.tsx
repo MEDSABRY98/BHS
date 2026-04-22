@@ -74,43 +74,15 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
     const items: OpenMatchItem[] = [];
 
     customerGroups.forEach((customerInvoices, customerName) => {
-      // Calculate matching totals and residuals (same logic as CustomerDetails)
-      const matchingTotals = new Map<string, number>();
-
-      customerInvoices.forEach(inv => {
-        if (inv.matching) {
-          const currentTotal = matchingTotals.get(inv.matching) || 0;
-          matchingTotals.set(inv.matching, currentTotal + (inv.debit - inv.credit));
-        }
-      });
-
-      const targetResidualIndices = new Map<string, number>();
-      const maxDebits = new Map<string, number>();
-
-      customerInvoices.forEach((inv, index) => {
-        if (inv.matching) {
-          const currentMax = maxDebits.get(inv.matching) ?? -1;
-          if (inv.debit > currentMax) {
-            maxDebits.set(inv.matching, inv.debit);
-            targetResidualIndices.set(inv.matching, index);
-          } else if (!targetResidualIndices.has(inv.matching)) {
-            maxDebits.set(inv.matching, inv.debit);
-            targetResidualIndices.set(inv.matching, index);
-          }
-        }
-      });
+      // Legacy matching index logic removed to strictly respect Google Sheet residualAmount column
+      // (Simplified loop to prep for mapping)
 
       const invoicesWithNetDebt = customerInvoices.map((invoice, index) => {
         let residual: number | undefined = undefined;
 
-        if (invoice.matching) {
-          const targetIndex = targetResidualIndices.get(invoice.matching);
-          if (targetIndex === index) {
-            const total = matchingTotals.get(invoice.matching) || 0;
-            if (Math.abs(total) > 0.01) {
-              residual = total;
-            }
-          }
+        // Strictly use residualAmount from Google Sheet if available
+        if (invoice.matching && invoice.residualAmount !== undefined && Math.abs(invoice.residualAmount) > 0.01) {
+          residual = invoice.residualAmount;
         }
 
         return {
@@ -127,11 +99,7 @@ export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabPro
         }
         return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
       }).map(inv => {
-        let difference = inv.netDebt;
-
-        if (inv.matching && inv.residual !== undefined) {
-          difference = inv.residual;
-        }
+        let difference = inv.residual !== undefined ? inv.residual : inv.netDebt;
 
         const adjustedCredit = inv.debit - difference;
 
