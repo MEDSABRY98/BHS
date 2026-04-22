@@ -330,8 +330,12 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   });
   const [showCollectionModal, setShowCollectionModal] = useState(false);
 
+  const [selectedYearFilter, setSelectedYearFilter] = useState<string[]>([]);
+  const [isYearDropdownOpen, setIsYearDropdownOpen] = useState(false);
   const [selectedMonthFilter, setSelectedMonthFilter] = useState<string[]>([]);
   const [isMonthDropdownOpen, setIsMonthDropdownOpen] = useState(false);
+  const [selectedOverdueMonthFilter, setSelectedOverdueMonthFilter] = useState<string[]>([]);
+  const [isOverdueMonthDropdownOpen, setIsOverdueMonthDropdownOpen] = useState(false);
   const [selectedMatchingFilter, setSelectedMatchingFilter] = useState<string[]>([]);
   const [isMatchingDropdownOpen, setIsMatchingDropdownOpen] = useState(false);
   const [startDateFilter, setStartDateFilter] = useState('');
@@ -863,9 +867,69 @@ ${debtSectionHtml}
     });
   }, [invoicesWithNetDebt]);
 
+  // Get available overdue months for filtering
+  const availableOverdueMonths = useMemo(() => {
+    const monthsSet = new Set<string>();
+
+    let relevantInvoices = overdueInvoices;
+
+    // Apply matching filters
+    if (selectedMatchingFilter.length > 0) {
+      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
+      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
+      const selectedIds = selectedMatchingFilter.filter(
+        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
+      );
+
+      relevantInvoices = relevantInvoices.filter((inv) => {
+        if (!inv.matching) return wantsUnmatched;
+        return (
+          (wantsAllOpen && true) ||
+          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
+        );
+      });
+    }
+
+    relevantInvoices.forEach(inv => {
+      // For overdue context, it's typically just months that are in this array
+      if (inv.date) {
+        const date = new Date(inv.date);
+        if (!isNaN(date.getTime())) {
+          const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+          monthsSet.add(monthYear);
+        }
+      }
+    });
+
+    // Convert to array and sort by date descending
+    return Array.from(monthsSet).sort((a, b) => {
+      const dateA = new Date(`1 ${a}`);
+      const dateB = new Date(`1 ${b}`);
+      return dateB.getTime() - dateA.getTime();
+    });
+  }, [overdueInvoices, selectedMatchingFilter]);
+
+  // Reset selected overdue months if they're no longer available in the filtered list
+  useEffect(() => {
+    const validMonths = selectedOverdueMonthFilter.filter(month => availableOverdueMonths.includes(month));
+    if (validMonths.length !== selectedOverdueMonthFilter.length) {
+      setSelectedOverdueMonthFilter(validMonths);
+    }
+  }, [availableOverdueMonths, selectedOverdueMonthFilter]);
+
   // Filter invoices based on selected month filter, matching filter, and search query
   const filteredInvoices = useMemo(() => {
     let filtered = invoicesWithNetDebt;
+
+    // Year Filter
+    if (selectedYearFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        return selectedYearFilter.includes(date.getFullYear().toString());
+      });
+    }
 
     // Month Filter
     if (selectedMonthFilter.length > 0) {
@@ -875,6 +939,17 @@ ${debtSectionHtml}
         if (isNaN(date.getTime())) return false;
         const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         return selectedMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Overdue Month Filter
+    if (selectedOverdueMonthFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return selectedOverdueMonthFilter.includes(monthYear);
       });
     }
 
@@ -953,13 +1028,23 @@ ${debtSectionHtml}
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
     );
-  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
+  }, [invoicesWithNetDebt, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
   // Calculate totals for each invoice type based on current filters (excluding type filters)
   const invoiceTypeTotals = useMemo(() => {
     let filtered = invoicesWithNetDebt;
 
     // Apply same filters as filteredInvoices but without type filters
+    // Year Filter
+    if (selectedYearFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        return selectedYearFilter.includes(date.getFullYear().toString());
+      });
+    }
+
     // Month Filter
     if (selectedMonthFilter.length > 0) {
       filtered = filtered.filter((inv) => {
@@ -968,6 +1053,17 @@ ${debtSectionHtml}
         if (isNaN(date.getTime())) return false;
         const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         return selectedMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Overdue Month Filter
+    if (selectedOverdueMonthFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return selectedOverdueMonthFilter.includes(monthYear);
       });
     }
 
@@ -1037,11 +1133,21 @@ ${debtSectionHtml}
       discounts: discountsTotal,
       jv: jvTotal,
     };
-  }, [invoicesWithNetDebt, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual, startDateFilter, endDateFilter]);
+  }, [invoicesWithNetDebt, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual, startDateFilter, endDateFilter]);
 
   // Filter overdue invoices based on selected month filter, matching filter, and search query
   const filteredOverdueInvoices = useMemo(() => {
     let filtered = overdueInvoices;
+
+    // Year Filter
+    if (selectedYearFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        return selectedYearFilter.includes(date.getFullYear().toString());
+      });
+    }
 
     // Month Filter
     if (selectedMonthFilter.length > 0) {
@@ -1051,6 +1157,17 @@ ${debtSectionHtml}
         if (isNaN(date.getTime())) return false;
         const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
         return selectedMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Overdue Month Filter
+    if (selectedOverdueMonthFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return selectedOverdueMonthFilter.includes(monthYear);
       });
     }
 
@@ -1130,7 +1247,7 @@ ${debtSectionHtml}
     return [...filtered].sort(
       (a, b) => (a.originalIndex ?? 0) - (b.originalIndex ?? 0),
     );
-  }, [overdueInvoices, selectedMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
+  }, [overdueInvoices, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
   // Prepare monthly debt data
   const monthlyDebt = useMemo(() => {
@@ -3249,6 +3366,71 @@ ${debtSectionHtml}
                 )}
               </div>
 
+              {/* Year Filter */}
+              <div className="relative w-full md:w-56">
+                <button
+                  type="button"
+                  onClick={() => setIsYearDropdownOpen(!isYearDropdownOpen)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isYearDropdownOpen || selectedYearFilter.length > 0
+                    ? 'bg-blue-50 border-blue-200 text-blue-700 ring-2 ring-blue-100'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Calendar className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {selectedYearFilter.length === 0
+                        ? 'All Years'
+                        : selectedYearFilter.length === 1
+                          ? selectedYearFilter[0]
+                          : `${selectedYearFilter.length} Selected`}
+                    </span>
+                  </div>
+                  <svg className={`w-4 h-4 shrink-0 transition-transform ${isYearDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isYearDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setIsYearDropdownOpen(false)}></div>
+                    <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
+                      <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
+                        <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
+                          <div className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedYearFilter.length === availableYears.length && availableYears.length > 0}
+                              onChange={(e) => {
+                                e.target.checked ? setSelectedYearFilter([...availableYears]) : setSelectedYearFilter([]);
+                              }}
+                              className="peer h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-700">Select All</span>
+                        </label>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {availableYears.map((year) => (
+                          <label key={year} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedYearFilter.includes(year)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedYearFilter([...selectedYearFilter, year]);
+                                else setSelectedYearFilter(selectedYearFilter.filter(y => y !== year));
+                              }}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-600">{year}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
               {/* Month Filter */}
               <div className="relative w-full md:w-56">
                 <button
@@ -3304,6 +3486,72 @@ ${debtSectionHtml}
                                 else setSelectedMonthFilter(selectedMonthFilter.filter(m => m !== month));
                               }}
                               className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-600">{month}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Overdue Month Filter */}
+              <div className="relative w-full md:w-56">
+                <button
+                  type="button"
+                  onClick={() => setIsOverdueMonthDropdownOpen(!isOverdueMonthDropdownOpen)}
+                  className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl border font-medium text-sm transition-all ${isOverdueMonthDropdownOpen || selectedOverdueMonthFilter.length > 0
+                    ? 'bg-red-50 border-red-200 text-red-700 ring-2 ring-red-100'
+                    : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50 hover:border-gray-300'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 truncate">
+                    <Calendar className="w-4 h-4 shrink-0" />
+                    <span className="truncate">
+                      {selectedOverdueMonthFilter.length === 0
+                        ? 'All Overdue Months'
+                        : selectedOverdueMonthFilter.length === 1
+                          ? selectedOverdueMonthFilter[0]
+                          : `${selectedOverdueMonthFilter.length} Selected`}
+                    </span>
+                  </div>
+                  <svg className={`w-4 h-4 shrink-0 transition-transform ${isOverdueMonthDropdownOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {isOverdueMonthDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-20" onClick={() => setIsOverdueMonthDropdownOpen(false)}></div>
+                    <div className="absolute left-0 mt-2 w-full bg-white rounded-xl shadow-xl border border-gray-100 z-30 max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-200 origin-top">
+                      <div className="p-3 border-b border-gray-100 bg-gray-50/50 sticky top-0 backdrop-blur-sm">
+                        <label className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-white hover:shadow-sm transition-all">
+                          <div className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedOverdueMonthFilter.length === availableOverdueMonths.length && availableOverdueMonths.length > 0}
+                              onChange={(e) => {
+                                e.target.checked ? setSelectedOverdueMonthFilter([...availableOverdueMonths]) : setSelectedOverdueMonthFilter([]);
+                              }}
+                              className="peer h-4 w-4 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-gray-700">Select All</span>
+                        </label>
+                      </div>
+                      <div className="p-2 space-y-1">
+                        {availableOverdueMonths.length === 0 && <div className="text-center text-sm text-gray-500 py-2">No overdue months</div>}
+                        {availableOverdueMonths.map((month) => (
+                          <label key={month} className="flex items-center gap-3 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={selectedOverdueMonthFilter.includes(month)}
+                              onChange={(e) => {
+                                if (e.target.checked) setSelectedOverdueMonthFilter([...selectedOverdueMonthFilter, month]);
+                                else setSelectedOverdueMonthFilter(selectedOverdueMonthFilter.filter(m => m !== month));
+                              }}
+                              className="rounded border-gray-300 text-red-600 focus:ring-red-500"
                             />
                             <span className="text-sm text-gray-600">{month}</span>
                           </label>
