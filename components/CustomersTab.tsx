@@ -731,71 +731,10 @@ const exportToPDF = async (data: CustomerAnalysis[], filename: string = 'custome
 };
 
 const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_export', closedCustomersSet: Set<string> = new Set(), invoices: InvoiceRow[] = [], yearlyData?: any) => {
-  // Sheet 1: Customer Summary
-  const summaryHeaders = [
-    'Customer Name',
-    'Sales Rep',
-    'Net Debit',
-    'Debt Rating',
-    'Open OB',
-    'Overdue Amount',
-    'Overdue Months',
-    'Collection Rate %',
-    'Payment Rate %',
-    'Return Rate %',
-    'Discount Rate %',
-    'Last Payment Date',
-    'Last Payment Closure',
-    'Payments Last 90d',
-    'Payments Count Last 90d',
-    'Net Sales',
-    'Last Sales Date',
-    'Sales Last 90d',
-    'Sales Count Last 90d',
-  ];
 
-  const summaryRows = data.map(customer => {
-    const collectionRate = customer.totalDebit > 0
-      ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(2) + '%'
-      : '0.00%';
-
-    // Breakdown rates relative to Total Credit (Share of Collection)
-    const creditDenom = customer.totalCredit || 0;
-    const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
-    const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
-    const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
-
-    const salesRep = customer.salesReps && customer.salesReps.size > 0
-      ? Array.from(customer.salesReps).join(', ')
-      : '';
-
-    const rating = calculateDebtRating(customer, closedCustomersSet);
-    const overdueMonths = getOverdueMonths(customer.customerName, invoices);
-
-    return [
-      customer.customerName || '',
-      salesRep,
-      customer.netDebt.toFixed(2) || '0.00',
-      rating,
-      (customer.openOBAmount || 0).toFixed(2),
-      (customer.overdueAmount || 0).toFixed(2),
-      overdueMonths,
-      collectionRate,
-      payRate,
-      returnRate,
-      discountRate,
-      customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '',
-      customer.lastPaymentClosure || 'Still Open',
-      (customer as any).payments3m?.toFixed(2) || '0.00',
-      (customer as any).paymentsCount3m ?? 0,
-      (customer.netSales || 0).toFixed(2),
-      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '',
-      (customer as any).sales3m?.toFixed(2) || '0.00',
-      (customer as any).salesCount3m ?? 0,
-    ];
-  });
-
-  // Sheet 2: Net Only Invoice Details
+  // ==========================
+  // SHEET 1: Net Only Details
+  // ==========================
   const netOnlyHeaders = [
     'Customer Name',
     'Date',
@@ -807,32 +746,19 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
   ];
 
   const netOnlyRows: any[] = [];
-
-  // Process each customer to get Net Only invoices
   for (const customer of data) {
     const customerInvoices = invoices.filter(row => row.customerName === customer.customerName);
+    if (customerInvoices.length === 0) continue;
 
-    if (customerInvoices.length === 0) {
-      continue;
-    }
-
-    // Build invoices with net debt and residual
     const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
 
-    // Apply Net Only filter: Keep only unmatched invoices OR the single "residual holder" invoice for open matching groups
     const netOnlyInvoices = invoicesWithNetDebt
       .filter(inv => {
-        // Keep if no matching ID (Unmatched)
         if (!inv.matching) return true;
-
-        // Keep only if it carries the residual (which means it's the main open invoice of an open group)
         return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
       })
       .map(inv => {
         if (inv.matching && inv.residual !== undefined) {
-          // It's a condensed open invoice
-          // Calculate "Paid" amount to show in Credit
-          // Credit = Debit - Residual
           return {
             ...inv,
             credit: inv.debit - inv.residual,
@@ -842,11 +768,9 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
         return inv;
       });
 
-    // Add rows for this customer
     netOnlyInvoices.forEach(inv => {
       const date = formatDmy(parseDate(inv.date));
       const type = getInvoiceType(inv);
-
       netOnlyRows.push([
         customer.customerName,
         date,
@@ -859,45 +783,146 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     });
   }
 
-  // Create Excel workbook with multiple sheets
-  const workbook = XLSX.utils.book_new();
+  // ==========================
+  // SHEET 2: Customers Dashboard
+  // ==========================
+  const dashboardHeaders = [
+    '#',
+    'Customer Name',
+    'City',
+    'Net Debit',
+    'Debt Rating',
+    'OB Amount',
+    'Overdue Amount',
+    'Collection Rate %',
+    'Payment Rate %',
+    'Return Rate %',
+    'Discount Rate %',
+    'Last Payment Date',
+    'Payments Count 90d',
+    'Payments 90d Amt',
+    'Net Sales',
+    'Sales Count 90d',
+    'Sales 90d Amt',
+  ];
 
-  // Sheet 1: Customer Summary
-  const summaryData = [summaryHeaders, ...summaryRows];
-  const summarySheet = XLSX.utils.aoa_to_sheet(summaryData);
-  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Customer Summary');
+  const dashboardRows = data.map((customer, index) => {
+    const collectionRate = customer.totalDebit > 0 ? ((customer.totalCredit / customer.totalDebit) * 100).toFixed(1) + '%' : '0.0%';
+    const creditDenom = customer.totalCredit || 0;
+    const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
+    const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
+    const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
+    
+    let reps = '-';
+    if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
+    else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
+    
+    return [
+      index + 1,
+      customer.customerName || '',
+      reps,
+      customer.netDebt.toFixed(2),
+      calculateDebtRating(customer, closedCustomersSet),
+      (customer.openOBAmount || 0).toFixed(2),
+      (customer.overdueAmount || 0).toFixed(2),
+      collectionRate,
+      payRate,
+      returnRate,
+      discountRate,
+      customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-',
+      (customer as any).paymentsCount3m ?? 0,
+      (customer as any).payments3m?.toFixed(2) || '0.00',
+      (customer.netSales || 0).toFixed(2),
+      (customer as any).salesCount3m ?? 0,
+      (customer as any).sales3m?.toFixed(2) || '0.00',
+    ];
+  });
 
-  // Sheet 2: Net Only Details
-  if (netOnlyRows.length > 0) {
-    const netOnlyData = [netOnlyHeaders, ...netOnlyRows];
-    const netOnlySheet = XLSX.utils.aoa_to_sheet(netOnlyData);
-    XLSX.utils.book_append_sheet(workbook, netOnlySheet, 'Net Only Details');
-  }
+  // ==========================
+  // SHEET 3: Summary View
+  // ==========================
+  const summaryHeaders = [
+    '#',
+    'Customer Name',
+    'City / Rep',
+    'Total Debt',
+    'Last Pay Date',
+    'Last Pay Amt',
+    'Pay (90d)',
+    '# Pay (90d)',
+    'Coll Rate (Pay) %',
+    'Last Sale Date',
+    'Last Sale Amt',
+    'Sales (90d)',
+    '# Sales (90d)',
+    'Rating'
+  ];
 
-  // Sheet 3: Customers Yearly (Newly Added)
+  const summaryRows = data.map((customer, index) => {
+    const collRate = customer.totalDebit > 0 ? ((customer.creditPayments || 0) / customer.totalDebit * 100).toFixed(1) + '%' : '0.0%';
+    
+    let reps = '-';
+    if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
+    else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
+
+    return [
+      index + 1,
+      customer.customerName || '',
+      reps,
+      customer.netDebt.toFixed(2),
+      customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-',
+      (customer.lastPaymentAmount || 0).toFixed(2),
+      (customer as any).payments3m?.toFixed(2) || '0.00',
+      (customer as any).paymentsCount3m ?? 0,
+      collRate,
+      customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-',
+      (customer.lastSalesAmount || 0).toFixed(2),
+      (customer as any).sales3m?.toFixed(2) || '0.00',
+      (customer as any).salesCount3m ?? 0,
+      calculateDebtRating(customer, closedCustomersSet)
+    ];
+  });
+
+  // ==========================
+  // SHEET 4: Yearly View
+  // ==========================
+  let yearlyHeaders: string[] = [];
+  let yearlyRows: any[] = [];
   if (yearlyData && yearlyData.rows.length > 0) {
     const years = yearlyData.sortedYears;
-    const yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...years];
-
-    const yearlyRows = yearlyData.rows.map((row: any, index: number) => {
+    yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...years];
+    
+    yearlyRows = yearlyData.rows.map((row: any, index: number) => {
       const rowData = [
         index + 1,
         row.customerName,
         row.region,
         row.totalNetDebt.toFixed(2)
       ];
-
-      // Add each year amount
       years.forEach((yr: string) => {
         rowData.push((row.yearlyAmounts[yr] || 0).toFixed(2));
       });
-
       return rowData;
     });
+  }
 
-    const yearlySheetData = [yearlyHeaders, ...yearlyRows];
-    const yearlySheet = XLSX.utils.aoa_to_sheet(yearlySheetData);
-    XLSX.utils.book_append_sheet(workbook, yearlySheet, 'Customers Yearly');
+  // Create Excel workbook
+  const workbook = XLSX.utils.book_new();
+
+  // 1. Net Only Details (First sheet as requested)
+  if (netOnlyRows.length > 0) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([netOnlyHeaders, ...netOnlyRows]), 'Net Only Details');
+  }
+
+  // 2. Customers Dashboard
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([dashboardHeaders, ...dashboardRows]), 'Customers Dashboard');
+
+  // 3. Summary View
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([summaryHeaders, ...summaryRows]), 'Summary View');
+
+  // 4. Yearly View
+  if (yearlyRows.length > 0) {
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([yearlyHeaders, ...yearlyRows]), 'Yearly View');
   }
 
   // Write and download
