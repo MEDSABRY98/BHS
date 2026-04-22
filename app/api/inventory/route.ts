@@ -9,9 +9,9 @@ export async function GET() {
     console.error('API Error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch inventory data';
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch inventory data',
-        details: errorMessage 
+        details: errorMessage
       },
       { status: 500 }
     );
@@ -21,7 +21,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const { rowIndex, field, value } = await request.json();
-    
+
     if (!rowIndex || !field) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }

@@ -2496,11 +2496,12 @@ export async function getProductOrdersData(): Promise<ProductOrder[]> {
       name: invHeader.findIndex((h: string) => h === 'product name' || ((h.includes('name') || h.includes('product') || h.includes('item')) && !h.includes('id') && !h.includes('code'))),
       minQ: invHeader.findIndex((h: string) => h === 'min q by ctn' || h.includes('min q') || h.includes('min')),
       maxQ: invHeader.findIndex((h: string) => h === 'max q by ctn' || h.includes('max q') || h.includes('max')),
-      qinc: invHeader.findIndex((h: string) => h === 'qinc' || ((h.includes('qinc') || h.includes('units') || h.includes('ctn')) && !h.includes('min') && !h.includes('max'))),
+      qinc: invHeader.findIndex((h: string) => h === 'qinc'), // Strictly match 'qinc' as requested
       tags: invHeader.findIndex((h: string) => h === 'tags' || h.includes('tag')),
       onHand: invHeader.findIndex((h: string) => h === 'qty' || h.includes('on hand') || h.includes('stock')),
       free: invHeader.findIndex((h: string) => h === 'qty' || h.includes('free') || h.includes('avail'))
     };
+
 
     // Fallback mappings if headers not found (based on user description)
     // Fallback mappings if headers not found (based on new structure: ID, BARCODE, NAME, TAGS, MIN, MAX, QINC, QTY)
@@ -2577,20 +2578,30 @@ export async function updateProductColumn(rowIndex: number, columnName: string, 
 
     let colIndex = -1;
     // Map nice names to loose matching
-    if (columnName === 'qinc') colIndex = header.findIndex((h: string) => h.includes('qinc') || h.includes('units') || h.includes('ctn'));
+    if (columnName === 'qinc') colIndex = header.findIndex((h: string) => h === 'qinc'); // Strictly match 'qinc'
     else if (columnName === 'minQ') colIndex = header.findIndex((h: string) => h.includes('min q') || h.includes('min'));
     else if (columnName === 'maxQ') colIndex = header.findIndex((h: string) => h.includes('max q') || h.includes('max'));
 
     // Fallbacks if header logic fails
     if (colIndex === -1) {
-      if (columnName === 'minQ') colIndex = 3;
-      else if (columnName === 'maxQ') colIndex = 4;
-      else if (columnName === 'qinc') colIndex = 5;
+      if (columnName === 'minQ') colIndex = 4;
+      else if (columnName === 'maxQ') colIndex = 5;
+      else if (columnName === 'qinc') colIndex = 6;
     }
 
     if (colIndex === -1) throw new Error(`Column for ${columnName} not found`);
 
-    const colLetter = String.fromCharCode(65 + colIndex);
+    // Helper to convert 0-based index to Google Sheets column letter (A, B, ..., Z, AA, AB...)
+    const getColLetter = (index: number) => {
+      let letter = '';
+      while (index >= 0) {
+        letter = String.fromCharCode((index % 26) + 65) + letter;
+        index = Math.floor(index / 26) - 1;
+      }
+      return letter;
+    };
+    
+    const colLetter = getColLetter(colIndex);
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
@@ -4451,8 +4462,8 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
       } else {
         tempDate.setMonth(tempDate.getMonth() + 1);
       }
-      
-      if (allPeriods.length > 400) break; 
+
+      if (allPeriods.length > 400) break;
     }
 
     let totalSales = 0;

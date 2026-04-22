@@ -45,6 +45,11 @@ export default function InventoryProductOrdersDetailsTab({
     const [fetchingMovements, setFetchingMovements] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<{ id: string, name: string, barcode: string } | null>(null);
 
+    // Keep localProducts perfectly synchronized with the live data when a background fetch completes
+    useEffect(() => {
+        setLocalProducts(initialProducts);
+    }, [initialProducts]);
+
     const filteredProducts = useMemo(() => {
         return localProducts.filter(p =>
             p.formattedTag === categoryName &&
@@ -119,9 +124,14 @@ export default function InventoryProductOrdersDetailsTab({
 
             if (!res.ok) throw new Error('Failed to update');
 
+            // 1. Update the UI locally instantly for responsive feel
             setLocalProducts(prev => prev.map(p =>
                 p.productId === product.productId ? { ...p, [field]: numValue } : p
             ));
+            
+            // 2. Silently command the master list to refresh from the live sheet so other tabs get the updated value
+            onRefresh();
+
         } catch (err) {
             console.error('Update error:', err);
             alert('Failed to update column in Google Sheets');
