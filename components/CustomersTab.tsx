@@ -1163,118 +1163,6 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     });
   }, [data, filterYear, filterMonth, dateRangeFrom, dateRangeTo]);
 
-  // Dynamic Yearly Pivot Data (STRICTLY matching CustomerDetailsTab Overdue Logic)
-  const yearlyPivotData = useMemo(() => {
-    const customerPivotMap = new Map<string, {
-      customerName: string;
-      region: string;
-      totalNetDebt: number;
-      yearlyAmounts: Record<string, number>;
-    }>();
-    const yearsSet = new Set<string>();
-
-    // 1. Group by Customer
-    const customerTransactions = new Map<string, InvoiceRow[]>();
-    data.forEach(row => {
-      if (!customerTransactions.has(row.customerName)) {
-        customerTransactions.set(row.customerName, []);
-      }
-      customerTransactions.get(row.customerName)!.push(row);
-    });
-
-    const query = searchQuery.toLowerCase().trim();
-
-    // 2. Process each Customer identically to CustomerDetailsTab
-    customerTransactions.forEach((invoices, customerName) => {
-      // Basic Search Filter
-      if (query && !customerName.toLowerCase().includes(query)) {
-        return;
-      }
-
-      let customerTotal = 0;
-      const customerYearly: Record<string, number> = {};
-
-      invoices.forEach((inv, index) => {
-        let isOverdueItem = false;
-        let amount = 0;
-
-        if (!inv.matching) {
-          isOverdueItem = true;
-          amount = inv.debit - inv.credit;
-        } else if (inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
-          isOverdueItem = true;
-          amount = inv.residualAmount;
-        }
-
-        if (isOverdueItem) {
-          const d = parseDate(inv.date);
-          const yr = d ? d.getFullYear().toString() : 'Unknown';
-          if (yr !== 'Unknown') yearsSet.add(yr);
-
-          customerTotal += amount;
-          customerYearly[yr] = (customerYearly[yr] || 0) + amount;
-
-          if (!customerPivotMap.has(customerName)) {
-            customerPivotMap.set(customerName, {
-              customerName,
-              region: inv.salesRep || '-',
-              totalNetDebt: 0,
-              yearlyAmounts: {}
-            });
-          }
-        }
-      });
-      // -- End Overdue Logic Mirror --
-
-      if (customerPivotMap.has(customerName)) {
-        const entry = customerPivotMap.get(customerName)!;
-        entry.totalNetDebt = customerTotal;
-        entry.yearlyAmounts = customerYearly;
-      }
-    });
-
-    const sortedYears = Array.from(yearsSet)
-      .sort((a, b) => b.localeCompare(a));
-
-    const finalRows = Array.from(customerPivotMap.values())
-      .filter(row => row.totalNetDebt > 0.01);
-
-    // Dynamic sorting
-    finalRows.sort((a, b) => {
-      let valA: any = 0;
-      let valB: any = 0;
-
-      if (yearlySorting.id === 'name') {
-        valA = a.customerName;
-        valB = b.customerName;
-      } else if (yearlySorting.id === 'city') {
-        valA = a.region;
-        valB = b.region;
-      } else if (yearlySorting.id === 'netDebt') {
-        valA = a.totalNetDebt;
-        valB = b.totalNetDebt;
-      } else {
-        // Sort by specific year
-        valA = a.yearlyAmounts[yearlySorting.id] || 0;
-        valB = b.yearlyAmounts[yearlySorting.id] || 0;
-      }
-
-      if (typeof valA === 'string') {
-        return yearlySorting.desc
-          ? (valB as string).localeCompare(valA as string)
-          : (valA as string).localeCompare(valB as string);
-      } else {
-        return yearlySorting.desc
-          ? (valB as number) - (valA as number)
-          : (valA as number) - (valB as number);
-      }
-    });
-
-    return {
-      sortedYears,
-      rows: finalRows
-    };
-  }, [data, searchQuery, yearlySorting]);
 
   // Calculate customer analysis based on the FILTERED raw data
   const customerAnalysis = useMemo(() => {
@@ -2173,6 +2061,118 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
     );
   }, [customerAnalysis, searchQuery, matchingFilter, selectedSalesRep, debtOperator, debtAmount, lastPaymentValue, lastPaymentUnit, lastPaymentStatus, lastPaymentAmountOperator, lastPaymentAmountValue, noSalesValue, noSalesUnit, lastSalesStatus, lastSalesAmountOperator, lastSalesAmountValue, customersWithEmails, debtType, minTotalDebit, netSalesOperator, collectionRateOperator, collectionRateValue, overdueAmount, overdueAging, dateRangeFrom, dateRangeTo, dateRangeType, hasOB, collectionRateTypes, closedFilter, closedCustomers, semiClosedFilter, semiClosedCustomers]);
 
+  // Dynamic Yearly Pivot Data (STRICTLY matching CustomerDetailsTab Overdue Logic)
+  // MOVED HERE so it respects `filteredData` which accounts for ALL applied filters (Region, Ratings, Options, etc.)
+  const yearlyPivotData = useMemo(() => {
+    const customerPivotMap = new Map<string, {
+      customerName: string;
+      region: string;
+      totalNetDebt: number;
+      yearlyAmounts: Record<string, number>;
+    }>();
+    const yearsSet = new Set<string>();
+
+    // We ONLY want customers present in filteredData
+    const validCustomers = new Set(filteredData.map(c => c.customerName));
+
+    // 1. Group by Customer
+    const customerTransactions = new Map<string, InvoiceRow[]>();
+    filteredRawData.forEach(row => {
+      // Skip customers that didn't pass the global dashboard filters
+      if (!validCustomers.has(row.customerName)) return;
+
+      if (!customerTransactions.has(row.customerName)) {
+        customerTransactions.set(row.customerName, []);
+      }
+      customerTransactions.get(row.customerName)!.push(row);
+    });
+
+    // 2. Process each Customer identically to CustomerDetailsTab
+    customerTransactions.forEach((invoices, customerName) => {
+      let customerTotal = 0;
+      const customerYearly: Record<string, number> = {};
+
+      invoices.forEach((inv, index) => {
+        let isOverdueItem = false;
+        let amount = 0;
+
+        if (!inv.matching) {
+          isOverdueItem = true;
+          amount = inv.debit - inv.credit;
+        } else if (inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) {
+          isOverdueItem = true;
+          amount = inv.residualAmount;
+        }
+
+        if (isOverdueItem) {
+          const d = parseDate(inv.date);
+          const yr = d ? d.getFullYear().toString() : 'Unknown';
+          if (yr !== 'Unknown') yearsSet.add(yr);
+
+          customerTotal += amount;
+          customerYearly[yr] = (customerYearly[yr] || 0) + amount;
+
+          if (!customerPivotMap.has(customerName)) {
+            customerPivotMap.set(customerName, {
+              customerName,
+              region: inv.salesRep || '-',
+              totalNetDebt: 0,
+              yearlyAmounts: {}
+            });
+          }
+        }
+      });
+      // -- End Overdue Logic Mirror --
+
+      if (customerPivotMap.has(customerName)) {
+        const entry = customerPivotMap.get(customerName)!;
+        entry.totalNetDebt = customerTotal;
+        entry.yearlyAmounts = customerYearly;
+      }
+    });
+
+    const sortedYears = Array.from(yearsSet)
+      .sort((a, b) => b.localeCompare(a));
+
+    const finalRows = Array.from(customerPivotMap.values())
+      .filter(row => row.totalNetDebt > 0.01);
+
+    // Dynamic sorting
+    finalRows.sort((a, b) => {
+      let valA: any = 0;
+      let valB: any = 0;
+
+      if (yearlySorting.id === 'name') {
+        valA = a.customerName;
+        valB = b.customerName;
+      } else if (yearlySorting.id === 'city') {
+        valA = a.region;
+        valB = b.region;
+      } else if (yearlySorting.id === 'netDebt') {
+        valA = a.totalNetDebt;
+        valB = b.totalNetDebt;
+      } else {
+        // Sort by specific year
+        valA = a.yearlyAmounts[yearlySorting.id] || 0;
+        valB = b.yearlyAmounts[yearlySorting.id] || 0;
+      }
+
+      if (typeof valA === 'string') {
+        return yearlySorting.desc
+          ? (valB as string).localeCompare(valA as string)
+          : (valA as string).localeCompare(valB as string);
+      } else {
+        return yearlySorting.desc
+          ? (valB as number) - (valA as number)
+          : (valA as number) - (valB as number);
+      }
+    });
+
+    return {
+      sortedYears,
+      rows: finalRows
+    };
+  }, [filteredRawData, filteredData, yearlySorting]);
   // Calculate unmatched payments for Last Payment tab - using same logic as Overdue tab
   interface UnmatchedPayment {
     customerName: string;
