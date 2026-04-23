@@ -3758,48 +3758,69 @@ ${debtSectionHtml}
       )}
 
 
-      {/* Total Summary Card - Hidden in Yearly View to avoid redundancy */}
-      {viewMode !== 'YEARLY' && (
-        <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-            <div className="md:col-span-2">
-              <p className="text-sm font-semibold text-gray-700">Summary</p>
-            </div>
-            <div className="md:col-span-1">
-              <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
-                ? 'text-red-600'
-                : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
-                  ? 'text-green-600'
-                  : 'text-gray-600'
-                }`}>
-                {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
-              </p>
-            </div>
-            <div className="md:col-span-1">
-              {(() => {
-                const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
-                if (totalNetDebt < 0) {
-                  return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
-                }
-                const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
-                const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
-                const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
-                const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
-                return (
-                  <p className={`text-xl font-bold text-center ${rateColor}`}>
-                    {avgCollectionRate.toFixed(1)}%
+      {viewMode === 'DEFAULT' && (
+        <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
+              {/* Summary Label - Aligned with Index/Checkbox/Name */}
+              <div className="md:col-span-2">
+                <p className="text-sm font-semibold text-gray-700">Summary</p>
+              </div>
+
+              {/* Empty Space - Aligned with City/Rep column */}
+              <div className="md:col-span-1 hidden md:block"></div>
+
+              {/* Net Debit Total - Aligned with Net Debit column */}
+              <div className="md:col-span-1">
+                <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0
+                  ? 'text-red-600'
+                  : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0
+                    ? 'text-green-600'
+                    : 'text-gray-600'
+                  }`}>
+                  {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US')}
+                </p>
+              </div>
+
+              {/* Collection Rate / OB Total - Aligned with that column */}
+              <div className="md:col-span-1">
+                {mode === 'DEBIT' ? (
+                  (() => {
+                    const totalNetDebt = filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+                    if (totalNetDebt < 0) {
+                      return <p className="text-gray-500 text-xl font-bold text-center">-</p>;
+                    }
+                    const totalDebit = filteredData.reduce((sum, c) => sum + c.totalDebit, 0);
+                    const totalCredit = filteredData.reduce((sum, c) => sum + c.totalCredit, 0);
+                    const avgCollectionRate = totalDebit > 0 ? ((totalCredit / totalDebit) * 100) : 0;
+                    const rateColor = avgCollectionRate >= 80 ? 'text-green-600' : avgCollectionRate >= 50 ? 'text-yellow-600' : 'text-red-600';
+                    return (
+                      <p className={`text-xl font-bold text-center ${rateColor}`}>
+                        {avgCollectionRate.toFixed(1)}%
+                      </p>
+                    );
+                  })()
+                ) : (mode === 'OB_POS' || mode === 'OB_NEG') ? (
+                  <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + (c.openOBAmount || 0), 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {filteredData.reduce((sum, c) => sum + (c.openOBAmount || 0), 0).toLocaleString('en-US')}
                   </p>
-                );
-              })()}
-            </div>
-            <div className="md:col-span-1">
-              <p className="text-xl font-bold text-blue-600 text-center">
-                {filteredData.length}
-              </p>
+                ) : (
+                  <div className="hidden md:block"></div>
+                )}
+              </div>
+
+              {/* Total Count - Aligned with Debit Rating column */}
+              <div className="md:col-span-1">
+                <p className="text-xl font-bold text-blue-600 text-center" title="Total Customers Count">
+                  {filteredData.length}
+                </p>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+
 
 
 

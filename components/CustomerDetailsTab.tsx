@@ -3751,10 +3751,8 @@ ${debtSectionHtml}
             </div>
           </div>
         </div>
-
-        {/* Tabs Navigation */}_
         {/* Tabs Navigation */}
-        <div className="mb-6 flex w-full border-b border-gray-200 bg-white shadow-sm rounded-t-xl overflow-hidden">
+        <div className="mb-4 flex w-full border-b border-gray-200 bg-white shadow-sm rounded-t-xl overflow-hidden">
           <button
             onClick={() => setActiveTab('dashboard')}
             className={`flex-1 py-4 font-semibold transition-all duration-200 border-b-4 text-center ${activeTab === 'dashboard'
@@ -4163,7 +4161,7 @@ ${debtSectionHtml}
                         </div>
                       </div>
 
-                      {/* Right Column: Bucket Details & Bars */}-
+                      {/* Right Column: Bucket Details & Bars */}
                       <div className="flex-1 w-full space-y-7 mt-6">
                         {[
                           { label: '0 - Due Date', value: agingData.atDate, color: '#4285F4' },

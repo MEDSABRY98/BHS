@@ -4,9 +4,15 @@ import { addArabicFont } from './shared';
 
 export async function generateDownloadFormPDF(
   customerName: string,
-  products: Array<{ barcode: string; product: string; price?: number }>,
+  products: Array<{
+    barcode: string;
+    product: string;
+    price?: number;
+    avgPrice?: number;
+    costPrice?: number;
+  }>,
   returnBlob: boolean = false,
-  mode: 'order' | 'pricelist' = 'order',
+  mode: 'order' | 'pricelist' | 'analysis' = 'order',
   pricingStrategy?: 'most' | 'last'
 ) {
   const jsPDFModule = await import('jspdf');
@@ -19,8 +25,6 @@ export async function generateDownloadFormPDF(
 
   const pageWidth = doc.internal.pageSize.getWidth();
   let yPosition = 25;
-  const tableWidth = 15 + 50 + 85 + 40;
-  const tableLeftMargin = (pageWidth - tableWidth) / 2;
 
   doc.setFontSize(16); doc.setTextColor(0, 155, 77); doc.setFont('helvetica', 'bold');
   doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
@@ -28,7 +32,9 @@ export async function generateDownloadFormPDF(
   doc.setFontSize(12); doc.setTextColor(100, 100, 100); 
   const subtitle = mode === 'pricelist' 
     ? `Price List (${pricingStrategy === 'last' ? 'Last Price' : 'Most Price'})` 
-    : 'Order Form';
+    : mode === 'analysis'
+      ? 'Pricing Analysis Report (Comparison & Margins)'
+      : 'Order Form';
   doc.text(subtitle, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 8;
 
@@ -39,25 +45,73 @@ export async function generateDownloadFormPDF(
   yPosition += 5;
 
   doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-  doc.text(`Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, tableLeftMargin, yPosition);
+  doc.text(`Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 20, yPosition);
   yPosition += 3;
 
-  const tableData = products.map((product, index) => [
-    (index + 1).toString(), product.barcode || '-', product.product || '-',
-    mode === 'pricelist' ? (product.price !== undefined ? product.price.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : '-') : ''
-  ]);
+  let headers: string[][] = [];
+  let body: any[][] = [];
+  let columnStyles: any = {};
+  let tableWidth = 0;
+
+  if (mode === 'analysis') {
+    headers = [['#', 'Barcode', 'Product', 'Most Price', 'Last Price', 'Cost', 'Diff', '%']];
+    body = products.map((p, i) => {
+      const freq = p.price || 0;
+      const cost = p.costPrice || 0;
+      const diff = freq - cost;
+      const margin = freq > 0 ? (diff / freq) * 100 : 0;
+      return [
+        (i + 1).toString(),
+        p.barcode || '-',
+        p.product || '-',
+        freq ? freq.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '-',
+        p.avgPrice ? p.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '-',
+        cost ? cost.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : '-',
+        diff.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+        `${margin.toFixed(1)}%`
+      ];
+    });
+    tableWidth = 190;
+    columnStyles = { 
+      0: { cellWidth: 10, halign: 'center' }, 
+      1: { cellWidth: 35, halign: 'center' }, 
+      2: { cellWidth: 55, halign: 'center' }, 
+      3: { cellWidth: 18, halign: 'center' }, 
+      4: { cellWidth: 18, halign: 'center' }, 
+      5: { cellWidth: 18, halign: 'center' }, 
+      6: { cellWidth: 18, halign: 'center' },
+      7: { cellWidth: 18, halign: 'center' }
+    };
+  } else {
+    headers = [['#', 'Barcode', 'Product', mode === 'pricelist' ? 'Price' : 'Quantity']];
+    body = products.map((p, i) => [
+      (i + 1).toString(),
+      p.barcode || '-',
+      p.product || '-',
+      mode === 'pricelist' ? (p.price !== undefined ? p.price.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 2 }) : '-') : ''
+    ]);
+    tableWidth = 190;
+    columnStyles = { 
+      0: { cellWidth: 15, halign: 'center' }, 
+      1: { cellWidth: 50, halign: 'center' }, 
+      2: { cellWidth: 85, halign: 'center' }, 
+      3: { cellWidth: 40, halign: 'center' } 
+    };
+  }
+
+  const tableLeftMargin = (pageWidth - tableWidth) / 2;
 
   const tableOptions = {
-    startY: yPosition, head: [['#', 'Barcode', 'Product', mode === 'pricelist' ? 'Price' : 'Quantity']],
-    body: tableData, theme: 'grid' as const, headStyles: { fillColor: [0, 155, 77], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 11, halign: 'center' },
-    bodyStyles: { fontSize: 10, cellPadding: 3 }, columnStyles: { 0: { cellWidth: 15, halign: 'center' }, 1: { cellWidth: 50, halign: 'center' }, 2: { cellWidth: 85, halign: 'center' }, 3: { cellWidth: 40, halign: 'center' } },
-    margin: { left: tableLeftMargin, right: tableLeftMargin }, styles: { font: 'helvetica', fontSize: 10 }, alternateRowStyles: { fillColor: [245, 245, 245] }
+    startY: yPosition, head: headers,
+    body: body, theme: 'grid' as const, headStyles: { fillColor: [0, 155, 77], textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 10, halign: 'center' },
+    bodyStyles: { fontSize: 8.5, cellPadding: 2, font: 'Amiri', halign: 'center' }, columnStyles: columnStyles,
+    margin: { left: tableLeftMargin, right: tableLeftMargin }, styles: { font: 'Amiri' }, alternateRowStyles: { fillColor: [245, 245, 245] }
   };
   if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
   else if (typeof autoTable === 'function') autoTable(doc, tableOptions as any);
 
   if (returnBlob) return doc.output('blob');
-  doc.save(`${mode === 'pricelist' ? 'Price_List' : 'Order_Form'}_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
+  doc.save(`${mode === 'pricelist' ? 'Price_List' : mode === 'analysis' ? 'Analysis' : 'Order_Form'}_${customerName.replace(/[^a-z0-9]/gi, '_')}.pdf`);
 }
 
 export async function generateSalesRepReportPDF(data: {
