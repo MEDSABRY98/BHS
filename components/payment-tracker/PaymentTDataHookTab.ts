@@ -38,7 +38,6 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
   // PDF Export State
   const [isPdfExportOpen, setIsPdfExportOpen] = useState(false);
   const [pdfExportSections, setPdfExportSections] = useState<PdfExportSections>({
-    dashboard: true,
     summary: true,
     summaryPrevious: true,
     summaryLastYear: true,

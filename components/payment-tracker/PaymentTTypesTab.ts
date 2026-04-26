@@ -36,7 +36,6 @@ export interface PaymentByPeriod {
 }
 
 export interface PdfExportSections {
-  dashboard: boolean;
   summary: boolean;
   summaryPrevious: boolean;
   summaryLastYear: boolean;
