@@ -46,6 +46,7 @@ export interface CustomerAnalysis {
   salesCount3m?: number;
   payments3m?: number;
   paymentsCount3m?: number;
+  avgPaymentInterval?: number;
 }
 
 export interface SalesRepAnalysis {

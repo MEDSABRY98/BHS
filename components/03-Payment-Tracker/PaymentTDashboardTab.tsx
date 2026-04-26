@@ -109,7 +109,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
                 ({dashboardData.totals.netPaymentCount.toLocaleString('en-US')} pays)
               </span>
             </div>
-            
+
             <div className="flex gap-1 p-1 bg-gray-100/50 rounded-2xl border border-gray-100 shadow-inner">
               <button
                 onClick={() => setChartPeriodType('monthly')}
@@ -153,6 +153,8 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
         <ResponsiveContainer width="100%" height={560}>
           <BarChart
             data={dashboardData.chartData.slice(-12)}
+            barGap="15%"
+            barCategoryGap="15%"
             margin={{
               top: 40,
               right: 30,
@@ -193,23 +195,45 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
                         {rowData.paymentCount || 0} Payments / {rowData.customerCount || 0} Customers
                       </div>
                     </div>,
-                    'Collections'
+                    'Current Year'
+                  ];
+                }
+                if (name === 'Last Year') {
+                  return [
+                    <div key="custom-tooltip-ly" className="text-blue-600 text-lg">
+                      {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}
+                    </div>,
+                    'Last Year'
                   ];
                 }
                 return value;
               }}
             />
+            <Legend verticalAlign="top" height={36} />
 
             <Bar
               dataKey="displayCollections"
               name="Net Collections"
               fill="#10B981"
-              radius={[10, 10, 0, 0]}
-              barSize={chartPeriodType === 'weekly' ? 24 : 36}
-              label={{ 
-                position: 'top', 
-                fill: '#000000', 
-                fontSize: 13, 
+              radius={[6, 6, 0, 0]}
+              label={{
+                position: 'top',
+                fill: '#10B981',
+                fontSize: 11,
+                fontWeight: 'bold',
+                dy: -10,
+                formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''
+              }}
+            />
+            <Bar
+              dataKey="lastYearCollections"
+              name="Last Year"
+              fill="#3B82F6"
+              radius={[6, 6, 0, 0]}
+              label={{
+                position: 'top',
+                fill: '#3B82F6',
+                fontSize: 11,
                 fontWeight: 'bold',
                 dy: -10,
                 formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''

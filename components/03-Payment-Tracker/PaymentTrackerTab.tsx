@@ -6,12 +6,12 @@ import { InvoiceRow } from '@/types';
 import { generatePaymentAnalysisPDF } from '@/lib/pdf/PaymentUtils';
 
 // Sub-components
-import { usePaymentTDataTab } from './payment-tracker/PaymentTDataHookTab';
-import PaymentTDashboardTab from './payment-tracker/PaymentTDashboardTab';
-import PaymentTCustomerTab from './payment-tracker/PaymentTCustomerTab';
-import PaymentTPeriodTab from './payment-tracker/PaymentTPeriodTab';
-import PaymentTAreaTab from './payment-tracker/PaymentTAreaTab';
-import PaymentTExportTab from './payment-tracker/PaymentTExportTab';
+import { usePaymentTDataTab } from './PaymentTDataHookTab';
+import PaymentTDashboardTab from './PaymentTDashboardTab';
+import PaymentTCustomerTab from './PaymentTCustomerTab';
+import PaymentTPeriodTab from './PaymentTPeriodTab';
+import PaymentTAreaTab from './PaymentTAreaTab';
+import PaymentTExportTab from './PaymentTExportTab';
 
 interface PaymentTrackerTabProps {
   data: InvoiceRow[];

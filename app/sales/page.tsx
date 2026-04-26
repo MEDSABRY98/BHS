@@ -10,8 +10,8 @@ import SalesDailySalesTab from '@/components/SalesDailySalesTab';
 import SalesProductsTab from '@/components/SalesProductsTab';
 import SalesStockReportTab from '@/components/SalesStockReportTab';
 
-import Login from '@/components/Login';
-import Loading from '@/components/Loading';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import DeliveryTrackingTab from '@/components/DeliveryTrackingTab';
 import { ChevronLeft } from 'lucide-react';
-import Loading from '@/components/Loading';
+import Loading from '@/components/01-Unified/Loading';
 
 export default function DeliveryTrackingPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);

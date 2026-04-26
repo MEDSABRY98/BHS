@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowUp, ArrowDown, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
-import NoData from './Unified/NoDataTab';
+import NoData from './01-Unified/NoDataTab';
 
 interface SalesInactiveCustomersTabProps {
   data: SalesInvoice[];

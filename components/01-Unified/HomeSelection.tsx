@@ -2,7 +2,7 @@
 
 import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft } from 'lucide-react';
 import { useState } from 'react';
-import AdminControlTab from './AdminControlTab';
+import AdminControlTab from '../AdminControlTab';
 
 interface HomeSelectionProps {
   currentUser?: any;

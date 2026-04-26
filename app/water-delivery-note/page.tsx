@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X, CheckCircle2, List } from 'lucide-react';
 import { generateWaterDeliveryNotePDF } from '@/lib/pdf/PdfUtils';
-import { NotificationContainer, NotificationType } from '@/components/Notification';
-import Loading from '@/components/Loading';
+import { NotificationContainer, NotificationType } from '@/components/01-Unified/Notification';
+import Loading from '@/components/01-Unified/Loading';
 
 interface WaterDeliveryNoteItem {
   itemName: string;

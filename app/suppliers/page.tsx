@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import SuppliersTab from '@/components/SuppliersTab';
-import Login from '@/components/Login';
-import Loading from '@/components/Loading';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import { ArrowLeft, Package, FileText, CheckSquare } from 'lucide-react';
 
 interface SupplierTransaction {

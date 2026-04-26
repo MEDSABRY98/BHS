@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2 } from 'lucide-react';
-import Loading from './Loading';
+import Loading from './01-Unified/Loading';
 
 interface UserPermissions {
     name: string;

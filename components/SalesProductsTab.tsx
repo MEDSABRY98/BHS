@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './Unified/NoDataTab';
+import NoData from './01-Unified/NoDataTab';
 import SalesProductDetails from './SalesProductDetails';
 
 interface SalesProductsTabProps {

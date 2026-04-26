@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
-import NoData from './Unified/NoDataTab';
+import NoData from './01-Unified/NoDataTab';
 import ProductDetails from './InventoryProductDetails';
 
 interface Props {
@@ -128,7 +128,7 @@ export default function InventoryProductOrdersDetailsTab({
             setLocalProducts(prev => prev.map(p =>
                 p.productId === product.productId ? { ...p, [field]: numValue } : p
             ));
-            
+
             // 2. Silently command the master list to refresh from the live sheet so other tabs get the updated value
             onRefresh();
 

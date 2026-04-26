@@ -13,7 +13,7 @@ import {
 import { FileSpreadsheet, FileText, Filter, LayoutGrid, PieChart } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { SalesInvoice } from '@/lib/googleSheets';
-import NoData from './Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface CustomersSummariesTabProps {
   data: InvoiceRow[];
@@ -427,8 +427,8 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             <button
               onClick={() => setLogic('full')}
               className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${logic === 'full'
-                  ? 'bg-blue-600 text-white shadow-md'
-                  : 'text-slate-500 hover:bg-slate-200'
+                ? 'bg-blue-600 text-white shadow-md'
+                : 'text-slate-500 hover:bg-slate-200'
                 }`}
             >
               <LayoutGrid className="w-4 h-4" />
@@ -437,8 +437,8 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
             <button
               onClick={() => setLogic('almarai')}
               className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${logic === 'almarai'
-                  ? 'bg-emerald-600 text-white shadow-md'
-                  : 'text-slate-500 hover:bg-slate-200'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-500 hover:bg-slate-200'
                 }`}
             >
               <PieChart className="w-4 h-4" />

@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import CustomersSummariesTab from '@/components/CustomersSummariesTab';
-import Login from '@/components/Login';
-import Loading from '@/components/Loading';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 
@@ -46,7 +46,7 @@ function CustomersSummariesPageContent() {
     try {
       if (silent) setIsRefreshing(true);
       else if (data.length === 0) setLoading(true);
-      
+
       const response = await fetch('/api/sheets');
       const result = await response.json();
 
@@ -106,7 +106,7 @@ function CustomersSummariesPageContent() {
           {isInitialLoading ? (
             <Loading message="Loading Summaries Data..." />
           ) : error && data.length === 0 ? (
-             <div className="flex items-center justify-center h-full pt-20">
+            <div className="flex items-center justify-center h-full pt-20">
               <div className="text-center bg-red-50 p-6 rounded-lg max-w-md">
                 <p className="text-red-600 text-lg mb-4 font-semibold">Error loading data</p>
                 <p className="text-gray-600 mb-4">{error}</p>

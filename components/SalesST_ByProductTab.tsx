@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet } from 'lucide-react';
-import NoData from './Unified/NoDataTab';
+import NoData from './01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
 interface SalesST_ByProductProps {
@@ -39,9 +39,9 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
 
   const productList = useMemo(() => {
     if (!data || data.length === 0) return [];
-    const map = new Map<string, { 
-      barcode: string; 
-      product: string; 
+    const map = new Map<string, {
+      barcode: string;
+      product: string;
       priceRange: { min: number, max: number };
       customers: Map<string, { prices: number[]; cost: number }>;
     }>();
@@ -49,11 +49,11 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
     data.forEach(item => {
       const productKey = item.barcode || item.product || item.productId;
       if (!map.has(productKey)) {
-        map.set(productKey, { 
-          barcode: item.barcode || '-', 
-          product: item.product || '-', 
+        map.set(productKey, {
+          barcode: item.barcode || '-',
+          product: item.product || '-',
           priceRange: { min: Infinity, max: -Infinity },
-          customers: new Map() 
+          customers: new Map()
         });
       }
       const prod = map.get(productKey)!;
@@ -62,7 +62,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
         prod.customers.set(custName, { prices: [], cost: item.productCost || 0 });
       }
       const cust = prod.customers.get(custName)!;
-      
+
       const itemAny = item as any;
       let price = itemAny.price || itemAny.unitPrice || 0;
       if (!price && itemAny.amount && itemAny.qty) price = itemAny.amount / itemAny.qty;
@@ -82,8 +82,8 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
   const filteredProducts = useMemo(() => {
     if (!appliedSearchQuery.trim()) return [];
     const query = appliedSearchQuery.toLowerCase().trim();
-    return productList.filter(p => 
-      p.product.toLowerCase().includes(query) || 
+    return productList.filter(p =>
+      p.product.toLowerCase().includes(query) ||
       p.barcode.toLowerCase().includes(query)
     );
   }, [productList, appliedSearchQuery]);
@@ -98,7 +98,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
         const cost = stats.cost;
         const diff = most - cost;
         const margin = most > 0 ? (diff / most) * 100 : 0;
-        
+
         exportData.push({
           'Barcode': p.barcode,
           'Product Name': p.product,
@@ -178,7 +178,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-6">
                   <div className="text-right">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Price Range</p>
@@ -202,7 +202,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {Array.from(p.customers.entries()).sort((a,b) => a[0].localeCompare(b[0])).map(([custName, stats], i) => {
+                    {Array.from(p.customers.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([custName, stats], i) => {
                       const most = calculateMode(stats.prices);
                       const last = stats.prices[stats.prices.length - 1] || 0;
                       const cost = stats.cost;

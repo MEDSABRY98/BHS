@@ -32,7 +32,7 @@ import { InvoiceRow } from '@/types';
 import { Mail, FileText, Calendar, ArrowLeft, FileSpreadsheet, ListFilter, CheckSquare, BarChart3, Download, X, Settings2 } from 'lucide-react';
 import { getInvoiceType } from '@/lib/InvoiceType';
 import { useSearchParams } from 'next/navigation';
-import NoData from './Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface CustomerDetailsProps {
   customerName: string;
@@ -2226,26 +2226,9 @@ ${debtSectionHtml}
               <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                 <p style={{ color: '#000000', fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}>Avg Payment Cycle</p>
                 <p style={{ fontSize: '20px', fontWeight: '900', color: '#8b5cf6', wordBreak: 'break-all', lineHeight: '1.2' }}>
-                  {(() => {
-                    const payments = filteredInvoices
-                      .filter(inv => isPaymentTxn(inv))
-                      .sort((a, b) => {
-                        const dateA = a.parsedDate ? a.parsedDate.getTime() : (a.date ? new Date(a.date).getTime() : 0);
-                        const dateB = b.parsedDate ? b.parsedDate.getTime() : (b.date ? new Date(b.date).getTime() : 0);
-                        return dateA - dateB;
-                      });
-
-                    if (payments.length < 2) return '0 Days';
-
-                    const start = payments[0].parsedDate || (payments[0].date ? new Date(payments[0].date) : new Date());
-                    const end = payments[payments.length - 1].parsedDate || (payments[payments.length - 1].date ? new Date(payments[payments.length - 1].date) : new Date());
-
-                    const diffTime = Math.abs(end.getTime() - start.getTime());
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    const avgDays = Math.round(diffDays / (payments.length - 1));
-
-                    return `${avgDays} Days`;
-                  })()}
+                  {dashboardMetrics.avgPaymentInterval > 0
+                    ? `${dashboardMetrics.avgPaymentInterval.toFixed(1)} Days`
+                    : '-'}
                 </p>
               </div>
               <div style={{ backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #e5e7eb', boxShadow: '0 1px 2px 0 rgba(0, 0, 0, 0.05)', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -2668,6 +2651,29 @@ ${debtSectionHtml}
       lastPaymentDate = lastPaymentInvoice ? new Date(lastPaymentInvoice.date) : null;
     }
 
+    // Calculate Average Payment Interval using unique dates
+    const uniquePaymentDates = new Set<string>();
+    filteredInvoices.forEach(inv => {
+      if (isPaymentTxn(inv)) {
+        const date = inv.parsedDate || (inv.date ? new Date(inv.date) : null);
+        if (date && !isNaN(date.getTime())) {
+          uniquePaymentDates.add(date.toISOString().split('T')[0]);
+        }
+      }
+    });
+
+    let avgPaymentInterval = 0;
+    if (uniquePaymentDates.size > 1) {
+      const sortedDates = Array.from(uniquePaymentDates)
+        .map(d => new Date(d))
+        .sort((a, b) => a.getTime() - b.getTime());
+
+      const firstDate = sortedDates[0];
+      const lastDate = sortedDates[sortedDates.length - 1];
+      const totalDays = Math.floor((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+      avgPaymentInterval = totalDays / (sortedDates.length - 1);
+    }
+
     // Calculate Total Payments
     const totalPayments = paymentInvoices.reduce((acc, inv) => acc + getPaymentAmount(inv), 0);
 
@@ -2770,7 +2776,8 @@ ${debtSectionHtml}
       sales3m,
       salesCount3m,
       payments3m,
-      paymentsCount3m
+      paymentsCount3m,
+      avgPaymentInterval
     };
   }, [filteredInvoices, filteredOverdueInvoices, agingData]);
 
@@ -3983,8 +3990,8 @@ ${debtSectionHtml}
                 {/* Section 1: Debit Overview */}
                 <div>
                   <h3 className="text-lg font-bold text-gray-700 mb-3 border-b pb-2">Debit Overview</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
-                    {/* Net Debt Card */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {/* Net Outstanding Card */}
                     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-4 opacity-10">
                         <span className="text-6xl">💰</span>
@@ -4048,64 +4055,22 @@ ${debtSectionHtml}
                     })()}
 
                     {/* Payment Frequency Card */}
-                    {(() => {
-                      const payments = filteredInvoices.filter(inv => isPaymentTxn(inv));
-
-                      const paymentDates = payments
-                        .map(inv => inv.parsedDate || (inv.date ? new Date(inv.date) : null))
-                        .filter((d): d is Date => d !== null && !isNaN(d.getTime()))
-                        .sort((a, b) => a.getTime() - b.getTime());
-
-                      let avgDaysBetweenPayments = 0;
-                      if (paymentDates.length > 1) {
-                        const daysDiffs: number[] = [];
-                        for (let i = 1; i < paymentDates.length; i++) {
-                          const diff = (paymentDates[i].getTime() - paymentDates[i - 1].getTime()) / (1000 * 60 * 60 * 24);
-                          daysDiffs.push(diff);
-                        }
-                        avgDaysBetweenPayments = daysDiffs.reduce((sum, d) => sum + d, 0) / daysDiffs.length;
-                      }
-
-                      return (
-                        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <span className="text-6xl">⏱️</span>
-                          </div>
-                          <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Payment Frequency</h3>
-                          <p className="text-3xl font-bold mt-2 text-purple-600">
-                            {avgDaysBetweenPayments > 0
-                              ? Math.round(avgDaysBetweenPayments)
-                              : '-'
-                            }
-                          </p>
-                          <p className="text-sm text-gray-400 mt-1">
-                            {avgDaysBetweenPayments > 0 ? 'Days Between Payments' : 'N/A'}
-                          </p>
-                        </div>
-                      );
-                    })()}
-
-
-                    {/* Collection Rate Card */}
-                    <div
-                      className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden"
-                    >
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-4 opacity-10">
-                        <span className="text-6xl">📈</span>
+                        <span className="text-6xl">⏱️</span>
                       </div>
-                      <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Collection Rate</h3>
-                      <p className="text-3xl font-bold mt-2 text-blue-600">
-                        {dashboardMetrics.collectionRate.toFixed(1)}%
+                      <h3 className="text-gray-500 text-sm font-medium uppercase tracking-wider">Payment Frequency</h3>
+                      <p className="text-3xl font-bold mt-2 text-purple-600">
+                        {dashboardMetrics.avgPaymentInterval > 0
+                          ? dashboardMetrics.avgPaymentInterval.toFixed(1)
+                          : '-'
+                        }
                       </p>
-                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
-                        <div
-                          className="bg-blue-600 h-1.5 rounded-full transition-all duration-1000"
-                          style={{ width: `${Math.min(dashboardMetrics.collectionRate, 100)}%` }}
-                        ></div>
-                      </div>
+                      <p className="text-sm text-gray-400 mt-1">
+                        {dashboardMetrics.avgPaymentInterval > 0 ? 'Days Between Payments' : 'N/A'}
+                      </p>
                     </div>
                   </div>
-
                   {/* Aging Analysis Section - New Requested UI */}
                   <div className="bg-white p-8 rounded-xl shadow-md border border-gray-100 mt-6 relative overflow-hidden group">
 

@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './Unified/NoDataTab';
+import NoData from './01-Unified/NoDataTab';
 import {
   LineChart,
   Line,

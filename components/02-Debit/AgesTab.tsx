@@ -12,7 +12,7 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet, FileText } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from './Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface AgesTabProps {
   data: InvoiceRow[];

@@ -6,9 +6,9 @@ import {
     ArrowUpDown, RotateCw, RefreshCw, AlertCircle, FileDown,
     ChevronLeft, ChevronRight, FileSpreadsheet, Box
 } from 'lucide-react';
-import Loading from './Loading';
+import Loading from './01-Unified/Loading';
 import InventoryProductOrdersDetailsTab from './InventoryCategoriesDetailsTab';
-import NoData from './Unified/NoDataTab';
+import NoData from './01-Unified/NoDataTab';
 
 const formatCategory = (tag: string) => {
     if (!tag || tag === 'All' || tag === 'Uncategorized') return tag;

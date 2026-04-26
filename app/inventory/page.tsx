@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 
 import InventoryProductOrdersTab from '@/components/InventoryCategoriesTab';
 import InventoryItemCodeTab from '@/components/InventoryItemCodeTab';
-import Login from '@/components/Login';
-import Loading from '@/components/Loading';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {

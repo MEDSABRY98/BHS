@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import VisitCustomersTab from '@/components/VisitCustomersTab';
-import Login from '@/components/Login';
-import Loading from '@/components/Loading';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 
 export default function VisitCustomersPage() {
     const [isAuthenticated, setIsAuthenticated] = useState(false);

@@ -10,7 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
-import NoData from './Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 import CustomerDetailsTab from './CustomerDetailsTab';
 import { generateAccountStatementPDF, generateBulkDebitSummaryPDF, generateBulkCustomerStatementsPDF } from '@/lib/pdf/PdfUtils';
 import { FileSpreadsheet, FileText, Printer, FileArchive, Mail } from 'lucide-react';
@@ -798,6 +798,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     'Payment Rate %',
     'Return Rate %',
     'Discount Rate %',
+    'Average Payment Interval (Days)',
     'Last Payment Date',
     'Payments Count 90d',
     'Payments 90d Amt',
@@ -812,11 +813,11 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
     const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
     const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
     const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100).toFixed(0) + '%' : '0%';
-    
+
     let reps = '-';
     if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
     else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
-    
+
     return [
       index + 1,
       customer.customerName || '',
@@ -829,6 +830,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
       payRate,
       returnRate,
       discountRate,
+      customer.avgPaymentInterval ? customer.avgPaymentInterval.toFixed(1) : '-',
       customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-',
       (customer as any).paymentsCount3m ?? 0,
       (customer as any).payments3m?.toFixed(2) || '0.00',
@@ -860,7 +862,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
 
   const summaryRows = data.map((customer, index) => {
     const collRate = customer.totalDebit > 0 ? ((customer.creditPayments || 0) / customer.totalDebit * 100).toFixed(1) + '%' : '0.0%';
-    
+
     let reps = '-';
     if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
     else if (Array.isArray(customer.salesReps) && customer.salesReps.length > 0) reps = (customer.salesReps as string[]).join(', ');
@@ -891,7 +893,7 @@ const exportToExcel = (data: CustomerAnalysis[], filename: string = 'customers_e
   if (yearlyData && yearlyData.rows.length > 0) {
     const years = yearlyData.sortedYears;
     yearlyHeaders = ['#', 'Customer Name', 'City', 'Net Debt', ...years];
-    
+
     yearlyRows = yearlyData.rows.map((row: any, index: number) => {
       const rowData = [
         index + 1,
@@ -1180,6 +1182,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
       salesCount3m: number;
       payments3m: number;
       paymentsCount3m: number;
+      paymentDates: Set<string>;
     };
     const customerMap = new Map<string, CustomerData>();
 
@@ -1215,6 +1218,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
           salesCount3m: 0,
           payments3m: 0,
           paymentsCount3m: 0,
+          paymentDates: new Set(),
         };
       }
 
@@ -1310,6 +1314,10 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
             // Same date - accumulate amount
             existing.lastPaymentAmount = (existing.lastPaymentAmount || 0) + amount;
           }
+
+          // Track unique payment dates for average interval calculation
+          const dKey = rowDate.toISOString().split('T')[0];
+          existing.paymentDates.add(dKey);
         }
         // Last Sale: max date where invoice number starts with SAL (matching Dashboard logic)
         const num = row.number?.toString().toUpperCase() || '';
@@ -1746,6 +1754,19 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
         calculatedTotalCredit = specializedTotalIssued - specializedNetDebt; // Collected = Issued - Remaining
       }
 
+      // Calculate Average Payment Interval
+      let avgPaymentInterval = 0;
+      if (c.paymentDates.size > 1) {
+        const sortedDates = Array.from(c.paymentDates)
+          .map(d => new Date(d))
+          .sort((a, b) => a.getTime() - b.getTime());
+
+        const firstDate = sortedDates[0];
+        const lastDate = sortedDates[sortedDates.length - 1];
+        const totalDays = Math.floor((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
+        avgPaymentInterval = totalDays / (sortedDates.length - 1);
+      }
+
       return {
         customerName: c.customerName,
         totalDebit: calculatedTotalDebit,
@@ -1776,6 +1797,7 @@ export default function CustomersTab({ data, mode = 'DEBIT', onBack, initialCust
         creditReturns: c.creditReturns,
         creditDiscounts: c.creditDiscounts,
         totalSalesDebit: c.totalSalesDebit,
+        avgPaymentInterval,
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [filteredRawData, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter, spiData]);

@@ -9,31 +9,16 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { InvoiceRow, MonthAnalysis, CustomerAnalysis } from '@/types';
-import NoData from './Unified/NoDataTab';
+import { InvoiceRow, YearAnalysis, CustomerAnalysis } from '@/types';
+import NoData from '../01-Unified/NoDataTab';
 
-interface MonthsTabProps {
+interface YearsTabProps {
   data: InvoiceRow[];
 }
 
-const columnHelper = createColumnHelper<MonthAnalysis>();
+const columnHelper = createColumnHelper<YearAnalysis>();
 
-const monthNames: { [key: string]: string } = {
-  '1': 'January',
-  '2': 'February',
-  '3': 'March',
-  '4': 'April',
-  '5': 'May',
-  '6': 'June',
-  '7': 'July',
-  '8': 'August',
-  '9': 'September',
-  '10': 'October',
-  '11': 'November',
-  '12': 'December',
-};
-
-// Helper functions (same as SalesRepsTab and YearsTab)
+// Helper functions (same as SalesRepsTab)
 const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
   const d = new Date(dateStr);
@@ -157,7 +142,37 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
     score5 = 0;
   }
 
-  const totalScore = score1 + score2 + score3 + score4 + score5;
+  // score6 — Payment Value last 90d
+  let score6 = 0;
+  if ((customer.payments3m || 0) >= 10000) {
+    score6 = 2;
+  } else if ((customer.payments3m || 0) >= 2000) {
+    score6 = 1;
+  } else {
+    score6 = 0;
+  }
+
+  // score7 — Sales Value last 90d
+  let score7 = 0;
+  if ((customer.sales3m || 0) >= 10000) {
+    score7 = 2;
+  } else if ((customer.sales3m || 0) >= 2000) {
+    score7 = 1;
+  } else {
+    score7 = 0;
+  }
+
+  // score8 — Sales Count last 90d
+  let score8 = 0;
+  if ((customer.salesCount3m || 0) >= 2) {
+    score8 = 2;
+  } else if ((customer.salesCount3m || 0) === 1) {
+    score8 = 1;
+  } else {
+    score8 = 0;
+  }
+
+  const totalScore = score1 + score2 + score3 + score4 + score5 + score6 + score7 + score8;
 
   let finalRating: 'Good' | 'Medium' | 'Bad';
 
@@ -166,9 +181,9 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
   } else if (riskFlag1 === 1 || riskFlag2 === 1) {
     finalRating = 'Bad';
   } else {
-    if (totalScore >= 7) {
+    if (totalScore >= 11) {
       finalRating = 'Good';
-    } else if (totalScore >= 4) {
+    } else if (totalScore >= 6) {
       finalRating = 'Medium';
     } else {
       finalRating = 'Bad';
@@ -178,7 +193,7 @@ const calculateDebtRating = (customer: CustomerAnalysis, closedCustomersSet: Set
   return finalRating;
 };
 
-export default function MonthsTab({ data }: MonthsTabProps) {
+export default function YearsTab({ data }: YearsTabProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
@@ -203,7 +218,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
     fetchClosedCustomers();
   }, []);
 
-  // Calculate customer analysis for all customers (same as SalesRepsTab and YearsTab)
+  // Calculate customer analysis for all customers (same as SalesRepsTab)
   const customerAnalysis = useMemo(() => {
     type CustomerData = CustomerAnalysis & {
       matchingsMap: Map<string, number>;
@@ -354,8 +369,8 @@ export default function MonthsTab({ data }: MonthsTabProps) {
     });
   }, [data]);
 
-  const monthAnalysis = useMemo(() => {
-    const monthMap = new Map<string, MonthAnalysis>();
+  const yearAnalysis = useMemo(() => {
+    const yearMap = new Map<string, YearAnalysis>();
 
     // Filter to include only customers with positive Net Debt (Debtors)
     const debitCustomersSet = new Set(
@@ -365,37 +380,35 @@ export default function MonthsTab({ data }: MonthsTabProps) {
     data.forEach((row) => {
       // Skip if customer is not a debtor
       if (!debitCustomersSet.has(row.customerName)) return;
-      let year = '';
-      let month = '';
-
-      // Try to parse date
-      const dateObj = new Date(row.date);
-      if (!isNaN(dateObj.getTime())) {
-        year = dateObj.getFullYear().toString();
-        month = (dateObj.getMonth() + 1).toString();
-      } else {
-        // Try to extract year from date string
+      const year = new Date(row.date).getFullYear().toString();
+      if (isNaN(new Date(row.date).getTime())) {
+        // Try to extract year from date string if date parsing fails
         const yearMatch = row.date.match(/\d{4}/);
         if (yearMatch) {
-          year = yearMatch[0];
+          const extractedYear = yearMatch[0];
+          const existing = yearMap.get(extractedYear) || {
+            year: extractedYear,
+            totalDebit: 0,
+            totalCredit: 0,
+            netDebt: 0,
+            transactionCount: 0,
+            collectionRate: 0,
+            goodCustomersCount: 0,
+            mediumCustomersCount: 0,
+            badCustomersCount: 0,
+          };
+
+          existing.totalDebit += row.debit;
+          existing.totalCredit += row.credit;
+          existing.netDebt = existing.totalDebit - existing.totalCredit;
+          existing.transactionCount += 1;
+
+          yearMap.set(extractedYear, existing);
         }
-        // Try to extract month from date string (MM/DD/YYYY or DD/MM/YYYY format)
-        const dateParts = row.date.match(/\d{1,2}/g);
-        if (dateParts && dateParts.length >= 2) {
-          // Assuming format like MM/DD/YYYY or DD/MM/YYYY
-          // You may need to adjust based on your date format
-          const monthMatch = dateParts[0];
-          if (monthMatch) {
-            month = monthMatch;
-          }
-        }
+        return;
       }
 
-      if (!year || !month) return;
-
-      const key = `${year}-${month.padStart(2, '0')}`;
-      const existing = monthMap.get(key) || {
-        month,
+      const existing = yearMap.get(year) || {
         year,
         totalDebit: 0,
         totalCredit: 0,
@@ -412,48 +425,43 @@ export default function MonthsTab({ data }: MonthsTabProps) {
       existing.netDebt = existing.totalDebit - existing.totalCredit;
       existing.transactionCount += 1;
 
-      monthMap.set(key, existing);
+      yearMap.set(year, existing);
     });
 
-    // Calculate collection rate and customer ratings for each month
-    const customersByMonth = new Map<string, CustomerAnalysis[]>();
+    // Calculate collection rate and customer ratings for each year
+    const customersByYear = new Map<string, CustomerAnalysis[]>();
 
-    // Group customers by month based on their transactions
+    // Group customers by year based on their transactions
     customerAnalysis.forEach((customer) => {
       const customerInvoices = data.filter(row => row.customerName === customer.customerName);
-      const monthSet = new Set<string>();
+      const yearSet = new Set<string>();
 
       customerInvoices.forEach(inv => {
-        const dateObj = new Date(inv.date);
-        if (!isNaN(dateObj.getTime())) {
-          const year = dateObj.getFullYear().toString();
-          const month = (dateObj.getMonth() + 1).toString();
-          monthSet.add(`${year}-${month.padStart(2, '0')}`);
+        const year = new Date(inv.date).getFullYear().toString();
+        if (!isNaN(new Date(inv.date).getTime())) {
+          yearSet.add(year);
         } else {
           const yearMatch = inv.date.match(/\d{4}/);
-          const dateParts = inv.date.match(/\d{1,2}/g);
-          if (yearMatch && dateParts && dateParts.length >= 2) {
-            const year = yearMatch[0];
-            const month = dateParts[0];
-            monthSet.add(`${year}-${month.padStart(2, '0')}`);
+          if (yearMatch) {
+            yearSet.add(yearMatch[0]);
           }
         }
       });
 
-      monthSet.forEach(monthKey => {
-        if (!customersByMonth.has(monthKey)) {
-          customersByMonth.set(monthKey, []);
+      yearSet.forEach(year => {
+        if (!customersByYear.has(year)) {
+          customersByYear.set(year, []);
         }
-        customersByMonth.get(monthKey)!.push(customer);
+        customersByYear.get(year)!.push(customer);
       });
     });
 
-    monthMap.forEach((month, monthKey) => {
-      month.collectionRate = month.totalDebit > 0 ? (month.totalCredit / month.totalDebit) * 100 : 0;
+    yearMap.forEach((year, yearName) => {
+      year.collectionRate = year.totalDebit > 0 ? (year.totalCredit / year.totalDebit) * 100 : 0;
 
-      // Get customers for this month and calculate ratings
-      const monthCustomers = customersByMonth.get(monthKey) || [];
-      const uniqueCustomers = Array.from(new Map(monthCustomers.map(c => [c.customerName, c])).values());
+      // Get customers for this year and calculate ratings
+      const yearCustomers = customersByYear.get(yearName) || [];
+      const uniqueCustomers = Array.from(new Map(yearCustomers.map(c => [c.customerName, c])).values());
 
       let goodCount = 0;
       let mediumCount = 0;
@@ -470,37 +478,27 @@ export default function MonthsTab({ data }: MonthsTabProps) {
         }
       });
 
-      month.goodCustomersCount = goodCount;
-      month.mediumCustomersCount = mediumCount;
-      month.badCustomersCount = badCount;
+      year.goodCustomersCount = goodCount;
+      year.mediumCustomersCount = mediumCount;
+      year.badCustomersCount = badCount;
     });
 
-    return Array.from(monthMap.values()).sort((a, b) => {
-      const aKey = `${a.year}-${a.month.padStart(2, '0')}`;
-      const bKey = `${b.year}-${b.month.padStart(2, '0')}`;
-      return aKey.localeCompare(bKey);
-    });
+    return Array.from(yearMap.values()).sort((a, b) => a.year.localeCompare(b.year));
   }, [data, customerAnalysis, closedCustomers]);
 
   const filteredData = useMemo(() => {
-    if (!searchQuery.trim()) return monthAnalysis;
+    if (!searchQuery.trim()) return yearAnalysis;
     const query = searchQuery.toLowerCase();
-    return monthAnalysis.filter((month) =>
-      month.year.toLowerCase().includes(query) ||
-      monthNames[month.month]?.toLowerCase().includes(query) ||
-      month.month.includes(query)
+    return yearAnalysis.filter((year) =>
+      year.year.toLowerCase().includes(query)
     );
-  }, [monthAnalysis, searchQuery]);
+  }, [yearAnalysis, searchQuery]);
 
   const columns = useMemo(
     () => [
       columnHelper.accessor('year', {
         header: 'Year',
         cell: (info) => info.getValue(),
-      }),
-      columnHelper.accessor('month', {
-        header: 'Month',
-        cell: (info) => monthNames[info.getValue()] || info.getValue(),
       }),
       columnHelper.accessor('netDebt', {
         header: 'Net Debt',
@@ -580,7 +578,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
     onSortingChange: setSorting,
   });
 
-  const totalDebt = monthAnalysis.reduce((sum, m) => sum + m.netDebt, 0);
+  const totalDebt = yearAnalysis.reduce((sum, y) => sum + y.netDebt, 0);
 
   return (
     <div className="p-6">
@@ -595,13 +593,13 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                 </span>
               </p>
               <p className="text-sm text-gray-600 mt-1">
-                Number of Months: {filteredData.length} {searchQuery && `(filtered from ${monthAnalysis.length})`}
+                Number of Years: {filteredData.length} {searchQuery && `(filtered from ${yearAnalysis.length})`}
               </p>
             </div>
             <div className="absolute left-1/2 transform -translate-x-1/2">
               <input
                 type="text"
-                placeholder="Search by year or month..."
+                placeholder="Search by year..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg w-64"
@@ -620,13 +618,12 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                   {headerGroup.headers.map((header) => {
                     const getWidth = () => {
                       const columnId = header.column.id;
-                      if (columnId === 'year') return '12%';
-                      if (columnId === 'month') return '12%';
-                      if (columnId === 'netDebt') return '12%';
-                      if (columnId === 'collectionRate') return '12%';
-                      if (columnId === 'goodCustomersCount') return '15%';
-                      if (columnId === 'mediumCustomersCount') return '15%';
-                      if (columnId === 'badCustomersCount') return '22%';
+                      if (columnId === 'year') return '15%';
+                      if (columnId === 'netDebt') return '15%';
+                      if (columnId === 'collectionRate') return '15%';
+                      if (columnId === 'goodCustomersCount') return '18%';
+                      if (columnId === 'mediumCustomersCount') return '18%';
+                      if (columnId === 'badCustomersCount') return '19%';
                       return 'auto';
                     };
                     return (
@@ -650,7 +647,7 @@ export default function MonthsTab({ data }: MonthsTabProps) {
             <tbody>
               {table.getRowModel().rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12">
+                  <td colSpan={6} className="py-12">
                     <NoData />
                   </td>
                 </tr>
@@ -660,13 +657,12 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
                         const columnId = cell.column.id;
-                        if (columnId === 'year') return '12%';
-                        if (columnId === 'month') return '12%';
-                        if (columnId === 'netDebt') return '12%';
-                        if (columnId === 'collectionRate') return '12%';
-                        if (columnId === 'goodCustomersCount') return '15%';
-                        if (columnId === 'mediumCustomersCount') return '15%';
-                        if (columnId === 'badCustomersCount') return '22%';
+                        if (columnId === 'year') return '15%';
+                        if (columnId === 'netDebt') return '15%';
+                        if (columnId === 'collectionRate') return '15%';
+                        if (columnId === 'goodCustomersCount') return '18%';
+                        if (columnId === 'mediumCustomersCount') return '18%';
+                        if (columnId === 'badCustomersCount') return '19%';
                         return 'auto';
                       };
                       return (
@@ -679,17 +675,16 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                 ))
               )}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>Total</td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}></td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
-                  <span className={filteredData.reduce((sum, m) => sum + m.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, m) => sum + m.netDebt, 0) < 0 ? 'text-green-600' : ''}>
-                    {filteredData.reduce((sum, m) => sum + m.netDebt, 0).toLocaleString('en-US')}
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>Total</td>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
+                  <span className={filteredData.reduce((sum, y) => sum + y.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, y) => sum + y.netDebt, 0) < 0 ? 'text-green-600' : ''}>
+                    {filteredData.reduce((sum, y) => sum + y.netDebt, 0).toLocaleString('en-US')}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
                   {(() => {
-                    const totalDebit = filteredData.reduce((sum, m) => sum + m.totalDebit, 0);
-                    const totalCredit = filteredData.reduce((sum, m) => sum + m.totalCredit, 0);
+                    const totalDebit = filteredData.reduce((sum, y) => sum + y.totalDebit, 0);
+                    const totalCredit = filteredData.reduce((sum, y) => sum + y.totalCredit, 0);
                     const avgRate = totalDebit > 0 ? (totalCredit / totalDebit) * 100 : 0;
                     let colorClass = 'text-gray-600 bg-gray-50';
                     if (avgRate >= 80) {
@@ -706,14 +701,20 @@ export default function MonthsTab({ data }: MonthsTabProps) {
                     );
                   })()}
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                  -
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold shadow-sm">
+                    {filteredData.reduce((sum, y) => sum + y.goodCustomersCount, 0)}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '15%' }}>
-                  -
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '18%' }}>
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 text-white font-bold shadow-sm">
+                    {filteredData.reduce((sum, y) => sum + y.mediumCustomersCount, 0)}
+                  </span>
                 </td>
-                <td className="px-4 py-3 text-center text-lg" style={{ width: '22%' }}>
-                  -
+                <td className="px-4 py-3 text-center text-lg" style={{ width: '19%' }}>
+                  <span className="inline-flex items-center justify-center px-3 py-1.5 rounded-full bg-gradient-to-r from-red-500 to-rose-600 text-white font-bold shadow-sm">
+                    {filteredData.reduce((sum, y) => sum + y.badCustomersCount, 0)}
+                  </span>
                 </td>
               </tr>
             </tbody>

@@ -154,6 +154,8 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
 
     const periodStats = new Map<string, any>();
+    const allTimeStats = new Map<string, number>();
+
     if (chartPeriodType === 'weekly') {
       const weekKeys = new Set<string>();
       let iterDate = new Date(startDate);
@@ -183,29 +185,61 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
 
     filteredData.forEach(row => {
       const d = parseDate(row.date);
-      if (!d || d < startDate || d > endDate) return;
-      let key = chartPeriodType === 'weekly' ? getWeeklyKey(d) : getMonthlyKey(d);
-      if (!periodStats.has(key)) return;
-      const stats = periodStats.get(key)!;
+      if (!d) return;
+
+      const key = chartPeriodType === 'weekly' ? getWeeklyKey(d) : getMonthlyKey(d);
       const type = getInvoiceType(row);
       const debit = row.debit || 0;
       const credit = row.credit || 0;
-      if (type === 'Sale') stats.grossSales += debit;
-      else if (type === 'Return') { stats.returns += credit; if (debit < 0) stats.returns += Math.abs(debit); }
-      else if (type === 'Discount') { stats.discounts += credit; if (debit < 0) stats.discounts += Math.abs(debit); }
-      else if (type === 'Payment' || type === 'R-Payment') {
+
+      if (type === 'Payment' || type === 'R-Payment') {
         const netAmount = credit - debit;
-        stats.collections += netAmount;
-        if (netAmount > 0.001) {
-          stats.paymentCount += 1;
-          if (row.customerName) stats.customerSet.add(row.customerName.trim());
+        allTimeStats.set(key, (allTimeStats.get(key) || 0) + netAmount);
+
+        if (d >= startDate && d <= endDate) {
+          const stats = periodStats.get(key);
+          if (stats) {
+            stats.collections += netAmount;
+            if (netAmount > 0.001) {
+              stats.paymentCount += 1;
+              if (row.customerName) stats.customerSet.add(row.customerName.trim());
+            }
+          }
+        }
+      } else if (d >= startDate && d <= endDate) {
+        const stats = periodStats.get(key);
+        if (stats) {
+          if (type === 'Sale') stats.grossSales += debit;
+          else if (type === 'Return') { stats.returns += credit; if (debit < 0) stats.returns += Math.abs(debit); }
+          else if (type === 'Discount') { stats.discounts += credit; if (debit < 0) stats.discounts += Math.abs(debit); }
         }
       }
     });
 
     const result = Array.from(periodStats.values()).sort((a, b) => a.periodKey.localeCompare(b.periodKey)).map(item => {
       const netSales = item.grossSales - item.returns;
-      return { ...item, netSales, netSalesMinusDiscounts: netSales - item.discounts, displaySales: Math.round((netSales - item.discounts) * 100) / 100, displayCollections: Math.round(item.collections * 100) / 100, paymentCount: item.paymentCount, customerCount: item.customerSet.size };
+
+      // Calculate last year key for comparison
+      let lastYearKey = '';
+      if (chartPeriodType === 'weekly') {
+        const [y, w] = item.periodKey.split('-W');
+        lastYearKey = `${parseInt(y) - 1}-W${w}`;
+      } else {
+        const [y, m] = item.periodKey.split('-');
+        lastYearKey = `${parseInt(y) - 1}-${m}`;
+      }
+      const lastYearCollections = allTimeStats.get(lastYearKey) || 0;
+
+      return {
+        ...item,
+        netSales,
+        netSalesMinusDiscounts: netSales - item.discounts,
+        displaySales: Math.round((netSales - item.discounts) * 100) / 100,
+        displayCollections: Math.round(item.collections * 100) / 100,
+        lastYearCollections: Math.round(lastYearCollections * 100) / 100,
+        paymentCount: item.paymentCount,
+        customerCount: item.customerSet.size
+      };
     });
 
     return {

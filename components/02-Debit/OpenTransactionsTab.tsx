@@ -12,24 +12,24 @@ import {
 } from '@tanstack/react-table';
 import { FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
-import NoData from './Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
-interface AllTransactionsTabProps {
+interface CustomersOpenMatchesTabProps {
   data: InvoiceRow[];
 }
 
-interface TransactionItem {
+interface OpenMatchItem {
   customerName: string;
   date: Date;
   number: string;
   debit: number;
   credit: number;
-  netAmount: number;
+  remainingAmount: number;
   type: 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid';
   matching?: string;
 }
 
-const columnHelper = createColumnHelper<TransactionItem>();
+const columnHelper = createColumnHelper<OpenMatchItem>();
 
 const parseDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
@@ -48,11 +48,11 @@ const parseDate = (dateStr: string): Date | null => {
   return null;
 };
 
-export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
+export default function OpenTransactionsTab({ data }: CustomersOpenMatchesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState<string>('');
   const [dateTo, setDateTo] = useState<string>('');
-  const [typeFilter, setTypeFilter] = useState<'ALL' | 'Payment' | 'R-Payment' | 'Discount' | 'Return' | 'Sales' | 'OB' | 'Our-Paid'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<string>('ALL');
   const [selectedInvoiceNumber, setSelectedInvoiceNumber] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationState>({
     pageIndex: 0,
@@ -61,47 +61,97 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
   const [viewMode, setViewMode] = useState<'details' | 'byCustomer'>('details');
   const [expandedCustomer, setExpandedCustomer] = useState<string | null>(null);
 
-  // Get ALL transactions (not just open ones)
-  const allTransactions = useMemo(() => {
-    const items: TransactionItem[] = [];
-
-    data.forEach(inv => {
-      const num = inv.number?.toString().toUpperCase() || '';
-      const rowDate = parseDate(inv.date);
-      if (!rowDate) return;
-
-      let type: TransactionItem['type'] | null = null;
-
-      if (num.startsWith('OB')) {
-        type = 'OB';
-      } else if (num.startsWith('BNK')) {
-        // BNK with Debit is a 'R-Payment' (Refund/Bounced), otherwise Payment
-        type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
-      } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
-        type = 'Our-Paid';
-      } else if (num.startsWith('SAL')) {
-        type = 'Sales';
-      } else if (num.startsWith('RSAL')) {
-        type = 'Return';
-      } else if (num.startsWith('JV') || num.startsWith('BIL')) {
-        type = 'Discount';
-      } else if (inv.credit > 0.01) {
-        type = 'Payment';
-      } else {
-        type = 'Sales'; // Default for other invoice types
+  const openMatches = useMemo(() => {
+    const customerGroups = new Map<string, InvoiceRow[]>();
+    data.forEach(row => {
+      const customer = row.customerName;
+      if (!customerGroups.has(customer)) {
+        customerGroups.set(customer, []);
       }
+      customerGroups.get(customer)!.push(row);
+    });
 
-      const netAmount = inv.debit - inv.credit;
+    const items: OpenMatchItem[] = [];
 
-      items.push({
-        customerName: inv.customerName || 'Unknown',
-        date: rowDate,
-        number: inv.number || '',
-        debit: inv.debit,
-        credit: inv.credit,
-        netAmount: netAmount,
-        type,
-        matching: inv.matching
+    customerGroups.forEach((customerInvoices, customerName) => {
+      // Legacy matching index logic removed to strictly respect Google Sheet residualAmount column
+      // (Simplified loop to prep for mapping)
+
+      const invoicesWithNetDebt = customerInvoices.map((invoice, index) => {
+        let residual: number | undefined = undefined;
+
+        // Strictly use residualAmount from Google Sheet if available
+        if (invoice.matching && invoice.residualAmount !== undefined && Math.abs(invoice.residualAmount) > 0.01) {
+          residual = invoice.residualAmount;
+        }
+
+        return {
+          ...invoice,
+          netDebt: invoice.debit - invoice.credit,
+          residual
+        };
+      });
+
+      // Filter for open items (unmatched OR with residual)
+      const openInvoices = invoicesWithNetDebt.filter(inv => {
+        if (!inv.matching) {
+          return Math.abs(inv.netDebt) > 0.01;
+        }
+        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+      }).map(inv => {
+        let difference = inv.residual !== undefined ? inv.residual : inv.netDebt;
+
+        const adjustedCredit = inv.debit - difference;
+
+        return {
+          ...inv,
+          credit: adjustedCredit,
+          difference
+        };
+      });
+
+      // Categorize and add open items
+      openInvoices.forEach(inv => {
+        const num = inv.number?.toString().toUpperCase() || '';
+        const rowDate = parseDate(inv.date);
+        if (!rowDate) return;
+
+        let type: OpenMatchItem['type'] | null = null;
+
+        if (num.startsWith('OB')) {
+          type = 'OB';
+        } else if (num.startsWith('BNK')) {
+          // Bank transfers with Debit are 'R-Payment' (Bounced/Refund)
+          type = inv.debit > 0.01 ? 'R-Payment' : 'Payment';
+        } else if (num.startsWith('PBNK') && inv.debit > 0.01) {
+          type = 'Our-Paid';
+        } else if (num.startsWith('SAL')) {
+          // Only show SAL if it's partially closed (has matching and residual)
+          // Don't show unmatched SAL (fully open)
+          if (inv.matching && inv.residual !== undefined && Math.abs(inv.residual) > 0.01) {
+            type = 'Sales';
+          }
+        } else if (num.startsWith('RSAL')) {
+          type = 'Return';
+        } else if (num.startsWith('JV') || num.startsWith('BIL')) {
+          type = 'Discount';
+        } else if (inv.credit > 0.01) {
+          // Payment (credit > 0, not SAL/RSAL/BIL/JV/OB)
+          type = 'Payment';
+        }
+
+        if (type && Math.abs(inv.difference) > 0.01) {
+          items.push({
+            customerName,
+            date: rowDate,
+            number: inv.number || '',
+            debit: inv.debit,
+            credit: inv.credit,
+            remainingAmount: inv.difference, // Keep the sign (positive or negative)
+            type,
+            matching: inv.matching
+          });
+        }
       });
     });
 
@@ -110,11 +160,22 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
   }, [data]);
 
   const filteredItems = useMemo(() => {
-    let filtered = allTransactions;
+    let filtered = openMatches;
 
     // Type filter
     if (typeFilter !== 'ALL') {
-      filtered = filtered.filter(item => item.type === typeFilter);
+      if (typeFilter === 'ALL - R') {
+        filtered = filtered.filter(item => Math.abs(item.debit) > 0.01 && Math.abs(item.credit) > 0.01);
+      } else if (typeFilter.endsWith(' - R')) {
+        const baseType = typeFilter.replace(' - R', '');
+        filtered = filtered.filter(item =>
+          item.type === baseType &&
+          Math.abs(item.debit) > 0.01 &&
+          Math.abs(item.credit) > 0.01
+        );
+      } else {
+        filtered = filtered.filter(item => item.type === typeFilter);
+      }
     }
 
     // Date range filter
@@ -148,13 +209,13 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
         item.date.toLocaleDateString('en-GB').toLowerCase().includes(query) ||
         item.debit.toString().includes(query) ||
         item.credit.toString().includes(query) ||
-        item.netAmount.toString().includes(query) ||
+        item.remainingAmount.toString().includes(query) ||
         item.matching?.toLowerCase().includes(query)
       );
     }
 
     return filtered;
-  }, [allTransactions, typeFilter, dateFrom, dateTo, searchQuery]);
+  }, [openMatches, typeFilter, dateFrom, dateTo, searchQuery]);
 
   const groupedByCustomer = useMemo(() => {
     const map = new Map<
@@ -164,7 +225,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
         itemCount: number;
         totalDebit: number;
         totalCredit: number;
-        totalNet: number;
+        totalRemaining: number;
       }
     >();
 
@@ -176,14 +237,14 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
           itemCount: 0,
           totalDebit: 0,
           totalCredit: 0,
-          totalNet: 0,
+          totalRemaining: 0,
         });
       }
       const entry = map.get(key)!;
       entry.itemCount += 1;
       entry.totalDebit += item.debit;
       entry.totalCredit += item.credit;
-      entry.totalNet += item.netAmount;
+      entry.totalRemaining += item.remainingAmount;
     });
 
     return Array.from(map.values()).sort((a, b) =>
@@ -191,7 +252,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
     );
   }, [filteredItems]);
 
-  const getTypeColor = (type: TransactionItem['type']) => {
+  const getTypeColor = (type: OpenMatchItem['type']) => {
     switch (type) {
       case 'Payment':
         return 'bg-green-100 text-green-700';
@@ -260,8 +321,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
         cell: (info) =>
           info.getValue().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       }),
-      columnHelper.accessor('netAmount', {
-        header: 'Net Amount',
+      columnHelper.accessor('remainingAmount', {
+        header: 'Remaining Amount',
         cell: (info) => {
           const value = info.getValue();
           const isNegative = value < 0;
@@ -299,7 +360,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
   });
 
   const exportToExcel = () => {
-    const headers = ['Customer Name', 'Date', 'Invoice Number', 'Type', 'Debit', 'Credit', 'Net Amount', 'Matching'];
+    const headers = ['Customer Name', 'Date', 'Invoice Number', 'Type', 'Debit', 'Credit', 'Remaining Amount', 'Matching'];
     const rows = filteredItems.map(item => [
       item.customerName,
       item.date.toLocaleDateString('en-GB'),
@@ -307,25 +368,25 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       item.type,
       item.debit,
       item.credit,
-      item.netAmount,
+      item.remainingAmount,
       item.matching || ''
     ]);
 
     // Add totals row
     const totalDebit = filteredItems.reduce((sum, item) => sum + item.debit, 0);
     const totalCredit = filteredItems.reduce((sum, item) => sum + item.credit, 0);
-    const totalNet = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
-    rows.push(['Total', '', '', '', totalDebit, totalCredit, totalNet, '']);
+    const totalRemaining = filteredItems.reduce((sum, item) => sum + item.remainingAmount, 0);
+    rows.push(['Total', '', '', '', totalDebit, totalCredit, totalRemaining, '']);
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transactions');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Open Items');
 
     // Auto-size columns (rough approximation)
     const colWidths = [30, 12, 15, 12, 12, 12, 12, 15];
     worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
 
-    XLSX.writeFile(workbook, `all_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.writeFile(workbook, `open_transactions_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   return (
@@ -333,9 +394,9 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
       <div className="bg-blue-50 p-4 rounded-lg mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div className="flex items-center gap-3">
           <p className="text-lg">
-            <span className="font-semibold">Total Transactions:</span>{' '}
+            <span className="font-semibold">Total Open Items:</span>{' '}
             <span className="text-blue-600">{filteredItems.length}</span>
-            {searchQuery && ` of ${allTransactions.length}`}
+            {searchQuery && ` of ${openMatches.length}`}
           </p>
           <button
             onClick={exportToExcel}
@@ -413,13 +474,21 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white shadow-sm min-w-[160px]"
           >
             <option value="ALL">All Types</option>
+            <option value="ALL - R">All Types - R</option>
             <option value="Payment">Payments</option>
+            <option value="Payment - R">Payments - R</option>
             <option value="R-Payment">R-Payment</option>
+            <option value="R-Payment - R">R-Payment - R</option>
             <option value="Discount">Discounts</option>
+            <option value="Discount - R">Discounts - R</option>
             <option value="Return">Returns</option>
+            <option value="Return - R">Returns - R</option>
             <option value="Sales">Sales</option>
+            <option value="Sales - R">Sales - R</option>
             <option value="OB">Opening Balance</option>
+            <option value="OB - R">Opening Balance - R</option>
             <option value="Our-Paid">Our-Paid</option>
+            <option value="Our-Paid - R">Our-Paid - R</option>
           </select>
         </div>
 
@@ -453,7 +522,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                           if (columnId === 'type') return '7%';
                           if (columnId === 'debit') return '9%';
                           if (columnId === 'credit') return '9%';
-                          if (columnId === 'netAmount') return '14%';
+                          if (columnId === 'remainingAmount') return '14%';
                           if (columnId === 'matching') return '10%';
                           return 'auto';
                         };
@@ -491,7 +560,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                             if (columnId === 'type') return '7%';
                             if (columnId === 'debit') return '9%';
                             if (columnId === 'credit') return '9%';
-                            if (columnId === 'netAmount') return '14%';
+                            if (columnId === 'remainingAmount') return '14%';
                             if (columnId === 'matching') return '10%';
                             return 'auto';
                           };
@@ -530,7 +599,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                       </td>
                       <td className="px-4 py-3 text-center text-lg">
                         {(() => {
-                          const total = filteredItems.reduce((sum, item) => sum + item.netAmount, 0);
+                          const total = filteredItems.reduce((sum, item) => sum + item.remainingAmount, 0);
                           const isNegative = total < 0;
                           return (
                             <span
@@ -621,7 +690,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                     Customer Name
                   </th>
                   <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
-                    Transactions
+                    Open Items
                   </th>
                   <th className="px-4 py-3 text-center font-semibold" style={{ width: '15%' }}>
                     Total Debit
@@ -630,7 +699,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                     Total Credit
                   </th>
                   <th className="px-4 py-3 text-center font-semibold" style={{ width: '20%' }}>
-                    Total Net
+                    Total Remaining
                   </th>
                 </tr>
               </thead>
@@ -643,7 +712,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                   </tr>
                 ) : (
                   groupedByCustomer.map((row) => {
-                    const isNegative = row.totalNet < 0;
+                    const isNegative = row.totalRemaining < 0;
                     const isExpanded = expandedCustomer === row.customerName;
                     return (
                       <Fragment key={row.customerName}>
@@ -690,7 +759,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                               className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'
                                 }`}
                             >
-                              {row.totalNet.toLocaleString('en-US', {
+                              {row.totalRemaining.toLocaleString('en-US', {
                                 minimumFractionDigits: 2,
                                 maximumFractionDigits: 2,
                               })}
@@ -701,7 +770,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                           <tr className="bg-gray-50 border-b">
                             <td colSpan={5} className="px-4 py-3">
                               <div className="text-sm font-semibold text-gray-700 mb-2">
-                                Transactions for {row.customerName}
+                                Open items for {row.customerName}
                               </div>
                               <div className="overflow-x-auto">
                                 <table className="w-full text-sm" style={{ direction: 'ltr' }}>
@@ -715,7 +784,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                                       <th className="px-3 py-2 text-center font-semibold">Debit</th>
                                       <th className="px-3 py-2 text-center font-semibold">Credit</th>
                                       <th className="px-3 py-2 text-center font-semibold">
-                                        Net
+                                        Remaining
                                       </th>
                                       <th className="px-3 py-2 text-center font-semibold">
                                         Matching
@@ -726,7 +795,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                                     {filteredItems
                                       .filter((i) => i.customerName === row.customerName)
                                       .map((item, idx) => {
-                                        const isNeg = item.netAmount < 0;
+                                        const isNeg = item.remainingAmount < 0;
                                         return (
                                           <tr key={`${item.number}-${idx}`} className="border-b">
                                             <td className="px-3 py-1.5 text-center">
@@ -761,7 +830,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                                                 className={`font-semibold ${isNeg ? 'text-green-600' : 'text-orange-600'
                                                   }`}
                                               >
-                                                {item.netAmount.toLocaleString('en-US', {
+                                                {item.remainingAmount.toLocaleString('en-US', {
                                                   minimumFractionDigits: 2,
                                                   maximumFractionDigits: 2,
                                                 })}
@@ -810,17 +879,17 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                     </td>
                     <td className="px-4 py-3 text-center text-base">
                       {(() => {
-                        const totalNet = groupedByCustomer.reduce(
-                          (sum, row) => sum + row.totalNet,
+                        const totalRemaining = groupedByCustomer.reduce(
+                          (sum, row) => sum + row.totalRemaining,
                           0,
                         );
-                        const isNegative = totalNet < 0;
+                        const isNegative = totalRemaining < 0;
                         return (
                           <span
                             className={`font-semibold ${isNegative ? 'text-green-600' : 'text-orange-600'
                               }`}
                           >
-                            {totalNet.toLocaleString('en-US', {
+                            {totalRemaining.toLocaleString('en-US', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}

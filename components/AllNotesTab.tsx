@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Note } from '@/types';
-import Loading from './Loading';
+import Loading from './01-Unified/Loading';
 import {
   Search,
   User,

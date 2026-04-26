@@ -2,17 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-import CustomersTab from '@/components/CustomersTab';
-import CustomersLandingTab from '@/components/CustomersLandingTab';
-import OpenTransactionsTab from '@/components/OpenTransactionsTab';
-import AllTransactionsTab from '@/components/AllTransactionsTab';
-import PaymentTrackerTab from '@/components/PaymentTrackerTab';
+import CustomersTab from '@/components/02-Debit/CustomersTab';
+import CustomersLandingTab from '@/components/02-Debit/CustomersLandingTab';
+import OpenTransactionsTab from '@/components/02-Debit/OpenTransactionsTab';
+import AllTransactionsTab from '@/components/02-Debit/AllTransactionsTab';
+import PaymentTrackerTab from '@/components/03-Payment-Tracker/PaymentTrackerTab';
 import SalesRepsTab from '@/components/SalesRepsTab';
-import HistoryTab from '@/components/HistoryTab';
-import AgesTab from '@/components/AgesTab';
+import HistoryTab from '@/components/02-Debit/HistoryTab';
+import AgesTab from '@/components/02-Debit/AgesTab';
 import AllNotesTab from '@/components/AllNotesTab';
-import Login from '@/components/Login';
-import Loading from '@/components/Loading';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User, RefreshCcw } from 'lucide-react';
 
