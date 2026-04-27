@@ -108,11 +108,28 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
       }
       endDate.setHours(23, 59, 59, 999);
     } else if (dateFrom || dateTo) {
+      let maxDataDate = new Date(0);
+      let minDataDate = new Date(8640000000000000);
+      let hasAnyData = false;
+      data.forEach(row => {
+        const d = parseDate(row.date);
+        if (d) {
+          if (d > maxDataDate) maxDataDate = d;
+          if (d < minDataDate) minDataDate = d;
+          hasAnyData = true;
+        }
+      });
+      if (!hasAnyData) {
+        minDataDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+        maxDataDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      }
+
       if (dateFrom) {
         const fromDate = parseDate(dateFrom);
-        startDate = fromDate || new Date(today.getFullYear(), today.getMonth() - 11, 1);
+        startDate = fromDate || minDataDate;
+        if (fromDate) startDate.setHours(0, 0, 0, 0);
       } else {
-        startDate = new Date(0);
+        startDate = minDataDate;
       }
       if (dateTo) {
         const toDate = parseDate(dateTo);
@@ -120,10 +137,12 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
           endDate = new Date(toDate);
           endDate.setHours(23, 59, 59, 999);
         } else {
-          endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+          endDate = new Date(maxDataDate);
+          endDate.setHours(23, 59, 59, 999);
         }
       } else {
-        endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        endDate = new Date(maxDataDate);
+        endDate.setHours(23, 59, 59, 999);
       }
     } else {
       let maxDate = new Date(0);
@@ -168,12 +187,19 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
         periodStats.set(key, { periodLabel: formatPeriodLabel(key, 'weekly'), periodKey: key, grossSales: 0, returns: 0, discounts: 0, collections: 0, paymentCount: 0, customerSet: new Set() });
       });
     } else {
-      let iterDate = new Date(startDate);
-      let safeguard = 0;
-      while (iterDate <= endDate && safeguard < 24) {
-        safeguard++;
+      let iterDate = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      while (iterDate <= endDate) {
         const key = getMonthlyKey(iterDate);
-        periodStats.set(key, { periodLabel: formatPeriodLabel(key, 'monthly'), periodKey: key, grossSales: 0, returns: 0, discounts: 0, collections: 0, paymentCount: 0, customerSet: new Set() });
+        periodStats.set(key, { 
+          periodLabel: formatPeriodLabel(key, 'monthly'), 
+          periodKey: key, 
+          grossSales: 0, 
+          returns: 0, 
+          discounts: 0, 
+          collections: 0, 
+          paymentCount: 0, 
+          customerSet: new Set() 
+        });
         iterDate = new Date(iterDate);
         iterDate.setMonth(iterDate.getMonth() + 1);
       }

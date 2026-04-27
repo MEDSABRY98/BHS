@@ -48,7 +48,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
           <div className="text-2xl font-bold text-green-600">
             {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Total payments collected</p>
         </div>
 
         <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
@@ -56,7 +55,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
           <div className="text-2xl font-bold text-blue-600">
             {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
           </div>
-          <p className="text-xs text-gray-400 mt-1 font-medium">Payments with Credit - Debit &gt; 0</p>
         </div>
 
         <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
@@ -64,9 +62,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
           <div className="text-2xl font-bold text-teal-600">
             {averageCollections.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-gray-400 mt-1 font-medium">
-            Based on {averageCollections.monthsCount} month(s)
-          </p>
         </div>
 
         <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
@@ -74,9 +69,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
           <div className="text-2xl font-bold text-cyan-600">
             {averageCollections.averageWeekly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <p className="text-xs text-gray-400 mt-1 font-medium">
-            Based on {averageCollections.weeksCount} week(s)
-          </p>
         </div>
 
         <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
@@ -84,9 +76,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
           <div className="text-2xl font-bold text-orange-600">
             {averageCollectionDays.averageDays > 0 ? averageCollectionDays.averageDays.toFixed(1) : '0.0'} days
           </div>
-          <p className="text-xs text-gray-400 mt-1 font-medium">
-            Avg between sequential payments
-          </p>
         </div>
       </div>
 
@@ -99,17 +88,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
             }
           </h3>
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <div className="px-4 py-2 rounded-2xl bg-green-50/80 border border-green-100 text-sm font-bold text-green-700 shadow-sm flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-              {dashboardData.totals.totalCollections.toLocaleString('en-US', {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}{' '}
-              <span className="text-xs text-green-600/70 font-medium">
-                ({dashboardData.totals.netPaymentCount.toLocaleString('en-US')} pays)
-              </span>
-            </div>
-
             <div className="flex gap-1 p-1 bg-gray-100/50 rounded-2xl border border-gray-100 shadow-inner">
               <button
                 onClick={() => setChartPeriodType('monthly')}
@@ -129,23 +107,6 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
               >
                 Weekly
               </button>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Year"
-                value={chartYear}
-                onChange={(e) => setChartYear(e.target.value)}
-                className="px-4 py-2 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-28 text-center font-bold text-gray-700 shadow-sm"
-              />
-              <input
-                type="text"
-                placeholder="Month"
-                value={chartMonth}
-                onChange={(e) => setChartMonth(e.target.value)}
-                className="px-4 py-2 bg-white/50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 w-28 text-center font-bold text-gray-700 shadow-sm"
-              />
             </div>
           </div>
         </div>

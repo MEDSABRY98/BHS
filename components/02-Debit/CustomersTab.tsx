@@ -12,11 +12,11 @@ import {
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import NoData from '../01-Unified/NoDataTab';
 import CustomerDetailsTab from './CustomerDetailsTab';
-import { 
+import {
   exportToPDF as exportToPDFUtil,
-  generateAccountStatementPDF, 
-  generateBulkDebitSummaryPDF, 
-  generateBulkCustomerStatementsPDF 
+  generateAccountStatementPDF,
+  generateBulkDebitSummaryPDF,
+  generateBulkCustomerStatementsPDF
 } from '@/lib/pdf/PdfUtils';
 import { FileSpreadsheet, FileText, Printer, FileArchive, Mail } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -2928,25 +2928,13 @@ ${debtSectionHtml}
                   if (prev === 'SUMMARY') return 'YEARLY';
                   return 'DEFAULT';
                 })}
-                className={`p-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border ${viewMode !== 'DEFAULT'
+                className={`w-9 h-9 flex items-center justify-center rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm border font-black text-base ${viewMode !== 'DEFAULT'
                   ? 'bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100'
                   : 'bg-white text-gray-500 border-gray-300 hover:bg-gray-50 hover:text-gray-700'
                   }`}
                 title={viewMode === 'DEFAULT' ? "Switch to Summary View" : viewMode === 'SUMMARY' ? "Switch to Yearly View" : "Switch to Default View"}
               >
-                {viewMode === 'DEFAULT' ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.414V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z" />
-                  </svg>
-                ) : viewMode === 'SUMMARY' ? (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
-                  </svg>
-                ) : (
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" />
-                  </svg>
-                )}
+                {viewMode === 'DEFAULT' ? '1' : viewMode === 'SUMMARY' ? '2' : '3'}
               </button>
 
               <div className="flex items-center gap-2">

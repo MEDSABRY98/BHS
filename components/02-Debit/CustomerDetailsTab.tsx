@@ -1782,6 +1782,10 @@ ${debtSectionHtml}
           );
         },
       }),
+      overdueColumnHelper.accessor('matching', {
+        header: 'Matching',
+        cell: (info) => info.getValue() || '-',
+      }),
       overdueColumnHelper.accessor('daysOverdue', {
         header: 'Days Overdue',
         cell: (info) => {
@@ -4100,18 +4104,19 @@ ${debtSectionHtml}
                     {overdueTable.getHeaderGroups().map((headerGroup) => (
                       <tr key={headerGroup.id}>
                         {headerGroup.headers.map((header) => {
-                          const getWidth = () => {
-                            const columnId = header.column.id;
-                            if (columnId === 'select') return '5%';
-                            if (columnId === 'date') return '13%';
-                            if (columnId === 'type') return '10%';
-                            if (columnId === 'number') return '13%';
-                            if (columnId === 'debit') return '13%';
-                            if (columnId === 'credit') return '13%';
-                            if (columnId === 'difference') return '16%';
-                            if (columnId === 'daysOverdue') return '16%';
-                            return '13%';
-                          };
+                            const getWidth = () => {
+                              const columnId = header.column.id;
+                              if (columnId === 'select') return '5%';
+                              if (columnId === 'date') return '12%';
+                              if (columnId === 'type') return '10%';
+                              if (columnId === 'number') return '12%';
+                              if (columnId === 'debit') return '12%';
+                              if (columnId === 'credit') return '12%';
+                              if (columnId === 'difference') return '12%';
+                              if (columnId === 'matching') return '12%';
+                              if (columnId === 'daysOverdue') return '13%';
+                              return '12%';
+                            };
                           return (
                             <th
                               key={header.id}
@@ -4146,14 +4151,15 @@ ${debtSectionHtml}
                             const getWidth = () => {
                               const columnId = cell.column.id;
                               if (columnId === 'select') return '5%';
-                              if (columnId === 'date') return '13%';
+                              if (columnId === 'date') return '12%';
                               if (columnId === 'type') return '10%';
-                              if (columnId === 'number') return '13%';
-                              if (columnId === 'debit') return '13%';
-                              if (columnId === 'credit') return '13%';
-                              if (columnId === 'difference') return '16%';
-                              if (columnId === 'daysOverdue') return '16%';
-                              return '13%';
+                              if (columnId === 'number') return '12%';
+                              if (columnId === 'debit') return '12%';
+                              if (columnId === 'credit') return '12%';
+                              if (columnId === 'difference') return '12%';
+                              if (columnId === 'matching') return '12%';
+                              if (columnId === 'daysOverdue') return '13%';
+                              return '12%';
                             };
                             return (
                               <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
@@ -4167,21 +4173,22 @@ ${debtSectionHtml}
                     {overdueTable.getRowModel().rows.length > 0 && (
                       <tr className="bg-gray-50 border-t-2 border-gray-200">
                         <td className="px-6 py-4" style={{ width: '5%' }}></td>
-                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
+                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '12%' }}>Total</td>
                         <td className="px-6 py-4" style={{ width: '10%' }}></td>
-                        <td className="px-6 py-4" style={{ width: '13%' }}></td>
-                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
+                        <td className="px-6 py-4" style={{ width: '12%' }}></td>
+                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '12%' }}>
                           {overdueTotalDebit.toLocaleString('en-US')}
                         </td>
-                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '13%' }}>
+                        <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '12%' }}>
                           {overdueTotalCredit.toLocaleString('en-US')}
                         </td>
-                        <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '16%' }}>
+                        <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '12%' }}>
                           <span className={`px-3 py-1 rounded-full ${overdueTotalDifference > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
                             {overdueTotalDifference.toLocaleString('en-US')}
                           </span>
                         </td>
-                        <td className="px-6 py-4" style={{ width: '16%' }}></td>
+                        <td className="px-6 py-4" style={{ width: '12%' }}></td>
+                        <td className="px-6 py-4" style={{ width: '13%' }}></td>
                       </tr>
                     )}
                   </tbody>

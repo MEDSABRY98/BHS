@@ -743,23 +743,23 @@ export default function DocumentsTrackingTab() {
                 // Improved date extraction for grouping
                 const getCleanDate = (str: string) => {
                     if (!str) return '—';
-                    
+
                     // 1. Handle commas (both standard and Arabic) and take the date part
                     let part = str.replace('،', ',').split(',')[0].trim();
                     if (part.includes(' ')) {
                         part = part.split(' ')[0].trim();
                     }
-                    
+
                     // 2. Convert Arabic digits to English digits
                     const arDigits = "٠١٢٣٤٥٦٧٨٩";
                     let clean = part.split('').map(char => {
                         const idx = arDigits.indexOf(char);
                         return idx !== -1 ? idx.toString() : char;
                     }).join('');
-                    
+
                     // 3. Keep only digits and separators
                     clean = clean.replace(/[^\d/\-.]/g, '');
-                    
+
                     // 4. Split and normalize to DD/MM/YYYY
                     const parts = clean.split(/[/.\-]/).filter(p => p.length > 0);
                     if (parts.length === 3) {
@@ -1780,7 +1780,7 @@ export default function DocumentsTrackingTab() {
                         </div>
                         <div className="modal-content" style={{ padding: '20px 0' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
-                                <button 
+                                <button
                                     className="flex items-center justify-between p-4 bg-emerald-50 text-emerald-700 rounded-xl hover:bg-emerald-600 hover:text-white transition-colors border-2 border-emerald-100 font-bold"
                                     onClick={() => {
                                         exportReceiverToExcel(`شيكات_${exportReceiverModal.name.replace(/\s+/g, '_')}_الكل`, exportReceiverModal.items);
@@ -1793,11 +1793,11 @@ export default function DocumentsTrackingTab() {
                                     </div>
                                     <span className="bg-white/30 px-2 py-1 rounded text-sm">{exportReceiverModal.count} شيك</span>
                                 </button>
-                                
+
                                 <div className="text-gray-400 font-bold text-sm mt-2 mb-1 px-2">أو اختر بحسب تاريخ التسليم:</div>
-                                
+
                                 {exportReceiverModal.dates.map((dGrp: any, idx: number) => (
-                                    <button 
+                                    <button
                                         key={idx}
                                         className="flex items-center justify-between p-3 bg-gray-50 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors border border-gray-200 font-semibold"
                                         onClick={() => {

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 
 import CustomersTab from '@/components/02-Debit/CustomersTab';
-import CustomersLandingTab from '@/components/02-Debit/CustomersLandingTab';
+import CustomersLandingTab from '@/components/02-Debit/CustomersSwitchsTab';
 import OpenTransactionsTab from '@/components/02-Debit/OpenTransactionsTab';
 import AllTransactionsTab from '@/components/02-Debit/AllTransactionsTab';
 import PaymentTrackerTab from '@/components/03-Payment-Tracker/PaymentTrackerTab';
