@@ -1,7 +1,7 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import CustomersSummariesTab from '@/components/CustomersSummariesTab';
+import CustomersSummariesTab from '@/components/02-Debit/CustomersSummariesTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
