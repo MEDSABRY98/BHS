@@ -52,7 +52,7 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
     const customerMap = new Map<string, Map<string, { barcode: string; product: string; prices: number[]; cost: number }>>();
 
     data.forEach(item => {
-      const custName = item.customerName || 'Unknown';
+      const custName = item.customerMainName || item.customerName || 'Unknown';
       if (!customerMap.has(custName)) customerMap.set(custName, new Map());
       const productsMap = customerMap.get(custName)!;
       const productKey = item.productId || item.barcode || item.product;
@@ -174,6 +174,8 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
               <span className="text-[8px] font-black text-green-600 uppercase animate-pulse">{generationProgress.current}/{generationProgress.total}</span>
             )}
           </div>
+
+
         </div>
       </div>
 
@@ -315,22 +317,26 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
                 Generate Profit Analysis
               </button>
 
-              <div className="grid grid-cols-2 gap-3 mt-2">
-                <button
-                  onClick={() => handleDownloadAllPDFs('pricelist', 'most')}
-                  className="py-5 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex flex-col items-center gap-2"
-                >
-                  <span className="text-white/70 text-[8px]">Option 1</span>
-                  <span>Most Price</span>
-                </button>
-                <button
-                  onClick={() => handleDownloadAllPDFs('pricelist', 'last')}
-                  className="py-5 bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-slate-200 transition-all shadow-sm flex flex-col items-center gap-2"
-                >
-                  <span className="text-slate-400 text-[8px]">Option 2</span>
-                  <span>Last Price</span>
-                </button>
+              <div className="space-y-2 mt-2">
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center mb-2">Price List Exports</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => handleDownloadAllPDFs('pricelist', 'most')}
+                    className="py-5 bg-indigo-600 text-white font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex flex-col items-center gap-2"
+                  >
+                    <span className="text-white/70 text-[8px]">Mode 1</span>
+                    <span>Most Price</span>
+                  </button>
+                  <button
+                    onClick={() => handleDownloadAllPDFs('pricelist', 'last')}
+                    className="py-5 bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-slate-200 transition-all shadow-sm flex flex-col items-center gap-2"
+                  >
+                    <span className="text-slate-400 text-[8px]">Mode 2</span>
+                    <span>Last Price</span>
+                  </button>
+                </div>
               </div>
+
             </div>
             <button onClick={() => setShowDownloadModal(false)} className="mt-8 w-full text-xs font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors">Abort Engine</button>
           </div>
