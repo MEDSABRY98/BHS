@@ -4104,19 +4104,19 @@ ${debtSectionHtml}
                     {overdueTable.getHeaderGroups().map((headerGroup) => (
                       <tr key={headerGroup.id}>
                         {headerGroup.headers.map((header) => {
-                            const getWidth = () => {
-                              const columnId = header.column.id;
-                              if (columnId === 'select') return '5%';
-                              if (columnId === 'date') return '12%';
-                              if (columnId === 'type') return '10%';
-                              if (columnId === 'number') return '12%';
-                              if (columnId === 'debit') return '12%';
-                              if (columnId === 'credit') return '12%';
-                              if (columnId === 'difference') return '12%';
-                              if (columnId === 'matching') return '12%';
-                              if (columnId === 'daysOverdue') return '13%';
-                              return '12%';
-                            };
+                          const getWidth = () => {
+                            const columnId = header.column.id;
+                            if (columnId === 'select') return '5%';
+                            if (columnId === 'date') return '12%';
+                            if (columnId === 'type') return '10%';
+                            if (columnId === 'number') return '12%';
+                            if (columnId === 'debit') return '12%';
+                            if (columnId === 'credit') return '12%';
+                            if (columnId === 'difference') return '12%';
+                            if (columnId === 'matching') return '12%';
+                            if (columnId === 'daysOverdue') return '13%';
+                            return '12%';
+                          };
                           return (
                             <th
                               key={header.id}

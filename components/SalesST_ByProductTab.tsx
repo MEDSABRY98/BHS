@@ -162,8 +162,23 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
         ) : filteredProducts.length === 0 ? (
           <div className="bg-white rounded-3xl p-20 border border-slate-100 shadow-sm"><NoData /></div>
         ) : (
-          filteredProducts.map((p, idx) => (
-            <div key={idx} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-500">
+          filteredProducts.map((p, idx) => {
+            const customerList = Array.from(p.customers.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+            
+            // Calculate column averages
+            const columnTotals = customerList.reduce((acc, [_, stats]) => {
+              acc.most += calculateMode(stats.prices);
+              acc.last += stats.prices[stats.prices.length - 1] || 0;
+              acc.cost += stats.cost;
+              return acc;
+            }, { most: 0, last: 0, cost: 0 });
+
+            const avgMost = customerList.length > 0 ? columnTotals.most / customerList.length : 0;
+            const avgLast = customerList.length > 0 ? columnTotals.last / customerList.length : 0;
+            const avgCost = customerList.length > 0 ? columnTotals.cost / customerList.length : 0;
+
+            return (
+              <div key={idx} className="bg-white rounded-[32px] border border-slate-100 shadow-sm overflow-hidden group hover:shadow-xl hover:shadow-slate-200/40 transition-all duration-500">
               {/* Header */}
               <div className="p-6 border-b border-slate-50 bg-slate-50/30 flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
@@ -180,12 +195,6 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                 </div>
 
                 <div className="flex items-center gap-6">
-                  <div className="text-right">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Price Range</p>
-                    <p className="text-sm font-black text-slate-900">
-                      {p.priceRange.min === Infinity ? '-' : p.priceRange.min} — {p.priceRange.max === -Infinity ? '-' : p.priceRange.max}
-                    </p>
-                  </div>
                 </div>
               </div>
 
@@ -195,14 +204,14 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                   <thead>
                     <tr className="bg-white border-b border-slate-100">
                       <th className="py-6 px-8 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Customer</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Most Price</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Last Price</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Cost</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Most Price ({avgMost.toFixed(1)})</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Last Price ({avgLast.toFixed(1)})</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Cost ({avgCost.toFixed(1)})</th>
                       <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Margin</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {Array.from(p.customers.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([custName, stats], i) => {
+                    {customerList.map(([custName, stats], i) => {
                       const most = calculateMode(stats.prices);
                       const last = stats.prices[stats.prices.length - 1] || 0;
                       const cost = stats.cost;
@@ -251,7 +260,8 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                 </table>
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

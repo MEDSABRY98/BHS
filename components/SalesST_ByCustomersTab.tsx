@@ -3,7 +3,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
-import { generateDownloadFormPDF } from '@/lib/pdf/PdfUtils';
+import { 
+  generateSalesPricelistPDF, 
+  generateSalesStockFormPDF, 
+  generateSalesAnalysisComparisonPDF 
+} from '@/lib/pdf/PdfUtils';
 import NoData from './01-Unified/NoDataTab';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
@@ -107,7 +111,13 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
         avgPrice: mode === 'analysis' ? (p.prices[p.prices.length - 1] || 0) : undefined,
         costPrice: mode === 'analysis' ? p.cost : undefined
       }));
-      await generateDownloadFormPDF(customer.customer, productsToPrint, false, mode, strategy);
+      if (mode === 'pricelist') {
+        await generateSalesPricelistPDF(customer.customer, productsToPrint as any, false, strategy);
+      } else if (mode === 'analysis') {
+        await generateSalesAnalysisComparisonPDF(customer.customer, productsToPrint as any, false);
+      } else {
+        await generateSalesStockFormPDF(customer.customer, productsToPrint as any, false);
+      }
     } catch (error) { console.error(error); } finally { setIsGenerating(false); }
   };
 
@@ -130,7 +140,14 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
           avgPrice: mode === 'analysis' ? (p.prices[p.prices.length - 1] || 0) : undefined,
           costPrice: mode === 'analysis' ? p.cost : undefined
         }));
-        const blob = await generateDownloadFormPDF(customer.customer, productsToPrint, true, mode, strategy) as Blob;
+        let blob: Blob;
+        if (mode === 'pricelist') {
+          blob = await generateSalesPricelistPDF(customer.customer, productsToPrint as any, true, strategy) as unknown as Blob;
+        } else if (mode === 'analysis') {
+          blob = await generateSalesAnalysisComparisonPDF(customer.customer, productsToPrint as any, true) as unknown as Blob;
+        } else {
+          blob = await generateSalesStockFormPDF(customer.customer, productsToPrint as any, true) as unknown as Blob;
+        }
         const safeName = customer.customer.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
         zip.file(`${safeName}.pdf`, blob);
         if (i % 5 === 0) await new Promise(r => setTimeout(r, 50));
