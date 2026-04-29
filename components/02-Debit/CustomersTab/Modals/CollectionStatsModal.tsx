@@ -55,9 +55,6 @@ const CollectionStatsModal: React.FC<CollectionStatsModalProps> = ({
                 <span className="text-4xl font-black">#{ranks.collRank}</span>
                 <span className="text-blue-200 text-sm font-medium">of {ranks.totalCount} customers</span>
               </div>
-              <p className="mt-4 text-sm text-blue-50/80 leading-relaxed font-medium">
-                Ranked based on overall collection rate compared to all other customers.
-              </p>
             </div>
 
             <div className="p-6 bg-white border-2 border-gray-100 rounded-2xl shadow-sm hover:border-blue-100 transition-all">
@@ -104,14 +101,7 @@ const CollectionStatsModal: React.FC<CollectionStatsModalProps> = ({
             </div>
           </div>
 
-          {/* Info Note */}
-          <div className="p-4 bg-gray-50 rounded-xl border border-dashed border-gray-300">
-            <p className="text-[11px] text-gray-500 leading-relaxed flex items-start gap-2">
-              <span className="text-base">💡</span>
-              Market ranking compares this customer's performance against all active debtors in the current filtered dataset.
-              Higher percentages in "Bank Payments" indicate healthier cash flow, while high "Returns" or "Discounts" might require attention.
-            </p>
-          </div>
+
         </div>
       </div>
     </div>
