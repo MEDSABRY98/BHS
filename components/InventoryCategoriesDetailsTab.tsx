@@ -3,8 +3,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     Search, FileSpreadsheet, ChevronLeft,
-    Box, RefreshCw, AlertCircle, BarChart3,
-    Activity, TrendingUp, TrendingDown, Truck
+    Box, RefreshCw, TrendingUp, TrendingDown, Truck
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
@@ -39,13 +38,11 @@ export default function InventoryProductOrdersDetailsTab({
     const [searchTerm, setSearchTerm] = useState('');
     const [localProducts, setLocalProducts] = useState(initialProducts);
     const [editingCell, setEditingCell] = useState<{ id: string, field: string } | null>(null);
-    const [updating, setUpdating] = useState<string | null>(null); // ProductId being updated
-    const [viewMode, setViewMode] = useState<'inventory' | 'movements'>('inventory');
+    const [updating, setUpdating] = useState<string | null>(null);
     const [movements, setMovements] = useState<Record<string, MovementData>>({});
     const [fetchingMovements, setFetchingMovements] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<{ id: string, name: string, barcode: string } | null>(null);
 
-    // Keep localProducts perfectly synchronized with the live data when a background fetch completes
     useEffect(() => {
         setLocalProducts(initialProducts);
     }, [initialProducts]);
@@ -59,11 +56,10 @@ export default function InventoryProductOrdersDetailsTab({
         );
     }, [localProducts, categoryName, searchTerm]);
 
+    // Fetch movements on mount
     useEffect(() => {
-        if (viewMode === 'movements' && Object.keys(movements).length === 0) {
-            fetchMovements();
-        }
-    }, [viewMode]);
+        fetchMovements();
+    }, []);
 
     const fetchMovements = async () => {
         try {
@@ -82,32 +78,26 @@ export default function InventoryProductOrdersDetailsTab({
 
     const handleExport = () => {
         const data = filteredProducts.map(p => {
-            if (viewMode === 'inventory') {
-                return {
-                    'Barcode': p.barcode,
-                    'Name': p.productName,
-                    'Min Q': p.minQ,
-                    'Max Q': p.maxQ,
-                    'Qinc': p.qinc,
-                    'Qty (Pcs)': p.onHand,
-                    'Stock (Ctns)': (p.onHand / (p.qinc || 1)).toFixed(2)
-                };
-            } else {
-                const m = movements[p.productId] || { sales: 0, returns: 0, netPurchases: 0 };
-                return {
-                    'Barcode': p.barcode,
-                    'Name': p.productName,
-                    'Sales': m.sales,
-                    'Returns': m.returns,
-                    'Net Purchases': m.netPurchases
-                };
-            }
+            const m = movements[p.productId] || { sales: 0, returns: 0, netPurchases: 0 };
+            const stockCtns = (p.onHand / (p.qinc || 1)).toFixed(2);
+            return {
+                'Barcode': p.barcode,
+                'Name': p.productName,
+                'QTY (Pcs)': p.onHand,
+                'Stock (Ctns)': stockCtns,
+                'Min CTN': p.minQ,
+                'Max CTN': p.maxQ,
+                'QTY in CTN': p.qinc,
+                'Sales': m.sales,
+                'Returns': m.returns,
+                'Purchases': m.netPurchases,
+            };
         });
 
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, viewMode === 'inventory' ? 'Inventory' : 'Movements');
-        XLSX.writeFile(wb, `${categoryName}_${viewMode}.xlsx`);
+        XLSX.utils.book_append_sheet(wb, ws, 'Inventory');
+        XLSX.writeFile(wb, `${categoryName}_inventory.xlsx`);
     };
 
     const handleUpdateField = async (product: ProductOrder, field: string, value: string) => {
@@ -124,12 +114,10 @@ export default function InventoryProductOrdersDetailsTab({
 
             if (!res.ok) throw new Error('Failed to update');
 
-            // 1. Update the UI locally instantly for responsive feel
             setLocalProducts(prev => prev.map(p =>
                 p.productId === product.productId ? { ...p, [field]: numValue } : p
             ));
 
-            // 2. Silently command the master list to refresh from the live sheet so other tabs get the updated value
             onRefresh();
 
         } catch (err) {
@@ -203,30 +191,6 @@ export default function InventoryProductOrdersDetailsTab({
                     </div>
                 </div>
 
-                {/* View Switcher Toggle */}
-                <div className="flex bg-slate-100 p-1.5 rounded-2xl shadow-inner border border-slate-200/50">
-                    <button
-                        onClick={() => setViewMode('inventory')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm transition-all ${viewMode === 'inventory'
-                            ? 'bg-white text-blue-600 shadow-md transform scale-[1.02]'
-                            : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                    >
-                        <Box className="w-4 h-4" />
-                        INVENTORY
-                    </button>
-                    <button
-                        onClick={() => setViewMode('movements')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl font-black text-sm transition-all ${viewMode === 'movements'
-                            ? 'bg-white text-indigo-600 shadow-md transform scale-[1.02]'
-                            : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                    >
-                        <Activity className="w-4 h-4" />
-                        MOVEMENTS
-                    </button>
-                </div>
-
                 <div className="flex items-center gap-3">
                     <button
                         onClick={handleExport}
@@ -237,7 +201,7 @@ export default function InventoryProductOrdersDetailsTab({
                     </button>
                     <button
                         onClick={() => {
-                            if (viewMode === 'movements') fetchMovements();
+                            fetchMovements();
                             onRefresh();
                         }}
                         className="p-3 bg-slate-900 text-white rounded-2xl hover:bg-blue-600 transition-all shadow-lg"
@@ -276,108 +240,98 @@ export default function InventoryProductOrdersDetailsTab({
                 )}
 
                 <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
-                    <table className="w-full text-left border-collapse table-fixed min-w-[1200px]">
+                    <table className="w-full text-left border-collapse table-fixed min-w-[1400px]">
                         <thead className="sticky top-0 z-10">
-                            {viewMode === 'inventory' ? (
-                                <tr className="bg-[#0f172a] text-white">
-                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[14%]">BARCODE</th>
-                                    <th className="px-4 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[30%]">PRODUCT NAME</th>
-                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[12%]">QTY (Pcs)</th>
-                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[12%]">QTY (CTN)</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[10%]">MIN CTN</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[10%]">MAX CTN</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center bg-indigo-900/50 w-[12%]">QTY IN CTN</th>
-                                </tr>
-                            ) : (
-                                <tr className="bg-[#1e1e2d] text-white">
-                                    <th className="px-3 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[15%]">BARCODE</th>
-                                    <th className="px-4 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[31%]">PRODUCT NAME</th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-rose-900/40 w-[18%]">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <TrendingUp className="w-3 h-3 text-rose-400" /> SALES
-                                        </div>
-                                    </th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-amber-900/40 w-[18%]">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <TrendingDown className="w-3 h-3 text-amber-400" /> RETURNS
-                                        </div>
-                                    </th>
-                                    <th className="px-2 py-4 text-[12px] font-black uppercase tracking-wider text-center bg-emerald-900/40 w-[18%]">
-                                        <div className="flex items-center justify-center gap-2">
-                                            <Truck className="w-3 h-3 text-emerald-400" /> NET PURCHASES
-                                        </div>
-                                    </th>
-                                </tr>
-                            )}
+                            <tr className="bg-[#0f172a] text-white">
+                                {/* Inventory columns */}
+                                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[12%]">BARCODE</th>
+                                <th className="px-4 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 w-[22%]">PRODUCT NAME</th>
+                                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[8%]">QTY (Pcs)</th>
+                                <th className="px-3 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-slate-800 w-[8%]">QTY (CTN)</th>
+                                <th className="px-2 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[8%]">MIN CTN</th>
+                                <th className="px-2 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[8%]">MAX CTN</th>
+                                <th className="px-2 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-indigo-900/50 w-[8%]">QTY IN CTN</th>
+                                {/* Movement columns */}
+                                <th className="px-2 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-rose-900/40 w-[9%]">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <TrendingUp className="w-3 h-3 text-rose-400" /> SALES
+                                    </div>
+                                </th>
+                                <th className="px-2 py-4 text-[11px] font-black uppercase tracking-wider text-center border-r border-white/10 bg-amber-900/40 w-[9%]">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <TrendingDown className="w-3 h-3 text-amber-400" /> RETURNS
+                                    </div>
+                                </th>
+                                <th className="px-2 py-4 text-[11px] font-black uppercase tracking-wider text-center bg-emerald-900/40 w-[10%]">
+                                    <div className="flex items-center justify-center gap-1.5">
+                                        <Truck className="w-3 h-3 text-emerald-400" /> PURCHASES
+                                    </div>
+                                </th>
+                            </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                             {filteredProducts.length > 0 ? (
                                 filteredProducts.map((product) => {
-                                    if (viewMode === 'inventory') {
-                                        const stockCtns = (product.onHand / (product.qinc || 1)).toFixed(2);
-                                        return (
-                                            <tr key={product.productId} className="hover:bg-slate-50 transition-colors group">
-                                                <td className="px-3 py-4 text-[14px] font-mono font-bold text-slate-900 text-center border-r border-gray-50 break-all">{product.barcode}</td>
-                                                <td
-                                                    className="px-4 py-4 text-[14px] font-bold text-slate-700 border-r border-gray-50 text-center truncate cursor-pointer hover:text-blue-600 hover:bg-blue-50/50 transition-all decoration-blue-200 underline-offset-4 hover:underline"
-                                                    title={product.productName}
-                                                    onClick={() => setSelectedProduct({ id: product.productId, name: product.productName, barcode: product.barcode })}
-                                                >
-                                                    {product.productName}
-                                                </td>
-                                                <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
-                                                    <span className={`px-2 py-1 rounded text-[14px] font-black shadow-sm ${product.onHand <= 0 ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
-                                                        {product.onHand === 0 ? '-' : product.onHand}
-                                                    </span>
-                                                </td>
-                                                <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
-                                                    <span className="text-[14px] font-black text-slate-700">{Number(stockCtns) === 0 ? '-' : stockCtns}</span>
-                                                </td>
-                                                <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
-                                                    <EditableCell product={product} field="minQ" value={product.minQ} />
-                                                </td>
-                                                <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
-                                                    <EditableCell product={product} field="maxQ" value={product.maxQ} />
-                                                </td>
-                                                <td className="px-2 py-4 text-center bg-indigo-50/20">
-                                                    <EditableCell product={product} field="qinc" value={product.qinc} />
-                                                </td>
-                                            </tr>
-                                        );
-                                    } else {
-                                        const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
-                                        return (
-                                            <tr key={product.productId} className="hover:bg-slate-50 transition-colors group">
-                                                <td className="px-3 py-4 text-[14px] font-mono font-bold text-slate-900 text-center border-r border-gray-50 break-all">{product.barcode}</td>
-                                                <td
-                                                    className="px-4 py-4 text-[14px] font-bold text-slate-700 border-r border-gray-50 text-center truncate cursor-pointer hover:text-blue-600 hover:bg-blue-50/50 transition-all decoration-blue-200 underline-offset-4 hover:underline"
-                                                    title={product.productName}
-                                                    onClick={() => setSelectedProduct({ id: product.productId, name: product.productName, barcode: product.barcode })}
-                                                >
-                                                    {product.productName}
-                                                </td>
-                                                <td className="px-2 py-4 text-center border-r border-gray-50 bg-rose-50/10">
-                                                    <span className={`text-[15px] font-black ${move.sales > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
-                                                        {move.sales === 0 ? '-' : move.sales.toLocaleString()}
-                                                    </span>
-                                                </td>
-                                                <td className="px-2 py-4 text-center border-r border-gray-50 bg-amber-50/10">
-                                                    <span className={`text-[15px] font-black ${move.returns > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
-                                                        {move.returns === 0 ? '-' : move.returns.toLocaleString()}
-                                                    </span>
-                                                </td>
-                                                <td className="px-2 py-4 text-center bg-emerald-50/10">
-                                                    <span className={`text-[15px] font-black ${move.netPurchases !== 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
-                                                        {move.netPurchases === 0 ? '-' : move.netPurchases.toLocaleString()}
-                                                    </span>
-                                                </td>
-                                            </tr>
-                                        );
-                                    }
+                                    const stockCtns = (product.onHand / (product.qinc || 1)).toFixed(2);
+                                    const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
+                                    return (
+                                        <tr key={product.productId} className="hover:bg-slate-50 transition-colors group">
+                                            {/* Barcode */}
+                                            <td className="px-3 py-4 text-[13px] font-mono font-bold text-slate-900 text-center border-r border-gray-50 break-all">{product.barcode}</td>
+                                            {/* Name */}
+                                            <td
+                                                className="px-4 py-4 text-[13px] font-bold text-slate-700 border-r border-gray-50 text-center truncate cursor-pointer hover:text-blue-600 hover:bg-blue-50/50 transition-all decoration-blue-200 underline-offset-4 hover:underline"
+                                                title={product.productName}
+                                                onClick={() => setSelectedProduct({ id: product.productId, name: product.productName, barcode: product.barcode })}
+                                            >
+                                                {product.productName}
+                                            </td>
+                                            {/* QTY Pcs */}
+                                            <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
+                                                <span className={`px-2 py-1 rounded text-[13px] font-black shadow-sm ${product.onHand <= 0 ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'}`}>
+                                                    {product.onHand === 0 ? '-' : product.onHand}
+                                                </span>
+                                            </td>
+                                            {/* QTY CTN */}
+                                            <td className="px-3 py-4 text-center border-r border-gray-50 bg-slate-50/30">
+                                                <span className="text-[13px] font-black text-slate-700">{Number(stockCtns) === 0 ? '-' : stockCtns}</span>
+                                            </td>
+                                            {/* Min CTN */}
+                                            <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
+                                                <EditableCell product={product} field="minQ" value={product.minQ} />
+                                            </td>
+                                            {/* Max CTN */}
+                                            <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
+                                                <EditableCell product={product} field="maxQ" value={product.maxQ} />
+                                            </td>
+                                            {/* QTY in CTN */}
+                                            <td className="px-2 py-4 text-center border-r border-gray-50 bg-indigo-50/20">
+                                                <EditableCell product={product} field="qinc" value={product.qinc} />
+                                            </td>
+                                            {/* Sales */}
+                                            <td className="px-2 py-4 text-center border-r border-gray-50 bg-rose-50/10">
+                                                <span className={`text-[14px] font-black ${move.sales > 0 ? 'text-rose-600' : 'text-slate-300'}`}>
+                                                    {move.sales === 0 ? '-' : move.sales.toLocaleString()}
+                                                </span>
+                                            </td>
+                                            {/* Returns */}
+                                            <td className="px-2 py-4 text-center border-r border-gray-50 bg-amber-50/10">
+                                                <span className={`text-[14px] font-black ${move.returns > 0 ? 'text-amber-600' : 'text-slate-300'}`}>
+                                                    {move.returns === 0 ? '-' : move.returns.toLocaleString()}
+                                                </span>
+                                            </td>
+                                            {/* Net Purchases */}
+                                            <td className="px-2 py-4 text-center bg-emerald-50/10">
+                                                <span className={`text-[14px] font-black ${move.netPurchases !== 0 ? 'text-emerald-600' : 'text-slate-300'}`}>
+                                                    {move.netPurchases === 0 ? '-' : move.netPurchases.toLocaleString()}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    );
                                 })
                             ) : (
                                 <tr>
-                                    <td colSpan={viewMode === 'inventory' ? 7 : 5} className="px-6 py-12">
+                                    <td colSpan={10} className="px-6 py-12">
                                         <NoData title="No Matches" />
                                     </td>
                                 </tr>
