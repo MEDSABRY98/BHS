@@ -177,7 +177,7 @@ const RatingBreakdownModal: React.FC<RatingBreakdownModalProps> = ({
                     <div className="flex items-baseline gap-2">
                       <p className="text-2xl font-bold text-gray-900">{breakdown.breakdown.collRate.toFixed(1)}%</p>
                       <span className="text-xs text-gray-500 whitespace-nowrap">
-                        ({(customer.creditPayments / (customer.totalCredit || 1) * 100).toFixed(0)}%, {(customer.creditReturns / (customer.totalCredit || 1) * 100).toFixed(0)}%, {(customer.creditDiscounts / (customer.totalCredit || 1) * 100).toFixed(0)}%)
+                        ({((customer.creditPayments || 0) / (customer.totalCredit || 1) * 100).toFixed(0)}%, {((customer.creditReturns || 0) / (customer.totalCredit || 1) * 100).toFixed(0)}%, {((customer.creditDiscounts || 0) / (customer.totalCredit || 1) * 100).toFixed(0)}%)
                       </span>
                     </div>
                   </div>

@@ -420,15 +420,15 @@ export default function CustomersTab({
               const stats = customerAnalysis.map(ca => ({
                 name: ca.customerName,
                 collRate: ca.totalDebit > 0 ? (ca.totalCredit / ca.totalDebit * 100) : 0,
-                payRate: ca.totalCredit > 0 ? (ca.creditPayments / ca.totalCredit * 100) : 0,
-                returnRate: ca.totalCredit > 0 ? (ca.creditReturns / ca.totalCredit * 100) : 0,
-                discountRate: ca.totalCredit > 0 ? (ca.creditDiscounts / ca.totalCredit * 100) : 0,
+                payRate: ca.totalCredit > 0 ? ((ca.creditPayments || 0) / ca.totalCredit * 100) : 0,
+                returnRate: ca.totalCredit > 0 ? ((ca.creditReturns || 0) / ca.totalCredit * 100) : 0,
+                discountRate: ca.totalCredit > 0 ? ((ca.creditDiscounts || 0) / ca.totalCredit * 100) : 0,
               }));
               const getRank = (metric: string) => [...stats].sort((a, b) => (b as any)[metric] - (a as any)[metric]).findIndex(s => s.name === c.customerName) + 1;
               setSelectedCollectionStats({
                 customer: c,
                 ranks: { collRank: getRank('collRate'), payRank: getRank('payRate'), returnRank: getRank('returnRate'), discountRank: getRank('discountRate'), totalCount: customerAnalysis.length },
-                rates: { payRate: c.totalCredit > 0 ? (c.creditPayments / c.totalCredit * 100) : 0, returnRate: c.totalCredit > 0 ? (c.creditReturns / c.totalCredit * 100) : 0, discountRate: c.totalCredit > 0 ? (c.creditDiscounts / c.totalCredit * 100) : 0 }
+                rates: { payRate: c.totalCredit > 0 ? ((c.creditPayments || 0) / c.totalCredit * 100) : 0, returnRate: c.totalCredit > 0 ? ((c.creditReturns || 0) / c.totalCredit * 100) : 0, discountRate: c.totalCredit > 0 ? ((c.creditDiscounts || 0) / c.totalCredit * 100) : 0 }
               });
             }}
             className={`font-bold ${rate >= 80 ? 'text-green-600' : rate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}

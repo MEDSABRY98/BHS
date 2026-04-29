@@ -54,7 +54,10 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                     <div className="flex items-center justify-center gap-2 w-full">
                       {isName && (
                         <div className="flex items-center gap-2 mr-2">
-                          {flexRender(headerGroup.headers.find(h => h.column.id === 'select')?.column.columnDef.header, headerGroup.headers.find(h => h.column.id === 'select')?.getContext())}
+                          {(() => {
+                            const selectHeader = headerGroup.headers.find(h => h.column.id === 'select');
+                            return selectHeader ? flexRender(selectHeader.column.columnDef.header, selectHeader.getContext()) : null;
+                          })()}
                         </div>
                       )}
                       <button
