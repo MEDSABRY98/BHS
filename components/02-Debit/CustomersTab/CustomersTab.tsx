@@ -11,7 +11,7 @@ import {
 } from '@tanstack/react-table';
 import { InvoiceRow, CustomerAnalysis } from '@/types';
 import NoData from '../../01-Unified/NoDataTab';
-import CustomerDetailsTab from '../CustomerDetailsTab';
+import CustomerDetailsTab from '../CustomerDetailsTab/CustomerDetailsTab';
 import {
   generateAccountStatementPDF,
   generateBulkDebitSummaryPDF,
