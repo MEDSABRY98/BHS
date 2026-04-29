@@ -38,7 +38,8 @@ import {
   calculateDebtRating,
   buildInvoicesWithNetDebtForExport,
   exportToExcel,
-  exportToPDF
+  exportToPDF,
+  parseDate
 } from './CstomersUtils';
 
 interface CustomersTabProps {
@@ -68,7 +69,7 @@ export default function CustomersTab({
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
-  const [isEmailDateModalOpen, setIsEmailDateModalOpen] = useState(false);
+  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | null>(null);
   const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -175,11 +176,18 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkZIPDownload = async () => {
+  const handleBulkZIPDownload = async (overrideDate?: string) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to download');
       return;
     }
+
+    if (!overrideDate && statementModalAction !== 'ZIP') {
+      setStatementModalAction('ZIP');
+      return;
+    }
+
+    const effectiveDate = overrideDate || emailStatementDate;
     setIsDownloading(true);
     try {
       const JSZip = (await import('jszip')).default;
@@ -192,13 +200,23 @@ export default function CustomersTab({
         if (customerInvoices.length === 0) continue;
 
         const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-        const netOnlyInvoices = invoicesWithNetDebt
+        let netOnlyInvoices = invoicesWithNetDebt
           .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
           .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
 
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+            const rowDate = parseDate(inv.date);
+            return !rowDate || rowDate <= limitDate;
+          });
+        }
+
         if (netOnlyInvoices.length === 0) continue;
 
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, 'All Months (Net Only)');
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
         if (pdfBlob) {
           const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
           zip.file(`${cleanName}.pdf`, pdfBlob as Blob);
@@ -218,6 +236,7 @@ export default function CustomersTab({
       alert('Error downloading ZIP.');
     } finally {
       setIsDownloading(false);
+      setStatementModalAction(null);
     }
   };
 
@@ -227,8 +246,8 @@ export default function CustomersTab({
       return;
     }
 
-    if (!overrideDate && !isEmailDateModalOpen) {
-      setIsEmailDateModalOpen(true);
+    if (!overrideDate && statementModalAction !== 'EMAIL') {
+      setStatementModalAction('EMAIL');
       return;
     }
 
@@ -245,9 +264,18 @@ export default function CustomersTab({
         if (customerInvoices.length === 0) continue;
 
         const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-        const netOnlyInvoices = invoicesWithNetDebt
+        let netOnlyInvoices = invoicesWithNetDebt
           .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
           .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+            const rowDate = parseDate(inv.date);
+            return !rowDate || rowDate <= limitDate;
+          });
+        }
 
         if (netOnlyInvoices.length === 0) continue;
 
@@ -265,7 +293,16 @@ export default function CustomersTab({
         const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
         const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
         const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
-        const htmlBody = `Dear Team,\n\nWe hope this message finds you well.\n\nYour current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED\n\nPlease find attached your account statement.`;
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached your account statement.</p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
 
         const emlLines = [
           'From: accounting@marae.ae',
@@ -274,7 +311,7 @@ export default function CustomersTab({
           'Content-Type: multipart/mixed; boundary="' + boundary + '"',
           '',
           '--' + boundary,
-          'Content-Type: text/plain; charset="UTF-8"',
+          'Content-Type: text/html; charset="UTF-8"',
           '',
           htmlBody,
           '',
@@ -295,13 +332,14 @@ export default function CustomersTab({
       if (count > 0) {
         const content = await zip.generateAsync({ type: 'blob' });
         saveAs(content, `Customer_Emails_${new Date().toISOString().split('T')[0]}.zip`);
-        setIsEmailDateModalOpen(false);
+        setStatementModalAction(null);
       }
     } catch (error) {
       console.error('Error in bulk email:', error);
       alert('Error generating emails.');
     } finally {
       setIsDownloading(false);
+      setStatementModalAction(null);
     }
   };
 
@@ -570,13 +608,13 @@ export default function CustomersTab({
               <button onClick={handleBulkDownload} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Download Summary PDF">
                 D
               </button>
-              <button onClick={handleBulkZIPDownload} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Download ZIP Statements">
+              <button onClick={() => handleBulkZIPDownload()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Download ZIP Statements">
                 AS
               </button>
               <button onClick={handleBulkPrint} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Bulk Print Statements">
                 P
               </button>
-              <button onClick={() => setIsEmailDateModalOpen(true)} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Email">
+              <button onClick={() => handleBulkEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Email">
                 E
               </button>
               <div className="w-px h-6 bg-white/20 mx-1"></div>
@@ -667,13 +705,15 @@ export default function CustomersTab({
       />
 
       <EmailStatementModal
-        isOpen={isEmailDateModalOpen}
-        onClose={() => setIsEmailDateModalOpen(false)}
+        isOpen={statementModalAction !== null}
+        onClose={() => setStatementModalAction(null)}
         emailStatementDate={emailStatementDate}
         setEmailStatementDate={setEmailStatementDate}
         onConfirm={(date) => {
-          setIsEmailDateModalOpen(false);
-          handleBulkEmail(date);
+          const action = statementModalAction;
+          setStatementModalAction(null);
+          if (action === 'EMAIL') handleBulkEmail(date);
+          else if (action === 'ZIP') handleBulkZIPDownload(date);
         }}
         isProcessing={isDownloading}
       />

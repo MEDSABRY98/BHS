@@ -57,7 +57,20 @@ export async function generateAccountStatementPDF(
   doc.setFont('helvetica', 'normal');
   const now = new Date();
   const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
-  doc.text(`Date: ${currentDate}`, margin, yPosition);
+  
+  if (monthsLabel && monthsLabel !== 'All Months' && monthsLabel !== 'All Months (Net Only)') {
+    let balanceDateStr = monthsLabel.replace('Up To ', '');
+    const parts = balanceDateStr.split('/');
+    if (parts.length === 3) {
+      const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+      if (!isNaN(d.getTime())) {
+        balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
+      }
+    }
+    doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
+  } else {
+    doc.text(`Date: ${currentDate}`, margin, yPosition);
+  }
   yPosition += 8;
 
   const tableData = invoices.map((inv) => {
@@ -229,7 +242,8 @@ export async function generateBulkCustomerStatementsPDF(
       netDebt: number;
     }>
   }>,
-  shortenInvoiceNumbers: boolean = true
+  shortenInvoiceNumbers: boolean = true,
+  monthsLabel?: string
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
@@ -276,7 +290,20 @@ export async function generateBulkCustomerStatementsPDF(
     doc.setFont('helvetica', 'normal');
     const now = new Date();
     const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
-    doc.text(`Date: ${currentDate}`, margin, yPosition);
+    
+    if (monthsLabel && monthsLabel !== 'All Months' && monthsLabel !== 'All Months (Net Only)') {
+      let balanceDateStr = monthsLabel.replace('Up To ', '');
+      const parts = balanceDateStr.split('/');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        if (!isNaN(d.getTime())) {
+          balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
+        }
+      }
+      doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
+    } else {
+      doc.text(`Date: ${currentDate}`, margin, yPosition);
+    }
     yPosition += 8;
 
     const tableData = invoices.map((inv) => {
