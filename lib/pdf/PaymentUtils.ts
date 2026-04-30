@@ -645,6 +645,8 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
     // Last Year Trends
     const custTrendLY = lyMet.uniqueCustomers > 0 ? ((curMet.uniqueCustomers - lyMet.uniqueCustomers) / lyMet.uniqueCustomers) * 100 : 0;
+    const revenueTrendLY = lyMet.total > 0 ? ((curMet.total - lyMet.total) / lyMet.total) * 100 : 0;
+    const countTrendLY = lyMet.count > 0 ? ((curMet.count - lyMet.count) / lyMet.count) * 100 : 0;
 
     const hasLYData = lyMet.total > 0 || lyMet.count > 0;
 
@@ -917,201 +919,294 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     if (filters.sections?.summary !== false) {
         doc.addPage('a4', 'landscape');
 
-        // --- BACKGROUND ---
-        doc.setFillColor(248, 250, 252); // Slate 50
-        doc.rect(0, 0, 297, 210, 'F');
 
-        // --- PAGE TITLE ---
-        doc.setFontSize(20);
-        doc.setTextColor(15, 23, 42); // Slate 900
-        doc.setFont('helvetica', 'bold');
-        doc.text('Summary Stats', 148.5, 10, { align: 'center' });
+        const PW = doc.internal.pageSize.width;   // 210
+        const PH = doc.internal.pageSize.height;  // 297
+        const mg = 14;                             // margin
+        const iW = PW - mg * 2;                    // inner width
 
-        // --- TOP CARDS LAYOUT ---
-        const startY = 15;
-        const pageMargin = 12;
-        const colGap = 8;
-        const totalW = 297 - (2 * pageMargin);
-
-        const showPrev = filters.sections?.summaryPrevious !== false;
-        const showLY = filters.sections?.summaryLastYear !== false && hasLYData;
-
-        // Count visible columns
-        const visibleCols = [true, showPrev, showLY].filter(Boolean).length;
-        const colW = (totalW - (visibleCols - 1) * colGap) / visibleCols;
-
-        let nextX = pageMargin;
-        const posX1 = nextX; nextX += (showPrev || showLY) ? colW + colGap : 0;
-        const posX2 = showPrev ? nextX : -1000; if (showPrev) nextX += showLY ? colW + colGap : 0;
-        const posX3 = showLY ? nextX : -1000;
-
-        const cardH = 95;
-
-        // Helper: Draw Main Dynamic Card
-        const drawMainCard = (
-            x: number,
-            y: number,
-            w: number,
-            h: number,
-            title: string,
-            dateRange: string,
-            amount: number,
-            customers: number,
-            transactions: number,
-            type: 'current' | 'prev' | 'ly',
-            custTrendVal?: number,
-            countTrendVal?: number
-        ) => {
-            // Container Shadow Look
-            doc.setFillColor(255, 255, 255);
-            doc.setDrawColor(226, 232, 240);
-            doc.setLineWidth(0.1);
-            doc.roundedRect(x, y, w, h, 4, 4, 'FD');
-
-            // Top Border Accent
-            const accentColor: [number, number, number] =
-                type === 'current' ? [59, 130, 246] :
-                    type === 'prev' ? [148, 163, 184] : [132, 204, 22]; // Blue, Slate, Lime
-
-            doc.setFillColor(...accentColor);
-            doc.roundedRect(x, y, w, 3, 2, 2, 'F');
-
-            // Title
-            doc.setFontSize(12);
-            doc.setTextColor(30, 41, 59);
-            doc.setFont('helvetica', 'bold');
-            doc.text(title, x + 8, y + 10);
-
-            // Subtitle (Date Range)
-            doc.setFontSize(8);
-            doc.setTextColor(148, 163, 184);
-            doc.setFont('helvetica', 'normal');
-            doc.text(dateRange, x + 8, y + 15);
-
-            // Revenue Section
-            const revY = y + 20;
-            const revH = 28;
-            doc.setFillColor(...accentColor);
-            doc.roundedRect(x + 8, revY, w - 16, revH, 3, 3, 'F');
-
-            doc.setFontSize(8);
-            doc.setTextColor(255, 255, 255);
-            doc.text('TOTAL COLLECTIONS', x + (w / 2), revY + 8, { align: 'center' });
-
-            doc.setFontSize(22);
-            doc.setFont('helvetica', 'bold');
-            doc.text(amount.toLocaleString(undefined, { maximumFractionDigits: 0 }), x + (w / 2), revY + 20, { align: 'center' });
-
-            // Stats Rows
-            const statsY = revY + revH + 8;
-
-            // Active Customers Row
-            doc.setFontSize(8);
-            doc.setTextColor(148, 163, 184);
-            doc.text('ACTIVE CUSTOMERS', x + 8, statsY);
-
-            doc.setFillColor(248, 250, 252);
-            doc.roundedRect(x + 8, statsY + 3, w - 16, 12, 2, 2, 'F');
-
-            doc.setFontSize(14);
-            doc.setTextColor(30, 41, 59);
-            doc.setFont('helvetica', 'bold');
-            doc.text(`${customers}`, x + (w / 2), statsY + 11.5, { align: 'center' });
-
-            // Transactions Row
-            const transY = statsY + 22;
-            doc.setFontSize(8);
-            doc.setTextColor(148, 163, 184);
-            doc.text('TOTAL TRANSACTIONS', x + 8, transY);
-
-            doc.setFillColor(248, 250, 252);
-            doc.roundedRect(x + 8, transY + 3, w - 16, 12, 2, 2, 'F');
-
-            doc.setFontSize(14);
-            doc.setTextColor(30, 41, 59);
-            doc.setFont('helvetica', 'bold');
-            doc.text(`${transactions}`, x + (w / 2), transY + 11.5, { align: 'center' });
-        };
-
-        // Draw Big Cards
-        drawMainCard(posX1, startY, colW, cardH, 'Current Period Performance', `${formatDate(startDate!)} - ${formatDate(endDate!)}`, curMet.total, curMet.uniqueCustomers, curMet.count, 'current', custTrend, countTrend);
-        if (showPrev) {
-            drawMainCard(posX2, startY, colW, cardH, 'Previous Period', `${formatDate(prevStartDate)} - ${formatDate(prevEndDate)}`, prevMet.total, prevMet.uniqueCustomers, prevMet.count, 'prev');
-        }
-        if (showLY) {
-            drawMainCard(posX3, startY, colW, cardH, 'Same Period Last Year', `${formatDate(lyStartDate)} - ${formatDate(lyEndDate)}`, lyMet.total, lyMet.uniqueCustomers, lyMet.count, 'ly');
-        }
-
-        // --- PERFORMANCE ANALYSIS SECTION ---
-        const analysisY = startY + cardH + 10;
-        const analysisH = 80;
-
+        // ── White background ──
         doc.setFillColor(255, 255, 255);
-        doc.setDrawColor(226, 232, 240);
-        doc.roundedRect(pageMargin, analysisY, totalW, analysisH, 5, 5, 'FD');
+        doc.rect(0, 0, PW, PH, 'F');
 
-        // Section Title
-        doc.setFontSize(14);
-        doc.setTextColor(30, 41, 59);
+        // ── Header: "Performance Dashboard" centered ──
+        let curY = mg + 10;
+
+        doc.setFontSize(18);
+        doc.setTextColor(17, 17, 17);
         doc.setFont('helvetica', 'bold');
-        doc.text('Performance Analysis', pageMargin + 10, analysisY + 12);
+        doc.text('Dashboard Stats', PW / 2, curY, { align: 'center' });
 
-        // Underline
-        doc.setDrawColor(59, 130, 246);
-        doc.setLineWidth(1.5);
-        doc.line(pageMargin + 10, analysisY + 16, pageMargin + 50, analysisY + 16);
+        curY += 10; // gap after header
 
-        // Donut Charts Grid (Centered Group)
-        const donutRadius = 18;
-        const chartW = donutRadius * 2;
-        const gGap = 55; // Increased gap to prevent legend overlap
-        const totalGroupW = (chartW * 3) + (gGap * 2);
-        const startX = (297 - totalGroupW) / 2;
-        const donutY = analysisY + 28;
 
-        // 1. Collections Comparison (Current vs Previous)
-        drawDonutChart(doc, startX, donutY, donutRadius, curMet.total, prevMet.total, 'Collections Comparison', [59, 130, 246]);
+        // ── Section 1: Period Tab Cards ──
+        const showPrev = filters.sections?.summaryPrevious !== false;
+        const showLY   = filters.sections?.summaryLastYear !== false && hasLYData;
 
-        // 2. Customer Distribution (Current vs Previous)
-        drawDonutChart(doc, startX + chartW + gGap, donutY, donutRadius, curMet.uniqueCustomers, prevMet.uniqueCustomers, 'Customer Distribution', [59, 130, 246]);
+        const periodDefs = [
+            {
+                show: true,
+                title: 'CURRENT',
+                range: `${formatDate(startDate!)} – ${formatDate(endDate!)}`,
+                amount: curMet.total,
+                accent: [58, 127, 232] as [number, number, number],
+                border: [58, 127, 232] as [number, number, number],
+                bg: [240, 246, 255] as [number, number, number],
+            },
+            {
+                show: showPrev,
+                title: 'PREVIOUS',
+                range: `${formatDate(prevStartDate)} – ${formatDate(prevEndDate)}`,
+                amount: prevMet.total,
+                accent: [136, 136, 136] as [number, number, number],
+                border: [187, 187, 187] as [number, number, number],
+                bg: [247, 247, 247] as [number, number, number],
+            },
+            {
+                show: showLY,
+                title: 'LAST YEAR',
+                range: `${formatDate(lyStartDate)} – ${formatDate(lyEndDate)}`,
+                amount: lyMet.total,
+                accent: [90, 173, 46] as [number, number, number],
+                border: [90, 173, 46] as [number, number, number],
+                bg: [242, 251, 236] as [number, number, number],
+            },
+        ].filter(c => c.show);
 
-        // 3. Transaction Volume (Current vs Previous)
-        drawDonutChart(doc, startX + (chartW + gGap) * 2, donutY, donutRadius, curMet.count, prevMet.count, 'Transaction Volume', [59, 130, 246]);
+        const tabGap = 5;
+        const tabW = (iW - tabGap * (periodDefs.length - 1)) / periodDefs.length;
+        const tabH = 28;
+        const tabsY = curY;
 
-        // --- SINGLE UNIFIED LEGEND (Centered at Bottom of Card) ---
-        const legendCenterY = analysisY + 77; // Positioned safely below the charts
-        const legendCenterX = 148.5;
+        periodDefs.forEach((pd, idx) => {
+            const tx = mg + idx * (tabW + tabGap);
+            const ty = tabsY;
 
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
+            // Background + colored border
+            doc.setFillColor(...pd.bg);
+            doc.setDrawColor(...pd.border);
+            doc.setLineWidth(0.7);
+            doc.roundedRect(tx, ty, tabW, tabH, 3, 3, 'FD');
+
+            // Title (e.g. CURRENT)
+            doc.setFontSize(7.5);
+            doc.setTextColor(...pd.accent);
+            doc.setFont('helvetica', 'bold');
+            doc.text(pd.title, tx + 6, ty + 7);
+
+            // Date range
+            doc.setFontSize(6.5);
+            doc.setTextColor(170, 170, 170);
+            doc.setFont('helvetica', 'normal');
+            doc.text(pd.range, tx + 6, ty + 13);
+
+            // Amount (big, accent colored)
+            doc.setFontSize(14);
+            doc.setTextColor(...pd.accent);
+            doc.setFont('helvetica', 'bold');
+            const amtStr = pd.amount.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            doc.text(amtStr, tx + 6, ty + 23);
+        });
+
+        curY = tabsY + tabH + 7;
+
+        // ── Section 2: KPI Growth Cards (dual: Last Year | Previous) ──
+        const kpiDefs = [
+            {
+                label: 'Collections growth',
+                lyPct:   revenueTrendLY,
+                prevPct: revenueTrend,
+                lyStr:   `${curMet.total.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})} vs ${lyMet.total.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})}`,
+                prevStr: `vs ${prevMet.total.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})}`,
+                bg:     [240, 246, 255] as [number, number, number],
+                accent: [58, 127, 232]  as [number, number, number],
+            },
+            {
+                label: 'Customer growth',
+                lyPct:   custTrendLY,
+                prevPct: custTrend,
+                lyStr:   `${curMet.uniqueCustomers} active vs ${lyMet.uniqueCustomers}`,
+                prevStr: `vs ${prevMet.uniqueCustomers}`,
+                bg:     [242, 251, 236] as [number, number, number],
+                accent: [90, 173, 46]   as [number, number, number],
+            },
+            {
+                label: 'Transaction growth',
+                lyPct:   countTrendLY,
+                prevPct: countTrend,
+                lyStr:   `${curMet.count} txns vs ${lyMet.count}`,
+                prevStr: `vs ${prevMet.count}`,
+                bg:     [255, 248, 240] as [number, number, number],
+                accent: [224, 123, 32]  as [number, number, number],
+            },
+        ];
+
+        const kpiGap = 5;
+        const kpiW = (iW - kpiGap * 2) / 3;
+        const kpiH = 36;
+        const kpiY = curY;
+        const halfW = kpiW / 2;
+
+        kpiDefs.forEach((kpi, idx) => {
+            const kx = mg + idx * (kpiW + kpiGap);
+            const ky = kpiY;
+
+            // Card background
+            doc.setFillColor(...kpi.bg);
+            doc.setDrawColor(...kpi.bg);
+            doc.setLineWidth(0.1);
+            doc.roundedRect(kx, ky, kpiW, kpiH, 3, 3, 'FD');
+
+            // Card title (top, full width)
+            doc.setFontSize(7);
+            doc.setTextColor(...kpi.accent);
+            doc.setFont('helvetica', 'bold');
+            doc.text(kpi.label.toUpperCase(), kx + 6, ky + 7);
+
+            // ── LEFT HALF: Last Year ──
+            const lyColor: [number,number,number] = kpi.lyPct >= 0 ? [22, 163, 74] : [220, 38, 38];
+            const lyStr = `${kpi.lyPct >= 0 ? '+' : ''}${kpi.lyPct.toFixed(0)}%`;
+
+            doc.setFontSize(16);
+            doc.setTextColor(...lyColor);
+            doc.setFont('helvetica', 'bold');
+            doc.text(lyStr, kx + 6, ky + 22);
+
+            doc.setFontSize(6.5);
+            doc.setTextColor(120, 120, 120);
+            doc.setFont('helvetica', 'normal');
+            doc.text('vs last year', kx + 6, ky + 28);
+
+            // Vertical divider
+            doc.setDrawColor(220, 220, 220);
+            doc.setLineWidth(0.3);
+            doc.line(kx + halfW, ky + 10, kx + halfW, ky + kpiH - 4);
+
+            // ── RIGHT HALF: Previous Period ──
+            const prevColor: [number,number,number] = kpi.prevPct >= 0 ? [22, 163, 74] : [220, 38, 38];
+            const prevStr = `${kpi.prevPct >= 0 ? '+' : ''}${kpi.prevPct.toFixed(0)}%`;
+
+            doc.setFontSize(16);
+            doc.setTextColor(...prevColor);
+            doc.setFont('helvetica', 'bold');
+            doc.text(prevStr, kx + halfW + 6, ky + 22);
+
+            doc.setFontSize(6.5);
+            doc.setTextColor(120, 120, 120);
+            doc.setFont('helvetica', 'normal');
+            doc.text('vs previous', kx + halfW + 6, ky + 28);
+        });
+
+        curY = kpiY + kpiH + 10;
+
+        // ── Section 3: Bar Chart ──
+
+        // Thin separator line
+        doc.setDrawColor(238, 238, 238);
+        doc.setLineWidth(0.4);
+        doc.line(mg, curY, mg + iW, curY);
+        curY += 8;
+
+
+
+        // Legend row — square dots (10×10 in HTML → ~3mm in PDF)
+        const legItems = [
+            { label: 'Current Period',  color: [58, 127, 232] as [number, number, number] },
+            { label: 'Previous Period', color: [181, 212, 244] as [number, number, number] },
+            { label: 'Last Year',       color: [221, 221, 221] as [number, number, number] },
+        ];
+        let legX = mg;
+        legItems.forEach(li => {
+            doc.setFillColor(...li.color);
+            doc.roundedRect(legX, curY - 3, 3.5, 3.5, 0.5, 0.5, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(85, 85, 85);
+            doc.setFont('helvetica', 'normal');
+            doc.text(li.label, legX + 5, curY);
+            legX += doc.getTextWidth(li.label) + 12;
+        });
+        curY += 6;
+
+        // Bar chart area — fill all remaining page height
+        const chartAreaX = mg + 20;
+        const chartAreaW = iW - 22;
+        const chartAreaH = PH - curY - mg - 14;  // full remaining height
+        const chartBottom = curY + chartAreaH;
+
+
+        const groups = [
+            { label: 'Collections',           cur: curMet.total,           prev: prevMet.total,           ly: lyMet.total },
+            { label: 'Customer Distribution', cur: curMet.uniqueCustomers,  prev: prevMet.uniqueCustomers,  ly: lyMet.uniqueCustomers },
+            { label: 'Transaction Volume',    cur: curMet.count,            prev: prevMet.count,            ly: lyMet.count },
+        ];
+
+        // Each group uses its OWN max scale so small values (customers/txns) are visible
+        const groupW    = chartAreaW / groups.length;
+        const barGroupW = groupW * 0.75;   // wider bars
+        const barW      = barGroupW / 3 - 1;
+
+        const barColors: [number, number, number][] = [
+            [58, 127, 232],   // Current  → blue
+            [181, 212, 244],  // Previous → light blue
+            [221, 221, 221],  // LastYear → gray
+        ];
+
+        // Horizontal grid lines (global scale for reference)
+        const globalMax = Math.max(...groups.flatMap(g => [g.cur, g.prev, g.ly]), 1) * 1.15;
+        const steps = 5;
+        doc.setFontSize(7);
+        doc.setTextColor(204, 204, 204);
         doc.setFont('helvetica', 'normal');
+        doc.setLineWidth(0.15);
+        for (let step = 0; step <= steps; step++) {
+            const val = (globalMax / steps) * step;
+            const yg  = chartBottom - (val / globalMax) * chartAreaH;
+            doc.setDrawColor(240, 240, 240);
+            doc.line(chartAreaX, yg, chartAreaX + chartAreaW, yg);
+            doc.setTextColor(204, 204, 204);
+            doc.text(
+                new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(val),
+                chartAreaX - 2, yg + 1.5, { align: 'right' }
+            );
+        }
 
-        // Centering the row: [Blue] Current  [Gray] Previous  [Green] Growth  [Red] Decline
-        const itemGap = 35;
-        const totalLegendW = itemGap * 3 + 20; // Approx width of the whole legend row
-        const startLegendX = legendCenterX - (totalLegendW / 2);
+        // Draw bars — per-group scale + larger value labels
+        groups.forEach((g, gi) => {
+            const gBase    = chartAreaX + gi * groupW + (groupW - barGroupW) / 2;
+            const vals     = [g.cur, g.prev, g.ly];
+            const groupMax = Math.max(...vals, 1) * 1.15;
 
-        // Current (Blue)
-        doc.setFillColor(59, 130, 246);
-        doc.circle(startLegendX, legendCenterY - 1, 1.5, 'F');
-        doc.text('Current Period', startLegendX + 4, legendCenterY);
+            vals.forEach((val, bi) => {
+                if (val <= 0) return;
+                const bh = (val / groupMax) * chartAreaH;
+                if (bh < 0.5) return;
 
-        // Previous (Gray)
-        doc.setFillColor(148, 163, 184);
-        doc.circle(startLegendX + itemGap, legendCenterY - 1, 1.5, 'F');
-        doc.text('Previous Period', startLegendX + itemGap + 4, legendCenterY);
+                const bx = gBase + bi * (barW + 1);
+                const by = chartBottom - bh;
 
-        // Growth (Green)
-        doc.setFillColor(22, 163, 74);
-        doc.circle(startLegendX + itemGap * 2, legendCenterY - 1, 1.5, 'F');
-        doc.text('Growth (+)', startLegendX + itemGap * 2 + 4, legendCenterY);
+                doc.setFillColor(...barColors[bi]);
+                doc.roundedRect(bx, by, barW, bh, 2, 2, 'F');
 
-        // Decline (Red)
-        doc.setFillColor(220, 38, 38);
-        doc.circle(startLegendX + itemGap * 3, legendCenterY - 1, 1.5, 'F');
-        doc.text('Decline (-)', startLegendX + itemGap * 3 + 4, legendCenterY);
+                // Value label above bar — larger font
+                const fmtVal = new Intl.NumberFormat('en-US', {
+                    notation: 'compact',
+                    compactDisplay: 'short',
+                    maximumFractionDigits: 1,
+                }).format(val);
+                doc.setFontSize(9);
+                doc.setTextColor(51, 51, 51);
+                doc.setFont('helvetica', 'bold');
+                doc.text(fmtVal, bx + barW / 2, by - 2, { align: 'center' });
+            });
+
+            // X-axis label
+            doc.setFontSize(8.5);
+            doc.setTextColor(153, 153, 153);
+            doc.setFont('helvetica', 'normal');
+            doc.text(g.label, gBase + barGroupW / 2, chartBottom + 7, { align: 'center' });
+        });
     }
-
 
     // --- DAILY ANALYSIS PAGE ---
     if (filters.sections?.daily !== false) {

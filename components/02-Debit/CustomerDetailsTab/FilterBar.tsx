@@ -276,10 +276,34 @@ export default function FilterBar(props: FilterBarProps) {
       <div className="flex justify-center mt-4 px-4 pb-4">
         <div className="w-full">
           <div className="flex flex-nowrap gap-2 justify-center items-stretch bg-white p-2 border border-gray-100 rounded-xl shadow-sm">
+            {/* OB */}
             {[
               { key: 'ob', label: 'OB', checked: showOB, onChange: setShowOB, color: 'purple', total: invoiceTypeTotals.ob },
               { key: 'sales', label: 'المبيعات (SAL)', checked: showSales, onChange: setShowSales, color: 'blue', total: invoiceTypeTotals.sales },
               { key: 'returns', label: 'مرتجعات (RSAL)', checked: showReturns, onChange: setShowReturns, color: 'orange', total: invoiceTypeTotals.returns },
+            ].map(({ key, label, checked, onChange, color, total }) => (
+              <label key={key} className={`flex-1 flex flex-col items-center justify-center gap-1 cursor-pointer p-3 bg-${color}-50 rounded-lg border border-${color}-100 hover:bg-${color}-100 transition-all text-center`}>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)}
+                    className={`w-4 h-4 text-${color}-600 border-gray-300 rounded focus:ring-1 focus:ring-${color}-500 cursor-pointer`} />
+                  <span className="text-sm font-bold text-gray-700">{label}</span>
+                </div>
+                <span className={`text-sm font-bold text-${color}-700`}>
+                  {total.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </label>
+            ))}
+
+            {/* صافي المبيعات — بعد المرتجعات مباشرة */}
+            <div className="flex-1 flex flex-col items-center justify-center gap-1 p-3 bg-emerald-50 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all text-center shadow-sm">
+              <span className="text-sm font-bold text-gray-700">صافي المبيعات</span>
+              <span className={`text-sm font-bold ${(invoiceTypeTotals.sales + invoiceTypeTotals.returns) >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>
+                {(invoiceTypeTotals.sales + invoiceTypeTotals.returns).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {/* الدفعات، الخصومات، JV */}
+            {[
               { key: 'payments', label: 'الدفعات', checked: showPayments, onChange: setShowPayments, color: 'green', total: invoiceTypeTotals.payments },
               { key: 'discounts', label: 'الخصومات (BIL)', checked: showDiscounts, onChange: setShowDiscounts, color: 'yellow', total: invoiceTypeTotals.discounts },
               { key: 'jv', label: 'قيود (JV)', checked: showJV, onChange: setShowJV, color: 'indigo', total: invoiceTypeTotals.jv },
@@ -295,12 +319,6 @@ export default function FilterBar(props: FilterBarProps) {
                 </span>
               </label>
             ))}
-            <div className="flex-1 flex flex-col items-center justify-center gap-1 p-3 bg-emerald-50 rounded-lg border border-emerald-100 hover:bg-emerald-100 transition-all text-center shadow-sm">
-              <span className="text-sm font-bold text-gray-700">صافي المبيعات</span>
-              <span className="text-sm font-bold text-emerald-700">
-                {(invoiceTypeTotals.sales + invoiceTypeTotals.returns).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
           </div>
         </div>
       </div>
