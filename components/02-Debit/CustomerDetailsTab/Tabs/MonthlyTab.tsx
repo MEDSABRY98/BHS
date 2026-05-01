@@ -12,9 +12,9 @@ export default function MonthlyTab(props: SharedTabProps) {
           <thead className="bg-gray-100">
             <tr>
               <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Month</th>
-              <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Debit (Sales)</th>
-              <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Credit (Paid)</th>
-              <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Discounts (BIL)</th>
+              <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Net Sales</th>
+              <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Net Payment</th>
+              <th className="px-4 py-3 text-center font-semibold bg-gray-200 border-b border-gray-300" style={{ width: '25%' }}>Discounts (BIL & JV)</th>
             </tr>
           </thead>
           <tbody>

@@ -1026,10 +1026,9 @@ ${debtSectionHtml}
         }
       }
 
-      // 3. Calculate Discounts (BIL - Bill/Credit Note)
-      if (num.startsWith('BIL')) {
-        // Typically discounts are credits, so credit - debit.
-        // Assuming positive result for discount amount.
+      // 3. Calculate Discounts (BIL & JV)
+      if (num.startsWith('BIL') || num.startsWith('JV')) {
+        // Typically discounts/adjustments are credit - debit
         existing.discounts += (invoice.credit - invoice.debit);
       }
 
