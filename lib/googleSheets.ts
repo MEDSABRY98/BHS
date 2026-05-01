@@ -4539,5 +4539,105 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
   }
 }
 
+export interface ICItem {
+  productId: string;
+  barcodeName: string;
+  productName: string;
+  qtyInBox: number;
+  totalQty: number;
+}
+
+export interface ICRecord {
+  date: string;
+  user: string;
+  warehouse: string;
+  productId: string;
+  barcodeName: string;
+  productName: string;
+  qtyInBox: number;
+  countDetails: string;
+  totalQty: number;
+}
+
+export async function getNormalICTotal(): Promise<ICItem[]> {
+  return fetchICItems('IC Total');
+}
+
+export async function getDamageICTotal(): Promise<ICItem[]> {
+  return fetchICItems('IC Total - D & E');
+}
+
+export async function getNormalICRecord(): Promise<ICRecord[]> {
+  return fetchICRecords('IC Record');
+}
+
+export async function getDamageICRecord(): Promise<ICRecord[]> {
+  return fetchICRecords('IC Record - D & E');
+}
+
+async function fetchICItems(sheetName: string): Promise<ICItem[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetName}'!A:E`, // PRODUCT ID, BARCODE NAME, PRODUCT NAME, QTY IN BOX, TOTAL QTY
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    return rows.slice(1).map(row => ({
+      productId: row[0] || '',
+      barcodeName: row[1] || '',
+      productName: row[2] || '',
+      qtyInBox: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
+      totalQty: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+    })).filter(item => item.productName);
+  } catch (error) {
+    console.error(`Error fetching ${sheetName}:`, error);
+    return [];
+  }
+}
+
+async function fetchICRecords(sheetName: string): Promise<ICRecord[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'${sheetName}'!A:I`, // DATE, USER, WAREHOUSE, PRODUCT ID, BARCODE NAME, PRODUCT NAME, QTY IN BOX, COUNT DETAILS, TOTAL QTY
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length < 2) return [];
+
+    return rows.slice(1).map(row => ({
+      date: row[0] || '',
+      user: row[1] || '',
+      warehouse: row[2] || '',
+      productId: row[3] || '',
+      barcodeName: row[4] || '',
+      productName: row[5] || '',
+      qtyInBox: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
+      countDetails: row[7] || '',
+      totalQty: parseFloat(row[8]?.toString().replace(/,/g, '') || '0'),
+    })).filter(record => record.productName);
+  } catch (error) {
+    console.error(`Error fetching ${sheetName}:`, error);
+    return [];
+  }
+}
+
 
 
