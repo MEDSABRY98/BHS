@@ -275,8 +275,16 @@ export default function FilterBar(props: FilterBarProps) {
       {/* Invoice Type Filters */}
       <div className="flex justify-center mt-4 px-4 pb-4">
         <div className="w-full">
-          <div className="flex flex-nowrap gap-2 justify-center items-stretch bg-white p-2 border border-gray-100 rounded-xl shadow-sm">
-            {/* OB */}
+          <div className="flex flex-nowrap gap-2 justify-center items-stretch bg-white p-2 border border-gray-100 rounded-xl shadow-sm overflow-x-auto">
+            {/* Overdue */}
+            <div className="flex-1 min-w-[120px] flex flex-col items-center justify-center gap-1 p-3 bg-red-50 rounded-lg border border-red-100 hover:bg-red-100 transition-all text-center shadow-sm">
+              <span className="text-sm font-bold text-gray-700">Total Overdue</span>
+              <span className="text-sm font-black text-red-600">
+                {(invoiceTypeTotals.overdue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            {/* OB, Sales, Returns */}
             {[
               { key: 'ob', label: 'OB', checked: showOB, onChange: setShowOB, color: 'purple', total: invoiceTypeTotals.ob },
               { key: 'sales', label: 'المبيعات (SAL)', checked: showSales, onChange: setShowSales, color: 'blue', total: invoiceTypeTotals.sales },

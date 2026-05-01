@@ -335,7 +335,10 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
 
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(c => c.customerName.toLowerCase().includes(q));
+      result = result.filter(c => 
+        c.customerName.toLowerCase().includes(q) || 
+        (c.invoiceNumbers && Array.from(c.invoiceNumbers).some(num => num.toLowerCase().includes(q)))
+      );
     }
 
     if (selectedSalesRep !== 'ALL') result = result.filter(c => c.salesReps && c.salesReps.has(selectedSalesRep));

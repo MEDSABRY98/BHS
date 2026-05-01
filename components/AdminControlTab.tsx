@@ -33,8 +33,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'payment-tracker', label: 'Payment Tracker' },
         { id: 'salesreps', label: 'Sales Reps' },
         { id: 'history', label: 'History' },
-        { id: 'ages', label: 'Ages' },
-        { id: 'all-notes', label: 'All Notes' }
+        { id: 'ages', label: 'Ages' }
     ],
     'sales': [
         { id: 'sales-overview', label: 'Sales Overview' },
@@ -48,7 +47,12 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'inventory': [
         { id: 'orders', label: 'Products' },
-        { id: 'item_code', label: 'Item Code' }
+        { id: 'item_code', label: 'Item Code' },
+        { id: 'counting', label: 'Inventory Counting' },
+        { id: 'normal_total', label: 'Normal Count' },
+        { id: 'normal_record', label: 'Normal Record' },
+        { id: 'damage_total', label: 'Damage & Expire Count' },
+        { id: 'damage_record', label: 'Damage & Expire Record' }
     ],
     'cash-receipt': [
         { id: 'new', label: 'New Receipt' },

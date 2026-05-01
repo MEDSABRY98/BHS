@@ -263,8 +263,8 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 
       <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
         <div className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
-            <div className="md:col-span-2"><p className="text-sm font-semibold text-gray-700">Summary</p></div>
+          <div className="grid grid-cols-1 md:grid-cols-8 gap-4 items-center">
+            <div className="md:col-span-3"></div>
             <div className="md:col-span-1 hidden md:block"></div>
             <div className="md:col-span-1">
               <p className={`text-xl font-bold text-center ${filteredData.reduce((sum, c) => sum + c.netDebt, 0) > 0 ? 'text-red-600' : filteredData.reduce((sum, c) => sum + c.netDebt, 0) < 0 ? 'text-green-600' : 'text-gray-600'}`}>

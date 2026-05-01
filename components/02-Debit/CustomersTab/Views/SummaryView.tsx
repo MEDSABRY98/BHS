@@ -126,11 +126,14 @@ const SummaryView: React.FC<SummaryViewProps> = ({
           </tbody>
           <tfoot className="bg-gray-100 font-bold border-t-2 border-gray-300">
             <tr>
-              <td colSpan={3} className="px-6 py-4 text-center text-xs uppercase tracking-wider">Total</td>
-              <td className="px-1 py-4 text-center text-xs">
+              <td colSpan={3} className="px-6 py-4 text-center text-xs uppercase tracking-wider"></td>
+              <td className="px-1 py-4 text-center text-sm font-black text-blue-700">
                 {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </td>
-              <td colSpan={9}></td>
+              <td colSpan={8}></td>
+              <td className="px-1 py-4 text-center text-sm font-black text-blue-600">
+                {filteredData.length}
+              </td>
             </tr>
           </tfoot>
         </table>

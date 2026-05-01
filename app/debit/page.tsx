@@ -10,7 +10,6 @@ import PaymentTrackerTab from '@/components/03-Payment-Tracker/PaymentTrackerTab
 import SalesRepsTab from '@/components/SalesRepsTab';
 import HistoryTab from '@/components/02-Debit/HistoryTab';
 import AgesTab from '@/components/02-Debit/AgesTab';
-import AllNotesTab from '@/components/AllNotesTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 import { InvoiceRow } from '@/types';
@@ -146,7 +145,6 @@ function DebitPageContent() {
     { id: 'salesreps', label: 'Sales Reps' },
     { id: 'history', label: 'History' },
     { id: 'ages', label: 'Ages' },
-    { id: 'all-notes', label: 'All Notes' },
   ];
 
   const renderTabContent = () => {
@@ -200,8 +198,6 @@ function DebitPageContent() {
         return <HistoryTab data={data} />;
       case 'ages':
         return <AgesTab data={data} />;
-      case 'all-notes':
-        return <AllNotesTab />;
       default:
         return <CustomersTab data={data} />;
     }

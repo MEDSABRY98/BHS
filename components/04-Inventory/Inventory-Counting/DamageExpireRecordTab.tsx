@@ -10,6 +10,7 @@ import { ICRecord } from '@/lib/googleSheets';
 export default function DamageExpireRecordTab() {
     const [data, setData] = useState<ICRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [userFilter, setUserFilter] = useState('All Users');
     const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
@@ -17,8 +18,10 @@ export default function DamageExpireRecordTab() {
     const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (isSilent = false) => {
+        if (isSilent) setIsRefreshing(true);
+        else setLoading(true);
+
         setError(null);
         try {
             const res = await fetch('/api/inventory/counting/damage-record');
@@ -33,6 +36,7 @@ export default function DamageExpireRecordTab() {
             setError(e.message);
         } finally {
             setLoading(false);
+            setIsRefreshing(false);
         }
     };
 
@@ -86,7 +90,7 @@ export default function DamageExpireRecordTab() {
                 <AlertCircle className="w-16 h-16 text-red-500 mb-6" />
                 <h3 className="text-2xl font-black text-red-800 mb-2">Error Connection</h3>
                 <p className="text-red-600 mb-8 max-w-md text-center font-medium">{error}</p>
-                <button onClick={fetchData} className="px-8 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-2 font-bold">
+                <button onClick={() => fetchData()} className="px-8 py-3 bg-red-600 text-white rounded-2xl hover:bg-red-700 transition-all shadow-lg flex items-center gap-2 font-bold">
                     <RefreshCw className="w-5 h-5" /> Retry Sync
                 </button>
             </div>
@@ -182,14 +186,26 @@ export default function DamageExpireRecordTab() {
                     )}
                 </div>
 
-                {/* Export Button */}
-                <button
-                    onClick={handleExport}
-                    className="w-12 h-12 flex items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-110 active:scale-95 transition-all group/export"
-                    title="Export to Excel"
-                >
-                    <FileSpreadsheet className="w-6 h-6 group-hover/export:rotate-12 transition-transform" />
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Refresh Button */}
+                    <button
+                        onClick={() => fetchData(true)}
+                        disabled={isRefreshing}
+                        className="w-12 h-12 flex items-center justify-center bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200/50 hover:bg-blue-700 hover:scale-110 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 group/refresh"
+                        title="Refresh Data"
+                    >
+                        <RefreshCw className={`w-6 h-6 ${isRefreshing ? 'animate-spin' : 'group-hover/refresh:rotate-180'} transition-all duration-500`} />
+                    </button>
+
+                    {/* Export Button */}
+                    <button
+                        onClick={handleExport}
+                        className="w-12 h-12 flex items-center justify-center bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200/50 hover:bg-emerald-700 hover:scale-110 active:scale-95 transition-all group/export"
+                        title="Export to Excel"
+                    >
+                        <FileSpreadsheet className="w-6 h-6 group-hover/export:rotate-12 transition-transform" />
+                    </button>
+                </div>
             </div>
 
             {/* Results Table */}
@@ -235,7 +251,7 @@ export default function DamageExpireRecordTab() {
                                             <span className="text-xs font-black text-slate-800 leading-tight">{item.productName}</span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
-                                            <span className="text-xs font-bold text-slate-600">{item.qtyInBox}</span>
+                                            <span className="text-sm font-bold text-slate-600">{item.qtyInBox === 0 ? '-' : item.qtyInBox}</span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             <span className="text-[11px] font-bold text-slate-600 truncate max-w-[150px] inline-block" title={item.countDetails}>
@@ -243,8 +259,8 @@ export default function DamageExpireRecordTab() {
                                             </span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
-                                            <span className="inline-flex px-3 py-1 rounded-lg bg-red-50 text-red-700 text-xs font-black border border-red-100 shadow-sm">
-                                                {item.totalQty.toLocaleString()}
+                                            <span className="inline-flex px-3 py-1 rounded-lg bg-red-50 text-red-700 text-sm font-black border border-red-100 shadow-sm">
+                                                {item.totalQty === 0 ? '-' : item.totalQty.toLocaleString()}
                                             </span>
                                         </td>
                                     </tr>

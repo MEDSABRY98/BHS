@@ -861,110 +861,7 @@ ${debtSectionHtml}
     );
   }, [invoicesWithNetDebt, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, showOB, showSales, showReturns, showPayments, showDiscounts, showJV, startDateFilter, endDateFilter]);
 
-  // Calculate totals for each invoice type based on current filters (excluding type filters)
-  const invoiceTypeTotals = useMemo(() => {
-    let filtered = invoicesWithNetDebt;
 
-    // Apply same filters as filteredInvoices but without type filters
-    // Year Filter
-    if (selectedYearFilter.length > 0) {
-      filtered = filtered.filter((inv) => {
-        if (!inv.date) return false;
-        const date = new Date(inv.date);
-        if (isNaN(date.getTime())) return false;
-        return selectedYearFilter.includes(date.getFullYear().toString());
-      });
-    }
-
-    // Month Filter
-    if (selectedMonthFilter.length > 0) {
-      filtered = filtered.filter((inv) => {
-        if (!inv.date) return false;
-        const date = new Date(inv.date);
-        if (isNaN(date.getTime())) return false;
-        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return selectedMonthFilter.includes(monthYear);
-      });
-    }
-
-    // Overdue Month Filter
-    if (selectedOverdueMonthFilter.length > 0) {
-      filtered = filtered.filter((inv) => {
-        if (!inv.date) return false;
-        const date = new Date(inv.date);
-        if (isNaN(date.getTime())) return false;
-        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-        return selectedOverdueMonthFilter.includes(monthYear);
-      });
-    }
-
-    // Matching Filter
-    if (selectedMatchingFilter.length > 0) {
-      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
-      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
-      const selectedIds = selectedMatchingFilter.filter(
-        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
-      );
-
-      filtered = filtered.filter((inv) => {
-        if (!inv.matching) return wantsUnmatched;
-        return (
-          (wantsAllOpen && availableMatchingsWithResidual.includes(inv.matching)) ||
-          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
-        );
-      });
-    }
-
-    // Search Query
-    if (invoiceSearchQuery.trim()) {
-      const query = invoiceSearchQuery.toLowerCase();
-      filtered = filtered.filter((inv) =>
-        inv.number.toLowerCase().includes(query) ||
-        inv.matching?.toLowerCase().includes(query) ||
-        inv.date.toLowerCase().includes(query) ||
-        inv.debit.toString().includes(query) ||
-        inv.credit.toString().includes(query)
-      );
-    }
-
-    // Calculate totals for each type
-    let obTotal = 0;
-    let salesTotal = 0;
-    let returnsTotal = 0;
-    let paymentsTotal = 0;
-    let discountsTotal = 0;
-    let jvTotal = 0;
-
-    filtered.forEach((inv) => {
-      const num = (inv.number || '').trim().toUpperCase();
-      const netDebt = inv.netDebt;
-      const type = getInvoiceType(inv);
-
-      if (num.startsWith('OB')) {
-        obTotal += netDebt;
-      } else if (num.startsWith('SAL') && inv.debit > 0) {
-        salesTotal += netDebt;
-      } else if (num.startsWith('RSAL') && inv.credit > 0) {
-        returnsTotal += netDebt;
-      } else if (num.startsWith('BIL')) {
-        discountsTotal += netDebt;
-      } else if (num.startsWith('JV')) {
-        jvTotal += netDebt;
-      } else if (isPaymentTxn(inv)) {
-        // Payments checkbox total: Credit - Debit
-        paymentsTotal += getPaymentAmount(inv);
-      }
-    });
-
-    return {
-      ob: obTotal,
-      sales: salesTotal,
-      returns: returnsTotal,
-      payments: paymentsTotal,
-      discounts: discountsTotal,
-      jv: jvTotal,
-    };
-  }, [invoicesWithNetDebt, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual, startDateFilter, endDateFilter]);
 
   // Filter overdue invoices based on selected month filter, matching filter, and search query
   const filteredOverdueInvoices = useMemo(() => {
@@ -1673,6 +1570,110 @@ ${debtSectionHtml}
   const overdueTotalCredit = overdueToSum.reduce((sum, inv) => sum + inv.credit, 0);
   const overdueTotalDifference = overdueToSum.reduce((sum, inv) => sum + inv.difference, 0);
 
+  // Calculate totals for each invoice type based on current filters (excluding type filters)
+  const invoiceTypeTotals = useMemo(() => {
+    let filtered = invoicesWithNetDebt;
+
+    // Apply same filters as filteredInvoices but without type filters
+    // Year Filter
+    if (selectedYearFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        return selectedYearFilter.includes(date.getFullYear().toString());
+      });
+    }
+
+    // Month Filter
+    if (selectedMonthFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return selectedMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Overdue Month Filter
+    if (selectedOverdueMonthFilter.length > 0) {
+      filtered = filtered.filter((inv) => {
+        if (!inv.date) return false;
+        const date = new Date(inv.date);
+        if (isNaN(date.getTime())) return false;
+        const monthYear = date.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+        return selectedOverdueMonthFilter.includes(monthYear);
+      });
+    }
+
+    // Matching Filter
+    if (selectedMatchingFilter.length > 0) {
+      const wantsAllOpen = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_OPEN);
+      const wantsUnmatched = selectedMatchingFilter.includes(MATCHING_FILTER_ALL_UNMATCHED);
+      const selectedIds = selectedMatchingFilter.filter(
+        (m) => m !== MATCHING_FILTER_ALL_OPEN && m !== MATCHING_FILTER_ALL_UNMATCHED
+      );
+
+      filtered = filtered.filter((inv) => {
+        if (!inv.matching) return wantsUnmatched;
+        return (
+          (wantsAllOpen && availableMatchingsWithResidual.includes(inv.matching)) ||
+          (selectedIds.length > 0 && selectedIds.includes(inv.matching))
+        );
+      });
+    }
+
+    // Search Query
+    if (invoiceSearchQuery.trim()) {
+      const query = invoiceSearchQuery.toLowerCase();
+      filtered = filtered.filter((inv) =>
+        inv.number.toLowerCase().includes(query) ||
+        inv.matching?.toLowerCase().includes(query) ||
+        inv.date.toLowerCase().includes(query) ||
+        inv.debit.toString().includes(query) ||
+        inv.credit.toString().includes(query)
+      );
+    }
+
+    // Calculate totals for each type
+    let obTotal = 0;
+    let salesTotal = 0;
+    let returnsTotal = 0;
+    let paymentsTotal = 0;
+    let discountsTotal = 0;
+    let jvTotal = 0;
+
+    filtered.forEach((inv) => {
+      const num = (inv.number || '').trim().toUpperCase();
+      const netDebt = inv.netDebt;
+
+      if (num.startsWith('OB')) {
+        obTotal += netDebt;
+      } else if (num.startsWith('SAL') && inv.debit > 0) {
+        salesTotal += netDebt;
+      } else if (num.startsWith('RSAL') && inv.credit > 0) {
+        returnsTotal += netDebt;
+      } else if (num.startsWith('BIL')) {
+        discountsTotal += netDebt;
+      } else if (num.startsWith('JV')) {
+        jvTotal += netDebt;
+      } else if (isPaymentTxn(inv)) {
+        paymentsTotal += netDebt;
+      }
+    });
+
+    return {
+      ob: obTotal,
+      sales: salesTotal,
+      returns: returnsTotal,
+      payments: paymentsTotal,
+      discounts: discountsTotal,
+      jv: jvTotal,
+      overdue: overdueTotalDifference
+    };
+  }, [invoicesWithNetDebt, selectedYearFilter, selectedMonthFilter, selectedOverdueMonthFilter, selectedMatchingFilter, invoiceSearchQuery, availableMatchingsWithResidual, startDateFilter, endDateFilter, overdueTotalDifference]);
+
 
 
   // Aging totals (initialized later after dashboardMetrics to avoid TDZ)
@@ -2261,7 +2262,7 @@ ${debtSectionHtml}
     availableMonths: [],
     availableYears: [],
     availableOverdueMonths: [],
-    invoiceTypeTotals: {},
+    invoiceTypeTotals,
     handleEmail: () => { },
     handleAddNote,
     handleUpdateNote,

@@ -120,7 +120,9 @@ const YearlyView: React.FC<YearlyViewProps> = ({
           </tbody>
           <tfoot className="bg-slate-100 font-black border-t-4 border-slate-300">
             <tr>
-              <td colSpan={3} className="px-8 py-6 text-center text-sm uppercase tracking-widest text-slate-700">Grand Total</td>
+              <td colSpan={3} className="px-8 py-6 text-center text-lg font-black text-blue-600">
+                {yearlyPivotData.rows.length}
+              </td>
               <td className="px-6 py-6 text-center text-lg text-slate-900 bg-slate-200/50">
                 {yearlyPivotData.rows.reduce((sum, r) => sum + r.totalNetDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </td>
