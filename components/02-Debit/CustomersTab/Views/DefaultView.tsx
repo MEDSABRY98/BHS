@@ -39,7 +39,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
   return (
     <>
       <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
-        <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="contents">
               {headerGroup.headers.filter(h => h.column.id !== 'select').map((header) => {
@@ -107,7 +107,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                 className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
               >
                 <div className="p-5">
-                  <div className="grid grid-cols-1 md:grid-cols-7 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
                     <div className="md:col-span-3">
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-black text-slate-400 min-w-[24px]">#{index + 1}</span>
@@ -222,17 +222,19 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                                 </span>
                               )}
                             </div>
-                            <div className="w-full max-w-[120px] h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div
-                                className={`h-full rounded-full transition-all duration-500 ${collectionRate >= 80 ? 'bg-green-500' : collectionRate >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                                style={{ width: `${Math.min(collectionRate, 100)}%` }}
-                              />
-                            </div>
                           </button>
                         )
                       ) : (
                         <div className="text-center text-gray-400 text-sm italic">N/A</div>
                       )}
+                    </div>
+
+                    <div className="md:col-span-1 flex items-center justify-center">
+                      <div className="text-center">
+                        <span className="text-lg font-bold text-gray-700">
+                          {customer.avgPaymentInterval ? `${customer.avgPaymentInterval.toFixed(1)} days` : '-'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="md:col-span-1">
@@ -261,7 +263,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 
       <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
         <div className="p-5">
-          <div className="grid grid-cols-1 md:grid-cols-6 gap-4 items-center">
+          <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center">
             <div className="md:col-span-2"><p className="text-sm font-semibold text-gray-700">Summary</p></div>
             <div className="md:col-span-1 hidden md:block"></div>
             <div className="md:col-span-1">
@@ -285,6 +287,18 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                   {filteredData.reduce((sum, c) => sum + (c.openOBAmount || 0), 0).toLocaleString('en-US')}
                 </p>
               ) : <div className="hidden md:block"></div>}
+            </div>
+            <div className="md:col-span-1 flex items-center justify-center">
+              <div className="text-center">
+                <span className="text-lg font-bold text-gray-700">
+                  {(() => {
+                    const customersWithInterval = filteredData.filter(c => (c.avgPaymentInterval || 0) > 0);
+                    if (customersWithInterval.length === 0) return '-';
+                    const avg = customersWithInterval.reduce((sum, c) => sum + (c.avgPaymentInterval || 0), 0) / customersWithInterval.length;
+                    return `${avg.toFixed(1)}d`;
+                  })()}
+                </span>
+              </div>
             </div>
             <div className="md:col-span-1"><p className="text-xl font-bold text-blue-600 text-center" title="Total Customers Count">{filteredData.length}</p></div>
           </div>

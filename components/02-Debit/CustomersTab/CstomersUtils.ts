@@ -394,7 +394,7 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
     ];
   });
 
-  const summaryHeaders = ['#', 'Customer Name', 'City / Rep', 'Total Debt', 'Last Pay Date', 'Last Pay Amt', 'Pay (90d)', '# Pay (90d)', 'Coll Rate (Pay) %', 'Last Sale Date', 'Last Sale Amt', 'Sales (90d)', '# Sales (90d)', 'Rating'];
+  const summaryHeaders = ['#', 'Customer Name', 'City / Rep', 'Total Debt', 'Last Pay Date', 'Last Pay Amt', 'Pay (90d)', '# Pay (90d)', 'Last Sale Date', 'Last Sale Amt', 'Sales (90d)', '# Sales (90d)', 'Rating'];
   const summaryRows = data.map((customer, index) => {
     let reps = '-';
     if (customer.salesReps && customer.salesReps instanceof Set && customer.salesReps.size > 0) reps = Array.from(customer.salesReps).join(', ');
@@ -402,7 +402,6 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
     return [
       index + 1, customer.customerName || '', reps, customer.netDebt.toFixed(2), customer.lastPaymentDate ? formatDmy(customer.lastPaymentDate) : '-', (customer.lastPaymentAmount || 0).toFixed(2),
       (customer as any).payments3m?.toFixed(2) || '0.00', (customer as any).paymentsCount3m ?? 0,
-      customer.totalDebit > 0 ? ((customer.creditPayments || 0) / customer.totalDebit * 100).toFixed(1) + '%' : '0.0%',
       customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-', (customer.lastSalesAmount || 0).toFixed(2), (customer as any).sales3m?.toFixed(2) || '0.00', (customer as any).salesCount3m ?? 0, calculateDebtRating(customer, closedCustomersSet)
     ];
   });

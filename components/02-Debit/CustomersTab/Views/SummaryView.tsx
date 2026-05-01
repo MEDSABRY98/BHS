@@ -48,7 +48,6 @@ const SummaryView: React.FC<SummaryViewProps> = ({
               <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-24">Last Pay Amt</th>
               <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-24">Pay (90d)</th>
               <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-blue-500 w-16"># Pay (90d)</th>
-              <th className="px-1 py-4 text-center text-xs font-bold text-white bg-blue-600 uppercase tracking-wider border-r border-gray-200 w-16">Coll Rate (Pay)</th>
               <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-orange-500 w-20">Last Sale Date</th>
               <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-orange-500 w-24">Last Sale Amt</th>
               <th className="px-1 py-4 text-center text-xs font-bold text-white bg-orange-600 uppercase tracking-wider border-r border-orange-500 w-24">Sales (90d)</th>
@@ -58,11 +57,10 @@ const SummaryView: React.FC<SummaryViewProps> = ({
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {table.getRowModel().rows.length === 0 ? (
-              <tr><td colSpan={14} className="py-12"><NoData /></td></tr>
+              <tr><td colSpan={13} className="py-12"><NoData /></td></tr>
             ) : (
               table.getRowModel().rows.map((row, index) => {
                 const customer = row.original;
-                const collRate = customer.totalDebit > 0 ? ((customer.creditPayments || 0) / customer.totalDebit * 100) : 0;
                 const rating = calculateDebtRating(customer, closedCustomers);
                 return (
                   <tr key={row.id} className="hover:bg-gray-50 transition-colors">
@@ -106,7 +104,6 @@ const SummaryView: React.FC<SummaryViewProps> = ({
                       {(customer.payments3m || 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </td>
                     <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100">{customer.paymentsCount3m || 0}</td>
-                    <td className="px-1 py-2 text-center text-xs font-bold text-gray-900 border-r border-gray-100">{collRate.toFixed(1)}%</td>
                     <td className="px-1 py-2 text-center text-xs font-medium text-gray-900 border-r border-gray-100">
                       {customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-'}
                     </td>
@@ -133,7 +130,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
               <td className="px-1 py-4 text-center text-xs">
                 {filteredData.reduce((sum, c) => sum + c.netDebt, 0).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </td>
-              <td colSpan={10}></td>
+              <td colSpan={9}></td>
             </tr>
           </tfoot>
         </table>

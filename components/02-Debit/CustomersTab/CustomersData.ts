@@ -205,6 +205,16 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         }
       }
 
+      const pDates = Array.from(c.paymentDates).map(d => new Date(d)).sort((a, b) => a.getTime() - b.getTime());
+      let avgInterval = 0;
+      if (pDates.length > 1) {
+        let totalDays = 0;
+        for (let i = 1; i < pDates.length; i++) {
+          totalDays += (pDates[i].getTime() - pDates[i - 1].getTime()) / (1000 * 60 * 60 * 24);
+        }
+        avgInterval = totalDays / (pDates.length - 1);
+      }
+
       const customerInvoices = customerInvoicesMap.get(c.customerName) || [];
       const agingBreakdown = { atDate: 0, oneToThirty: 0, thirtyOneToSixty: 0, sixtyOneToNinety: 0, ninetyOneToOneTwenty: 0, older: 0 };
       let totalOverdue = 0;
@@ -300,7 +310,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         lastPaymentDate: c.lastPaymentDate, lastPaymentMatching: c.lastPaymentMatching, lastPaymentAmount: c.lastPaymentAmount,
         lastSalesDate: c.lastSalesDate, lastSalesAmount: c.lastSalesAmount, overdueAmount: totalOverdue, hasOB: hasOBFlag, openOBAmount, agingBreakdown,
         payments3m: c.payments3m, paymentsCount3m: c.paymentsCount3m, sales3m: c.sales3m, salesCount3m: c.salesCount3m, lastTransactionDate: c.lastTransactionDate, creditPayments: c.creditPayments,
-        creditReturns: c.creditReturns, creditDiscounts: c.creditDiscounts, totalSalesDebit: c.totalSalesDebit, avgPaymentInterval: c.avgPaymentInterval
+        creditReturns: c.creditReturns, creditDiscounts: c.creditDiscounts, totalSalesDebit: c.totalSalesDebit, avgPaymentInterval: avgInterval
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
   }, [data, spiData]);

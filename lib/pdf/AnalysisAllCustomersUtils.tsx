@@ -151,7 +151,6 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
         'Last Pay Amt',
         'Pay (90d)',
         '# Pay (90d)',
-        'Coll Rate (Pay)',
         'Last Sale Date',
         'Last Sale Amt',
         'Sales (90d)',
@@ -199,18 +198,11 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
           doc.text(`Customers Analysis Report - ${rep} (${ratingLabel}) - ${customersInRating.length} Customers - Total Debt: ${formattedDebt}`, 14, 15);
           doc.setFontSize(10);
           doc.text(`Date: ${formatDmy(new Date())}`, 14, 22);
-          doc.setFontSize(8);
-          doc.setTextColor(100);
-          doc.text('Tip: Ctrl+Click (Cmd+Click) on customer names to open in a new tab', 14, 26);
           doc.setTextColor(0);
 
           const tableRows = customersInRating.map(customer => {
             const ratingInfo = calculateDebtRating(customer, closedCustomersSet, true);
             const rating = typeof ratingInfo === 'string' ? ratingInfo : ratingInfo.rating;
-
-            const payments = customer.creditPayments || 0;
-            const totalSales = customer.totalDebit || 0;
-            const collRatePay = totalSales > 0 ? ((payments / totalSales) * 100).toFixed(1) + '%' : '0.0%';
 
             const salesReps = customer.salesReps ? Array.from(customer.salesReps).join(', ') : '';
 
@@ -222,7 +214,6 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
               customer.lastPaymentAmount ? customer.lastPaymentAmount.toLocaleString('en-US') : '-',
               (customer.payments3m || 0).toLocaleString('en-US'),
               customer.paymentsCount3m || 0,
-              collRatePay,
               customer.lastSalesDate ? formatDmy(customer.lastSalesDate) : '-',
               customer.lastSalesAmount ? customer.lastSalesAmount.toLocaleString('en-US') : '-',
               (customer.sales3m || 0).toLocaleString('en-US'),
@@ -245,19 +236,10 @@ export const exportToPDF = async (data: CustomerAnalysis[], filename: string = '
             didParseCell: (data) => {
               if (data.section === 'head') {
                 const index = data.column.index;
-                if (index >= 3 && index <= 7) data.cell.styles.fillColor = [37, 99, 235];
-                else if (index >= 8 && index <= 11) data.cell.styles.fillColor = [234, 88, 12];
-                else if (index === 12) data.cell.styles.fillColor = [147, 51, 234];
+                if (index >= 3 && index <= 6) data.cell.styles.fillColor = [37, 99, 235];
+                else if (index >= 7 && index <= 10) data.cell.styles.fillColor = [234, 88, 12];
+                else if (index === 11) data.cell.styles.fillColor = [147, 51, 234];
                 else data.cell.styles.fillColor = [22, 163, 74];
-              }
-            },
-            didDrawCell: (data) => {
-              if (data.section === 'body' && data.column.index === 0 && data.row.index < customersInRating.length) {
-                const customer = customersInRating[data.row.index];
-                if (customer && customer.customerName) {
-                  const url = `${window.location.origin}/debit?customer=${encodeURIComponent(customer.customerName)}&action=download_report`;
-                  doc.link(data.cell.x, data.cell.y, data.cell.width, data.cell.height, { url });
-                }
               }
             }
           });

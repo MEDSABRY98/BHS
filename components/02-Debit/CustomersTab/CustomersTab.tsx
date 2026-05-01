@@ -476,6 +476,18 @@ export default function CustomersTab({
         );
       }
     }),
+    columnHelper.accessor('avgPaymentInterval', {
+      id: 'payFreq',
+      header: 'Pay Frequency',
+      cell: (info) => {
+        const val = info.getValue();
+        return (
+          <div className="font-bold text-gray-700">
+            {val ? `${val.toFixed(1)} days` : '-'}
+          </div>
+        );
+      }
+    }),
     columnHelper.display({
       id: 'debtRating',
       header: 'Rating',

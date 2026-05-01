@@ -318,7 +318,7 @@ const preprocessAllocations = (rows: InvoiceRow[]) => {
 };
 
 export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: FilterContext) => {
-    const doc = new jsPDF(); // Default Portrait for Cover Page
+    const doc = new jsPDF('l', 'mm', 'a4'); // Modern Landscape for Cover Page
 
     const today = new Date();
 
@@ -874,48 +874,79 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         });
     };
 
-    // --- COVER PAGE ---
-    let y = 0;
-    const pageW = doc.internal.pageSize.width;
-    const pageH = doc.internal.pageSize.height;
+    // --- COVER PAGE (Modern Landscape) ---
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
 
-    // Background accent
+    // Background Gradient-like effect
+    doc.setFillColor(15, 23, 42); // Very Dark Slate (Slate 950)
+    doc.rect(0, 0, pageW, pageH, 'F');
+    
+    // Decorative Geometric Shapes
+    doc.setFillColor(30, 41, 59); // Slate 900
+    doc.circle(pageW, 0, 140, 'F');
+    doc.setFillColor(51, 65, 85); // Slate 700
+    doc.circle(pageW, 0, 90, 'F');
+    
+    // Left Accent Bar (Blue)
     doc.setFillColor(59, 130, 246); // Blue 500
-    doc.rect(0, 0, pageW, 60, 'F');
+    doc.rect(0, 0, 6, pageH, 'F');
 
-    // Company Name (Top Center)
+    // Branding / Company Name
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageW / 2, 35, { align: 'center' });
-
-    // Main Title Section
-    doc.setFontSize(32); // Slightly smaller to be safe
-    doc.setTextColor(30, 41, 59); // Slate 800
-    doc.setFont('helvetica', 'bold');
-    doc.text('Collections Analysis Report', pageW / 2, pageH / 2 - 25, { align: 'center' });
-
-    // Decorative Line
-    doc.setDrawColor(59, 130, 246);
-    doc.setLineWidth(1.5);
-    doc.line(pageW / 2 - 40, pageH / 2 - 15, pageW / 2 + 40, pageH / 2 - 15);
-
-    // Subtitle / Period
-    doc.setFontSize(18);
-    doc.setTextColor(71, 85, 105); // Slate 600
+    doc.text('Al Marai Al Arabia Trading', 25, 30);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
-    doc.text(`Period: ${formatDate(startDate!)} - ${formatDate(endDate!)}`, pageW / 2, pageH / 2 + 10, { align: 'center' });
+    doc.setTextColor(148, 163, 184); // Slate 400
+    doc.text('Sole Proprietorship L.L.C', 25, 36);
 
-    if (filters.salesRep) {
-        doc.setFontSize(16);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Sales Representative: ${filters.salesRep}`, pageW / 2, pageH / 2 + 25, { align: 'center' });
-    }
+    // Main Hero Title
+    doc.setFontSize(56);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Collections', 25, pageH / 2 - 12);
+    
+    doc.setTextColor(59, 130, 246); // Accent Blue
+    doc.text('Analysis Report', 25, pageH / 2 + 16);
+
+    // Decorative Divider
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(2.5);
+    doc.line(25, pageH / 2 + 28, 120, pageH / 2 + 28);
+
+    // Report Metadata Box
+    const infoY = pageH - 65;
+    const infoW = 160;
+    doc.setFillColor(30, 41, 59); // Slate 900
+    doc.setDrawColor(51, 65, 85); // Slate 700
+    doc.setLineWidth(0.5);
+    doc.roundedRect(25, infoY, infoW, 45, 3, 3, 'FD');
+    
+    doc.setFontSize(10);
+    doc.setTextColor(59, 130, 246);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORT INFORMATION', 35, infoY + 12);
+    
+    // Metadata Rows
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184); // Slate 400
+    doc.setFont('helvetica', 'normal');
+    doc.text('DATE RANGE:', 35, infoY + 22);
+    doc.text('SALES REPRESENTATIVE:', 35, infoY + 29);
+    doc.text('GENERATED ON:', 35, infoY + 36);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${formatDate(startDate!)} - ${formatDate(endDate!)}`, 85, infoY + 22);
+    doc.text(`${filters.salesRep || 'All Sales Reps'}`, 85, infoY + 29);
+    doc.text(`${formatDate(new Date())}`, 85, infoY + 36);
 
 
 
     // Resetting y for sections
-    y = 40;
+    let y = 40;
     if (filters.sections?.summary !== false) {
         doc.addPage('a4', 'landscape');
 
