@@ -1,36 +1,53 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Search, Package, RefreshCw, AlertCircle, ChevronDown, FileSpreadsheet } from 'lucide-react';
+import { User, Home, ArrowUpDown, Search, Package, RefreshCw, AlertCircle, ChevronDown, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Loading from '../../01-Unified/Loading';
 import NoData from '../../01-Unified/NoDataTab';
-import { ICItem } from '@/lib/googleSheets';
+import { ICItem, ICRecord } from '@/lib/googleSheets';
 
 export default function NormalCountTab() {
     const [data, setData] = useState<ICItem[]>([]);
+    const [records, setRecords] = useState<ICRecord[]>([]);
     const [loading, setLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
     const [statusFilter, setStatusFilter] = useState<'All' | 'Counted' | 'Pending'>('All');
+    const [userFilter, setUserFilter] = useState('All Users');
+    const [warehouseFilter, setWarehouseFilter] = useState('All Warehouses');
     const [isStatusOpen, setIsStatusOpen] = useState(false);
+    const [isUserOpen, setIsUserOpen] = useState(false);
+    const [isWarehouseOpen, setIsWarehouseOpen] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [sortConfig, setSortConfig] = useState<{ key: keyof ICItem | '#'; direction: 'asc' | 'desc' } | null>(null);
 
     const fetchData = async (isSilent = false) => {
         if (isSilent) setIsRefreshing(true);
         else setLoading(true);
-        
+
         setError(null);
         try {
-            const res = await fetch('/api/inventory/counting/normal-total');
-            const json = await res.json();
-            if (json.data) {
-                setData(json.data);
-            } else {
-                throw new Error(json.error || 'Failed to load data');
+            const [totalRes, recordRes] = await Promise.all([
+                fetch('/api/inventory/counting/normal-total'),
+                fetch('/api/inventory/counting/normal-record')
+            ]);
+            
+            const totalJson = await totalRes.json();
+            const recordJson = await recordRes.json();
+
+            if (totalJson.data) {
+                setData(totalJson.data);
+            }
+            if (recordJson.data) {
+                setRecords(recordJson.data);
+            }
+            
+            if (!totalJson.data && !recordJson.data) {
+                throw new Error(totalJson.error || recordJson.error || 'Failed to load data');
             }
         } catch (e: any) {
-            console.error('Failed to load normal IC total', e);
+            console.error('Failed to load normal IC data', e);
             setError(e.message);
         } finally {
             setLoading(false);
@@ -42,10 +59,57 @@ export default function NormalCountTab() {
         fetchData();
     }, []);
 
+    // Filter options
+    const uniqueUsers = ['All Users', ...Array.from(new Set(records.map(r => r.user)))];
+    const uniqueWarehouses = ['All Warehouses', ...Array.from(new Set(records.map(r => r.warehouse)))];
+
+    // Aggregation Logic
+    const getAggregatedData = (): ICItem[] => {
+        if (userFilter === 'All Users' && warehouseFilter === 'All Warehouses') {
+            return data;
+        }
+
+        // Filter records first
+        const filteredRecords = records.filter(r => {
+            const matchesUser = userFilter === 'All Users' || r.user === userFilter;
+            const matchesWarehouse = warehouseFilter === 'All Warehouses' || r.warehouse === warehouseFilter;
+            return matchesUser && matchesWarehouse;
+        });
+
+        // Group by product ID
+        const map = new Map<string, ICItem>();
+        
+        // Initialize with all known products but 0 qty
+        data.forEach(item => {
+            map.set(item.productId, { ...item, totalQty: 0 });
+        });
+
+        // Sum up from records
+        filteredRecords.forEach(r => {
+            const existing = map.get(r.productId);
+            if (existing) {
+                existing.totalQty += r.totalQty;
+            } else {
+                // If product not in totals sheet (unlikely)
+                map.set(r.productId, {
+                    productId: r.productId,
+                    barcodeName: r.barcodeName,
+                    productName: r.productName,
+                    qtyInBox: r.qtyInBox,
+                    totalQty: r.totalQty
+                });
+            }
+        });
+
+        return Array.from(map.values());
+    };
+
+    const aggregatedData = getAggregatedData();
+
     // Stats
-    const totalItems = data.length;
-    const countedItems = data.filter(item => item.totalQty > 0).length;
-    const pendingItems = data.filter(item => item.totalQty === 0).length;
+    const totalItems = aggregatedData.length;
+    const countedItems = aggregatedData.filter(item => item.totalQty > 0).length;
+    const pendingItems = aggregatedData.filter(item => item.totalQty === 0).length;
 
     const statusOptions = [
         { value: 'All', label: 'All Items' },
@@ -54,7 +118,8 @@ export default function NormalCountTab() {
     ];
     const currentStatus = statusOptions.find(opt => opt.value === statusFilter);
 
-    const filteredData = data.filter(item => {
+    // Filter & Sort
+    let filteredData = aggregatedData.filter(item => {
         const query = searchQuery.toLowerCase().trim();
         const matchesSearch = !query || (
             item.productName.toLowerCase().includes(query) ||
@@ -68,15 +133,37 @@ export default function NormalCountTab() {
         return matchesSearch && matchesStatus;
     });
 
+    if (sortConfig) {
+        filteredData = [...filteredData].sort((a, b) => {
+            if (sortConfig.key === '#') return 0; // Default order
+            
+            const aVal = a[sortConfig.key];
+            const bVal = b[sortConfig.key];
+            
+            if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    const handleSort = (key: keyof ICItem) => {
+        let direction: 'asc' | 'desc' = 'asc';
+        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+            direction = 'desc';
+        }
+        setSortConfig({ key, direction });
+    };
+
     const handleExport = () => {
         const exportData = filteredData.map((item, idx) => ({
             '#': idx + 1,
+            'Product ID': item.productId,
             'Barcode': item.barcodeName,
             'Product Name': item.productName,
             'Qty in Box': item.qtyInBox,
             'Total Qty': item.totalQty
         }));
-        
+
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Normal Count');
@@ -127,11 +214,85 @@ export default function NormalCountTab() {
                     />
                 </div>
 
+                {/* User Filter Dropdown */}
+                <div className="relative">
+                    <button
+                        onClick={() => setIsUserOpen(!isUserOpen)}
+                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
+                    >
+                        <div className="flex items-center gap-2">
+                            <User className="w-4 h-4 text-slate-400" />
+                            <span className="truncate">{userFilter}</span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isUserOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isUserOpen && (
+                        <>
+                            <div className="fixed inset-0 z-10" onClick={() => setIsUserOpen(false)}></div>
+                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
+                                {uniqueUsers.map((u) => (
+                                    <button
+                                        key={u}
+                                        onClick={() => {
+                                            setUserFilter(u);
+                                            setIsUserOpen(false);
+                                        }}
+                                        className={`w-full text-left px-5 py-3 text-xs font-bold transition-all ${userFilter === u
+                                            ? 'bg-slate-900 text-white'
+                                            : 'text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {u}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+
+                {/* Warehouse Filter Dropdown */}
+                <div className="relative">
+                    <button
+                        onClick={() => setIsWarehouseOpen(!isWarehouseOpen)}
+                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
+                    >
+                        <div className="flex items-center gap-2">
+                            <Home className="w-4 h-4 text-slate-400" />
+                            <span className="truncate">{warehouseFilter}</span>
+                        </div>
+                        <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isWarehouseOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isWarehouseOpen && (
+                        <>
+                            <div className="fixed inset-0 z-10" onClick={() => setIsWarehouseOpen(false)}></div>
+                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
+                                {uniqueWarehouses.map((w) => (
+                                    <button
+                                        key={w}
+                                        onClick={() => {
+                                            setWarehouseFilter(w);
+                                            setIsWarehouseOpen(false);
+                                        }}
+                                        className={`w-full text-left px-5 py-3 text-xs font-bold transition-all ${warehouseFilter === w
+                                            ? 'bg-blue-600 text-white'
+                                            : 'text-slate-600 hover:bg-slate-50'
+                                            }`}
+                                    >
+                                        {w}
+                                    </button>
+                                ))}
+                            </div>
+                        </>
+                    )}
+                </div>
+
                 {/* Custom Modern Dropdown */}
                 <div className="relative">
                     <button
                         onClick={() => setIsStatusOpen(!isStatusOpen)}
-                        className="min-w-[180px] bg-slate-50 border border-slate-200 text-slate-700 text-[13px] font-black rounded-xl px-5 py-3 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
+                        className="w-[140px] bg-slate-50 border border-slate-200 text-slate-700 text-[11px] font-black rounded-xl px-4 py-3 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
                     >
                         <span>{currentStatus?.label}</span>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isStatusOpen ? 'rotate-180' : ''}`} />
@@ -140,7 +301,7 @@ export default function NormalCountTab() {
                     {isStatusOpen && (
                         <>
                             <div className="fixed inset-0 z-10" onClick={() => setIsStatusOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 w-full bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
+                            <div className="absolute right-0 mt-3 min-w-[140px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden">
                                 {statusOptions.map((opt) => (
                                     <button
                                         key={opt.value}
@@ -148,7 +309,7 @@ export default function NormalCountTab() {
                                             setStatusFilter(opt.value as any);
                                             setIsStatusOpen(false);
                                         }}
-                                        className={`w-full text-left px-5 py-3 text-sm font-bold transition-all ${statusFilter === opt.value
+                                        className={`w-full text-left px-5 py-3 text-[11px] font-bold transition-all ${statusFilter === opt.value
                                             ? 'bg-blue-600 text-white'
                                             : 'text-slate-600 hover:bg-slate-50'
                                             }`}
@@ -186,14 +347,41 @@ export default function NormalCountTab() {
             {/* Results Table */}
             <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                            <col style={{ width: '50px' }} />
+                            <col style={{ width: '180px' }} />
+                            <col style={{ width: '260px' }} />
+                            <col style={{ width: '100px' }} />
+                            <col style={{ width: '110px' }} />
+                        </colgroup>
                         <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                             <tr>
                                 <th className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">#</th>
-                                <th className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">Barcode Name</th>
-                                <th className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">Product Name</th>
-                                <th className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">Qty In Box</th>
-                                <th className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">Total Qty</th>
+                                <th onClick={() => handleSort('barcodeName')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                    <div className="flex items-center justify-center gap-2">
+                                        Barcode Name
+                                        <ArrowUpDown className="w-3 h-3 text-white/50" />
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('productName')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                    <div className="flex items-center justify-center gap-2">
+                                        Product Name
+                                        <ArrowUpDown className="w-3 h-3 text-white/50" />
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('qtyInBox')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                    <div className="flex items-center justify-center gap-2">
+                                        Qty In Box
+                                        <ArrowUpDown className="w-3 h-3 text-white/50" />
+                                    </div>
+                                </th>
+                                <th onClick={() => handleSort('totalQty')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                    <div className="flex items-center justify-center gap-2">
+                                        Total Qty
+                                        <ArrowUpDown className="w-3 h-3 text-white/50" />
+                                    </div>
+                                </th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -201,8 +389,8 @@ export default function NormalCountTab() {
                                 filteredData.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50/50 transition-all group">
                                         <td className="px-6 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-blue-600 transition-colors">{idx + 1}</td>
-                                        <td className="px-6 py-4 text-center text-base font-black text-slate-600 transition-colors group-hover:text-blue-700">{item.barcodeName}</td>
-                                        <td className="px-6 py-4 text-center text-sm font-black text-slate-800">{item.productName}</td>
+                                        <td className="px-6 py-4 text-center text-base font-black text-slate-600 transition-colors group-hover:text-blue-700 truncate">{item.barcodeName}</td>
+                                        <td className="px-6 py-4 text-center text-sm font-black text-slate-800 truncate">{item.productName}</td>
                                         <td className="px-6 py-4 text-center">
                                             <span className="inline-flex px-3 py-1 rounded-lg bg-slate-100 text-slate-600 text-base font-black">
                                                 {item.qtyInBox === 0 ? '-' : item.qtyInBox}

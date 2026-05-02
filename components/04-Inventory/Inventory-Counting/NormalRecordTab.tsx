@@ -27,7 +27,7 @@ export default function NormalRecordTab() {
             const res = await fetch('/api/inventory/counting/normal-record');
             const json = await res.json();
             if (json.data) {
-                setData(json.data);
+                setData([...json.data].reverse());
             } else {
                 throw new Error(json.error || 'Failed to load data');
             }
@@ -69,13 +69,14 @@ export default function NormalRecordTab() {
             'Date': item.date,
             'User': item.user,
             'Warehouse': item.warehouse,
+            'Product ID': item.productId,
             'Barcode': item.barcodeName,
             'Product Name': item.productName,
             'Qty in Box': item.qtyInBox,
             'Count Details': item.countDetails,
             'Total Qty': item.totalQty
         }));
-        
+
         const worksheet = XLSX.utils.json_to_sheet(exportData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Normal Record');
@@ -116,11 +117,11 @@ export default function NormalRecordTab() {
                 <div className="relative">
                     <button
                         onClick={() => setIsUserOpen(!isUserOpen)}
-                        className="min-w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3.5 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
+                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3.5 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
                     >
                         <div className="flex items-center gap-2">
                             <User className="w-4 h-4 text-slate-400" />
-                            <span>{userFilter}</span>
+                            <span className="truncate">{userFilter}</span>
                         </div>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isUserOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -128,7 +129,7 @@ export default function NormalRecordTab() {
                     {isUserOpen && (
                         <>
                             <div className="fixed inset-0 z-10" onClick={() => setIsUserOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 w-full bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
+                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
                                 {uniqueUsers.map((u) => (
                                     <button
                                         key={u}
@@ -153,11 +154,11 @@ export default function NormalRecordTab() {
                 <div className="relative">
                     <button
                         onClick={() => setIsWarehouseOpen(!isWarehouseOpen)}
-                        className="min-w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3.5 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
+                        className="w-[160px] bg-slate-50 border border-slate-200 text-slate-700 text-xs font-black rounded-xl px-4 py-3.5 flex items-center justify-between hover:bg-slate-100 transition-all outline-none group shadow-sm"
                     >
                         <div className="flex items-center gap-2">
                             <Home className="w-4 h-4 text-slate-400" />
-                            <span>{warehouseFilter}</span>
+                            <span className="truncate">{warehouseFilter}</span>
                         </div>
                         <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isWarehouseOpen ? 'rotate-180' : ''}`} />
                     </button>
@@ -165,7 +166,7 @@ export default function NormalRecordTab() {
                     {isWarehouseOpen && (
                         <>
                             <div className="fixed inset-0 z-10" onClick={() => setIsWarehouseOpen(false)}></div>
-                            <div className="absolute right-0 mt-3 w-full bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
+                            <div className="absolute right-0 mt-3 min-w-[160px] bg-white border border-slate-100 rounded-2xl shadow-2xl shadow-slate-200/60 py-2 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right overflow-hidden max-h-[300px] overflow-y-auto">
                                 {uniqueWarehouses.map((w) => (
                                     <button
                                         key={w}
@@ -211,7 +212,17 @@ export default function NormalRecordTab() {
             {/* Results Table */}
             <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto overflow-y-visible">
-                    <table className="w-full border-collapse">
+                    <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
+                        <colgroup>
+                            <col style={{ width: '90px' }} />
+                            <col style={{ width: '130px' }} />
+                            <col style={{ width: '100px' }} />
+                            <col style={{ width: '150px' }} />
+                            <col style={{ width: '220px' }} />
+                            <col style={{ width: '70px' }} />
+                            <col style={{ width: '160px' }} />
+                            <col style={{ width: '100px' }} />
+                        </colgroup>
                         <thead className="bg-gradient-to-r from-slate-700 to-slate-900 text-white sticky top-0 z-10">
                             <tr>
                                 <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white/90">Date</th>
@@ -247,10 +258,10 @@ export default function NormalRecordTab() {
                                             </span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
-                                            <span className="text-xs font-black text-slate-700">{item.barcodeName}</span>
+                                            <span className="text-[11px] font-bold text-slate-700 truncate block">{item.barcodeName}</span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
-                                            <span className="text-xs font-black text-slate-800 leading-tight">{item.productName}</span>
+                                            <span className="text-xs font-black text-slate-800 leading-tight truncate block">{item.productName}</span>
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             <span className="text-sm font-bold text-slate-600">{item.qtyInBox === 0 ? '-' : item.qtyInBox}</span>
