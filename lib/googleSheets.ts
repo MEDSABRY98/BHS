@@ -4543,11 +4543,13 @@ export interface ICItem {
   productId: string;
   barcodeName: string;
   productName: string;
+  availableQty: number;
   qtyInBox: number;
-  totalQty: number;
+  countedQty: number;
 }
 
 export interface ICRecord {
+  rowId: string;
   date: string;
   user: string;
   warehouse: string;
@@ -4556,7 +4558,7 @@ export interface ICRecord {
   productName: string;
   qtyInBox: number;
   countDetails: string;
-  totalQty: number;
+  countedQty: number;
 }
 
 export async function getNormalICTotal(): Promise<ICItem[]> {
@@ -4586,7 +4588,7 @@ async function fetchICItems(sheetName: string): Promise<ICItem[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetName}'!A:E`, // PRODUCT ID, BARCODE NAME, PRODUCT NAME, QTY IN BOX, TOTAL QTY
+      range: `'${sheetName}'!A:F`, // PRODUCT ID, BARCODE NAME, PRODUCT NAME, AVAILABLE QTY, QTY IN BOX, COUNTED QTY
     });
 
     const rows = response.data.values;
@@ -4596,8 +4598,9 @@ async function fetchICItems(sheetName: string): Promise<ICItem[]> {
       productId: row[0] || '',
       barcodeName: row[1] || '',
       productName: row[2] || '',
-      qtyInBox: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
-      totalQty: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+      availableQty: parseFloat(row[3]?.toString().replace(/,/g, '') || '0'),
+      qtyInBox: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
+      countedQty: parseFloat(row[5]?.toString().replace(/,/g, '') || '0'),
     })).filter(item => item.productName);
   } catch (error) {
     console.error(`Error fetching ${sheetName}:`, error);
@@ -4616,22 +4619,23 @@ async function fetchICRecords(sheetName: string): Promise<ICRecord[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'${sheetName}'!A:I`, // DATE, USER, WAREHOUSE, PRODUCT ID, BARCODE NAME, PRODUCT NAME, QTY IN BOX, COUNT DETAILS, TOTAL QTY
+      range: `'${sheetName}'!A:J`, // ROW ID, DATE, USER, WAREHOUSE, PRODUCT ID, BARCODE NAME, PRODUCT NAME, QTY IN BOX, COUNT DETAILS, COUNTED QTY
     });
 
     const rows = response.data.values;
     if (!rows || rows.length < 2) return [];
 
     return rows.slice(1).map(row => ({
-      date: row[0] || '',
-      user: row[1] || '',
-      warehouse: row[2] || '',
-      productId: row[3] || '',
-      barcodeName: row[4] || '',
-      productName: row[5] || '',
-      qtyInBox: parseFloat(row[6]?.toString().replace(/,/g, '') || '0'),
-      countDetails: row[7] || '',
-      totalQty: parseFloat(row[8]?.toString().replace(/,/g, '') || '0'),
+      rowId: row[0] || '',
+      date: row[1] || '',
+      user: row[2] || '',
+      warehouse: row[3] || '',
+      productId: row[4] || '',
+      barcodeName: row[5] || '',
+      productName: row[6] || '',
+      qtyInBox: parseFloat(row[7]?.toString().replace(/,/g, '') || '0'),
+      countDetails: row[8] || '',
+      countedQty: parseFloat(row[9]?.toString().replace(/,/g, '') || '0'),
     })).filter(record => record.productName);
   } catch (error) {
     console.error(`Error fetching ${sheetName}:`, error);

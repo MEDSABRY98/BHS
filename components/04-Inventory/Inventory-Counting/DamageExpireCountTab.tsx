@@ -79,24 +79,25 @@ export default function DamageExpireCountTab() {
         // Group by product ID
         const map = new Map<string, ICItem>();
         
-        // Initialize with all known products but 0 qty
+        // Initialize with all known products but 0 counted qty
         data.forEach(item => {
-            map.set(item.productId, { ...item, totalQty: 0 });
+            map.set(item.productId, { ...item, countedQty: 0 });
         });
 
         // Sum up from records
         filteredRecords.forEach(r => {
             const existing = map.get(r.productId);
             if (existing) {
-                existing.totalQty += r.totalQty;
+                existing.countedQty += r.countedQty;
             } else {
                 // If product not in totals sheet (unlikely)
                 map.set(r.productId, {
                     productId: r.productId,
                     barcodeName: r.barcodeName,
                     productName: r.productName,
+                    availableQty: 0,
                     qtyInBox: r.qtyInBox,
-                    totalQty: r.totalQty
+                    countedQty: r.countedQty
                 });
             }
         });
@@ -108,8 +109,8 @@ export default function DamageExpireCountTab() {
 
     // Stats
     const totalItems = aggregatedData.length;
-    const countedItems = aggregatedData.filter(item => item.totalQty > 0).length;
-    const pendingItems = aggregatedData.filter(item => item.totalQty === 0).length;
+    const countedItems = aggregatedData.filter(item => item.countedQty > 0).length;
+    const pendingItems = aggregatedData.filter(item => item.countedQty === 0).length;
 
     const statusOptions = [
         { value: 'All', label: 'All Items' },
@@ -128,7 +129,7 @@ export default function DamageExpireCountTab() {
         );
 
         const matchesStatus = statusFilter === 'All' ||
-            (statusFilter === 'Counted' ? item.totalQty > 0 : item.totalQty === 0);
+            (statusFilter === 'Counted' ? item.countedQty > 0 : item.countedQty === 0);
 
         return matchesSearch && matchesStatus;
     });
@@ -160,8 +161,10 @@ export default function DamageExpireCountTab() {
             'Product ID': item.productId,
             'Barcode': item.barcodeName,
             'Product Name': item.productName,
+            'Available Qty': item.availableQty,
             'Qty in Box': item.qtyInBox,
-            'Total Qty': item.totalQty
+            'Counted Qty': item.countedQty,
+            'Diff': item.countedQty - item.availableQty
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -350,37 +353,48 @@ export default function DamageExpireCountTab() {
                     <table className="w-full" style={{ tableLayout: 'fixed' }}>
                         <colgroup>
                             <col style={{ width: '50px' }} />
-                            <col style={{ width: '180px' }} />
-                            <col style={{ width: '260px' }} />
+                            <col style={{ width: '150px' }} />
+                            <col style={{ width: '220px' }} />
                             <col style={{ width: '100px' }} />
-                            <col style={{ width: '110px' }} />
+                            <col style={{ width: '90px' }} />
+                            <col style={{ width: '100px' }} />
+                            <col style={{ width: '100px' }} />
                         </colgroup>
                         <thead className="bg-gradient-to-r from-red-600 to-rose-600 text-white">
                             <tr>
-                                <th className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">#</th>
-                                <th onClick={() => handleSort('barcodeName')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">#</th>
+                                <th onClick={() => handleSort('barcodeName')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
-                                        Barcode Name
+                                        Barcode
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('productName')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('productName')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
                                         Product Name
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('qtyInBox')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('availableQty')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
-                                        Qty In Box
+                                        Available
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
                                 </th>
-                                <th onClick={() => handleSort('totalQty')} className="px-6 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                <th onClick={() => handleSort('qtyInBox')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
                                     <div className="flex items-center justify-center gap-2">
-                                        Total Qty
+                                        In Box
                                         <ArrowUpDown className="w-3 h-3 text-white/50" />
                                     </div>
+                                </th>
+                                <th onClick={() => handleSort('countedQty')} className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90 cursor-pointer hover:bg-white/10 transition-colors">
+                                    <div className="flex items-center justify-center gap-2">
+                                        Counted
+                                        <ArrowUpDown className="w-3 h-3 text-white/50" />
+                                    </div>
+                                </th>
+                                <th className="px-4 py-5 text-center text-xs font-black uppercase tracking-widest text-white/90">
+                                    Diff
                                 </th>
                             </tr>
                         </thead>
@@ -388,24 +402,45 @@ export default function DamageExpireCountTab() {
                             {filteredData.length > 0 ? (
                                 filteredData.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-red-50/50 transition-all group">
-                                        <td className="px-6 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-red-600 transition-colors">{idx + 1}</td>
-                                        <td className="px-6 py-4 text-center text-base font-black text-slate-600 transition-colors group-hover:text-red-700 truncate">{item.barcodeName}</td>
-                                        <td className="px-6 py-4 text-center text-sm font-black text-slate-800 truncate">{item.productName}</td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex px-3 py-1 rounded-lg bg-slate-100 text-slate-600 text-base font-black">
+                                        <td className="px-4 py-4 text-center text-sm font-bold text-slate-400 group-hover:text-red-600 transition-colors">{idx + 1}</td>
+                                        <td className="px-4 py-4 text-center text-sm font-black text-slate-600 transition-colors group-hover:text-red-700 truncate">{item.barcodeName}</td>
+                                        <td className="px-4 py-4 text-center text-xs font-black text-slate-800 truncate">{item.productName}</td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="text-sm font-bold text-slate-600">
+                                                {item.availableQty.toLocaleString()}
+                                            </span>
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            <span className="inline-flex px-2 py-1 rounded-lg bg-slate-100 text-slate-600 text-sm font-black">
                                                 {item.qtyInBox === 0 ? '-' : item.qtyInBox}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 text-center">
-                                            <span className="inline-flex px-4 py-1.5 rounded-xl bg-red-50 text-red-700 text-lg font-black border border-red-100 shadow-sm">
-                                                {item.totalQty === 0 ? '-' : item.totalQty.toLocaleString()}
+                                        <td className="px-4 py-4 text-center">
+                                            <span className={`inline-flex px-3 py-1.5 rounded-xl text-sm font-black border shadow-sm ${
+                                                item.countedQty > 0 ? 'bg-red-50 text-red-700 border-red-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                                            }`}>
+                                                {item.countedQty === 0 ? '-' : item.countedQty.toLocaleString()}
                                             </span>
+                                        </td>
+                                        <td className="px-4 py-4 text-center">
+                                            {item.countedQty > 0 ? (
+                                                <span className={`text-sm font-black ${
+                                                    item.countedQty - item.availableQty === 0 
+                                                        ? 'text-emerald-600' 
+                                                        : (item.countedQty - item.availableQty < 0 ? 'text-red-600' : 'text-blue-600')
+                                                }`}>
+                                                    {item.countedQty - item.availableQty > 0 ? '+' : ''}
+                                                    {(item.countedQty - item.availableQty).toLocaleString()}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-300">-</span>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
                             ) : (
                                 <tr>
-                                    <td colSpan={5} className="py-20">
+                                    <td colSpan={7} className="py-20">
                                         <NoData title="No Data Found" message={searchQuery ? "No results match your search query." : "No damage/expire counting data available."} />
                                     </td>
                                 </tr>

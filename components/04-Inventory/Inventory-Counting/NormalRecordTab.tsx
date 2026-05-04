@@ -66,6 +66,7 @@ export default function NormalRecordTab() {
     const handleExport = () => {
         const exportData = filteredData.map((item, idx) => ({
             '#': idx + 1,
+            'Row ID': item.rowId,
             'Date': item.date,
             'User': item.user,
             'Warehouse': item.warehouse,
@@ -74,7 +75,7 @@ export default function NormalRecordTab() {
             'Product Name': item.productName,
             'Qty in Box': item.qtyInBox,
             'Count Details': item.countDetails,
-            'Total Qty': item.totalQty
+            'Counted Qty': item.countedQty
         }));
 
         const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -232,7 +233,7 @@ export default function NormalRecordTab() {
                                 <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white/90">Product Name</th>
                                 <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white/90">In Box</th>
                                 <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white/90">Details</th>
-                                <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white/90">Total</th>
+                                <th className="px-4 py-5 text-center text-[10px] font-black uppercase tracking-widest text-white/90">Counted</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
@@ -273,7 +274,7 @@ export default function NormalRecordTab() {
                                         </td>
                                         <td className="px-4 py-4 text-center">
                                             <span className="inline-flex px-3 py-1 rounded-lg bg-blue-50 text-blue-700 text-sm font-black border border-blue-100 shadow-sm">
-                                                {item.totalQty === 0 ? '-' : item.totalQty.toLocaleString()}
+                                                {item.countedQty === 0 ? '-' : item.countedQty.toLocaleString()}
                                             </span>
                                         </td>
                                     </tr>
