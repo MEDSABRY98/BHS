@@ -11,6 +11,7 @@ import {
 import NoData from './01-Unified/NoDataTab';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
+import * as XLSX from 'xlsx';
 
 interface SalesST_ByCustomersProps {
   data: SalesInvoice[];
@@ -43,6 +44,7 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
   const [generationProgress, setGenerationProgress] = useState({ current: 0, total: 0 });
   const [showDownloadModal, setShowDownloadModal] = useState(false);
   const [selectedCustomerForPriceList, setSelectedCustomerForPriceList] = useState<string | null>(null);
+  const [selectedCustomerForAnalysis, setSelectedCustomerForAnalysis] = useState<string | null>(null);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -102,6 +104,7 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
     try {
       setIsGenerating(true);
       setSelectedCustomerForPriceList(null);
+      setSelectedCustomerForAnalysis(null);
       const productsToPrint = customer.products.map(p => ({
         barcode: p.barcode,
         product: p.product,
@@ -119,6 +122,36 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
         await generateSalesStockFormPDF(customer.customer, productsToPrint as any, false);
       }
     } catch (error) { console.error(error); } finally { setIsGenerating(false); }
+  };
+
+  const handleExportAnalysisExcel = (customerName: string) => {
+    const customer = customersData.find(c => c.customer === customerName);
+    if (!customer) return;
+
+    const exportData = customer.products.map((p, index) => {
+      const frequent = calculateMode(p.prices);
+      const recent = p.prices[p.prices.length - 1] || 0;
+      const cost = p.cost;
+      const diff = frequent - cost;
+      const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
+
+      return {
+        '#': index + 1,
+        'Barcode': p.barcode,
+        'Product': p.product,
+        'Most Price': frequent,
+        'Last Price': recent,
+        'Cost': cost,
+        'Diff': diff,
+        '%': `${margin.toFixed(1)}%`
+      };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Analysis');
+    XLSX.writeFile(wb, `Sales_Analysis_${customerName}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    setSelectedCustomerForAnalysis(null);
   };
 
   const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'last' = 'most') => {
@@ -240,7 +273,7 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
                     </td>
                     <td className="py-3 px-8 text-center">
                       <button
-                        onClick={() => handleDownload(c.customer, 'analysis')}
+                        onClick={() => setSelectedCustomerForAnalysis(c.customer)}
                         disabled={isGenerating}
                         className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-emerald-600 hover:text-white hover:border-emerald-600 transition-all font-bold text-[10px] uppercase tracking-wider flex items-center justify-center gap-2 mx-auto disabled:opacity-30"
                       >
@@ -284,6 +317,43 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
 
               <button
                 onClick={() => setSelectedCustomerForPriceList(null)}
+                className="mt-6 w-full text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {selectedCustomerForAnalysis && (
+          <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedCustomerForAnalysis(null)} />
+            <div className="relative bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
+              <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <Search className="w-8 h-8 text-blue-600" />
+              </div>
+              <h2 className="text-xl font-black text-slate-900 text-center mb-1 tracking-tight">Export Analysis</h2>
+              <p className="text-slate-500 text-center text-[10px] font-bold uppercase tracking-widest mb-8">{selectedCustomerForAnalysis}</p>
+
+              <div className="grid grid-cols-1 gap-3">
+                <button
+                  onClick={() => handleDownload(selectedCustomerForAnalysis, 'analysis')}
+                  className="w-full py-4 bg-rose-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-rose-700 transition-all shadow-lg flex items-center justify-center gap-3 group"
+                >
+                  <FileText className="w-4 h-4" />
+                  <span>PDF</span>
+                </button>
+                <button
+                  onClick={() => handleExportAnalysisExcel(selectedCustomerForAnalysis)}
+                  className="w-full py-4 bg-emerald-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-emerald-700 transition-all shadow-lg flex items-center justify-center gap-3 group"
+                >
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span>EXCEL</span>
+                </button>
+              </div>
+
+              <button
+                onClick={() => setSelectedCustomerForAnalysis(null)}
                 className="mt-6 w-full text-[10px] font-black text-slate-400 hover:text-slate-600 uppercase tracking-widest transition-colors"
               >
                 Cancel
