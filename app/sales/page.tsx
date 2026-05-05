@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import SalesOverviewTab from '@/components/SalesOverviewTab';
-import SalesTop10Tab from '@/components/SalesTop10Tab';
-import SalesCustomersTab from '@/components/SalesCustomersTab';
-import SalesInactiveCustomersTab from '@/components/SalesInactiveCustomersTab';
-import SalesStatisticsTab from '@/components/SalesStatisticsTab';
-import SalesDailySalesTab from '@/components/SalesDailySalesTab';
-import SalesProductsTab from '@/components/SalesProductsTab';
-import SalesStockReportTab from '@/components/SalesStockReportTab';
+import SalesOverviewTab from '@/components/05-Sales/SalesOverviewTab';
+import SalesTop10Tab from '@/components/05-Sales/SalesTop10Tab';
+import SalesCustomersTab from '@/components/05-Sales/SalesCustomersTab';
+import SalesInactiveCustomersTab from '@/components/05-Sales/SalesInactiveCustomersTab';
+import SalesStatisticsTab from '@/components/05-Sales/SalesStatisticsTab';
+import SalesDailySalesTab from '@/components/05-Sales/SalesDailySalesTab';
+import SalesProductsTab from '@/components/05-Sales/SalesProductsTab';
+import SalesStockReportTab from '@/components/05-Sales/SalesStockReportTab';
 
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
@@ -136,6 +136,28 @@ export default function SalesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [showArrows, setShowArrows] = useState(false);
+
+  // Check for tab overflow
+  useEffect(() => {
+    const checkOverflow = () => {
+      if (tabsRef.current) {
+        const hasOverflow = tabsRef.current.scrollHeight > tabsRef.current.clientHeight;
+        setShowArrows(hasOverflow);
+      }
+    };
+
+    checkOverflow();
+    window.addEventListener('resize', checkOverflow);
+    
+    // Also check after a short delay to ensure rendering is complete
+    const timer = setTimeout(checkOverflow, 100);
+    
+    return () => {
+      window.removeEventListener('resize', checkOverflow);
+      clearTimeout(timer);
+    };
+  }, [data, currentUser, isAuthenticated]);
 
   // Load mapping from localStorage on mount
   useEffect(() => {
@@ -539,12 +561,26 @@ export default function SalesPage() {
 
     switch (activeTab) {
       case 'sales-overview':
-        return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
+        return (
+          <SalesOverviewTab 
+            data={globallyFilteredData} 
+            allData={geographyFilteredData}
+            loading={loading} 
+            selectedYear={filterYear}
+          />
+        );
       case 'sales-top10':
         return <SalesTop10Tab data={globallyFilteredData} loading={loading} />;
 
       case 'sales-customers':
-        return <SalesCustomersTab data={globallyFilteredData} loading={loading} onUploadMapping={handleUploadMapping} />;
+        return (
+          <SalesCustomersTab 
+            data={globallyFilteredData} 
+            allData={geographyFilteredData}
+            loading={loading} 
+            onUploadMapping={handleUploadMapping} 
+          />
+        );
 
       case 'sales-inactive-customers':
         return (
@@ -562,12 +598,19 @@ export default function SalesPage() {
       case 'sales-daily-sales':
         return <SalesDailySalesTab data={globallyFilteredData} loading={loading} />;
       case 'sales-products':
-        return <SalesProductsTab data={globallyFilteredData} loading={loading} />;
+        return <SalesProductsTab data={globallyFilteredData} allData={geographyFilteredData} loading={loading} />;
 
       case 'sales-download-form':
         return <SalesStockReportTab data={globallyFilteredData} loading={loading} />;
       default:
-        return <SalesOverviewTab data={globallyFilteredData} loading={loading} />;
+        return (
+          <SalesOverviewTab 
+            data={globallyFilteredData} 
+            allData={geographyFilteredData}
+            loading={loading} 
+            selectedYear={filterYear}
+          />
+        );
     }
   };
 
@@ -657,22 +700,24 @@ export default function SalesPage() {
               })}
             </div>
 
-            <div className="flex flex-col gap-1 shrink-0">
-              <button
-                onClick={() => tabsRef.current?.scrollBy({ top: -42, behavior: 'smooth' })}
-                className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
-                title="Scroll Up"
-              >
-                <ChevronUp className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => tabsRef.current?.scrollBy({ top: 42, behavior: 'smooth' })}
-                className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
-                title="Scroll Down"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-            </div>
+            {showArrows && (
+              <div className="flex flex-col gap-1 shrink-0">
+                <button
+                  onClick={() => tabsRef.current?.scrollBy({ top: -42, behavior: 'smooth' })}
+                  className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
+                  title="Scroll Up"
+                >
+                  <ChevronUp className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => tabsRef.current?.scrollBy({ top: 42, behavior: 'smooth' })}
+                  className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
+                  title="Scroll Down"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Right Spacer / User */}
@@ -688,7 +733,6 @@ export default function SalesPage() {
               >
                 <div className="flex items-center gap-2">
                   <Filter className={`w-5 h-5 transition-transform group-hover:scale-110 ${hasAnyFilter ? 'animate-pulse' : ''}`} />
-                  <span className="text-sm font-bold hidden sm:inline uppercase tracking-widest">Filters</span>
                 </div>
                 {hasAnyFilter && (
                   <span className="absolute -top-1 -right-1 w-3.5 h-3.5 bg-red-500 rounded-full border-2 border-white shadow-sm" />

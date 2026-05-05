@@ -5,23 +5,28 @@ import { SalesInvoice } from '@/lib/googleSheets';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
-  LineChart,
-  Line,
+  ComposedChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Cell,
+  LabelList,
+  Line,
 } from 'recharts';
 
 interface SalesOverviewTabProps {
   data: SalesInvoice[];
+  allData: SalesInvoice[]; // Data filtered by geography but not by time
   loading: boolean;
+  selectedYear?: string;
 }
 
 
-export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProps) {
+export default function SalesOverviewTab({ data, allData, loading, selectedYear }: SalesOverviewTabProps) {
   const metrics = useMemo(() => {
     if (!data || data.length === 0) {
       return {
@@ -155,42 +160,74 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
     return result;
   }, [data]);
 
-  // Chart data for monthly sales - show last 12 months only, reverse order for chart (oldest to newest for better visualization)
+  // Chart data for monthly sales - show Jan-Dec of the main year
   const chartData = useMemo(() => {
-    // monthlySales already contains exactly last 12 months
-    const chartRes = monthlySales.map((item, index) => {
-      // Calculate difference from previous month for amount
-      const previousAmount = index > 0 ? monthlySales[index - 1].amount : item.amount;
-      const amountDiff = item.amount - previousAmount;
+    if (allData.length === 0) return [];
 
-      // Calculate difference from previous month for quantity
-      const previousQty = index > 0 ? monthlySales[index - 1].qty : item.qty;
-      const qtyDiff = item.qty - previousQty;
-
-      return {
-        month: item.month,
-        amount: item.amount,
-        amountDiff: amountDiff,
-        qty: item.qty,
-        qtyDiff: qtyDiff,
-        isNegativeAmount: item.amount < 0,
-        isNegativeAmountDiff: amountDiff < 0,
-        isNegativeQty: item.qty < 0,
-        isNegativeQtyDiff: qtyDiff < 0,
-        isMaxMonth: false,
-      };
+    const monthMap = new Map<string, { amount: number; qty: number }>();
+    allData.forEach(item => {
+      if (!item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const existing = monthMap.get(key) || { amount: 0, qty: 0 };
+      existing.amount += item.amount;
+      existing.qty += item.qty;
+      monthMap.set(key, existing);
     });
 
-    // Find max month by amount (highest positive amount, or least negative if all negative)
-    if (chartRes.length > 0) {
-      const maxAmount = Math.max(...chartRes.map(d => d.amount));
-      chartRes.forEach(item => {
-        item.isMaxMonth = item.amount === maxAmount;
+    // Determine the target year
+    let targetYear: number;
+    if (selectedYear) {
+      targetYear = parseInt(selectedYear, 10);
+    } else {
+      const allKeys = Array.from(monthMap.keys()).sort();
+      const latestKey = allKeys[allKeys.length - 1];
+      targetYear = parseInt(latestKey.split('-')[0], 10);
+    }
+
+    const prevYear = targetYear - 1;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth() + 1;
+    const result = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const currKey = `${targetYear}-${String(m).padStart(2, '0')}`;
+      const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+
+      const currData = monthMap.get(currKey) || { amount: 0, qty: 0 };
+      const prevData = monthMap.get(prevKey) || { amount: 0, qty: 0 };
+
+      const diff = currData.amount - prevData.amount;
+      const percent = prevData.amount !== 0 ? (diff / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+
+      const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
+
+      result.push({
+        month: monthNames[m - 1],
+        year: String(targetYear).slice(-2),
+        prevYear: String(prevYear).slice(-2),
+        currentAmount: currData.amount,
+        prevAmount: prevData.amount,
+        diff,
+        percent,
+        isPositive: diff >= 0,
+        isFuture,
+        legendCurr: String(targetYear),
+        legendPrev: String(prevYear)
       });
     }
 
-    return chartRes;
-  }, [monthlySales]);
+    const maxAmount = Math.max(...result.map(r => Math.max(r.currentAmount, r.prevAmount)));
+    result.forEach(r => {
+      // @ts-ignore
+      r.topBaseline = maxAmount * 1.25;
+    });
+
+    return result;
+  }, [allData, selectedYear]);
 
   // Yearly sales table data - sorted newest to oldest
   const yearlyTableData = useMemo(() => {
@@ -520,340 +557,186 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
         </div>
       </div>
 
-      {/* Monthly Sales Chart */}
-      <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-        <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Trend</h2>
+      {/* Monthly Sales Comparison Chart */}
+      <div className="bg-white rounded-xl shadow-lg p-6 mb-8 overflow-hidden">
+        <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Performance Comparison</h2>
         {chartData.length > 0 ? (
-          <div className="space-y-6">
-            {/* Amount Chart */}
-            <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Amount</h3>
-              <div className="relative" style={{ height: '380px' }}>
-                {/* Top labels row with connecting lines */}
-                <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
-                  <div className="relative w-full h-full">
-                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                      {chartData.map((item, index) => {
-                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
+          <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
+            <div className="relative w-full" style={{ height: '550px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={chartData}
+                  margin={{ top: 80, right: 30, left: 40, bottom: 20 }}
+                  barGap={8}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis
+                    dataKey="month"
+                    stroke="#475569"
+                    style={{ fontSize: '15px', fontWeight: 900 }}
+                    tickLine={false}
+                    axisLine={false}
+                    dy={10}
+                  />
+                  <YAxis hide={true} domain={[0, 'auto']} />
+                  <Tooltip
+                    content={(props: any) => {
+                      const { active, payload, label } = props;
+                      if (active && payload && payload.length > 0) {
+                        const data = payload[0].payload;
+                        const isPositive = data.isPositive;
                         return (
-                          <line
-                            key={index}
-                            x1={`${xPercent}%`}
-                            y1="30"
-                            x2={`${xPercent}%`}
-                            y2="12"
-                            stroke="#d1d5db"
-                            strokeWidth="1"
-                            strokeDasharray="2,2"
-                          />
-                        );
-                      })}
-                    </svg>
-                    <div className="relative w-full" style={{ height: '30px' }}>
-                      {chartData.map((item, index) => {
-                        const value = item.amount;
-                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                        const isNegative = value < 0;
-                        return (
-                          <div
-                            key={index}
-                            className="absolute text-base font-bold text-center"
-                            style={{
-                              left: `${xPercent}%`,
-                              transform: 'translateX(-50%)',
-                              top: 0,
-                              color: isNegative ? '#ef4444' : '#374151'
-                            }}
-                          >
-                            {value.toLocaleString('en-US', {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0
-                            })}
+                          <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
+                            <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
+                            <div className="space-y-2 text-sm">
+                              <div>
+                                <span className="text-gray-500 font-medium w-20 inline-block">{data.legendPrev}:</span>
+                                <span className="font-bold text-slate-700">
+                                  {data.prevAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 font-medium w-20 inline-block">{data.legendCurr}:</span>
+                                <span className="font-bold text-blue-600">
+                                  {data.currentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 font-medium w-20 inline-block">Diff:</span>
+                                <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {isPositive ? '+' : '-'}{Math.abs(data.diff).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-gray-500 font-medium w-20 inline-block">Growth:</span>
+                                <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {isPositive ? '+' : '-'}{data.percent.toFixed(1)}%
+                                </span>
+                              </div>
+                            </div>
                           </div>
                         );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart
-                    data={chartData}
-                    margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      stroke="#6b7280"
-                      style={{ fontSize: '16px', fontWeight: 700 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis
-                      stroke="#9ca3af"
-                      style={{ fontSize: '11px' }}
-                      tickFormatter={() => ''}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={['auto', 'auto']}
-                      hide={true}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: 'none',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                        padding: '12px'
-                      }}
-                      formatter={(value: number, name: string, props: any) => {
-                        const isNegative = value < 0;
-                        const displayName = name === 'Difference from Previous Month' || name === 'amountDiff' ? 'DIFF' : 'Amount';
-                        return [
-                          <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                            {value.toLocaleString('en-US', {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0
-                            })}
-                          </span>,
-                          displayName
-                        ];
-                      }}
-                      labelStyle={{
-                        color: '#374151',
-                        fontWeight: 600,
-                        marginBottom: '8px'
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="amount"
-                      stroke="#10b981"
-                      strokeWidth={3}
-                      name="Amount"
-                      style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
-                      dot={(props: any) => {
-                        const { cx, cy, payload } = props;
-                        const isNegative = payload?.isNegativeAmount;
-                        const isMaxMonth = payload?.isMaxMonth;
-                        const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                        return (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={radius}
-                            fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
-                            stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
-                            strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                            style={{
-                              filter: isMaxMonth
-                                ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
-                                : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
-                            }}
-                          />
-                        );
-                      }}
-                      activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="amountDiff"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      name="Difference from Previous Month"
-                      dot={(props: any) => {
-                        const { cx, cy, payload } = props;
-                        const isNegative = payload?.isNegativeAmountDiff;
-                        return (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={4}
-                            fill={isNegative ? "#ef4444" : "#10b981"}
-                            stroke={isNegative ? "#dc2626" : "#059669"}
-                            strokeWidth={isNegative ? 2 : 0}
-                            style={{
-                              filter: isNegative
-                                ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
-                                : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
-                            }}
-                          />
-                        );
-                      }}
-                      activeDot={{ r: 6, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
+                      }
+                      return null;
+                    }}
+                  />
+                  <Legend verticalAlign="top" height={36} />
 
-            {/* Quantity Chart */}
-            <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
-              <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Quantity</h3>
-              <div className="relative" style={{ height: '380px' }}>
-                {/* Top labels row with connecting lines */}
-                <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
-                  <div className="relative w-full h-full">
-                    <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                      {chartData.map((item, index) => {
-                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                        return (
-                          <line
-                            key={index}
-                            x1={`${xPercent}%`}
-                            y1="30"
-                            x2={`${xPercent}%`}
-                            y2="12"
-                            stroke="#d1d5db"
-                            strokeWidth="1"
-                            strokeDasharray="2,2"
-                          />
-                        );
-                      })}
-                    </svg>
-                    <div className="relative w-full" style={{ height: '30px' }}>
-                      {chartData.map((item, index) => {
-                        const value = item.qty;
-                        const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                        const isNegative = value < 0;
-                        return (
-                          <div
-                            key={index}
-                            className="absolute text-base font-bold text-center"
-                            style={{
-                              left: `${xPercent}%`,
-                              transform: 'translateX(-50%)',
-                              top: 0,
-                              color: isNegative ? '#ef4444' : '#374151'
-                            }}
-                          >
-                            {value.toLocaleString('en-US', {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0
-                            })}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <ResponsiveContainer width="100%" height={350}>
-                  <LineChart
-                    data={chartData}
-                    margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
+                  {/* Previous Year Bar */}
+                  <Bar
+                    dataKey="prevAmount"
+                    name={chartData[0]?.legendPrev || "Last Year"}
+                    fill="#cbd5e1"
+                    radius={[4, 4, 0, 0]}
+                    barSize={45}
                   >
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                    <XAxis
-                      dataKey="month"
-                      stroke="#6b7280"
-                      style={{ fontSize: '16px', fontWeight: 700 }}
-                      tickLine={false}
-                      axisLine={false}
+                    <LabelList
+                      dataKey="prevAmount"
+                      position="top"
+                      formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                      style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
+                      offset={10}
                     />
-                    <YAxis
-                      stroke="#9ca3af"
-                      style={{ fontSize: '11px' }}
-                      tickFormatter={() => ''}
-                      tickLine={false}
-                      axisLine={false}
-                      domain={['auto', 'auto']}
-                      hide={true}
+                  </Bar>
+
+                  {/* Current Year Bar */}
+                  <Bar
+                    dataKey="currentAmount"
+                    name={chartData[0]?.legendCurr || "Current Year"}
+                    fill="#10b981"
+                    radius={[4, 4, 0, 0]}
+                    barSize={45}
+                  >
+                    <LabelList
+                      dataKey="currentAmount"
+                      position="top"
+                      formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                      style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
+                      offset={10}
                     />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#ffffff',
-                        border: 'none',
-                        borderRadius: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                        padding: '12px'
-                      }}
-                      formatter={(value: number, name: string, props: any) => {
-                        const isNegative = value < 0;
-                        const displayName = name === 'Difference from Previous Month' || name === 'qtyDiff' ? 'DIFF' : 'Quantity';
-                        return [
-                          <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                            {value.toLocaleString('en-US', {
-                              minimumFractionDigits: 0,
-                              maximumFractionDigits: 0
-                            })}
-                          </span>,
-                          displayName
-                        ];
-                      }}
-                      labelStyle={{
-                        color: '#374151',
-                        fontWeight: 600,
-                        marginBottom: '8px'
-                      }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="qty"
-                      stroke="#3b82f6"
-                      strokeWidth={3}
-                      style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
-                      dot={(props: any) => {
-                        const { cx, cy, payload } = props;
-                        const isNegative = payload?.isNegativeQty;
-                        const isMaxMonth = payload?.isMaxMonth;
-                        const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
+
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.isPositive ? '#10b981' : '#f43f5e'} />
+                    ))}
+                  </Bar>
+
+                  {/* Top Row Performance Labels (Centered using a hidden line) */}
+                  <Line
+                    type="monotone"
+                    dataKey="topBaseline"
+                    stroke="none"
+                    dot={false}
+                    activeDot={false}
+                    legendType="none"
+                  >
+                    <LabelList
+                      dataKey="diff"
+                      content={(props: any) => {
+                        const { x, index } = props;
+                        const entry = chartData[index];
+                        if (!entry) return null;
+
+                        const isPositive = entry.isPositive;
+                        const isFuture = entry.isFuture && entry.currentAmount === 0;
+                        const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
+                        
+                        const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diff).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
+                        const percentStr = isFuture ? '' : (entry.percent.toFixed(1) + '%');
+
                         return (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={radius}
-                            fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
-                            stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
-                            strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                            style={{
-                              filter: isMaxMonth
-                                ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
-                                : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
-                            }}
-                          />
+                          <g style={{ pointerEvents: 'none' }}>
+                            {/* Card Background */}
+                            <rect 
+                              x={x - 45} 
+                              y={10} 
+                              width={90} 
+                              height={55} 
+                              rx={12} 
+                              fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')} 
+                              stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')}
+                              strokeWidth={1.5}
+                              className="shadow-sm"
+                            />
+                            {/* Difference Text */}
+                            <text 
+                              x={x} 
+                              y={isFuture ? 42 : 35} 
+                              fill={color} 
+                              textAnchor="middle" 
+                              style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}
+                            >
+                              {diffStr}
+                            </text>
+                            {/* Percentage Text */}
+                            {!isFuture && (
+                              <text 
+                                x={x} 
+                                y={55} 
+                                fill={color} 
+                                textAnchor="middle" 
+                                style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}
+                              >
+                                {percentStr}
+                              </text>
+                            )}
+                          </g>
                         );
                       }}
-                      activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
                     />
-                    <Line
-                      type="monotone"
-                      dataKey="qtyDiff"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      name="Difference from Previous Month"
-                      dot={(props: any) => {
-                        const { cx, cy, payload } = props;
-                        const isNegative = payload?.isNegativeQtyDiff;
-                        return (
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={4}
-                            fill={isNegative ? "#ef4444" : "#10b981"}
-                            stroke={isNegative ? "#dc2626" : "#059669"}
-                            strokeWidth={isNegative ? 2 : 0}
-                            style={{
-                              filter: isNegative
-                                ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))'
-                                : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))'
-                            }}
-                          />
-                        );
-                      }}
-                      activeDot={{ r: 6, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+                  </Line>
+                </ComposedChart>
+              </ResponsiveContainer>
             </div>
           </div>
         ) : (
-          <div className="flex items-center justify-center h-96 text-gray-500">
-            <p>No sales data available for chart</p>
+          <div className="h-64 flex items-center justify-center">
+            <NoData />
           </div>
         )}
       </div>
+
+
+
 
       {/* Yearly Sales Table */}
       <div className="bg-white rounded-xl shadow-md p-6 mb-8">
@@ -868,18 +751,18 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Year</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Change</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net QTY</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cust. Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Year</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Change</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Net QTY</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cust. Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Sales Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Sales Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">GRV Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">GRV Count</th>
               </tr>
             </thead>
             <tbody>
@@ -955,18 +838,18 @@ export default function SalesOverviewTab({ data, loading }: SalesOverviewTabProp
           </button>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="border-b-2 border-gray-200">
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Month</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net Change</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Net QTY</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Cust. Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Sales Count</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Amount</th>
-                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">GRV Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Month</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Net Change</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Net QTY</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cust. Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Sales Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Sales Count</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">GRV Amount</th>
+                <th className="text-center py-3 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-28">GRV Count</th>
               </tr>
             </thead>
             <tbody>

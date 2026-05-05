@@ -4,7 +4,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Download, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, ChevronLeft, ChevronRight, Search, X, Filter, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface SalesDailySalesTabProps {
   data: SalesInvoice[];
@@ -632,17 +632,17 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             <>
 
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full table-fixed">
                   <thead className="bg-gray-50/50">
                     <tr className="border-b border-gray-100">
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Date</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoice Number</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customer Name</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products Count</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Cost</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Avg Price</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Invoice Date</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-40">Invoice Number</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-56">Customer Name</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Amount</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Quantity</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Products Count</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Avg Cost</th>
+                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Avg Price</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -652,7 +652,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                           {formatDate(item.invoiceDate) || '-'}
                         </td>
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.invoiceNumber}</td>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.customerName || '-'}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800 w-56 truncate" title={item.customerName || '-'}>{item.customerName || '-'}</td>
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
@@ -722,15 +722,15 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead className="bg-gray-50/50">
                   <tr className="border-b border-gray-100">
-                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Date</th>
-                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Amount</th>
-                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Quantity</th>
-                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Invoices</th>
-                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Customers</th>
-                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center">Products</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Date</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-40">Amount</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Quantity</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Invoices</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Customers</th>
+                    <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Products</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
@@ -767,15 +767,15 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="border-b-2 border-gray-200">
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month/Year</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Amount</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Quantity</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Invoices</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Customers</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Avg Daily Products</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-40">Month/Year</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-48">Avg Daily Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-48">Avg Daily Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-48">Avg Daily Invoices</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-48">Avg Daily Customers</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-48">Avg Daily Products</th>
                   </tr>
                 </thead>
                 <tbody>

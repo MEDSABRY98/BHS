@@ -83,18 +83,16 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
     if (!data || data.length === 0) return [];
 
     const customerMap = new Map<string, {
-      customerId: string;
-      customerName: string;
+      customer: string;
       totalAmount: number;
       totalQty: number;
       invoiceNumbers: Set<string>;
     }>();
 
     data.forEach(item => {
-      const key = item.customerId || item.customerName; // Fallback to customerName if customerId is missing
-      const existing = customerMap.get(key) || {
-        customerId: key,
-        customerName: item.customerName,
+      const name = item.customerMainName || item.customerName || 'Unknown';
+      const existing = customerMap.get(name) || {
+        customer: name,
         totalAmount: 0,
         totalQty: 0,
         invoiceNumbers: new Set<string>()
@@ -108,11 +106,11 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
         existing.invoiceNumbers.add(item.invoiceNumber);
       }
 
-      customerMap.set(key, existing);
+      customerMap.set(name, existing);
     });
 
     return Array.from(customerMap.values()).map(item => ({
-      customer: item.customerName, // Display customerName
+      customer: item.customer,
       totalAmount: item.totalAmount,
       totalQty: item.totalQty,
       transactions: item.invoiceNumbers.size
@@ -297,9 +295,6 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
 
       {/* Customers Section */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Top Customers</h2>
-        </div>
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -326,21 +321,21 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Customer</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-16">#</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-56">Customer</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-32">Amount</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-24">Qty</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-32">Transactions</th>
                 </tr>
               </thead>
               <tbody>
                 {sortedCustomers.map((item, index) => (
                   <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center">{index + 1}</td>
-                    <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">{item.customer}</td>
+                    <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center w-56 truncate" title={item.customer}>{item.customer}</td>
                     <td className="py-3 px-4 text-sm text-gray-800 font-semibold text-center">
                       {item.totalAmount.toLocaleString('en-US', {
                         minimumFractionDigits: 2,
@@ -391,7 +386,6 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
 
       {/* Products Section */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Top Products</h2>
         <div className="bg-white rounded-xl shadow-md p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
@@ -418,15 +412,15 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
             </div>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full table-fixed">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">#</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">BARCODE</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Product</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Amount</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Qty</th>
-                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700">Transactions</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-16">#</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-40">BARCODE</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 min-w-[250px]">Product</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-32">Amount</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-24">Qty</th>
+                  <th className="text-center py-3 px-4 text-sm font-semibold text-gray-700 w-32">Transactions</th>
                 </tr>
               </thead>
               <tbody>

@@ -29,22 +29,20 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
         <div className="flex bg-slate-100 p-1 rounded-[20px] backdrop-blur-sm self-stretch sm:self-auto border border-white">
           <button
             onClick={() => setActiveTab('customers')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${
-              activeTab === 'customers'
-                ? 'bg-white text-green-600 shadow-md scale-[1.02]'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'customers'
+              ? 'bg-white text-green-600 shadow-md scale-[1.02]'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
           >
             <Users className="w-4 h-4" />
             <span>By Customers</span>
           </button>
           <button
             onClick={() => setActiveTab('products')}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${
-              activeTab === 'products'
-                ? 'bg-white text-indigo-600 shadow-md scale-[1.02]'
-                : 'text-slate-500 hover:text-slate-800'
-            }`}
+            className={`flex items-center gap-2 px-6 py-2.5 rounded-[16px] text-xs font-black uppercase tracking-widest transition-all duration-300 ${activeTab === 'products'
+              ? 'bg-white text-indigo-600 shadow-md scale-[1.02]'
+              : 'text-slate-500 hover:text-slate-800'
+              }`}
           >
             <Tag className="w-4 h-4" />
             <span>By Product</span>

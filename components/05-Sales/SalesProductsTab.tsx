@@ -4,11 +4,12 @@ import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, ChevronLeft, ChevronRight, Download, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 import SalesProductDetails from './SalesProductDetails';
 
 interface SalesProductsTabProps {
   data: SalesInvoice[];
+  allData: SalesInvoice[]; // Geography filtered but not date filtered
   loading: boolean;
 }
 
@@ -25,7 +26,7 @@ const ProductRow = memo(({ item, rowNumber, onBarcodeClick }: { item: { barcode:
       >
         {item.barcode || '-'}
       </td>
-      <td className="py-3 px-4 text-sm text-gray-800 font-medium">{item.product}</td>
+      <td className="py-3 px-4 text-sm text-gray-800 font-medium w-64 truncate" title={item.product}>{item.product}</td>
       <td className="py-3 px-4 text-sm text-gray-800 font-semibold">
         {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
       </td>
@@ -39,7 +40,7 @@ const ProductRow = memo(({ item, rowNumber, onBarcodeClick }: { item: { barcode:
 
 ProductRow.displayName = 'ProductRow';
 
-export default function SalesProductsTab({ data, loading }: SalesProductsTabProps) {
+export default function SalesProductsTab({ data, allData, loading }: SalesProductsTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -189,6 +190,7 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       <SalesProductDetails
         barcode={selectedBarcode}
         data={data}
+        allData={allData}
         onBack={() => setSelectedBarcode(null)}
       />
     );
@@ -227,15 +229,15 @@ export default function SalesProductsTab({ data, loading }: SalesProductsTabProp
       {/* Products Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Barcode</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Product Name</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Qty</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Transactions</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">#</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Barcode</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Product Name</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Amount</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Transactions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

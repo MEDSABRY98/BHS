@@ -10,7 +10,7 @@ import {
   SortingState,
 } from '@tanstack/react-table';
 import { InvoiceRow, SalesRepAnalysis, CustomerAnalysis } from '@/types';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface SalesRepsTabProps {
   data: InvoiceRow[];

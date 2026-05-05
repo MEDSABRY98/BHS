@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet } from 'lucide-react';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
 interface SalesST_ByProductProps {
@@ -200,14 +200,14 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
 
               {/* Table */}
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full table-fixed">
                   <thead>
                     <tr className="bg-white border-b border-slate-100">
-                      <th className="py-6 px-8 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Customer</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Most Price ({avgMost.toFixed(1)})</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Last Price ({avgLast.toFixed(1)})</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Cost ({avgCost.toFixed(1)})</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em]">Margin</th>
+                      <th className="py-6 px-8 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-64">Customer</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Most Price ({avgMost.toFixed(1)})</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Last Price ({avgLast.toFixed(1)})</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Cost ({avgCost.toFixed(1)})</th>
+                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-40">Margin</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -225,7 +225,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                               <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
                                 <User className="w-4 h-4 text-slate-500" />
                               </div>
-                              <span className="text-base font-semibold text-slate-800 text-center">{custName}</span>
+                              <span className="text-base font-semibold text-slate-800 text-center w-64 truncate" title={custName}>{custName}</span>
                             </div>
                           </td>
                           <td className="py-6 px-4 text-center">

@@ -4,9 +4,10 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 import {
-  LineChart,
+  ComposedChart,
+  Bar,
   Line,
   XAxis,
   YAxis,
@@ -14,16 +15,20 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  Cell,
+  LabelList,
 } from 'recharts';
 
 interface SalesProductDetailsProps {
   barcode: string;
   data: SalesInvoice[];
+  allData: SalesInvoice[]; // Geography filtered but not date filtered
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products';
+  filterYear?: string;
 }
 
-export default function SalesProductDetails({ barcode, data, onBack, initialTab = 'dashboard' }: SalesProductDetailsProps) {
+export default function SalesProductDetails({ barcode, data, allData, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
@@ -344,31 +349,91 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
     };
   }, [productData, monthlySales]);
 
-  // Chart data for monthly sales - show last 12 months only, reverse order for chart (oldest to newest for better visualization)
-  const chartData = useMemo(() => {
-    // Get last 12 months
-    const last12Months = monthlySales.slice(0, 12);
-    const data = last12Months.map(item => ({
-      month: item.month,
-      amount: item.amount,
-      qty: item.qty,
-      isNegativeAmount: item.amount < 0,
-      isNegativeQty: item.qty < 0,
-      isMaxMonth: false,
-    }));
-    // Reverse to show oldest to newest (left to right)
-    const reversedData = [...data].reverse();
+  // Get all product data from unfiltered source (for comparison)
+  const productAllData = useMemo(() => {
+    const source = allData.length > 0 ? allData : data;
+    return source.filter(item => item.barcode === barcode);
+  }, [allData, data, barcode]);
 
-    // Find max month by amount (highest positive amount, or least negative if all negative)
-    if (reversedData.length > 0) {
-      const maxAmount = Math.max(...reversedData.map(d => d.amount));
-      reversedData.forEach(item => {
-        item.isMaxMonth = item.amount === maxAmount;
+  // Chart data for monthly sales - Jan-Dec comparison
+  const chartData = useMemo(() => {
+    if (productAllData.length === 0) return [];
+
+    const monthMap = new Map<string, { amount: number; qty: number }>();
+    productAllData.forEach(item => {
+      if (!item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const existing = monthMap.get(key) || { amount: 0, qty: 0 };
+      existing.amount += item.amount;
+      existing.qty += item.qty;
+      monthMap.set(key, existing);
+    });
+
+    // Determine target year
+    let targetYear: number;
+    if (filterYear) {
+      targetYear = parseInt(filterYear, 10);
+    } else {
+      const allKeys = Array.from(monthMap.keys()).sort();
+      const latestKey = allKeys[allKeys.length - 1];
+      targetYear = latestKey ? parseInt(latestKey.split('-')[0], 10) : new Date().getFullYear();
+    }
+
+    const prevYear = targetYear - 1;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth() + 1;
+    const result = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const currKey = `${targetYear}-${String(m).padStart(2, '0')}`;
+      const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+
+      const currData = monthMap.get(currKey) || { amount: 0, qty: 0 };
+      const prevData = monthMap.get(prevKey) || { amount: 0, qty: 0 };
+
+      const diffAmount = currData.amount - prevData.amount;
+      const percentAmount = prevData.amount !== 0 ? (diffAmount / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+
+      const diffQty = currData.qty - prevData.qty;
+      const percentQty = prevData.qty !== 0 ? (diffQty / Math.abs(prevData.qty)) * 100 : (currData.qty !== 0 ? 100 : 0);
+
+      const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
+
+      result.push({
+        month: monthNames[m - 1],
+        currentAmount: currData.amount,
+        prevAmount: prevData.amount,
+        diffAmount,
+        percentAmount,
+        isPositiveAmount: diffAmount >= 0,
+        currentQty: currData.qty,
+        prevQty: prevData.qty,
+        diffQty,
+        percentQty,
+        isPositiveQty: diffQty >= 0,
+        isFuture,
+        legendCurr: String(targetYear),
+        legendPrev: String(prevYear)
       });
     }
 
-    return reversedData;
-  }, [monthlySales]);
+    // Set baselines for indicators
+    const maxAmount = Math.max(...result.map(r => Math.max(r.currentAmount, r.prevAmount)));
+    const maxQty = Math.max(...result.map(r => Math.max(r.currentQty, r.prevQty)));
+    
+    result.forEach(r => {
+      // @ts-ignore
+      r.topBaselineAmount = maxAmount * 1.25;
+      // @ts-ignore
+      r.topBaselineQty = maxQty * 1.25;
+    });
+
+    return result;
+  }, [productAllData, filterYear]);
 
   const exportCustomersToExcel = () => {
     const workbook = XLSX.utils.book_new();
@@ -483,26 +548,26 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
             {/* Key Metrics Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Total Sales Amount</h3>
-                  <DollarSign className="w-6 h-6 text-green-600" />
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Total Sales Amount</h3>
+                  <DollarSign className="w-5 h-5 text-emerald-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-black text-gray-800">
                   {dashboardMetrics.totalAmount.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
                   })}
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Total Quantity</h3>
-                  <Package className="w-6 h-6 text-blue-600" />
+              <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Total Quantity</h3>
+                  <Package className="w-5 h-5 text-blue-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-black text-gray-800">
                   {dashboardMetrics.totalQty.toLocaleString('en-US', {
                     minimumFractionDigits: 0,
                     maximumFractionDigits: 0
@@ -510,314 +575,334 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Avg Monthly Amount</h3>
-                  <TrendingUp className="w-6 h-6 text-purple-600" />
+              <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Avg Monthly Amount</h3>
+                  <TrendingUp className="w-5 h-5 text-purple-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-black text-gray-800">
                   {dashboardMetrics.avgMonthlyAmount.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
                   })}
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Avg Monthly Quantity</h3>
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
+              <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Avg Monthly Quantity</h3>
+                  <TrendingUp className="w-5 h-5 text-orange-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-xl font-black text-gray-800">
                   {dashboardMetrics.avgMonthlyQty.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
                   })}
                 </p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Total Customers</h3>
-                  <Package className="w-6 h-6 text-indigo-600" />
+              <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Total Customers</h3>
+                  <Package className="w-5 h-5 text-indigo-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{dashboardMetrics.uniqueCustomers}</p>
+                <p className="text-xl font-black text-gray-800">{dashboardMetrics.uniqueCustomers}</p>
               </div>
 
-              <div className="bg-white rounded-xl shadow-md p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Active Months</h3>
-                  <BarChart3 className="w-6 h-6 text-teal-600" />
+              <div className="bg-white rounded-xl shadow-md p-4 border border-gray-100/50">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-[11px] font-bold text-gray-500 uppercase tracking-tight">Active Months</h3>
+                  <BarChart3 className="w-5 h-5 text-teal-600" />
                 </div>
-                <p className="text-2xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
+                <p className="text-xl font-black text-gray-800">{dashboardMetrics.uniqueMonths}</p>
               </div>
             </div>
 
-            {/* Monthly Sales Chart */}
+            {/* Monthly Sales Performance Comparison */}
             <div className="bg-white rounded-xl shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Trend</h2>
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Performance Comparison</h2>
               {chartData.length > 0 ? (
-                <div className="space-y-6">
+                <div className="space-y-12">
                   {/* Amount Chart */}
-                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Amount</h3>
-                    <div className="relative" style={{ height: '380px' }}>
-                      {/* Top labels row with connecting lines */}
-                      <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
-                        <div className="relative w-full h-full">
-                          <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                            {chartData.map((item, index) => {
-                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                              return (
-                                <line
-                                  key={index}
-                                  x1={`${xPercent}%`}
-                                  y1="30"
-                                  x2={`${xPercent}%`}
-                                  y2="12"
-                                  stroke="#d1d5db"
-                                  strokeWidth="1"
-                                  strokeDasharray="2,2"
-                                />
-                              );
-                            })}
-                          </svg>
-                          <div className="relative w-full" style={{ height: '30px' }}>
-                            {chartData.map((item, index) => {
-                              const value = item.amount;
-                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                              const isNegative = value < 0;
-                              return (
-                                <div
-                                  key={index}
-                                  className="absolute text-base font-bold text-center"
-                                  style={{
-                                    left: `${xPercent}%`,
-                                    transform: 'translateX(-50%)',
-                                    top: 0,
-                                    color: isNegative ? '#ef4444' : '#374151'
-                                  }}
-                                >
-                                  {value.toLocaleString('en-US', {
-                                    minimumFractionDigits: value % 1 !== 0 ? 2 : 0,
-                                    maximumFractionDigits: 2
-                                  })}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <LineChart
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-6 flex items-center gap-2 uppercase tracking-wider">
+                      <DollarSign className="w-4 h-4 text-emerald-600" />
+                      Sales Amount Comparison
+                    </h3>
+                    <div className="relative w-full" style={{ height: '550px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
                           data={chartData}
-                          margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
+                          margin={{ top: 80, right: 30, left: 40, bottom: 20 }}
+                          barGap={8}
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                          <XAxis
-                            dataKey="month"
-                            stroke="#6b7280"
-                            style={{ fontSize: '16px', fontWeight: 700 }}
+                          <XAxis 
+                            dataKey="month" 
+                            stroke="#475569" 
+                            style={{ fontSize: '15px', fontWeight: 900 }}
                             tickLine={false}
                             axisLine={false}
+                            dy={10}
                           />
-                          <YAxis
-                            stroke="#9ca3af"
-                            style={{ fontSize: '11px' }}
-                            tickFormatter={() => ''}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={['auto', 'auto']}
-                            hide={true}
+                          <YAxis hide={true} domain={[0, 'auto']} />
+                          <Tooltip 
+                            content={(props: any) => {
+                              const { active, payload, label } = props;
+                              if (active && payload && payload.length > 0) {
+                                const data = payload[0].payload;
+                                const isPositive = data.isPositiveAmount;
+                                return (
+                                  <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
+                                    <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
+                                    <div className="space-y-2 text-sm">
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">{data.legendPrev}:</span>
+                                        <span className="font-bold text-slate-700">
+                                          {data.prevAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">{data.legendCurr}:</span>
+                                        <span className="font-bold text-emerald-600">
+                                          {data.currentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">Diff:</span>
+                                        <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {isPositive ? '+' : '-'}{Math.abs(data.diffAmount).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">Growth:</span>
+                                        <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {isPositive ? '+' : '-'}{data.percentAmount.toFixed(1)}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
                           />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#ffffff',
-                              border: 'none',
-                              borderRadius: '12px',
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                              padding: '12px'
-                            }}
-                            formatter={(value: number, name: string, props: any) => {
-                              const isNegative = value < 0;
-                              return [
-                                <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                                  {value.toLocaleString('en-US', {
-                                    minimumFractionDigits: 2,
-                                    maximumFractionDigits: 2
-                                  })}
-                                </span>,
-                                'Amount'
-                              ];
-                            }}
-                            labelStyle={{
-                              color: '#374151',
-                              fontWeight: 600,
-                              marginBottom: '8px'
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="amount"
-                            stroke="#10b981"
-                            strokeWidth={3}
-                            style={{ filter: 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.4))' }}
-                            dot={(props: any) => {
-                              const { cx, cy, payload } = props;
-                              const isNegative = payload?.isNegativeAmount;
-                              const isMaxMonth = payload?.isMaxMonth;
-                              const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                              return (
-                                <circle
-                                  cx={cx}
-                                  cy={cy}
-                                  r={radius}
-                                  fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#10b981")}
-                                  stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#059669")}
-                                  strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                                  style={{
-                                    filter: isMaxMonth
-                                      ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
-                                      : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(16, 185, 129, 0.5))')
-                                  }}
-                                />
-                              );
-                            }}
-                            activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                          />
-                        </LineChart>
+                          <Legend verticalAlign="top" height={36} />
+
+                          {/* Previous Year Bar */}
+                          <Bar 
+                            dataKey="prevAmount" 
+                            name={chartData[0]?.legendPrev || "Last Year"} 
+                            fill="#cbd5e1" 
+                            radius={[4, 4, 0, 0]}
+                            barSize={45}
+                          >
+                            <LabelList 
+                              dataKey="prevAmount" 
+                              position="top" 
+                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
+                              offset={10}
+                            />
+                          </Bar>
+
+                          {/* Current Year Bar */}
+                          <Bar 
+                            dataKey="currentAmount" 
+                            name={chartData[0]?.legendCurr || "Current Year"} 
+                            fill="#10b981" 
+                            radius={[4, 4, 0, 0]}
+                            barSize={45}
+                          >
+                            <LabelList 
+                              dataKey="currentAmount" 
+                              position="top" 
+                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
+                              offset={10}
+                            />
+                            
+                            {chartData.map((entry, index) => (
+                              <Cell key={`cell-amount-${index}`} fill={entry.isPositiveAmount ? '#10b981' : '#f43f5e'} />
+                            ))}
+                          </Bar>
+
+                          {/* Performance Labels */}
+                          <Line 
+                            type="monotone" 
+                            dataKey="topBaselineAmount" 
+                            stroke="none" 
+                            dot={false} 
+                            activeDot={false} 
+                            legendType="none" 
+                          >
+                            <LabelList 
+                              dataKey="diffAmount" 
+                              content={(props: any) => {
+                                const { x, index } = props;
+                                const entry = chartData[index];
+                                if (!entry) return null;
+                                
+                                const isPositive = entry.isPositiveAmount;
+                                const isFuture = entry.isFuture && entry.currentAmount === 0;
+                                const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
+                                
+                                const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diffAmount).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
+                                const percentStr = isFuture ? '' : (entry.percentAmount.toFixed(1) + '%');
+
+                                return (
+                                  <g style={{ pointerEvents: 'none' }}>
+                                    <rect x={x - 45} y={10} width={90} height={55} rx={12} fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')} stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')} strokeWidth={1.5} className="shadow-sm" />
+                                    <text x={x} y={isFuture ? 42 : 35} fill={color} textAnchor="middle" style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}>{diffStr}</text>
+                                    {!isFuture && <text x={x} y={55} fill={color} textAnchor="middle" style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}>{percentStr}</text>}
+                                  </g>
+                                );
+                              }} 
+                            />
+                          </Line>
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
 
                   {/* Quantity Chart */}
-                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Sales Quantity</h3>
-                    <div className="relative" style={{ height: '380px' }}>
-                      {/* Top labels row with connecting lines */}
-                      <div className="absolute top-0 left-0 right-0 h-12 z-10" style={{ paddingLeft: '40px', paddingRight: '30px' }}>
-                        <div className="relative w-full h-full">
-                          <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-                            {chartData.map((item, index) => {
-                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                              return (
-                                <line
-                                  key={index}
-                                  x1={`${xPercent}%`}
-                                  y1="30"
-                                  x2={`${xPercent}%`}
-                                  y2="12"
-                                  stroke="#d1d5db"
-                                  strokeWidth="1"
-                                  strokeDasharray="2,2"
-                                />
-                              );
-                            })}
-                          </svg>
-                          <div className="relative w-full" style={{ height: '30px' }}>
-                            {chartData.map((item, index) => {
-                              const value = item.qty;
-                              const xPercent = chartData.length > 1 ? (index / (chartData.length - 1)) * 100 : 50;
-                              const isNegative = value < 0;
-                              return (
-                                <div
-                                  key={index}
-                                  className="absolute text-base font-bold text-center"
-                                  style={{
-                                    left: `${xPercent}%`,
-                                    transform: 'translateX(-50%)',
-                                    top: 0,
-                                    color: isNegative ? '#ef4444' : '#374151'
-                                  }}
-                                >
-                                  {value.toLocaleString('en-US', {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0
-                                  })}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                      <ResponsiveContainer width="100%" height={350}>
-                        <LineChart
+                  <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-6 flex items-center gap-2 uppercase tracking-wider">
+                      <Package className="w-4 h-4 text-blue-600" />
+                      Sales Quantity Comparison
+                    </h3>
+                    <div className="relative w-full" style={{ height: '550px' }}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <ComposedChart
                           data={chartData}
-                          margin={{ top: 50, right: 30, left: 40, bottom: 0 }}
+                          margin={{ top: 80, right: 30, left: 40, bottom: 20 }}
+                          barGap={8}
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                          <XAxis
-                            dataKey="month"
-                            stroke="#6b7280"
-                            style={{ fontSize: '16px', fontWeight: 700 }}
+                          <XAxis 
+                            dataKey="month" 
+                            stroke="#475569" 
+                            style={{ fontSize: '15px', fontWeight: 900 }}
                             tickLine={false}
                             axisLine={false}
+                            dy={10}
                           />
-                          <YAxis
-                            stroke="#9ca3af"
-                            style={{ fontSize: '11px' }}
-                            tickFormatter={() => ''}
-                            tickLine={false}
-                            axisLine={false}
-                            domain={['auto', 'auto']}
-                            hide={true}
+                          <YAxis hide={true} domain={[0, 'auto']} />
+                          <Tooltip 
+                            content={(props: any) => {
+                              const { active, payload, label } = props;
+                              if (active && payload && payload.length > 0) {
+                                const data = payload[0].payload;
+                                const isPositive = data.isPositiveQty;
+                                return (
+                                  <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
+                                    <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
+                                    <div className="space-y-2 text-sm">
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">{data.legendPrev}:</span>
+                                        <span className="font-bold text-slate-700">
+                                          {data.prevQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">{data.legendCurr}:</span>
+                                        <span className="font-bold text-blue-600">
+                                          {data.currentQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">Diff:</span>
+                                        <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {isPositive ? '+' : '-'}{Math.abs(data.diffQty).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                        </span>
+                                      </div>
+                                      <div>
+                                        <span className="text-gray-500 font-medium w-20 inline-block">Growth:</span>
+                                        <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                          {isPositive ? '+' : '-'}{data.percentQty.toFixed(1)}%
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              return null;
+                            }}
                           />
-                          <Tooltip
-                            contentStyle={{
-                              backgroundColor: '#ffffff',
-                              border: 'none',
-                              borderRadius: '12px',
-                              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-                              padding: '12px'
-                            }}
-                            formatter={(value: number, name: string, props: any) => {
-                              const isNegative = value < 0;
-                              return [
-                                <span key="value" style={{ color: isNegative ? '#ef4444' : '#374151' }}>
-                                  {value.toLocaleString('en-US', {
-                                    minimumFractionDigits: 0,
-                                    maximumFractionDigits: 0
-                                  })}
-                                </span>,
-                                'Quantity'
-                              ];
-                            }}
-                            labelStyle={{
-                              color: '#374151',
-                              fontWeight: 600,
-                              marginBottom: '8px'
-                            }}
-                          />
-                          <Line
-                            type="monotone"
-                            dataKey="qty"
-                            stroke="#3b82f6"
-                            strokeWidth={3}
-                            style={{ filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.4))' }}
-                            dot={(props: any) => {
-                              const { cx, cy, payload } = props;
-                              const isNegative = payload?.isNegativeQty;
-                              const isMaxMonth = payload?.isMaxMonth;
-                              const radius = isMaxMonth ? 8 : (isNegative ? 6 : 4);
-                              return (
-                                <circle
-                                  cx={cx}
-                                  cy={cy}
-                                  r={radius}
-                                  fill={isNegative ? "#ef4444" : (isMaxMonth ? "#fbbf24" : "#3b82f6")}
-                                  stroke={isNegative ? "#dc2626" : (isMaxMonth ? "#f59e0b" : "#2563eb")}
-                                  strokeWidth={isMaxMonth ? 3 : (isNegative ? 2 : 0)}
-                                  style={{
-                                    filter: isMaxMonth
-                                      ? 'drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)) drop-shadow(0 2px 8px rgba(245, 158, 11, 0.6))'
-                                      : (isNegative ? 'drop-shadow(0 0 6px rgba(239, 68, 68, 0.8))' : 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.5))')
-                                  }}
-                                />
-                              );
-                            }}
-                            activeDot={{ r: 7, fill: '#374151', style: { filter: 'drop-shadow(0 2px 6px rgba(55, 65, 81, 0.5))' } }}
-                          />
-                        </LineChart>
+                          <Legend verticalAlign="top" height={36} />
+
+                          {/* Previous Year Bar */}
+                          <Bar 
+                            dataKey="prevQty" 
+                            name={chartData[0]?.legendPrev || "Last Year"} 
+                            fill="#cbd5e1" 
+                            radius={[4, 4, 0, 0]}
+                            barSize={45}
+                          >
+                            <LabelList 
+                              dataKey="prevQty" 
+                              position="top" 
+                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
+                              offset={10}
+                            />
+                          </Bar>
+
+                          {/* Current Year Bar */}
+                          <Bar 
+                            dataKey="currentQty" 
+                            name={chartData[0]?.legendCurr || "Current Year"} 
+                            fill="#3b82f6" 
+                            radius={[4, 4, 0, 0]}
+                            barSize={45}
+                          >
+                            <LabelList 
+                              dataKey="currentQty" 
+                              position="top" 
+                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              style={{ fontSize: '13px', fontWeight: '900', fill: '#2563eb' }}
+                              offset={10}
+                            />
+                            
+                            {chartData.map((entry, index) => (
+                              <Cell key={`cell-qty-${index}`} fill={entry.isPositiveQty ? '#3b82f6' : '#f43f5e'} />
+                            ))}
+                          </Bar>
+
+                          {/* Performance Labels */}
+                          <Line 
+                            type="monotone" 
+                            dataKey="topBaselineQty" 
+                            stroke="none" 
+                            dot={false} 
+                            activeDot={false} 
+                            legendType="none" 
+                          >
+                            <LabelList 
+                              dataKey="diffQty" 
+                              content={(props: any) => {
+                                const { x, index } = props;
+                                const entry = chartData[index];
+                                if (!entry) return null;
+                                
+                                const isPositive = entry.isPositiveQty;
+                                const isFuture = entry.isFuture && entry.currentQty === 0;
+                                const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
+                                
+                                const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diffQty).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
+                                const percentStr = isFuture ? '' : (entry.percentQty.toFixed(1) + '%');
+
+                                return (
+                                  <g style={{ pointerEvents: 'none' }}>
+                                    <rect x={x - 45} y={10} width={90} height={55} rx={12} fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')} stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')} strokeWidth={1.5} className="shadow-sm" />
+                                    <text x={x} y={isFuture ? 42 : 35} fill={color} textAnchor="middle" style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}>{diffStr}</text>
+                                    {!isFuture && <text x={x} y={55} fill={color} textAnchor="middle" style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}>{percentStr}</text>}
+                                  </g>
+                                );
+                              }} 
+                            />
+                          </Line>
+                        </ComposedChart>
                       </ResponsiveContainer>
                     </div>
                   </div>
@@ -836,14 +921,14 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Sales by Month</h2>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Change</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Transactions</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-40">Month</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-40">Change</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Transactions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -939,22 +1024,22 @@ export default function SalesProductDetails({ barcode, data, onBack, initialTab 
               </button>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">#</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Customer Name</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Purchase Count</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Last Invoice Date</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-16">#</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-64">Customer Name</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-24">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">P. Count</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-40">Last Date</th>
                   </tr>
                 </thead>
                 <tbody>
                   {customersData.map((item, index) => (
                     <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
                       <td className="py-3 px-4 text-base text-gray-600 font-medium text-center">{index + 1}</td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.customer}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center w-64 truncate" title={item.customer}>{item.customer}</td>
                       <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.amount.toLocaleString('en-US', {
                           minimumFractionDigits: 2,

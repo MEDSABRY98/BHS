@@ -3,12 +3,12 @@
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
-import { 
-  generateSalesPricelistPDF, 
-  generateSalesStockFormPDF, 
-  generateSalesAnalysisComparisonPDF 
+import {
+  generateSalesPricelistPDF,
+  generateSalesStockFormPDF,
+  generateSalesAnalysisComparisonPDF
 } from '@/lib/pdf/PdfUtils';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -231,10 +231,10 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</th>
+                <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Customer Name</th>
                 <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Items</th>
                 <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Standard</th>
                 <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Pricing</th>
@@ -247,7 +247,7 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
               ) : (
                 paginatedCustomers.map((c, i) => (
                   <tr key={i} className="hover:bg-slate-50 transition-colors group">
-                    <td className="py-3 px-8 text-sm font-semibold text-gray-800">{c.customer}</td>
+                    <td className="py-3 px-8 text-sm font-semibold text-gray-800 truncate" title={c.customer}>{c.customer}</td>
                     <td className="py-3 px-4 text-center">
                       <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold">{c.products.length}</span>
                     </td>

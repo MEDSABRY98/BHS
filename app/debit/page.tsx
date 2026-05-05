@@ -7,7 +7,7 @@ import CustomersLandingTab from '@/components/02-Debit/CustomersTab/CustomersSwi
 import OpenTransactionsTab from '@/components/02-Debit/OpenTransactionsTab';
 import AllTransactionsTab from '@/components/02-Debit/AllTransactionsTab';
 import PaymentTrackerTab from '@/components/03-Payment-Tracker/PaymentTrackerTab';
-import SalesRepsTab from '@/components/SalesRepsTab';
+import SalesRepsTab from '@/components/02-Debit/SalesRepsTab';
 import HistoryTab from '@/components/02-Debit/HistoryTab';
 import AgesTab from '@/components/02-Debit/AgesTab';
 import Login from '@/components/01-Unified/Login';

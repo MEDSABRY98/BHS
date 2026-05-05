@@ -5,7 +5,7 @@ import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowUp, ArrowDown, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface SalesInactiveCustomersTabProps {
   data: SalesInvoice[];
@@ -37,8 +37,9 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick, onExclude,
     <tr className="border-b border-gray-100 hover:bg-gray-50 group text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
       <td
-        className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline min-w-[200px]"
+        className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline w-56 truncate"
         onClick={() => onCustomerClick(item.customer)}
+        title={item.customer}
       >
         {item.customer}
       </td>
@@ -352,26 +353,26 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-12">#</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('customer')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-16">#</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-56" onClick={() => handleSort('customer')}>
                   Customer {getSortIcon('customer')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('lastPurchaseDate')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('lastPurchaseDate')}>
                   Last Purchase {getSortIcon('lastPurchaseDate')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('daysSinceLastPurchase')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('daysSinceLastPurchase')}>
                   Days Inactive {getSortIcon('daysSinceLastPurchase')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('totalAmount')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('totalAmount')}>
                   Amount {getSortIcon('totalAmount')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('averageOrderValue')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('averageOrderValue')}>
                   Amount Average {getSortIcon('averageOrderValue')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('orderCount')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-24" onClick={() => handleSort('orderCount')}>
                   Orders {getSortIcon('orderCount')}
                 </th>
                 <th className="w-12"></th>

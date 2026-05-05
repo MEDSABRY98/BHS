@@ -5,10 +5,11 @@ import { SalesInvoice } from '@/lib/googleSheets';
 import { Search, ChevronLeft, ChevronRight, Download, X, FileSpreadsheet, Layers, LayoutGrid, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '../01-Unified/NoDataTab';
 
 interface SalesCustomersTabProps {
   data: SalesInvoice[];
+  allData: SalesInvoice[]; // Geography filtered but not date filtered
   loading: boolean;
   onUploadMapping?: (mapping: Record<string, any>) => void;
 }
@@ -21,8 +22,9 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
     <tr className="border-b border-gray-100 hover:bg-gray-50 group text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
       <td
-        className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline min-w-[200px]"
+        className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline w-56 truncate"
         onClick={() => onCustomerClick(item.customer)}
+        title={item.customer}
       >
         {item.customer}
       </td>
@@ -42,7 +44,7 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
 
 CustomerRow.displayName = 'CustomerRow';
 
-export default function SalesCustomersTab({ data, loading, onUploadMapping }: SalesCustomersTabProps) {
+export default function SalesCustomersTab({ data, allData, loading, onUploadMapping }: SalesCustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -275,7 +277,13 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
   );
 
   if (selectedCustomer) return (
-    <SalesCustomerDetails customerName={selectedCustomer} customerType={activeTab} data={data} onBack={() => setSelectedCustomer(null)} />
+    <SalesCustomerDetails 
+      customerName={selectedCustomer} 
+      customerType={activeTab} 
+      data={data} 
+      allData={allData}
+      onBack={() => setSelectedCustomer(null)} 
+    />
   );
 
   return (
@@ -329,23 +337,23 @@ export default function SalesCustomersTab({ data, loading, onUploadMapping }: Sa
       {/* Main Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-fixed">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-12">#</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('customer')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-16">#</th>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-56" onClick={() => handleSort('customer')}>
                   Customer {getSortIcon('customer')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('totalAmount')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('totalAmount')}>
                   Amount {getSortIcon('totalAmount')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('averageAmount')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('averageAmount')}>
                   Amount Average {getSortIcon('averageAmount')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('totalQty')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-28" onClick={() => handleSort('totalQty')}>
                   QTY {getSortIcon('totalQty')}
                 </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600" onClick={() => handleSort('productsCount')}>
+                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-24" onClick={() => handleSort('productsCount')}>
                   SKUs {getSortIcon('productsCount')}
                 </th>
               </tr>
