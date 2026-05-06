@@ -330,13 +330,16 @@ export async function getAllCustomerEmails(): Promise<string[]> {
       return [];
     }
 
-    // Skip header row and return names of customers with emails
-    // CUSTOMER NAME is now in column B (index 1), EMAIL is in column C (index 2)
+    // Skip header row and return objects with names and emails
+    // CUSTOMER NAME is in column B (index 1), EMAIL is in column C (index 2)
     const customersWithEmails = rows.slice(1)
       .filter(row => row[1] && row[2] && row[2].toString().trim() !== '')
-      .map(row => row[1].toString().trim());
+      .map(row => ({
+        customerName: row[1].toString().trim(),
+        email: row[2].toString().trim()
+      }));
 
-    return customersWithEmails;
+    return customersWithEmails as any;
   } catch (error) {
     console.error('Error fetching all customer emails:', error);
     return [];

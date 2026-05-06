@@ -18,7 +18,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
   const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
   const [spiData, setSpiData] = useState<any[]>([]);
-  const [customersWithEmails, setCustomersWithEmails] = useState<Set<string>>(new Set());
+  const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   const [luluEmails, setLuluEmails] = useState<any[]>([]);
 
   useEffect(() => {
@@ -46,12 +46,12 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         }
         if (emailsRes.ok) {
           const d = await emailsRes.json();
-          const emailSet = new Set<string>();
+          const emailMap = new Map<string, string>();
           
-          // Regular emails API returns string[]
-          (d.customers || []).forEach((name: any) => {
-            if (name && typeof name === 'string') {
-              emailSet.add(name.toLowerCase().trim());
+          // Regular emails API returns { customerName, email }[]
+          (d.customers || []).forEach((item: any) => {
+            if (item && item.customerName && item.email) {
+              emailMap.set(item.customerName.toLowerCase().trim(), item.email);
             }
           });
 
@@ -61,13 +61,13 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
             const luluList = luluData.customers || [];
             setLuluEmails(luluList);
             luluList.forEach((l: any) => {
-              if (l.customerName) {
-                emailSet.add(l.customerName.toLowerCase().trim());
+              if (l.customerName && l.to) {
+                emailMap.set(l.customerName.toLowerCase().trim(), l.to);
               }
             });
           }
 
-          setCustomersWithEmails(emailSet);
+          setCustomersWithEmails(emailMap);
         }
       } catch (error) {
         console.error('Error fetching dependencies:', error);

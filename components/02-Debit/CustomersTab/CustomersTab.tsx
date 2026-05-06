@@ -305,14 +305,21 @@ export default function CustomersTab({
 </div>
         `.trim();
 
+        const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        const targetEmail = customersWithEmails.get(normalize(customerName)) || '';
+
         const emlLines = [
+          `Date: ${new Date().toUTCString()}`,
+          `To: ${targetEmail}`,
           'From: accounting@marae.ae',
           'Subject: ' + subject,
+          'MIME-Version: 1.0',
           'X-Unsent: 1',
           'Content-Type: multipart/mixed; boundary="' + boundary + '"',
           '',
           '--' + boundary,
           'Content-Type: text/html; charset="UTF-8"',
+          'Content-Transfer-Encoding: 7bit',
           '',
           htmlBody,
           '',
@@ -364,8 +371,10 @@ export default function CustomersTab({
       let count = 0;
 
       for (const customerName of selectedCustomersForDownload) {
-        // Find Lulu data
-        const luluData = luluEmails.find(l => l.customerName.toLowerCase().trim() === customerName.toLowerCase().trim());
+        // Find Lulu data with robust matching
+        const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+        const luluData = luluEmails.find(l => normalize(l.customerName) === normalize(customerName));
+        
         if (!luluData) {
           console.warn(`No Lulu data found for: ${customerName}`);
           continue;
@@ -432,6 +441,7 @@ export default function CustomersTab({
         const ccEmail = cleanEmails(luluData.cc || '');
 
         let emlHeaders = [
+          `Date: ${new Date().toUTCString()}`,
           `To: ${toEmail}`,
           ccEmail ? `Cc: ${ccEmail}` : null,
           'From: accounting@marae.ae',
