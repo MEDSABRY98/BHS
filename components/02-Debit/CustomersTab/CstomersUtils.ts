@@ -423,3 +423,21 @@ export const exportToExcel = (data: CustomerAnalysis[], filename: string = 'cust
   }
   XLSX.writeFile(workbook, `${filename}.xlsx`);
 };
+
+export const generateSingleCustomerExcelBlob = (customerName: string, invoices: InvoiceRow[]) => {
+  const headers = ['Date', 'Type', 'Number', 'Debit', 'Credit'];
+  const rows = invoices.map(inv => [
+    inv.date,
+    getInvoiceType(inv),
+    inv.number || '',
+    (inv.debit || 0).toFixed(2),
+    (inv.credit || 0).toFixed(2)
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+  
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+  return new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+};

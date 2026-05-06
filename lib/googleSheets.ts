@@ -343,6 +343,44 @@ export async function getAllCustomerEmails(): Promise<string[]> {
   }
 }
 
+export async function getLuluEmails(): Promise<any[]> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'EMAILS - LULU'!A:F`, // CUSTOMER ID, CUSTOMER CODE, AREA, CUSTOMER NAME, TO:, CC:
+    });
+
+    const rows = response.data.values;
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    // Skip header row
+    const luluEmails = rows.slice(1).map((row) => ({
+      customerId: row[0] || '',
+      customerCode: row[1] || '',
+      area: row[2] || '',
+      customerName: row[3] || '',
+      to: row[4] || '',
+      cc: row[5] || '',
+    })).filter(r => r.customerName);
+
+    return luluEmails;
+  } catch (error) {
+    console.error('Error fetching Lulu emails:', error);
+    return [];
+  }
+}
+
 export async function getNotes(customerName?: string) {
   try {
     const credentials = getServiceAccountCredentials();

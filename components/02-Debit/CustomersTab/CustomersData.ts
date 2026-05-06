@@ -19,15 +19,17 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
   const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
   const [spiData, setSpiData] = useState<any[]>([]);
   const [customersWithEmails, setCustomersWithEmails] = useState<Set<string>>(new Set());
+  const [luluEmails, setLuluEmails] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const [closedRes, semiRes, spiRes, emailsRes] = await Promise.all([
+        const [closedRes, semiRes, spiRes, emailsRes, luluRes] = await Promise.all([
           fetch('/api/closed-customers'),
           fetch('/api/semi-closed-customers'),
           fetch('/api/spi'),
-          fetch('/api/customer-emails-list')
+          fetch('/api/customer-emails-list'),
+          fetch('/api/lulu-emails')
         ]);
 
         if (closedRes.ok) {
@@ -51,6 +53,10 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
             }
           });
           setCustomersWithEmails(emailSet);
+        }
+        if (luluRes.ok) {
+          const d = await luluRes.json();
+          setLuluEmails(d.customers || []);
         }
       } catch (error) {
         console.error('Error fetching dependencies:', error);
@@ -335,8 +341,8 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
 
     if (search.trim()) {
       const q = search.toLowerCase();
-      result = result.filter(c => 
-        c.customerName.toLowerCase().includes(q) || 
+      result = result.filter(c =>
+        c.customerName.toLowerCase().includes(q) ||
         (c.invoiceNumbers && Array.from(c.invoiceNumbers).some(num => num.toLowerCase().includes(q)))
       );
     }
@@ -395,8 +401,20 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
       });
     }
 
+    if (matchingFilter !== 'ALL') {
+      if (matchingFilter === 'WITH_EMAIL') {
+        result = result.filter(c => customersWithEmails.has(c.customerName.toLowerCase().trim()));
+      } else if (matchingFilter === 'RATING_GOOD') {
+        result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Good');
+      } else if (matchingFilter === 'RATING_MEDIUM') {
+        result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Medium');
+      } else if (matchingFilter === 'RATING_BAD') {
+        result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Bad');
+      }
+    }
+
     return result;
-  }, [customerAnalysis, filters, closedCustomers, semiClosedCustomers, mode]);
+  }, [customerAnalysis, filters, closedCustomers, semiClosedCustomers, mode, customersWithEmails]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
@@ -455,6 +473,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     semiClosedCustomers,
     spiData,
     customersWithEmails,
+    luluEmails,
     yearlyPivotData,
     allSalesReps
   };

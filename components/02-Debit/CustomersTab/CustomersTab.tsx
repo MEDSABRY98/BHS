@@ -39,7 +39,8 @@ import {
   buildInvoicesWithNetDebtForExport,
   exportToExcel,
   exportToPDF,
-  parseDate
+  parseDate,
+  generateSingleCustomerExcelBlob
 } from './CstomersUtils';
 
 interface CustomersTabProps {
@@ -69,7 +70,7 @@ export default function CustomersTab({
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
-  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | null>(null);
+  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
   const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -109,7 +110,6 @@ export default function CustomersTab({
     selectedReps: [] as string[]
   });
 
-  // --- Logic Hook ---
   const {
     customerAnalysis,
     filteredData,
@@ -117,6 +117,7 @@ export default function CustomersTab({
     semiClosedCustomers,
     spiData,
     customersWithEmails,
+    luluEmails,
     yearlyPivotData,
     allSalesReps
   } = useCustomerData(data, filters, mode, yearlySorting);
@@ -336,6 +337,149 @@ export default function CustomersTab({
       }
     } catch (error) {
       console.error('Error in bulk email:', error);
+      alert('Error generating emails.');
+    } finally {
+      setIsDownloading(false);
+      setStatementModalAction(null);
+    }
+  };
+
+  const handleBulkLuluEmail = async (overrideDate?: string) => {
+    if (selectedCustomersForDownload.size === 0) {
+      alert('Please select customers to email');
+      return;
+    }
+
+    if (!overrideDate && statementModalAction !== 'EMAIL_LULU') {
+      setStatementModalAction('EMAIL_LULU');
+      return;
+    }
+
+    const effectiveDate = overrideDate || emailStatementDate;
+    setIsDownloading(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const { saveAs } = await import('file-saver');
+      const zip = new JSZip();
+      let count = 0;
+
+      for (const customerName of selectedCustomersForDownload) {
+        // Find Lulu data
+        const luluData = luluEmails.find(l => l.customerName.toLowerCase().trim() === customerName.toLowerCase().trim());
+        if (!luluData) {
+          console.warn(`No Lulu data found for: ${customerName}`);
+          continue;
+        }
+
+        console.log(`Processing Lulu email for: ${customerName}`, luluData);
+
+        const customerInvoices = data.filter(row => row.customerName === customerName);
+        if (customerInvoices.length === 0) continue;
+
+        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
+        let netOnlyInvoices = invoicesWithNetDebt
+          .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
+          .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
+
+        if (effectiveDate) {
+          const limitDate = new Date(effectiveDate);
+          limitDate.setHours(23, 59, 59, 999);
+          netOnlyInvoices = netOnlyInvoices.filter(inv => {
+            const rowDate = parseDate(inv.date);
+            return !rowDate || rowDate <= limitDate;
+          });
+        }
+
+        if (netOnlyInvoices.length === 0) continue;
+
+        const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
+        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
+        
+        // Generate PDF
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
+        if (!pdfBlob) continue;
+
+        const pdfBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(pdfBlob as Blob);
+        });
+
+        // Generate Excel
+        const excelBlob = generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
+        const excelBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+          reader.readAsDataURL(excelBlob);
+        });
+
+        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
+        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
+        const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
+        const htmlBody = `
+<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
+  <p>Dear Team,</p>
+  <p>We hope this message finds you well.</p>
+  <p>Please find attached your account statement.</p>
+  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
+  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
+  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
+</div>
+        `.trim();
+
+        const cleanEmails = (str: string) => str.replace(/;/g, ',').split(',').map(e => e.trim()).filter(Boolean).join(', ');
+        const toEmail = cleanEmails(luluData.to || '');
+        const ccEmail = cleanEmails(luluData.cc || '');
+
+        let emlHeaders = [
+          `To: ${toEmail}`,
+          ccEmail ? `Cc: ${ccEmail}` : null,
+          'From: accounting@marae.ae',
+          'Subject: ' + subject,
+          'MIME-Version: 1.0',
+          'X-Unsent: 1',
+          'Content-Type: multipart/mixed; boundary="' + boundary + '"',
+        ].filter(line => line !== null).join('\r\n');
+
+        const emlContent = [
+          emlHeaders,
+          '',
+          '--' + boundary,
+          'Content-Type: text/html; charset="UTF-8"',
+          'Content-Transfer-Encoding: 7bit',
+          '',
+          htmlBody,
+          '',
+          '--' + boundary,
+          `Content-Type: application/pdf; name="${cleanName}.pdf"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
+          '',
+          pdfBase64,
+          '',
+          '--' + boundary,
+          `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
+          'Content-Transfer-Encoding: base64',
+          `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
+          '',
+          excelBase64,
+          '',
+          '--' + boundary + '--'
+        ].join('\r\n');
+
+        zip.file(`${cleanName}.eml`, emlContent);
+        count++;
+      }
+
+      if (count > 0) {
+        const content = await zip.generateAsync({ type: 'blob' });
+        saveAs(content, `Lulu_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        setStatementModalAction(null);
+      } else {
+        alert('No matching Lulu customers found in selection.');
+      }
+    } catch (error) {
+      console.error('Error in Lulu email generation:', error);
       alert('Error generating emails.');
     } finally {
       setIsDownloading(false);
@@ -629,6 +773,9 @@ export default function CustomersTab({
               <button onClick={() => handleBulkEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Email">
                 E
               </button>
+              <button onClick={() => handleBulkLuluEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Lulu (PDF+XL)">
+                EL
+              </button>
               <div className="w-px h-6 bg-white/20 mx-1"></div>
               <button onClick={() => setSelectedCustomersForDownload(new Set())} className="p-2 hover:bg-white/20 rounded-lg text-white transition-colors" title="Clear selection">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
@@ -726,6 +873,7 @@ export default function CustomersTab({
           setStatementModalAction(null);
           if (action === 'EMAIL') handleBulkEmail(date);
           else if (action === 'ZIP') handleBulkZIPDownload(date);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date);
         }}
         isProcessing={isDownloading}
       />
