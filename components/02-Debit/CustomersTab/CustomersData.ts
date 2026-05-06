@@ -47,16 +47,27 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         if (emailsRes.ok) {
           const d = await emailsRes.json();
           const emailSet = new Set<string>();
-          (d.customers || []).forEach((e: any) => {
-            if (e && e.customerName) {
-              emailSet.add(e.customerName.toLowerCase().trim());
+          
+          // Regular emails API returns string[]
+          (d.customers || []).forEach((name: any) => {
+            if (name && typeof name === 'string') {
+              emailSet.add(name.toLowerCase().trim());
             }
           });
+
+          // Lulu emails API returns object[]
+          if (luluRes.ok) {
+            const luluData = await luluRes.json();
+            const luluList = luluData.customers || [];
+            setLuluEmails(luluList);
+            luluList.forEach((l: any) => {
+              if (l.customerName) {
+                emailSet.add(l.customerName.toLowerCase().trim());
+              }
+            });
+          }
+
           setCustomersWithEmails(emailSet);
-        }
-        if (luluRes.ok) {
-          const d = await luluRes.json();
-          setLuluEmails(d.customers || []);
         }
       } catch (error) {
         console.error('Error fetching dependencies:', error);
