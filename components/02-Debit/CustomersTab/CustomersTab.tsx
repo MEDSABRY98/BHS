@@ -699,7 +699,7 @@ export default function CustomersTab({
   }
 
   return (
-    <div className="flex flex-col h-full bg-slate-50/50">
+    <div className="flex flex-col h-full bg-white">
       {/* Header Toolbar */}
       <div className="p-2 bg-white border-b border-gray-200 flex items-center gap-3 sticky top-0 z-30 shadow-sm overflow-x-auto no-scrollbar">
         <div className="w-10 shrink-0">
@@ -801,49 +801,53 @@ export default function CustomersTab({
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto p-4 md:p-6">
 
-        {viewMode === 'DEFAULT' && (
-          <DefaultView
-            table={table}
-            selectedCustomersForDownload={selectedCustomersForDownload}
-            toggleCustomerSelection={toggleCustomerSelection}
-            setSelectedCustomer={handleCustomerSelect}
-            setSelectedCustomerForMonths={setSelectedCustomerForMonths}
-            setSelectedCollectionStats={setSelectedCollectionStats}
-            setSelectedRatingCustomer={setSelectedRatingCustomer}
-            setRatingBreakdown={setRatingBreakdown}
-            closedCustomers={closedCustomers}
-            mode={mode}
-            customerAnalysis={customerAnalysis}
-            filteredData={filteredData}
-            isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
-          />
-        )}
+        {filteredData.length === 0 ? (
+          <NoData />
+        ) : (
+          <>
+            {viewMode === 'DEFAULT' && (
+              <DefaultView
+                table={table}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                setSelectedCustomerForMonths={setSelectedCustomerForMonths}
+                setSelectedCollectionStats={setSelectedCollectionStats}
+                setSelectedRatingCustomer={setSelectedRatingCustomer}
+                setRatingBreakdown={setRatingBreakdown}
+                closedCustomers={closedCustomers}
+                mode={mode}
+                customerAnalysis={customerAnalysis}
+                filteredData={filteredData}
+                isDateFilterActive={!!(filters.filterYear || filters.filterMonth || filters.dateRangeFrom || filters.dateRangeTo)}
+              />
+            )}
 
-        {viewMode === 'SUMMARY' && (
-          <SummaryView
-            table={table}
-            filteredData={filteredData}
-            selectedCustomersForDownload={selectedCustomersForDownload}
-            toggleCustomerSelection={toggleCustomerSelection}
-            toggleSelectAll={toggleSelectAll}
-            setSelectedCustomer={handleCustomerSelect}
-            closedCustomers={closedCustomers}
-          />
-        )}
+            {viewMode === 'SUMMARY' && (
+              <SummaryView
+                table={table}
+                filteredData={filteredData}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                toggleSelectAll={toggleSelectAll}
+                setSelectedCustomer={handleCustomerSelect}
+                closedCustomers={closedCustomers}
+              />
+            )}
 
-        {viewMode === 'YEARLY' && yearlyPivotData && (
-          <YearlyView
-            yearlyPivotData={yearlyPivotData}
-            selectedCustomersForDownload={selectedCustomersForDownload}
-            setSelectedCustomersForDownload={setSelectedCustomersForDownload}
-            toggleCustomerSelection={toggleCustomerSelection}
-            setSelectedCustomer={handleCustomerSelect}
-            yearlySorting={yearlySorting}
-            handleYearlySort={handleYearlySort}
-          />
+            {viewMode === 'YEARLY' && yearlyPivotData && (
+              <YearlyView
+                yearlyPivotData={yearlyPivotData}
+                selectedCustomersForDownload={selectedCustomersForDownload}
+                setSelectedCustomersForDownload={setSelectedCustomersForDownload}
+                toggleCustomerSelection={toggleCustomerSelection}
+                setSelectedCustomer={handleCustomerSelect}
+                yearlySorting={yearlySorting}
+                handleYearlySort={handleYearlySort}
+              />
+            )}
+          </>
         )}
-
-        {filteredData.length === 0 && <NoData />}
       </div>
 
       {/* Modals */}

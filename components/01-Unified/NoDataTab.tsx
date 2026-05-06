@@ -17,7 +17,7 @@ export default function NoData({ title, message }: NoDataProps) {
       {/* Abstract Modern Shape Background */}
       <div className="relative mb-6">
         <div className="absolute -inset-4 bg-gradient-to-tr from-indigo-500/10 to-blue-500/5 rounded-full blur-2xl group-hover:scale-110 transition-transform duration-700 ease-out" />
-        
+
         {/* Modern Typography for "No Data" */}
         <div className="relative flex flex-col items-center">
           <span className="text-6xl md:text-8xl font-black text-transparent bg-clip-text bg-gradient-to-b from-gray-200 to-gray-100 select-none tracking-tighter opacity-80 group-hover:opacity-100 transition-opacity duration-500">

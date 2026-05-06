@@ -170,7 +170,9 @@ const FilterModal: React.FC<FilterModalProps> = ({
                         className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                       >
                         <option value="ALL">All Statuses</option>
-                        <option value="WITH_EMAIL">Customers with Email</option>
+                        <option value="WITH_EMAIL">Emails All</option>
+                        <option value="EMAIL_NORMAL">Emails Normal</option>
+                        <option value="EMAIL_LULU">Emails LULU</option>
                         <option value="RATING_GOOD">Rating: Good</option>
                         <option value="RATING_MEDIUM">Rating: Medium</option>
                         <option value="RATING_BAD">Rating: Bad</option>

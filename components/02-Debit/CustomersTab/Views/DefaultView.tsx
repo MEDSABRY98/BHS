@@ -38,7 +38,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 }) => {
   return (
     <>
-      <div className="mb-4 bg-gradient-to-r from-slate-50 via-gray-50 to-slate-50 p-4 rounded-xl border-2 border-gray-200">
+      <div className="mb-4 bg-white p-4 rounded-xl border-2 border-gray-100">
         <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="contents">
@@ -84,10 +84,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
       </div>
 
       <div className="space-y-3 mb-6">
-        {table.getRowModel().rows.length === 0 ? (
-          <NoData />
-        ) : (
-          table.getRowModel().rows.map((row, index) => {
+        {table.getRowModel().rows.map((row, index) => {
             const customer = row.original;
             const netDebt = customer.netDebt;
             const totalDebit = customer.totalDebit;
@@ -257,8 +254,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                 </div>
               </div>
             );
-          })
-        )}
+          })}
       </div>
 
       <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">
