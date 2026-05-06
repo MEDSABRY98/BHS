@@ -700,7 +700,7 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
                             <LabelList 
                               dataKey="prevAmount" 
                               position="top" 
-                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
                               style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
                               offset={10}
                             />
@@ -717,7 +717,7 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
                             <LabelList 
                               dataKey="currentAmount" 
                               position="top" 
-                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
                               style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
                               offset={10}
                             />
@@ -842,7 +842,7 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
                             <LabelList 
                               dataKey="prevQty" 
                               position="top" 
-                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
                               style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
                               offset={10}
                             />
@@ -859,7 +859,7 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
                             <LabelList 
                               dataKey="currentQty" 
                               position="top" 
-                              formatter={(val: number) => val === 0 ? '' : val.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
+                              formatter={(val: any) => (val === 0 || !val) ? '' : Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}
                               style={{ fontSize: '13px', fontWeight: '900', fill: '#2563eb' }}
                               offset={10}
                             />
