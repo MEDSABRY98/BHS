@@ -414,6 +414,43 @@ export default function DocumentsTrackingTab() {
         }
     };
 
+    const bulkRegister = async () => {
+        const receivedChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'received');
+        if (receivedChecks.length === 0) {
+            showNotify('لا توجد شيكات "مستلمة" ليتم تسجيلها', 'error');
+            return;
+        }
+
+        setIsLoading(true);
+        try {
+            const now = new Date().toLocaleString('ar-AE');
+            const updates = receivedChecks.map(c => ({
+                rowIndex: c.rowIndex,
+                data: {
+                    documentStatus: STATUS_LABELS.registered,
+                    datedRecord: now
+                }
+            }));
+
+            const response = await fetch('/api/documents-tracking', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ bulk: true, updates })
+            });
+
+            if (response.ok) {
+                showNotify(`تم تسجيل ${receivedChecks.length} شيك في السيستم بنجاح`);
+                setSelectedIds([]);
+                await fetchChecks();
+            }
+        } catch (error) {
+            console.error('Error bulk registering checks:', error);
+            showNotify('فشل في تسجيل الشيكات بالجملة', 'error');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const bulkDeliver = async () => {
         const registeredChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered');
         if (registeredChecks.length === 0) {
@@ -1036,13 +1073,22 @@ export default function DocumentsTrackingTab() {
 
                             {selectedIds.length > 0 && (
                                 <div style={{ display: 'flex', gap: '8px' }}>
+                                    {checks.some(c => selectedIds.includes(c.id) && c.status === 'received') && (
+                                        <button
+                                            className="filter-btn active"
+                                            onClick={bulkRegister}
+                                            style={{ background: '#3b82f6', borderColor: '#3b82f6', color: 'white', display: 'flex', alignItems: 'center', gap: '6px' }}
+                                        >
+                                            <Save size={14} /> تسجيل {selectedIds.filter(id => checks.find(c => c.id === id && c.status === 'received')).length} شيك في السيستم
+                                        </button>
+                                    )}
                                     {checks.some(c => selectedIds.includes(c.id) && c.status === 'registered') && (
                                         <button
                                             className="filter-btn active"
                                             onClick={() => setIsBulkDeliverModalOpen(true)}
-                                            style={{ background: 'var(--gold)', borderColor: 'var(--gold)', color: 'black' }}
+                                            style={{ background: 'var(--gold)', borderColor: 'var(--gold)', color: 'black', display: 'flex', alignItems: 'center', gap: '6px' }}
                                         >
-                                            🚀 تسليم {selectedIds.length} شيك للمكتب
+                                            🚀 تسليم {selectedIds.filter(id => checks.find(c => c.id === id && c.status === 'registered')).length} شيك للمكتب
                                         </button>
                                     )}
                                     <button

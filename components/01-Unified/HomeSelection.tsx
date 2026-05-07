@@ -156,12 +156,11 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'documents-tracking', title: "Documents Tracking", icon: FileSpreadsheet, path: '/documents-tracking', color: 'orange' as const },
     { id: 'customers-summaries', title: "Customers Summaries", icon: FileSpreadsheet, path: '/customers-summaries', color: 'sky' as const },
     { id: 'debit', title: "Debit Analysis", icon: DollarSign, path: '/debit', color: 'red' as const },
-    { id: 'visit-customers', title: "Visit Customers", icon: Users, path: '/visit-customers', color: 'pink' as const },
+    { id: 'customers-documents', title: "Customers Documents", icon: FileText, path: '/customers-documents', color: 'indigo' as const },
     { id: 'sales', title: "Sales Analysis", icon: LayoutGrid, path: '/sales', color: 'green' as const },
     { id: 'delivery-tracking', title: "Delivery Tracking", icon: Truck, path: '/delivery-tracking', color: 'blue' as const },
     { id: 'inventory', title: "Inventory", icon: Package, path: '/inventory', color: 'indigo' as const },
     { id: 'wh20-items', title: "WH/20 ITEMS", icon: Package, path: '/wh20-items', color: 'emerald' as const },
-    { id: 'employee', title: "Employee", icon: Clock, path: '/employee', color: 'blue' as const },
     { id: 'water-delivery-note', title: "Water - Delivery Note", icon: FileText, path: '/water-delivery-note', color: 'violet' as const },
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/suppliers', color: 'emerald' as const },
   ];

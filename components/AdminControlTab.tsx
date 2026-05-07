@@ -16,11 +16,10 @@ const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'wh20-items', label: 'WH/20 Items' },
-    { id: 'employee', label: 'Employee' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'customers-summaries', label: 'Customers Summaries' },
-    { id: 'visit-customers', label: 'Visit Customers' },
+    { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'delivery-tracking', label: 'Delivery Tracking' },
     { id: 'documents-tracking', label: 'Documents Tracking' }
 ];
@@ -64,16 +63,9 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'voucher', label: 'Voucher' },
         { id: 'stats', label: 'Statistics' }
     ],
-    'employee': [
-        { id: 'register', label: 'Register' },
-        { id: 'view', label: 'View Records' },
-        { id: 'statistics', label: 'Statistics' },
-        { id: 'absence', label: 'Absence' }
-    ],
-    'visit-customers': [
-        { id: 'registration', label: 'Registration' },
-        { id: 'customer-reports', label: 'Customer Reports' },
-        { id: 'rep-reports', label: 'Rep Reports' }
+    'customers-documents': [
+        { id: 'checklist', label: 'Checklist' },
+        { id: 'expiration', label: 'Expiration Tracker' }
     ],
     'wh20-items': [
         { id: 'entry', label: 'Entry' },

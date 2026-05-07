@@ -2,9 +2,10 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet } from 'lucide-react';
+import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet, BarChart2, X } from 'lucide-react';
 import NoData from '../01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 interface SalesST_ByProductProps {
   data: SalesInvoice[];
@@ -30,10 +31,14 @@ const calculateMode = (numbers: number[]): number => {
 export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [appliedCustomerQuery, setAppliedCustomerQuery] = useState('');
+  const [selectedProductData, setSelectedProductData] = useState<any>(null);
 
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       setAppliedSearchQuery(searchQuery);
+      setAppliedCustomerQuery(customerSearchQuery);
     }
   };
 
@@ -80,13 +85,25 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
   }, [data]);
 
   const filteredProducts = useMemo(() => {
-    if (!appliedSearchQuery.trim()) return [];
-    const query = appliedSearchQuery.toLowerCase().trim();
-    return productList.filter(p =>
-      p.product.toLowerCase().includes(query) ||
-      p.barcode.toLowerCase().includes(query)
-    );
-  }, [productList, appliedSearchQuery]);
+    let list = productList;
+
+    if (appliedSearchQuery.trim()) {
+      const query = appliedSearchQuery.toLowerCase().trim();
+      list = list.filter(p =>
+        p.product.toLowerCase().includes(query) ||
+        p.barcode.toLowerCase().includes(query)
+      );
+    }
+
+    if (appliedCustomerQuery.trim()) {
+      const query = appliedCustomerQuery.toLowerCase().trim();
+      list = list.filter(p =>
+        Array.from(p.customers.keys()).some(c => c.toLowerCase().includes(query))
+      );
+    }
+
+    return (appliedSearchQuery.trim() || appliedCustomerQuery.trim()) ? list : [];
+  }, [productList, appliedSearchQuery, appliedCustomerQuery]);
 
   const handleExportExcel = () => {
     if (filteredProducts.length === 0) return;
@@ -127,16 +144,27 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div className="flex flex-col items-center justify-center pt-2">
-        <div className="flex items-center gap-3 w-full max-w-2xl">
+        <div className="flex items-center gap-3 w-full max-w-4xl">
           <div className="relative flex-1 group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
             <input
               type="text"
-              placeholder="Search by Product Name or Barcode..."
+              placeholder="Search by Product Name..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={handleSearchKeyDown}
               className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:border-indigo-500 outline-none transition-all shadow-sm text-sm font-semibold placeholder:text-slate-400"
+            />
+          </div>
+          <div className="relative flex-1 group">
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-emerald-600 transition-colors" />
+            <input
+              type="text"
+              placeholder="Search by Customer Name..."
+              value={customerSearchQuery}
+              onChange={e => setCustomerSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 outline-none transition-all shadow-sm text-sm font-semibold placeholder:text-slate-400"
             />
           </div>
           <button
@@ -163,7 +191,11 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
           <div className="bg-white rounded-3xl p-20 border border-slate-100 shadow-sm"><NoData /></div>
         ) : (
           filteredProducts.map((p, idx) => {
-            const customerList = Array.from(p.customers.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+            const customerList = Array.from(p.customers.entries())
+              .filter(([custName]) => !appliedCustomerQuery.trim() || custName.toLowerCase().includes(appliedCustomerQuery.toLowerCase().trim()))
+              .sort((a, b) => a[0].localeCompare(b[0]));
+            
+            if (customerList.length === 0) return null;
             
             // Calculate column averages
             const columnTotals = customerList.reduce((acc, [_, stats]) => {
@@ -186,7 +218,16 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                     <TrendingUp className="w-6 h-6 text-indigo-600" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-black text-slate-900 leading-none mb-1">{p.product}</h3>
+                    <div className="flex items-center gap-3 mb-1">
+                      <h3 className="text-lg font-black text-slate-900 leading-none">{p.product}</h3>
+                      <button 
+                        onClick={() => setSelectedProductData(p)}
+                        className="w-8 h-8 flex items-center justify-center bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all shadow-sm shrink-0"
+                        title="View Price Distribution"
+                      >
+                        <BarChart2 className="w-4 h-4" />
+                      </button>
+                    </div>
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-2 py-0.5 rounded-md border border-slate-100">{p.barcode}</span>
                       <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md">{p.customers.size} Customers</span>
@@ -203,11 +244,11 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                 <table className="w-full table-fixed">
                   <thead>
                     <tr className="bg-white border-b border-slate-100">
-                      <th className="py-6 px-8 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-64">Customer</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Most Price ({avgMost.toFixed(1)})</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Last Price ({avgLast.toFixed(1)})</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Cost ({avgCost.toFixed(1)})</th>
-                      <th className="py-6 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-40">Margin</th>
+                      <th className="py-4 px-8 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-[450px]">Customer</th>
+                      <th className="py-4 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Most Price ({avgMost.toFixed(1)})</th>
+                      <th className="py-4 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Last Price ({avgLast.toFixed(1)})</th>
+                      <th className="py-4 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-48">Cost ({avgCost.toFixed(1)})</th>
+                      <th className="py-4 px-4 text-center text-[14px] font-black text-slate-500 uppercase tracking-[0.2em] w-64">Margin</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -220,36 +261,36 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
 
                       return (
                         <tr key={i} className="hover:bg-slate-50/50 transition-colors">
-                          <td className="py-6 px-8">
+                          <td className="py-4 px-8">
                             <div className="flex items-center justify-center gap-3">
                               <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
                                 <User className="w-4 h-4 text-slate-500" />
                               </div>
-                              <span className="text-base font-semibold text-slate-800 text-center w-64 truncate" title={custName}>{custName}</span>
+                              <span className="text-base font-semibold text-slate-800 text-center w-full truncate" title={custName}>{custName}</span>
                             </div>
                           </td>
-                          <td className="py-6 px-4 text-center">
-                            <span className="text-xl font-medium text-slate-900 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200/60">
+                          <td className="py-4 px-4 text-center">
+                            <span className="text-xl font-medium text-slate-900 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-200/60">
                               {most.toLocaleString('en-US', { minimumFractionDigits: 1 })}
                             </span>
                           </td>
-                          <td className="py-6 px-4 text-center">
-                            <span className="text-xl font-medium text-indigo-600 bg-indigo-50/50 px-4 py-2 rounded-xl border border-indigo-100/40">
+                          <td className="py-4 px-4 text-center">
+                            <span className="text-xl font-medium text-indigo-600 bg-indigo-50/50 px-4 py-1.5 rounded-xl border border-indigo-100/40">
                               {last.toLocaleString('en-US', { minimumFractionDigits: 1 })}
                             </span>
                           </td>
-                          <td className="py-6 px-4 text-center">
-                            <span className="text-xl font-medium text-slate-500 bg-slate-50 px-4 py-2 rounded-xl border border-slate-200/60">
+                          <td className="py-4 px-4 text-center">
+                            <span className="text-xl font-medium text-slate-500 bg-slate-50 px-4 py-1.5 rounded-xl border border-slate-200/60">
                               {cost.toLocaleString('en-US', { minimumFractionDigits: 1 })}
                             </span>
                           </td>
-                          <td className="py-6 px-4 text-center">
-                            <div className="inline-flex flex-col items-center justify-center">
-                              <span className={`text-xl font-medium ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                {diff >= 0 ? '+' : ''}{diff.toFixed(1)}
-                              </span>
-                              <span className="text-[10px] font-bold text-slate-400 tracking-widest mt-0.5">
+                          <td className="py-4 px-4 text-center">
+                            <div className="inline-flex items-center justify-center gap-4">
+                              <span className={`text-xl font-black ${diff >= 0 ? 'text-emerald-600' : 'text-rose-600'} bg-white px-3 py-1 rounded-lg border border-slate-100 shadow-sm`}>
                                 {margin.toFixed(1)}%
+                              </span>
+                              <span className={`text-sm font-bold ${diff >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                ({diff >= 0 ? '+' : ''}{diff.toFixed(1)})
                               </span>
                             </div>
                           </td>
@@ -264,6 +305,113 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
           })
         )}
       </div>
+      {/* Price Distribution Modal */}
+      {selectedProductData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-[32px] w-full max-w-4xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center">
+                  <BarChart2 className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black text-slate-900">Price Distribution</h3>
+                  <p className="text-sm text-slate-400 font-bold">{selectedProductData.product}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedProductData(null)}
+                className="w-10 h-10 flex items-center justify-center bg-white text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all border border-slate-100"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-8">
+              <div className="h-[450px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart 
+                    data={(() => {
+                      const counts: Record<number, number> = {};
+                      let total = 0;
+                      selectedProductData.customers.forEach((stats: any) => {
+                        stats.prices.forEach((price: number) => {
+                          const p = parseFloat(price.toFixed(1));
+                          counts[p] = (counts[p] || 0) + 1;
+                          total++;
+                        });
+                      });
+                      return Object.entries(counts)
+                        .map(([price, count]) => ({
+                          price: parseFloat(price),
+                          count,
+                          percentage: (count / total) * 100
+                        }))
+                        .sort((a, b) => b.count - a.count);
+                    })()}
+                    margin={{ top: 20, right: 30, left: 0, bottom: 20 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                    <XAxis 
+                      dataKey="price" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }}
+                      dy={10}
+                    />
+                    <YAxis 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{ fill: '#64748b', fontSize: 12, fontWeight: 700 }}
+                      tickFormatter={(val) => `${val}%`}
+                    />
+                    <Tooltip 
+                      cursor={{ fill: '#f8fafc' }}
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div className="bg-white p-4 rounded-2xl shadow-xl border border-slate-100">
+                              <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">Price Point</p>
+                              <p className="text-xl font-black text-slate-900 mb-2">{data.price.toLocaleString()} AED</p>
+                              <div className="flex items-center gap-2">
+                                <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                                <p className="text-sm font-bold text-slate-600">
+                                  Frequency: <span className="text-indigo-600">{data.percentage.toFixed(1)}%</span>
+                                </p>
+                              </div>
+                              <p className="text-[10px] text-slate-400 font-bold mt-1">({data.count} occurrences)</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Bar 
+                      dataKey="percentage" 
+                      radius={[8, 8, 0, 0]} 
+                      barSize={40}
+                    >
+                      <LabelList 
+                        dataKey="percentage" 
+                        position="top" 
+                        formatter={(val: number) => `${val.toFixed(1)}%`}
+                        style={{ fill: '#1e293b', fontSize: 14, fontWeight: 900 }}
+                        offset={10}
+                      />
+                      <Cell fill="#4f46e5" fillOpacity={0.8} />
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+            
+            <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-center">
+              <p className="text-xs font-bold text-slate-400">Analysis based on prices from {selectedProductData.customers.size} distinct customers</p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

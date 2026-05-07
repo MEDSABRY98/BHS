@@ -466,19 +466,9 @@
     flex-direction: column;
     gap: 8px;
     margin-bottom: 20px;
-    max-height: 500px;
-    overflow-y: auto;
-    padding-right: 4px;
 }
 
-.drafts-container::-webkit-scrollbar {
-    width: 6px;
-}
 
-.drafts-container::-webkit-scrollbar-thumb {
-    background: rgba(201, 168, 76, 0.2);
-    border-radius: 10px;
-}
 
 .form-row-inputs {
     background: rgba(255, 255, 255, 0.03);

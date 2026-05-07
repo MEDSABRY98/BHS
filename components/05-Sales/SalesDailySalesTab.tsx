@@ -12,11 +12,12 @@ interface SalesDailySalesTabProps {
 }
 
 export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTabProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [searchQuery1, setSearchQuery1] = useState('');
+  const [searchQuery2, setSearchQuery2] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const itemsPerPage = 50;
 
   // Format date as DD/MM/YYYY
@@ -64,8 +65,11 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         totalCost: 0,
         totalPrice: 0,
         costCount: 0,
-        priceCount: 0
+        priceCount: 0,
+        items: [] as SalesInvoice[]
       };
+
+      existing.items.push(item);
 
       existing.amount += item.amount || 0;
       existing.qty += item.qty || 0;
@@ -108,7 +112,8 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
         productsCount: invoice.products.size,
         searchTerms: Array.from(invoice.searchTerms),
         avgCost,
-        avgPrice
+        avgPrice,
+        items: invoice.items
       };
     }).sort((a, b) => {
       const dateA = new Date(a.invoiceDate).getTime();
@@ -358,9 +363,9 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
   const searchedData = useMemo(() => {
     let result = dailySalesData;
 
-    // Apply main search query from filters
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
+    // Apply first search query
+    if (searchQuery1.trim()) {
+      const query = searchQuery1.toLowerCase().trim();
       result = result.filter((item: any) => {
         const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
         if (invoiceDateStr.includes(query)) return true;
@@ -376,9 +381,9 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       });
     }
 
-    // Apply table quick search
-    if (tableSearchQuery.trim()) {
-      const query = tableSearchQuery.toLowerCase().trim();
+    // Apply second search query
+    if (searchQuery2.trim()) {
+      const query = searchQuery2.toLowerCase().trim();
       result = result.filter((item: any) => {
         const invoiceDateStr = item.invoiceDate ? formatDate(item.invoiceDate).toLowerCase() : '';
         if (invoiceDateStr.includes(query)) return true;
@@ -395,12 +400,12 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     }
 
     return result;
-  }, [dailySalesData, searchQuery, tableSearchQuery]);
+  }, [dailySalesData, searchQuery1, searchQuery2]);
 
   // Reset to page 1 when filters change or sub-tab changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, tableSearchQuery, activeSubTab]);
+  }, [searchQuery1, searchQuery2, activeSubTab]);
 
   // Calculate pagination
   const totalPages = Math.ceil(searchedData.length / itemsPerPage);
@@ -462,6 +467,44 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
     XLSX.writeFile(workbook, 'AVG_Sales_BY_Day.xlsx');
   };
 
+  // Export Single Invoice to Excel
+  const exportSingleInvoiceToExcel = (invoice: any) => {
+    const header = [
+      ['Customer Name:', invoice.customerName],
+      ['Invoice Number:', invoice.invoiceNumber],
+      ['Date:', formatDate(invoice.invoiceDate)],
+      [],
+      ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+    ];
+
+    const rows = invoice.items.map((item: SalesInvoice) => [
+      item.barcode || '-',
+      item.product || '-',
+      item.qty || 0,
+      item.productCost || 0,
+      item.productPrice || 0,
+      item.amount || 0
+    ]);
+
+    const subtotal = invoice.amount / 1.05;
+    const tax = invoice.amount - subtotal;
+
+    const footer = [
+      [],
+      ['', '', '', '', 'Subtotal (Excl. Tax):', subtotal],
+      ['', '', '', '', 'VAT (5%):', tax],
+      ['', '', '', '', 'Total Amount:', invoice.amount]
+    ];
+
+    const worksheetData = [...header, ...rows, ...footer];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    // Sanitize sheet name: remove forbidden characters : \ / ? * [ ]
+    const sheetName = String(invoice.invoiceNumber).replace(/[:\\/?*[\]]/g, '_').slice(0, 31);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, `Invoice_${invoice.invoiceNumber}.xlsx`);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -478,20 +521,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       {/* Header */}
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 relative">
         <h1 className="text-2xl font-medium text-slate-800">Sales Daily Sales</h1>
-
-        {/* Centered Search Box */}
-        <div className="flex-1 md:absolute md:left-1/2 md:-translate-x-1/2 w-full md:max-w-md group z-10">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-green-600 transition-colors" />
-            <input
-              type="text"
-              placeholder="Search invoices..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all font-medium text-sm shadow-sm"
-            />
-          </div>
-        </div>
 
         {/* Action Buttons */}
         <div className="flex items-center gap-2">
@@ -604,23 +633,38 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
           </div>
 
           {dailySalesData.length > 0 && (
-            <div className="mb-4 flex items-center gap-3 bg-gray-50 p-3 rounded-lg border border-gray-200">
-              <Search className="w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Quick search in table (Invoice #, Customer, Amount, etc.)..."
-                value={tableSearchQuery}
-                onChange={(e) => setTableSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400"
-              />
-              {tableSearchQuery && (
-                <button
-                  onClick={() => setTableSearchQuery('')}
-                  className="text-gray-400 hover:text-gray-600 transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              )}
+            <div className="mb-6 flex flex-col md:flex-row items-center gap-4 max-w-3xl mx-auto w-full">
+              <div className="flex-1 w-full flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200 group focus-within:border-green-500 transition-all">
+                <Search className="w-5 h-5 text-gray-400 group-focus-within:text-green-600" />
+                <input
+                  type="text"
+                  placeholder="Search by (Invoice #, Customer, etc.)..."
+                  value={searchQuery1}
+                  onChange={(e) => setSearchQuery1(e.target.value)}
+                  className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400 font-medium"
+                />
+                {searchQuery1 && (
+                  <button onClick={() => setSearchQuery1('')} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
+              
+              <div className="flex-1 w-full flex items-center gap-3 bg-gray-50 p-3 rounded-xl border border-gray-200 group focus-within:border-blue-500 transition-all">
+                <Search className="w-5 h-5 text-gray-400 group-focus-within:text-blue-600" />
+                <input
+                  type="text"
+                  placeholder="Refine search (Customer, Amount, Date, etc.)..."
+                  value={searchQuery2}
+                  onChange={(e) => setSearchQuery2(e.target.value)}
+                  className="flex-1 bg-transparent border-none focus:outline-none text-gray-700 placeholder-gray-400 font-medium"
+                />
+                {searchQuery2 && (
+                  <button onClick={() => setSearchQuery2('')} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
 
@@ -651,7 +695,14 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {formatDate(item.invoiceDate) || '-'}
                         </td>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">{item.invoiceNumber}</td>
+                        <td className="text-center py-3 px-4 text-sm font-semibold text-green-600">
+                          <button 
+                            onClick={() => setSelectedInvoice(item)}
+                            className="hover:underline font-bold"
+                          >
+                            {item.invoiceNumber}
+                          </button>
+                        </td>
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800 w-56 truncate" title={item.customerName || '-'}>{item.customerName || '-'}</td>
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -815,6 +866,101 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
               </table>
             </div>
           )}
+        </div>
+      )}
+      {/* Invoice Details Modal */}
+      {selectedInvoice && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-green-600" />
+                  Invoice Details: {selectedInvoice.invoiceNumber}
+                </h3>
+                <p className="text-sm text-gray-500 font-medium">
+                  {selectedInvoice.customerName} | {formatDate(selectedInvoice.invoiceDate)}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => exportSingleInvoiceToExcel(selectedInvoice)}
+                  className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors flex items-center justify-center border border-emerald-100 shadow-sm group"
+                  title="Export Invoice to Excel"
+                >
+                  <FileSpreadsheet className="w-5 h-5 transition-transform group-hover:scale-110" />
+                </button>
+                <button 
+                  onClick={() => setSelectedInvoice(null)}
+                  className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body - Items Table */}
+            <div className="flex-1 overflow-auto p-6">
+              <table className="w-full">
+                <thead className="bg-gray-50 sticky top-0 z-10">
+                  <tr className="border-b border-gray-200">
+                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Barcode</th>
+                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
+                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Qty</th>
+                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cost</th>
+                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Price</th>
+                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Total</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {selectedInvoice.items.map((item: SalesInvoice, idx: number) => (
+                    <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                      <td className="py-3 px-4 text-center font-mono text-[11px] text-gray-500">{item.barcode || '-'}</td>
+                      <td className="py-3 px-4 text-center">
+                        <div className="font-bold text-gray-800">{item.product}</div>
+                      </td>
+                      <td className="py-3 px-4 text-center font-semibold text-gray-700">{item.qty}</td>
+                      <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                        {item.productCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                        {item.productPrice?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="py-3 px-4 text-center font-bold text-gray-900">
+                        {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Modal Footer - Totals Breakdown */}
+            <div className="px-8 py-6 bg-gray-50 border-t border-gray-200">
+              <div className="flex flex-col items-end gap-2">
+                <div className="flex justify-between w-full max-w-[240px] text-gray-600 font-medium">
+                  <span>Subtotal (Excl. Tax):</span>
+                  <span className="font-bold">
+                    {(selectedInvoice.amount / 1.05).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between w-full max-w-[240px] text-gray-600 font-medium border-b border-gray-200 pb-2">
+                  <span>VAT (5%):</span>
+                  <span className="font-bold">
+                    {(selectedInvoice.amount - (selectedInvoice.amount / 1.05)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex justify-between w-full max-w-[240px] text-green-700 mt-1">
+                  <span className="text-lg font-black uppercase tracking-wider">Total Amount:</span>
+                  <span className="text-2xl font-black">
+                    {selectedInvoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    <span className="text-xs ml-1 font-bold">AED</span>
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

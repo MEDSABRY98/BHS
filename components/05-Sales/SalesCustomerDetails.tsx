@@ -38,15 +38,13 @@ export default function SalesCustomerDetails({
 }: SalesCustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products' | 'invoices'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
-  const [filterYear, setFilterYear] = useState('');
-  const [filterMonth, setFilterMonth] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
   const [loadingInvoices, setLoadingInvoices] = useState(false);
   const [showDiscountsModal, setShowDiscountsModal] = useState(false);
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
+  const [invoicesPage, setInvoicesPage] = useState(1);
+  const invoicesPerPage = 50;
 
   // Debounce search query
   useEffect(() => {
@@ -96,65 +94,6 @@ export default function SalesCustomerDetails({
   const customerData = useMemo(() => {
     let filtered = [...unfilteredCustomerData];
 
-    // Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getFullYear() === yearNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          try {
-            const date = new Date(item.invoiceDate);
-            return !isNaN(date.getTime()) && date.getMonth() + 1 === monthNum;
-          } catch (e) {
-            return false;
-          }
-        });
-      }
-    }
-
-    // Date filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          if (isNaN(itemDate.getTime())) return false;
-
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            fromDate.setHours(0, 0, 0, 0);
-            if (itemDate < fromDate) return false;
-          }
-
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            if (itemDate > toDate) return false;
-          }
-
-          return true;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
     // Search filter
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
@@ -168,7 +107,7 @@ export default function SalesCustomerDetails({
     }
 
     return filtered;
-  }, [unfilteredCustomerData, dateFrom, dateTo, filterYear, filterMonth, debouncedSearchQuery]);
+  }, [unfilteredCustomerData, debouncedSearchQuery]);
 
   // Monthly sales data
   const monthlySales = useMemo(() => {
@@ -581,7 +520,8 @@ export default function SalesCustomerDetails({
       ? subCustomerTotalAmount / mainCustomerTotalAmount
       : 0;
 
-    // 5. Find the latest date in sales data
+    // 5. Find the date range in sales data (already filtered by parent/sidebar)
+    let earliestSalesDate: Date | null = null;
     let latestSalesDate: Date | null = null;
     if (data.length > 0) {
       const salesDates = data
@@ -597,31 +537,33 @@ export default function SalesCustomerDetails({
         .filter((date): date is Date => date !== null);
 
       if (salesDates.length > 0) {
-        latestSalesDate = new Date(Math.max(...salesDates.map(d => d.getTime())));
-        // Set to end of day to include all invoices on that date
+        const timestamps = salesDates.map(d => d.getTime());
+        earliestSalesDate = new Date(Math.min(...timestamps));
+        latestSalesDate = new Date(Math.max(...timestamps));
+        
+        earliestSalesDate.setHours(0, 0, 0, 0);
         latestSalesDate.setHours(23, 59, 59, 999);
       }
     }
 
     // 6. Calculate total discounts for main customer from Invoices sheet
-    // Filter by customer name and date (only invoices up to latest sales date)
+    // Filter by customer name and ensure invoice date is within the sales date range
     const mainCustomerInvoices = invoicesData.filter(inv => {
       if (!inv.customerName) return false;
       const normalizedInvName = normalizeCustomerName(inv.customerName);
       if (normalizedInvName !== normalizedMainName) return false;
 
-      // Filter by date: only include invoices up to latest sales date
-      if (latestSalesDate && inv.date) {
+      // Filter by date range: respect the same period as sales data
+      if (inv.date) {
         try {
           const invDate = new Date(inv.date);
           if (!isNaN(invDate.getTime())) {
             invDate.setHours(0, 0, 0, 0);
-            const compareDate = new Date(latestSalesDate);
-            compareDate.setHours(0, 0, 0, 0);
-            if (invDate > compareDate) return false;
+            
+            if (earliestSalesDate && invDate < earliestSalesDate) return false;
+            if (latestSalesDate && invDate > latestSalesDate) return false;
           }
         } catch {
-          // If date parsing fails, exclude the invoice
           return false;
         }
       }
@@ -631,10 +573,10 @@ export default function SalesCustomerDetails({
 
     const mainCustomerTotalDiscountsWithTax = mainCustomerInvoices.reduce((sum, inv) => {
       const num = (inv.number?.toString() || '').toUpperCase();
-      if (num.startsWith('BIL')) {
-        // Calculate netDebt (debit - credit) for discounts, same as in invoiceTypeTotals
-        const netDebt = (inv.debit || 0) - (inv.credit || 0);
-        return sum + netDebt;
+      if (num.startsWith('BIL') || num.startsWith('JV')) {
+        // Calculate net discount: (credit - debit)
+        const netDiscount = (inv.credit || 0) - (inv.debit || 0);
+        return sum + netDiscount;
       }
       return sum;
     }, 0);
@@ -698,15 +640,10 @@ export default function SalesCustomerDetails({
       monthMap.set(key, existing);
     });
 
-    // Determine target year
-    let targetYear: number;
-    if (filterYear) {
-      targetYear = parseInt(filterYear, 10);
-    } else {
-      const allKeys = Array.from(monthMap.keys()).sort();
-      const latestKey = allKeys[allKeys.length - 1];
-      targetYear = latestKey ? parseInt(latestKey.split('-')[0], 10) : new Date().getFullYear();
-    }
+    // Determine target year (latest available in data)
+    const allKeys = Array.from(monthMap.keys()).sort();
+    const latestKey = allKeys[allKeys.length - 1];
+    const targetYear = latestKey ? parseInt(latestKey.split('-')[0], 10) : new Date().getFullYear();
 
     const prevYear = targetYear - 1;
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -749,7 +686,7 @@ export default function SalesCustomerDetails({
     });
 
     return result;
-  }, [customerAllData, filterYear]);
+  }, [customerAllData]);
 
 
   const exportProductsToExcel = () => {
@@ -836,62 +773,15 @@ export default function SalesCustomerDetails({
           <h1 className="text-3xl font-bold text-gray-800">{customerName}</h1>
         </div>
 
-        {/* Search and Filters */}
-        <div className="mb-6 flex gap-4 flex-wrap">
-          <div className="relative flex-[3] min-w-[200px]">
+        {/* Search Filter */}
+        <div className="mb-6">
+          <div className="relative max-w-xl mx-auto">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
               placeholder="Search by product, barcode, merchandiser, sales rep, invoice..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
-          </div>
-          <div className="relative flex-1 min-w-[120px]">
-            <input
-              type="number"
-              placeholder="Year (e.g., 2024)"
-              value={filterYear}
-              onChange={(e) => setFilterYear(e.target.value)}
-              className="w-full px-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-              min="2000"
-              max="2100"
-            />
-          </div>
-          <div className="relative flex-1 min-w-[120px]">
-            <input
-              type="number"
-              placeholder="Month (1-12)"
-              value={filterMonth}
-              onChange={(e) => {
-                const value = e.target.value;
-                if (value === '' || (parseInt(value) >= 1 && parseInt(value) <= 12)) {
-                  setFilterMonth(value);
-                }
-              }}
-              className="w-full px-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-              min="1"
-              max="12"
-            />
-          </div>
-          <div className="relative flex-1 min-w-[150px]">
-            <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              placeholder="From Date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
-          </div>
-          <div className="relative flex-1 min-w-[150px]">
-            <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              placeholder="To Date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
             />
           </div>
@@ -1468,7 +1358,7 @@ export default function SalesCustomerDetails({
                   </tr>
                 </thead>
                 <tbody>
-                  {groupedInvoicesData.map((item, index) => {
+                  {groupedInvoicesData.slice((invoicesPage - 1) * invoicesPerPage, invoicesPage * invoicesPerPage).map((item, index) => {
                     const isRSAL = item.invoiceNumber.trim().toUpperCase().startsWith('RSAL');
                     return (
                       <tr
@@ -1515,6 +1405,54 @@ export default function SalesCustomerDetails({
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {groupedInvoicesData.length > invoicesPerPage && (
+              <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+                <div className="text-sm text-gray-500">
+                  Showing <span className="font-semibold text-gray-900">{Math.min((invoicesPage - 1) * invoicesPerPage + 1, groupedInvoicesData.length)}</span> to <span className="font-semibold text-gray-900">{Math.min(invoicesPage * invoicesPerPage, groupedInvoicesData.length)}</span> of <span className="font-semibold text-gray-900">{groupedInvoicesData.length}</span> invoices
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setInvoicesPage(prev => Math.max(prev - 1, 1))}
+                    disabled={invoicesPage === 1}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, Math.ceil(groupedInvoicesData.length / invoicesPerPage)) }, (_, i) => {
+                      const totalPages = Math.ceil(groupedInvoicesData.length / invoicesPerPage);
+                      let pageNum;
+                      if (totalPages <= 5) pageNum = i + 1;
+                      else if (invoicesPage <= 3) pageNum = i + 1;
+                      else if (invoicesPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                      else pageNum = invoicesPage - 2 + i;
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setInvoicesPage(pageNum)}
+                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg transition-all ${invoicesPage === pageNum
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => setInvoicesPage(prev => Math.min(prev + 1, Math.ceil(groupedInvoicesData.length / invoicesPerPage)))}
+                    disabled={invoicesPage === Math.ceil(groupedInvoicesData.length / invoicesPerPage)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

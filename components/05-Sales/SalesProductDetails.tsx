@@ -31,8 +31,6 @@ interface SalesProductDetailsProps {
 export default function SalesProductDetails({ barcode, data, allData, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [customerTypeView, setCustomerTypeView] = useState<'main' | 'sub'>('sub');
 
@@ -48,33 +46,6 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
   const productData = useMemo(() => {
     let filtered = data.filter(item => item.barcode === barcode);
 
-    // Date filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        try {
-          const itemDate = new Date(item.invoiceDate);
-          if (isNaN(itemDate.getTime())) return false;
-
-          if (dateFrom) {
-            const fromDate = new Date(dateFrom);
-            fromDate.setHours(0, 0, 0, 0);
-            if (itemDate < fromDate) return false;
-          }
-
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            if (itemDate > toDate) return false;
-          }
-
-          return true;
-        } catch (e) {
-          return false;
-        }
-      });
-    }
-
     // Search filter
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
@@ -87,7 +58,7 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
     }
 
     return filtered;
-  }, [data, barcode, dateFrom, dateTo, debouncedSearchQuery]);
+  }, [data, barcode, debouncedSearchQuery]);
 
   // Get product name (use first occurrence)
   const productName = useMemo(() => {
@@ -479,35 +450,15 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
           </div>
         </div>
 
-        {/* Search and Date Filter */}
-        <div className="mb-6 flex gap-4">
-          <div className="relative flex-[3]">
+        {/* Search Filter */}
+        <div className="mb-6">
+          <div className="relative max-w-xl mx-auto">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
             <input
               type="text"
               placeholder="Search by customer, product, merchandiser, sales rep..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
-          </div>
-          <div className="relative flex-1">
-            <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              placeholder="From Date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
-            />
-          </div>
-          <div className="relative flex-1">
-            <Calendar className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="date"
-              placeholder="To Date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
               className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
             />
           </div>
