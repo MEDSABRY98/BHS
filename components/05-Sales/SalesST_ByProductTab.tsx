@@ -395,7 +395,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                       <LabelList 
                         dataKey="percentage" 
                         position="top" 
-                        formatter={(val: number) => `${val.toFixed(1)}%`}
+                        formatter={(val: any) => typeof val === 'number' ? `${val.toFixed(1)}%` : val}
                         style={{ fill: '#1e293b', fontSize: 14, fontWeight: 900 }}
                         offset={10}
                       />
