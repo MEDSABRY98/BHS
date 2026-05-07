@@ -49,6 +49,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       totalPrice: number;
       costCount: number;
       priceCount: number;
+      items: SalesInvoice[];
     }>();
 
     data.forEach(item => {
