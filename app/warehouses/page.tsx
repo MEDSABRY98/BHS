@@ -1,9 +1,9 @@
 import React from 'react';
-import InventoryWh20ItemsTab from '@/components/InventoryWh20ItemsTab';
+import InventoryWh20ItemsTab from '@/components/InventoryWarehouseSTab';
 
 export const metadata = {
-    title: 'WH/20 ITEMS System',
-    description: 'Management system for WH/20 items dispensing',
+    title: 'WarehouseS - Items System',
+    description: 'Management system for WarehouseS items dispensing',
 };
 
 export default function Wh20ItemsPage() {

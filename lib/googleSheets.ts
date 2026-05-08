@@ -2890,7 +2890,7 @@ export async function getWh20Items(): Promise<Wh20Item[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'WH/20 ITEMS'!A:G`, // BARCODE, PRODUCT, TAGS, CTN, PCS, QTY, PRICE
+      range: `'WarehouseS - Items'!A:G`, // BARCODE, PRODUCT, TAGS, CTN, PCS, QTY, PRICE
     });
 
     const rows = response.data.values;
@@ -2908,7 +2908,7 @@ export async function getWh20Items(): Promise<Wh20Item[]> {
       rowIndex: index + 2
     })).filter(item => item.product); // Filter out empty rows
   } catch (error) {
-    console.error('Error fetching WH/20 ITEMS:', error);
+    console.error('Error fetching WarehouseS - Items:', error);
     return [];
   }
 }
@@ -2940,7 +2940,7 @@ export async function getNextWh20TransactionNumber(): Promise<string> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!B:B`, // Column B is NUMBER
+      range: `'WarehouseS - Transfers'!B:B`, // Column B is NUMBER
     });
 
     const rows = response.data.values;
@@ -2998,7 +2998,7 @@ export async function addWh20Transfers(transfers: Wh20Transfer[]) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!A:M`,
+      range: `'WarehouseS - Transfers'!A:M`,
       valueInputOption: 'USER_ENTERED',
       insertDataOption: 'OVERWRITE',
       requestBody: { values },
@@ -3007,7 +3007,7 @@ export async function addWh20Transfers(transfers: Wh20Transfer[]) {
 
     return { success: true };
   } catch (error) {
-    console.error('Error adding WH/20 transfers:', error);
+    console.error('Error adding WarehouseS - transfers:', error);
     throw error;
   }
 }
@@ -3023,7 +3023,7 @@ export async function getWh20Customers(): Promise<string[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'CUSTOMERS - WH/20 ITEMS'!A:B`, // A: ID, B: Name
+      range: `'CDB'!A:B`, // A: ID, B: Name
     });
 
     const rows = response.data.values;
@@ -3036,7 +3036,7 @@ export async function getWh20Customers(): Promise<string[]> {
 
     return Array.from(new Set(customers)).sort();
   } catch (error) {
-    console.error('Error fetching WH/20 customers:', error);
+    console.error('Error fetching WarehouseS - customers:', error);
     return [];
   }
 }
@@ -3053,11 +3053,11 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
     const [transfersResponse, customersResponse] = await Promise.all([
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'TRANSFERS - WH/20 ITEMS'!E:G`, // E: Recipient Name, F: Customer Name, G: Description
+        range: `'WarehouseS - Transfers'!E:G`, // E: Recipient Name, F: Customer Name, G: Description
       }),
       sheets.spreadsheets.values.get({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'CUSTOMERS - WH/20 ITEMS'!B:B`,
+        range: `'CDB'!B:B`,
       })
     ]);
 
@@ -3089,7 +3089,7 @@ export async function getWh20AutocompleteData(): Promise<{ recipients: string[],
     };
 
   } catch (error) {
-    console.error('Error fetching WH/20 autocomplete data:', error);
+    console.error('Error fetching WarehouseS - autocomplete data:', error);
     return { recipients: [], destinations: [], customers: [] };
   }
 }
@@ -3105,7 +3105,7 @@ export async function getWh20History(limit?: number): Promise<Wh20Transfer[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!A:M`,
+      range: `'WarehouseS - Transfers'!A:M`,
     });
 
     const rows = response.data.values;
@@ -3137,7 +3137,7 @@ export async function getWh20History(limit?: number): Promise<Wh20Transfer[]> {
 
     return transfers;
   } catch (error) {
-    console.error('Error fetching WH/20 history:', error);
+    console.error('Error fetching WarehouseS - history:', error);
     return [];
   }
 }
@@ -3153,7 +3153,7 @@ export async function getWh20TransferByNumber(transactionNumber: string): Promis
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'TRANSFERS - WH/20 ITEMS'!A:M`, // All columns
+      range: `'WarehouseS - Transfers'!A:M`, // All columns
     });
 
     const rows = response.data.values;
@@ -3179,7 +3179,7 @@ export async function getWh20TransferByNumber(transactionNumber: string): Promis
     }));
 
   } catch (error) {
-    console.error('Error fetching WH/20 transfer by number:', error);
+    console.error('Error fetching WarehouseS - transfer by number:', error);
     return [];
   }
 }
@@ -3193,7 +3193,7 @@ export async function updateWh20Transfers(transactionNumber: string, transfers: 
     });
     const sheets = google.sheets({ version: 'v4', auth });
 
-    const sheetName = 'TRANSFERS - WH/20 ITEMS';
+    const sheetName = 'WarehouseS - Transfers';
     const sheetId = await getSheetId(sheetName);
 
     // 1. Get all data to find the rows
@@ -3652,7 +3652,7 @@ export async function updatePaymentDefinition(rowIndex: number, monthsClosed: st
 
 const LPO_RECORDS_SHEET = 'LPO Records';
 const LPO_ITEMS_SHEET = 'LPO Items Logs';
-const LPO_CUSTOMERS_SHEET = 'LPO Customers';
+const LPO_CUSTOMERS_SHEET = 'CDB';
 
 export interface LpoCustomer {
   customerId: string;

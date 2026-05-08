@@ -55,12 +55,47 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
 
   const customersData = useMemo(() => {
     if (!data || data.length === 0) return [];
-    const customerMap = new Map<string, Map<string, { barcode: string; product: string; prices: number[]; cost: number }>>();
 
-    data.forEach(item => {
-      const custName = item.customerMainName || item.customerName || 'Unknown';
-      if (!customerMap.has(custName)) customerMap.set(custName, new Map());
-      const productsMap = customerMap.get(custName)!;
+    // Sort data by date descending to ensure we pick the latest names for display
+    const sortedData = [...data].sort((a, b) => {
+      const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
+      const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
+      return dateB - dateA;
+    });
+
+    const customerMap = new Map<string, {
+      customerId: string;
+      latestName: string;
+      allNames: Set<string>;
+      products: Map<string, { 
+        barcode: string; 
+        product: string; 
+        prices: number[]; 
+        cost: number;
+        allNames: Set<string>;
+        allBarcodes: Set<string>;
+      }>;
+    }>();
+
+    sortedData.forEach(item => {
+      // Prioritize customerId as the unique key
+      const custId = item.customerId || item.customerMainName || item.customerName || 'Unknown';
+      if (!customerMap.has(custId)) {
+        customerMap.set(custId, {
+          customerId: item.customerId || '',
+          latestName: item.customerMainName || item.customerName || 'Unknown',
+          allNames: new Set(),
+          products: new Map()
+        });
+      }
+      const custEntry = customerMap.get(custId)!;
+      
+      // Store all historical names for searching
+      if (item.customerMainName) custEntry.allNames.add(item.customerMainName.toLowerCase());
+      if (item.customerName) custEntry.allNames.add(item.customerName.toLowerCase());
+
+      const productsMap = custEntry.products;
+      // Prioritize productId as the unique key for products too
       const productKey = item.productId || item.barcode || item.product;
 
       const itemAny = item as any;
@@ -73,23 +108,37 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
           barcode: item.barcode || '-',
           product: item.product || '-',
           prices: [],
-          cost: item.productCost || 0
+          cost: item.productCost || 0,
+          allNames: new Set(),
+          allBarcodes: new Set()
         });
       }
-      if (!isNaN(pNum) && pNum > 0) productsMap.get(productKey)!.prices.push(pNum);
-      if (item.productCost > 0) productsMap.get(productKey)!.cost = item.productCost;
+      const prod = productsMap.get(productKey)!;
+      
+      // Store historical product metadata
+      if (item.product) prod.allNames.add(item.product.toLowerCase());
+      if (item.barcode) prod.allBarcodes.add(item.barcode.toLowerCase());
+
+      if (!isNaN(pNum) && pNum > 0) prod.prices.push(pNum);
+      if (item.productCost > 0) prod.cost = item.productCost;
     });
 
-    return Array.from(customerMap.entries()).map(([customerName, productsMap]) => ({
-      customer: customerName,
-      products: Array.from(productsMap.values()).sort((a, b) => a.product.localeCompare(b.product))
+    return Array.from(customerMap.values()).map(entry => ({
+      customerId: entry.customerId,
+      customer: entry.latestName,
+      allNames: entry.allNames,
+      products: Array.from(entry.products.values()).sort((a, b) => a.product.localeCompare(b.product))
     })).sort((a, b) => a.customer.localeCompare(b.customer));
   }, [data]);
 
   const filteredCustomers = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return customersData;
     const query = debouncedSearchQuery.toLowerCase().trim();
-    return customersData.filter(c => c.customer.toLowerCase().includes(query));
+    return customersData.filter(c => 
+      c.customer.toLowerCase().includes(query) || 
+      c.customerId.toLowerCase().includes(query) ||
+      Array.from(c.allNames).some(name => name.includes(query))
+    );
   }, [customersData, debouncedSearchQuery]);
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);

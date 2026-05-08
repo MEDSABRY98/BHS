@@ -15,7 +15,7 @@ const SYSTEMS = [
     { id: 'debit', label: 'Debit Analysis' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
-    { id: 'wh20-items', label: 'WH/20 Items' },
+    { id: 'wh20-items', label: 'WarehouseS' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'customers-summaries', label: 'Customers Summaries' },

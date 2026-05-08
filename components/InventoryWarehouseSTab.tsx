@@ -271,7 +271,7 @@ export default function InventoryWh20ItemsTab() {
                 } catch (e) { }
             }
 
-            const res = await fetch('/api/wh20-items');
+            const res = await fetch('/api/warehouses');
             const data = await res.json();
 
             if (data.autocomplete) {
@@ -351,7 +351,7 @@ export default function InventoryWh20ItemsTab() {
 
         setIsSearchingEdit(true);
         try {
-            const res = await fetch(`/api/wh20-items/reprint?transactionNumber=${editSearchValue.trim()}`);
+            const res = await fetch(`/api/warehouses/reprint?transactionNumber=${editSearchValue.trim()}`);
             const data = await res.json();
 
             if (data.transfer && data.transfer.length > 0) {
@@ -408,7 +408,7 @@ export default function InventoryWh20ItemsTab() {
         setSubmitting(true);
         try {
             const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
-            const res = await fetch('/api/wh20-items', {
+            const res = await fetch('/api/warehouses', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -503,8 +503,8 @@ export default function InventoryWh20ItemsTab() {
         setHistoryLoading(true);
         try {
             const url = limit
-                ? `/api/wh20-items?action=history&limit=${limit}`
-                : '/api/wh20-items?action=history';
+                ? `/api/warehouses?action=history&limit=${limit}`
+                : '/api/warehouses?action=history';
             const res = await fetch(url);
             const data = await res.json();
 
@@ -637,7 +637,7 @@ export default function InventoryWh20ItemsTab() {
 
             // 1. Save to Google Sheets first
             const user = JSON.parse(localStorage.getItem('currentUser') || '{}');
-            const saveResponse = await fetch('/api/wh20-items', {
+            const saveResponse = await fetch('/api/warehouses', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -838,7 +838,7 @@ export default function InventoryWh20ItemsTab() {
 
         setIsReprinting(true);
         try {
-            const res = await fetch(`/api/wh20-items/reprint?transactionNumber=${numberToReprint}`);
+            const res = await fetch(`/api/warehouses/reprint?transactionNumber=${numberToReprint}`);
             const data = await res.json();
             setIsReprinting(false);
 
@@ -1039,7 +1039,7 @@ export default function InventoryWh20ItemsTab() {
                         <div className="p-2 bg-indigo-100/50 rounded-xl">
                             <Package className="w-6 h-6 text-indigo-600" />
                         </div>
-                        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">WH/20 ITEMS</h2>
+                        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">WarehouseS</h2>
                     </div>
                 </div>
 

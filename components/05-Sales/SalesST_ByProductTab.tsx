@@ -44,24 +44,44 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
 
   const productList = useMemo(() => {
     if (!data || data.length === 0) return [];
+
+    // Sort data by date descending to ensure we pick the latest name/barcode for display
+    const sortedData = [...data].sort((a, b) => {
+      const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
+      const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
+      return dateB - dateA;
+    });
+
     const map = new Map<string, {
+      productId: string;
       barcode: string;
       product: string;
       priceRange: { min: number, max: number };
       customers: Map<string, { prices: number[]; cost: number }>;
+      allNames: Set<string>;
+      allBarcodes: Set<string>;
     }>();
 
-    data.forEach(item => {
-      const productKey = item.barcode || item.product || item.productId;
+    sortedData.forEach(item => {
+      // Prioritize productId as the unique key, fallback to barcode then name
+      const productKey = item.productId || item.barcode || item.product;
       if (!map.has(productKey)) {
         map.set(productKey, {
+          productId: item.productId || '',
           barcode: item.barcode || '-',
           product: item.product || '-',
           priceRange: { min: Infinity, max: -Infinity },
-          customers: new Map()
+          customers: new Map(),
+          allNames: new Set(),
+          allBarcodes: new Set()
         });
       }
       const prod = map.get(productKey)!;
+      
+      // Store all historical names and barcodes for searching
+      if (item.product) prod.allNames.add(item.product.toLowerCase());
+      if (item.barcode) prod.allBarcodes.add(item.barcode.toLowerCase());
+
       const custName = item.customerMainName || item.customerName || 'Unknown';
       if (!prod.customers.has(custName)) {
         prod.customers.set(custName, { prices: [], cost: item.productCost || 0 });
@@ -91,7 +111,10 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
       const query = appliedSearchQuery.toLowerCase().trim();
       list = list.filter(p =>
         p.product.toLowerCase().includes(query) ||
-        p.barcode.toLowerCase().includes(query)
+        p.barcode.toLowerCase().includes(query) ||
+        Array.from(p.allNames).some(name => name.includes(query)) ||
+        Array.from(p.allBarcodes).some(bc => bc.includes(query)) ||
+        p.productId.toLowerCase().includes(query)
       );
     }
 

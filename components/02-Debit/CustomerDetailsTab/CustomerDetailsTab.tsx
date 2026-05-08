@@ -326,7 +326,15 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
           continue; // still list debt=0, but skip attachment
         }
 
-        const pdfBlob = await generateAccountStatementPDF(cust, finalInvoices, true, monthsLabel);
+        const dates = finalInvoices
+          .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
+          .filter(t => t > 0);
+        const latestDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+        const currentMonthsLabel = latestDate
+          ? `Up To ${latestDate.getDate()}/${latestDate.getMonth() + 1}/${latestDate.getFullYear()} (Net Only)`
+          : 'All Months (Net Only)';
+
+        const pdfBlob = await generateAccountStatementPDF(cust, finalInvoices, true, currentMonthsLabel);
         if (!pdfBlob) throw new Error('Failed to generate PDF blob');
 
         const pdfBase64 = await blobToBase64(pdfBlob as Blob);
@@ -1730,7 +1738,13 @@ ${debtSectionHtml}
         return;
       }
 
-      const monthsLabel = 'All Months (Net Only)';
+      const dates = finalInvoices
+        .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
+        .filter(t => t > 0);
+      const latestDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+      const monthsLabel = latestDate
+        ? `Up To ${latestDate.getDate()}/${latestDate.getMonth() + 1}/${latestDate.getFullYear()} (Net Only)`
+        : 'All Months (Net Only)';
 
       const { generateAccountStatementPDF } = await import('@/lib/pdf/PdfUtils');
       await generateAccountStatementPDF(customerName, finalInvoices, false, monthsLabel, shortenInvoiceNumbers);
@@ -1800,30 +1814,6 @@ ${debtSectionHtml}
 
       if (exportScope === 'view') {
         finalInvoices = filteredInvoices;
-        monthsLabel = 'Filtered View';
-
-        // If filtering by month, use that name
-        if (selectedMonthFilter.length > 0) {
-          if (selectedMonthFilter.length === 1) {
-            monthsLabel = selectedMonthFilter[0];
-          } else {
-            monthsLabel = selectedMonthFilter.join(', ');
-          }
-        } else if (selectedMonths.length < availableMonths.length && selectedMonths.length > 0) {
-          // If view was constructed differently but matches months logic
-        }
-
-        if (selectedMatchingFilter.length > 0) {
-          if (selectedMatchingFilter.length === 1) {
-            monthsLabel += ` - ${selectedMatchingFilter[0]}`;
-          } else {
-            monthsLabel += ` - ${selectedMatchingFilter.join(', ')}`;
-          }
-        }
-
-        if (invoiceSearchQuery) {
-          monthsLabel += ` (Search: ${invoiceSearchQuery})`;
-        }
       } else if (exportScope === 'selection') {
         const isOverdueTab = activeTab === 'overdue';
         const selectedIds = isOverdueTab ? selectedOverdueIds : selectedInvoiceIds;
@@ -1836,7 +1826,6 @@ ${debtSectionHtml}
 
         finalInvoices = sourceList.filter(inv => selectedIds.has(inv.originalIndex));
         monthsLabel = 'Selected Transactions';
-
       } else {
         // Custom Selection Logic
         finalInvoices = invoicesWithNetDebt.filter(inv => {
@@ -1851,14 +1840,17 @@ ${debtSectionHtml}
           alert('Please select at least one month to export.');
           return;
         }
+      }
 
-        if (selectedMonths.length < availableMonths.length) {
-          const sortedSelectedMonths = [...selectedMonths].sort((a, b) => {
-            const dateA = new Date(`1 ${a}`);
-            const dateB = new Date(`1 ${b}`);
-            return dateB.getTime() - dateA.getTime();
-          });
-          monthsLabel = sortedSelectedMonths.join(', ');
+      // Determine latest date for the "Date Balance" header
+      if (exportScope !== 'selection') {
+        const dates = finalInvoices
+          .map(inv => inv.date ? new Date(inv.date).getTime() : 0)
+          .filter(t => t > 0);
+        const latestDate = dates.length > 0 ? new Date(Math.max(...dates)) : null;
+
+        if (latestDate) {
+          monthsLabel = `Up To ${latestDate.getDate()}/${latestDate.getMonth() + 1}/${latestDate.getFullYear()}`;
         }
       }
 

@@ -20,7 +20,7 @@ import {
 } from 'recharts';
 
 interface SalesProductDetailsProps {
-  barcode: string;
+  productId: string;
   data: SalesInvoice[];
   allData: SalesInvoice[]; // Geography filtered but not date filtered
   onBack: () => void;
@@ -28,7 +28,7 @@ interface SalesProductDetailsProps {
   filterYear?: string;
 }
 
-export default function SalesProductDetails({ barcode, data, allData, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
+export default function SalesProductDetails({ productId, data, allData, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -42,9 +42,9 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Filter data for this barcode with search and date filters
+  // Filter data for this product with search and date filters
   const productData = useMemo(() => {
-    let filtered = data.filter(item => item.barcode === barcode);
+    let filtered = data.filter(item => (item.productId || item.barcode || item.product) === productId);
 
     // Search filter
     if (debouncedSearchQuery.trim()) {
@@ -58,13 +58,27 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
     }
 
     return filtered;
-  }, [data, barcode, debouncedSearchQuery]);
+  }, [data, productId, debouncedSearchQuery]);
 
-  // Get product name (use first occurrence)
-  const productName = useMemo(() => {
-    const firstItem = data.find(item => item.barcode === barcode);
-    return firstItem?.product || barcode;
-  }, [data, barcode]);
+  // Get latest product metadata (name, barcode)
+  const productInfo = useMemo(() => {
+    if (productData.length === 0) return { name: productId, barcode: '-' };
+    
+    // Sort by date to get the latest
+    const latest = [...productData].sort((a, b) => {
+      const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
+      const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
+      return dateB - dateA;
+    })[0];
+
+    return {
+      name: latest.product || productId,
+      barcode: latest.barcode || '-'
+    };
+  }, [productData, productId]);
+
+  const productName = productInfo.name;
+  const currentBarcode = productInfo.barcode;
 
   // Monthly sales data
   const monthlySales = useMemo(() => {
@@ -323,8 +337,8 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
   // Get all product data from unfiltered source (for comparison)
   const productAllData = useMemo(() => {
     const source = allData.length > 0 ? allData : data;
-    return source.filter(item => item.barcode === barcode);
-  }, [allData, data, barcode]);
+    return source.filter(item => (item.productId || item.barcode || item.product) === productId);
+  }, [allData, data, productId]);
 
   // Chart data for monthly sales - Jan-Dec comparison
   const chartData = useMemo(() => {
@@ -427,8 +441,8 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
     const sheet = XLSX.utils.aoa_to_sheet(sheetData);
     XLSX.utils.book_append_sheet(workbook, sheet, 'Customers');
 
-    const safeBarcode = (barcode || 'product').replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'product';
-    const filename = `sales_product_customers_${safeBarcode}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    const safeId = (productId || 'product').replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'product';
+    const filename = `sales_product_customers_${safeId}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
   };
 
@@ -446,7 +460,7 @@ export default function SalesProductDetails({ barcode, data, allData, onBack, in
           </button>
           <div>
             <h1 className="text-3xl font-bold text-gray-800">{productName}</h1>
-            <p className="text-sm text-gray-600 mt-1">Barcode: {barcode}</p>
+            <p className="text-sm text-gray-600 mt-1">Barcode: {currentBarcode} | ID: {productId}</p>
           </div>
         </div>
 

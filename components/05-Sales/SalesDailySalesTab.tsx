@@ -487,13 +487,8 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       item.amount || 0
     ]);
 
-    const subtotal = invoice.amount / 1.05;
-    const tax = invoice.amount - subtotal;
-
     const footer = [
       [],
-      ['', '', '', '', 'Subtotal (Excl. Tax):', subtotal],
-      ['', '', '', '', 'VAT (5%):', tax],
       ['', '', '', '', 'Total Amount:', invoice.amount]
     ];
 
@@ -940,18 +935,6 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
             {/* Modal Footer - Totals Breakdown */}
             <div className="px-8 py-6 bg-gray-50 border-t border-gray-200">
               <div className="flex flex-col items-end gap-2">
-                <div className="flex justify-between w-full max-w-[240px] text-gray-600 font-medium">
-                  <span>Subtotal (Excl. Tax):</span>
-                  <span className="font-bold">
-                    {(selectedInvoice.amount / 1.05).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-                <div className="flex justify-between w-full max-w-[240px] text-gray-600 font-medium border-b border-gray-200 pb-2">
-                  <span>VAT (5%):</span>
-                  <span className="font-bold">
-                    {(selectedInvoice.amount - (selectedInvoice.amount / 1.05)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
                 <div className="flex justify-between w-full max-w-[240px] text-green-700 mt-1">
                   <span className="text-lg font-black uppercase tracking-wider">Total Amount:</span>
                   <span className="text-2xl font-black">

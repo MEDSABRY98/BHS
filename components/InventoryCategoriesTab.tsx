@@ -127,7 +127,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
         const catProducts = products.filter(p => p.formattedTag === tag);
         const count = catProducts.length;
         const lowStockCount = catProducts.filter(p => p.onHand <= (p.minQ || 0) * (p.qinc || 1)).length;
-        const outOfStockCount = catProducts.filter(p => p.onHand === 0).length;
+        const outOfStockCount = catProducts.filter(p => p.onHand <= 0).length;
         return { tag, count, lowStockCount, outOfStockCount };
     }).filter(c => c.tag.toLowerCase().includes(categorySearch.toLowerCase()));
 
@@ -138,7 +138,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                 {[
                     { label: 'Total Categories', value: tags.length, icon: Package, color: 'blue' },
                     { label: 'Total Products', value: products.length, icon: Box, color: 'emerald' },
-                    { label: 'Zero Stock', value: products.filter(p => p.onHand === 0).length, icon: AlertCircle, color: 'red' }
+                    { label: 'Out of Stock', value: products.filter(p => p.onHand <= 0).length, icon: AlertCircle, color: 'red' }
                 ].map((stat, i) => (
                     <div key={i} className="bg-white p-7 rounded-[2rem] border border-gray-100 shadow-xl shadow-slate-200/50 flex items-center gap-6 group hover:shadow-2xl transition-all duration-500">
                         <div className={`p-5 rounded-2xl bg-${stat.color}-50 text-${stat.color}-600 group-hover:scale-110 transition-transform`}>
