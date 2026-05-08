@@ -380,7 +380,7 @@ export default function WaterDeliveryNotePage() {
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Modern Integrated Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-5 flex items-center justify-between gap-8">
             <div className="flex items-center gap-4">
               <button
                 onClick={() => window.location.href = '/'}
@@ -389,15 +389,9 @@ export default function WaterDeliveryNotePage() {
               >
                 <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
               </button>
-              <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-xl flex items-center justify-center border border-white/30">
-                <FileText className="w-7 h-7 text-white" />
-              </div>
-              <h1 className="text-2xl font-black text-white tracking-tight">Water Delivery</h1>
             </div>
-          </div>
 
-          <div className="px-8 py-4 bg-slate-50/50 flex justify-center border-t border-gray-100">
-            <div className="flex bg-white p-1 rounded-xl shadow-inner border border-gray-200 w-full max-w-2xl">
+            <div className="flex bg-white/10 backdrop-blur-md p-1 rounded-xl border border-white/20 w-full max-w-xl">
               {[
                 { id: 'entry', label: 'New Entry', icon: Plus },
                 { id: 'search', label: 'Search / Edit', icon: Search },
@@ -417,9 +411,9 @@ export default function WaterDeliveryNotePage() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex-1 flex items-center justify-center gap-2 px-2 py-2.5 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id
-                      ? 'bg-blue-600 text-white shadow-lg scale-[1.02]'
-                      : 'text-gray-500 hover:text-blue-600 hover:bg-white'
+                    className={`flex-1 flex items-center justify-center gap-2 px-2 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id
+                      ? 'bg-white text-blue-700 shadow-lg scale-[1.02]'
+                      : 'text-white/70 hover:text-white hover:bg-white/10'
                       }`}
                   >
                     <Icon className="w-4 h-4" />
@@ -428,6 +422,8 @@ export default function WaterDeliveryNotePage() {
                 );
               })}
             </div>
+
+            <div className="hidden md:block w-12"></div> {/* Spacer for balance */}
           </div>
         </div>
 
