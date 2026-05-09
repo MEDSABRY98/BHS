@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart } from 'lucide-react';
 import { useState } from 'react';
 import AdminControlTab from '../AdminControlTab';
 
@@ -163,6 +163,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'wh20-items', title: "WarehouseS", icon: Package, path: '/warehouses', color: 'emerald' as const },
     { id: 'water-delivery-note', title: "Water - Delivery Note", icon: FileText, path: '/water-delivery-note', color: 'violet' as const },
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/suppliers', color: 'emerald' as const },
+    { id: 'lpo-management', title: "LPO Management", icon: ShoppingCart, path: '/app_lpos_login', color: 'yellow' as const },
   ];
 
   const allowedSystems = ALL_SYSTEMS

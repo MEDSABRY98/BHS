@@ -21,7 +21,8 @@ const SYSTEMS = [
     { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'delivery-tracking', label: 'Delivery Tracking' },
-    { id: 'documents-tracking', label: 'Documents Tracking' }
+    { id: 'documents-tracking', label: 'Documents Tracking' },
+    { id: 'lpo-management', label: 'LPO Management' }
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -95,6 +96,13 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'register', label: 'Register' },
         { id: 'list', label: 'All Documents' },
         { id: 'receivers', label: 'Receivers' }
+    ],
+    'lpo-management': [
+        { id: 'lpo-dashboard', label: 'Dashboard' },
+        { id: 'lpo-orders', label: 'Orders' },
+        { id: 'lpo-products', label: 'Products' },
+        { id: 'lpo-customers', label: 'Customers' },
+        { id: 'lpo-users', label: 'Users' }
     ]
 };
 
@@ -106,6 +114,11 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
         { id: 'delete', label: 'Delete Orders', icon: '🗑️' },
         { id: 'download', label: 'Download / Export', icon: '⬇️' },
         { id: 'reship', label: 'Re-shipment Actions', icon: '📦' }
+    ],
+    'lpo-management': [
+        { id: 'view', label: 'Viewer (Read Only)', icon: '👁️' },
+        { id: 'edit', label: 'Editor (Add/Edit)', icon: '✏️' },
+        { id: 'delete', label: 'Admin (Add/Edit/Delete)', icon: '🗑️' }
     ]
 };
 
