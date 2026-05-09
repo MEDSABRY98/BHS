@@ -84,7 +84,7 @@ export default function DashboardPage() {
       const users = allUsersRes.data || [];
       const orders = allOrdersRes.data || [];
       
-      const performanceMap = users.reduce((acc: any, user: any) => {
+      const performanceMap: Record<string, UserPerformance> = users.reduce((acc: any, user: any) => {
         acc[user.ID] = {
           id: user.ID,
           name: user.NAME,
@@ -108,7 +108,8 @@ export default function DashboardPage() {
         }
       });
 
-      setUserPerformance(Object.values(performanceMap).sort((a: any, b: any) => b.total - a.total));
+      const performanceArray = Object.values(performanceMap) as UserPerformance[];
+      setUserPerformance(performanceArray.sort((a, b) => b.total - a.total));
 
     } catch (err) {
       console.error('Dashboard Data Fetch Error:', err);
