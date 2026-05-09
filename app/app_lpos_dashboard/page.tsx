@@ -22,6 +22,7 @@ import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 
 interface Stats {
+  total: number;
   approved: number;
   partiallyApproved: number;
   pending: number;
@@ -39,7 +40,7 @@ interface UserPerformance {
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ approved: 0, partiallyApproved: 0, pending: 0, rejected: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, approved: 0, partiallyApproved: 0, pending: 0, rejected: 0 });
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [userPerformance, setUserPerformance] = useState<UserPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,6 +52,7 @@ export default function DashboardPage() {
   async function fetchDashboardData() {
     try {
       const [
+        totalRes,
         approvedRes, 
         partialRes, 
         pendingRes, 
@@ -58,6 +60,7 @@ export default function DashboardPage() {
         allOrdersRes, 
         allUsersRes
       ] = await Promise.all([
+        app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }),
         app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Approved'),
         app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Partially Approved'),
         app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Pending'),
@@ -73,6 +76,7 @@ export default function DashboardPage() {
       ]);
 
       setStats({
+        total: totalRes.count || 0,
         approved: approvedRes.count || 0,
         partiallyApproved: partialRes.count || 0,
         pending: pendingRes.count || 0,
@@ -140,7 +144,14 @@ export default function DashboardPage() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+        <StatCard 
+          title="Total LPO's" 
+          value={stats.total.toString()} 
+          icon={Package} 
+          color="bg-black" 
+          subtitle="All Time Volume"
+        />
         <StatCard 
           title="Approved LPOs" 
           value={stats.approved.toString()} 
