@@ -453,10 +453,21 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         if (!inv.matching) amount = inv.debit - inv.credit;
         else if (inv.residualAmount !== undefined && Math.abs(inv.residualAmount) > 0.01) amount = inv.residualAmount;
         if (Math.abs(amount) > 0.01) {
-          const d = parseDate(inv.date); const yr = d ? d.getFullYear().toString() : 'Unknown';
+          const d = parseDate(inv.date);
+          let yr = d ? d.getFullYear().toString() : 'Unknown';
+          
+          // Separate OB invoices from their year
+          if ((inv.number?.toString().toUpperCase() || '').startsWith('OB')) {
+            yr = 'OB';
+          }
+          
           if (yr !== 'Unknown') yearsSet.add(yr);
-          customerTotal += amount; customerYearly[yr] = (customerYearly[yr] || 0) + amount;
-          if (!customerPivotMap.has(customerName)) customerPivotMap.set(customerName, { customerName, region: inv.salesRep || '-', totalNetDebt: 0, yearlyAmounts: {} });
+          customerTotal += amount;
+          customerYearly[yr] = (customerYearly[yr] || 0) + amount;
+          
+          if (!customerPivotMap.has(customerName)) {
+            customerPivotMap.set(customerName, { customerName, region: inv.salesRep || '-', totalNetDebt: 0, yearlyAmounts: {} });
+          }
         }
       });
       if (customerPivotMap.has(customerName)) {
@@ -465,7 +476,12 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
       }
     });
 
-    const sortedYears = Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+    const sortedYears = Array.from(yearsSet).sort((a, b) => {
+      // Keep OB at the end of the yearly list
+      if (a === 'OB') return 1;
+      if (b === 'OB') return -1;
+      return b.localeCompare(a); // Years descending (2025, 2024...)
+    });
     const finalRows = Array.from(customerPivotMap.values()).filter(row => row.totalNetDebt > 0.01);
     finalRows.sort((a, b) => {
       let valA: any = 0; let valB: any = 0;
