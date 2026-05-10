@@ -62,28 +62,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
   const [sorting, setSorting] = useState<SortingState>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [hideNegative, setHideNegative] = useState(false);
-  const [logic, setLogic] = useState<'full' | 'almarai'>('full');
-  const [almaraiData, setAlmaraiData] = useState<SalesInvoice[]>([]);
-  const [loadingAlmarai, setLoadingAlmarai] = useState(false);
-
-  // Fetch Almarai data when needed
-  useState(() => {
-    const fetchAlmarai = async () => {
-      setLoadingAlmarai(true);
-      try {
-        const res = await fetch('/api/sales');
-        const json = await res.json();
-        if (json.data) setAlmaraiData(json.data);
-      } catch (err) {
-        console.error('Failed to fetch Almarai data:', err);
-      } finally {
-        setLoadingAlmarai(false);
-      }
-    };
-    fetchAlmarai();
-  });
-
-  // Find dynamic years
+  // dynamic years
   const { currentYear, previousYear } = useMemo(() => {
     let maxYear = new Date().getFullYear();
     if (data && data.length > 0) {
@@ -99,200 +78,108 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
 
   const summaryData = useMemo(() => {
     const summaries: CustomerSummary[] = [];
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentDay = now.getDate();
 
-    if (logic === 'full') {
-      const customerMap = new Map<string, InvoiceRow[]>();
-      data.forEach((row) => {
-        if (row.customerName && row.customerName.trim() !== '') {
-          const existing = customerMap.get(row.customerName) || [];
-          existing.push(row);
-          customerMap.set(row.customerName, existing);
+    const customerMap = new Map<string, InvoiceRow[]>();
+    data.forEach((row) => {
+      if (row.customerName && row.customerName.trim() !== '') {
+        const existing = customerMap.get(row.customerName) || [];
+        existing.push(row);
+        customerMap.set(row.customerName, existing);
+      }
+    });
+
+    customerMap.forEach((customerInvoices, customerName) => {
+      let salesPrev = 0;
+      let returnsPrev = 0;
+      let salesCurrent = 0;
+      let returnsCurrent = 0;
+
+      customerInvoices.forEach((inv) => {
+        const date = parseInvoiceDate(inv.date);
+        if (!date) return;
+
+        // Fair comparison: Only include data up to today's month and day for any year
+        const m = date.getMonth();
+        const d = date.getDate();
+        if (m > currentMonth || (m === currentMonth && d > currentDay)) return;
+
+        const year = date.getFullYear();
+        const number = inv.number ? inv.number.toUpperCase() : '';
+
+        if (year === previousYear) {
+          if (number.startsWith('SAL')) salesPrev += inv.debit;
+          else if (number.startsWith('RSAL')) returnsPrev += inv.credit;
+        } else if (year === currentYear) {
+          if (number.startsWith('SAL')) salesCurrent += inv.debit;
+          else if (number.startsWith('RSAL')) returnsCurrent += inv.credit;
         }
       });
 
-      customerMap.forEach((customerInvoices, customerName) => {
-        let salesPrev = 0;
-        let returnsPrev = 0;
-        let salesCurrent = 0;
-        let returnsCurrent = 0;
+      // Aging Logic
+      let oneToThirty = 0, thirtyOneToSixty = 0, sixtyOneToNinety = 0, ninetyOneToOneTwenty = 0, older = 0;
+      const matchingTotals = new Map<string, number>();
+      const maxDebits = new Map<string, number>();
+      const mainInvoiceIndices = new Map<string, number>();
 
-        customerInvoices.forEach((inv) => {
-          const date = parseInvoiceDate(inv.date);
-          const year = date ? date.getFullYear() : null;
-          const number = inv.number ? inv.number.toUpperCase() : '';
-
-          if (year === previousYear) {
-            if (number.startsWith('SAL')) salesPrev += inv.debit;
-            else if (number.startsWith('RSAL')) returnsPrev += inv.credit;
-          } else if (year === currentYear) {
-            if (number.startsWith('SAL')) salesCurrent += inv.debit;
-            else if (number.startsWith('RSAL')) returnsCurrent += inv.credit;
+      customerInvoices.forEach((inv, idx) => {
+        if (inv.matching) {
+          const net = inv.debit - inv.credit;
+          matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
+          const currentMax = maxDebits.get(inv.matching) ?? -1;
+          if (inv.debit > currentMax) {
+            maxDebits.set(inv.matching, inv.debit);
+            mainInvoiceIndices.set(inv.matching, idx);
+          } else if (!mainInvoiceIndices.has(inv.matching)) {
+            maxDebits.set(inv.matching, inv.debit);
+            mainInvoiceIndices.set(inv.matching, idx);
           }
+        }
+      });
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      customerInvoices.forEach((inv, idx) => {
+        let amountToAge = 0;
+        let shouldAge = false;
+        if (!inv.matching) {
+          const net = inv.debit - inv.credit;
+          if (Math.abs(net) > 0.01) { amountToAge = net; shouldAge = true; }
+        } else if (mainInvoiceIndices.get(inv.matching) === idx) {
+          const residual = matchingTotals.get(inv.matching) || 0;
+          if (Math.abs(residual) > 0.01) { amountToAge = residual; shouldAge = true; }
+        }
+
+        if (shouldAge) {
+          let daysOverdue = 0;
+          let targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
+          if (targetDate && !isNaN(targetDate.getTime())) {
+            targetDate.setHours(0, 0, 0, 0);
+            const diffTime = today.getTime() - targetDate.getTime();
+            daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          }
+          if (daysOverdue <= 30) oneToThirty += amountToAge;
+          else if (daysOverdue <= 60) thirtyOneToSixty += amountToAge;
+          else if (daysOverdue <= 90) sixtyOneToNinety += amountToAge;
+          else if (daysOverdue <= 120) ninetyOneToOneTwenty += amountToAge;
+          else older += amountToAge;
+        }
+      });
+
+      const totalAging = oneToThirty + thirtyOneToSixty + sixtyOneToNinety + ninetyOneToOneTwenty + older;
+      if (salesPrev > 0 || returnsPrev > 0 || salesCurrent > 0 || returnsCurrent > 0 || Math.abs(totalAging) > 0.01) {
+        summaries.push({
+          customerName, salesPrev, returnsPrev, salesCurrent, returnsCurrent,
+          oneToThirty, thirtyOneToSixty, sixtyOneToNinety, ninetyOneToOneTwenty, older, totalAging
         });
-
-        // Aging Logic
-        let oneToThirty = 0, thirtyOneToSixty = 0, sixtyOneToNinety = 0, ninetyOneToOneTwenty = 0, older = 0;
-        const matchingTotals = new Map<string, number>();
-        const maxDebits = new Map<string, number>();
-        const mainInvoiceIndices = new Map<string, number>();
-
-        customerInvoices.forEach((inv, idx) => {
-          if (inv.matching) {
-            const net = inv.debit - inv.credit;
-            matchingTotals.set(inv.matching, (matchingTotals.get(inv.matching) || 0) + net);
-            const currentMax = maxDebits.get(inv.matching) ?? -1;
-            if (inv.debit > currentMax) {
-              maxDebits.set(inv.matching, inv.debit);
-              mainInvoiceIndices.set(inv.matching, idx);
-            } else if (!mainInvoiceIndices.has(inv.matching)) {
-              maxDebits.set(inv.matching, inv.debit);
-              mainInvoiceIndices.set(inv.matching, idx);
-            }
-          }
-        });
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        customerInvoices.forEach((inv, idx) => {
-          let amountToAge = 0;
-          let shouldAge = false;
-          if (!inv.matching) {
-            const net = inv.debit - inv.credit;
-            if (Math.abs(net) > 0.01) { amountToAge = net; shouldAge = true; }
-          } else if (mainInvoiceIndices.get(inv.matching) === idx) {
-            const residual = matchingTotals.get(inv.matching) || 0;
-            if (Math.abs(residual) > 0.01) { amountToAge = residual; shouldAge = true; }
-          }
-
-          if (shouldAge) {
-            let daysOverdue = 0;
-            let targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
-            if (targetDate && !isNaN(targetDate.getTime())) {
-              targetDate.setHours(0, 0, 0, 0);
-              const diffTime = today.getTime() - targetDate.getTime();
-              daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            }
-            if (daysOverdue <= 30) oneToThirty += amountToAge;
-            else if (daysOverdue <= 60) thirtyOneToSixty += amountToAge;
-            else if (daysOverdue <= 90) sixtyOneToNinety += amountToAge;
-            else if (daysOverdue <= 120) ninetyOneToOneTwenty += amountToAge;
-            else older += amountToAge;
-          }
-        });
-
-        const totalAging = oneToThirty + thirtyOneToSixty + sixtyOneToNinety + ninetyOneToOneTwenty + older;
-        if (salesPrev > 0 || returnsPrev > 0 || salesCurrent > 0 || returnsCurrent > 0 || Math.abs(totalAging) > 0.01) {
-          summaries.push({
-            customerName, salesPrev, returnsPrev, salesCurrent, returnsCurrent,
-            oneToThirty, thirtyOneToSixty, sixtyOneToNinety, ninetyOneToOneTwenty, older, totalAging
-          });
-        }
-      });
-    } else {
-      // Almarai Logic from SalesInvoice sheet
-      const almaraiCustomerMap = new Map<string, SalesInvoice[]>();
-      almaraiData.forEach((row) => {
-        if (row.customerMainName && row.customerMainName.trim() !== '') {
-          const name = row.customerMainName.trim();
-          const existing = almaraiCustomerMap.get(name) || [];
-          existing.push(row);
-          almaraiCustomerMap.set(name, existing);
-        }
-      });
-
-      // Also get financial customer names to ensure we include those with debt but no recent Almarai sales
-      const financialCustomerMap = new Map<string, InvoiceRow[]>();
-      data.forEach((row) => {
-        if (row.customerName && row.customerName.trim() !== '') {
-          const name = row.customerName.trim();
-          const existing = financialCustomerMap.get(name) || [];
-          existing.push(row);
-          financialCustomerMap.set(name, existing);
-        }
-      });
-
-      const allCustomerNames = new Set([...almaraiCustomerMap.keys(), ...financialCustomerMap.keys()]);
-
-      allCustomerNames.forEach((customerName) => {
-        let salesPrev = 0, returnsPrev = 0, salesCurrent = 0, returnsCurrent = 0;
-
-        const customerSales = almaraiCustomerMap.get(customerName) || [];
-        customerSales.forEach((inv) => {
-          const date = parseInvoiceDate(inv.invoiceDate);
-          const year = date ? date.getFullYear() : null;
-          const number = inv.invoiceNumber ? inv.invoiceNumber.toUpperCase() : '';
-          const amount = inv.amount || 0;
-
-          if (year === previousYear) {
-            if (number.startsWith('RSAL')) returnsPrev += Math.abs(amount);
-            else salesPrev += amount;
-          } else if (year === currentYear) {
-            if (number.startsWith('RSAL')) returnsCurrent += Math.abs(amount);
-            else salesCurrent += amount;
-          }
-        });
-
-        // Aging data from 'Invoices' sheet
-        let oneToThirty = 0, thirtyOneToSixty = 0, sixtyOneToNinety = 0, ninetyOneToOneTwenty = 0, older = 0;
-        const matchingInvoices = financialCustomerMap.get(customerName) || [];
-
-        if (matchingInvoices.length > 0) {
-          const mTotals = new Map<string, number>();
-          const mDebits = new Map<string, number>();
-          const mIndices = new Map<string, number>();
-
-          matchingInvoices.forEach((inv, idx) => {
-            if (inv.matching) {
-              const net = inv.debit - inv.credit;
-              mTotals.set(inv.matching, (mTotals.get(inv.matching) || 0) + net);
-              if (inv.debit > (mDebits.get(inv.matching) ?? -1)) {
-                mDebits.set(inv.matching, inv.debit);
-                mIndices.set(inv.matching, idx);
-              }
-            }
-          });
-
-          const today = new Date();
-          today.setHours(0, 0, 0, 0);
-
-          matchingInvoices.forEach((inv, idx) => {
-            let val = 0; let active = false;
-            if (!inv.matching) {
-              const net = inv.debit - inv.credit;
-              if (Math.abs(net) > 0.01) { val = net; active = true; }
-            } else if (mIndices.get(inv.matching) === idx) {
-              const residual = mTotals.get(inv.matching) || 0;
-              if (Math.abs(residual) > 0.01) { val = residual; active = true; }
-            }
-            if (active) {
-              let targetDate = parseInvoiceDate(inv.dueDate) || parseInvoiceDate(inv.date);
-              if (targetDate && !isNaN(targetDate.getTime())) {
-                targetDate.setHours(0, 0, 0, 0);
-                const diffTime = today.getTime() - targetDate.getTime();
-                const days = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                if (days <= 30) oneToThirty += val;
-                else if (days <= 60) thirtyOneToSixty += val;
-                else if (days <= 90) sixtyOneToNinety += val;
-                else if (days <= 120) ninetyOneToOneTwenty += val;
-                else older += val;
-              }
-            }
-          });
-        }
-
-        const totalAging = oneToThirty + thirtyOneToSixty + sixtyOneToNinety + ninetyOneToOneTwenty + older;
-        if (salesPrev > 0 || returnsPrev > 0 || salesCurrent > 0 || returnsCurrent > 0 || Math.abs(totalAging) > 0.01) {
-          summaries.push({
-            customerName, salesPrev, returnsPrev, salesCurrent, returnsCurrent,
-            oneToThirty, thirtyOneToSixty, sixtyOneToNinety, ninetyOneToOneTwenty, older, totalAging
-          });
-        }
-      });
-    }
+      }
+    });
 
     return summaries.sort((a, b) => b.totalAging - a.totalAging);
-  }, [data, almaraiData, logic, currentYear, previousYear]);
+  }, [data, currentYear, previousYear]);
 
   const filteredData = useMemo(() => {
     let filtered = summaryData;
@@ -422,29 +309,6 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
     <div className="p-6">
       <div className="mb-6 flex items-center bg-white p-4 rounded-xl shadow-sm border border-slate-200 relative gap-4">
         <div className="flex-1 flex justify-center items-center gap-3">
-          {/* Logic Selection */}
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-inner shrink-0">
-            <button
-              onClick={() => setLogic('full')}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${logic === 'full'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-slate-500 hover:bg-slate-200'
-                }`}
-            >
-              <LayoutGrid className="w-4 h-4" />
-              Full Sales
-            </button>
-            <button
-              onClick={() => setLogic('almarai')}
-              className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all uppercase tracking-tight ${logic === 'almarai'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-500 hover:bg-slate-200'
-                }`}
-            >
-              <PieChart className="w-4 h-4" />
-              Almarai Sales
-            </button>
-          </div>
 
           <input
             type="text"
