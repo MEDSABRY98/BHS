@@ -881,13 +881,13 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     // Background Gradient-like effect
     doc.setFillColor(15, 23, 42); // Very Dark Slate (Slate 950)
     doc.rect(0, 0, pageW, pageH, 'F');
-    
+
     // Decorative Geometric Shapes
     doc.setFillColor(30, 41, 59); // Slate 900
     doc.circle(pageW, 0, 140, 'F');
     doc.setFillColor(51, 65, 85); // Slate 700
     doc.circle(pageW, 0, 90, 'F');
-    
+
     // Left Accent Bar (Blue)
     doc.setFillColor(59, 130, 246); // Blue 500
     doc.rect(0, 0, 6, pageH, 'F');
@@ -907,7 +907,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.text('Collections', 25, pageH / 2 - 12);
-    
+
     doc.setTextColor(59, 130, 246); // Accent Blue
     doc.text('Analysis Report', 25, pageH / 2 + 16);
 
@@ -923,12 +923,12 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
     doc.setDrawColor(51, 65, 85); // Slate 700
     doc.setLineWidth(0.5);
     doc.roundedRect(25, infoY, infoW, 45, 3, 3, 'FD');
-    
+
     doc.setFontSize(10);
     doc.setTextColor(59, 130, 246);
     doc.setFont('helvetica', 'bold');
     doc.text('REPORT INFORMATION', 35, infoY + 12);
-    
+
     // Metadata Rows
     doc.setFontSize(9);
     doc.setTextColor(148, 163, 184); // Slate 400
@@ -973,7 +973,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
         // ── Section 1: Period Tab Cards ──
         const showPrev = filters.sections?.summaryPrevious !== false;
-        const showLY   = filters.sections?.summaryLastYear !== false && hasLYData;
+        const showLY = filters.sections?.summaryLastYear !== false && hasLYData;
 
         const periodDefs = [
             {
@@ -1046,30 +1046,30 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         const kpiDefs = [
             {
                 label: 'Collections growth',
-                lyPct:   revenueTrendLY,
+                lyPct: revenueTrendLY,
                 prevPct: revenueTrend,
-                lyStr:   `${curMet.total.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})} vs ${lyMet.total.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})}`,
-                prevStr: `vs ${prevMet.total.toLocaleString('en-US',{notation:'compact',maximumFractionDigits:1})}`,
-                bg:     [240, 246, 255] as [number, number, number],
-                accent: [58, 127, 232]  as [number, number, number],
+                lyStr: `${curMet.total.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })} vs ${lyMet.total.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`,
+                prevStr: `vs ${prevMet.total.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`,
+                bg: [240, 246, 255] as [number, number, number],
+                accent: [58, 127, 232] as [number, number, number],
             },
             {
                 label: 'Customer growth',
-                lyPct:   custTrendLY,
+                lyPct: custTrendLY,
                 prevPct: custTrend,
-                lyStr:   `${curMet.uniqueCustomers} active vs ${lyMet.uniqueCustomers}`,
+                lyStr: `${curMet.uniqueCustomers} active vs ${lyMet.uniqueCustomers}`,
                 prevStr: `vs ${prevMet.uniqueCustomers}`,
-                bg:     [242, 251, 236] as [number, number, number],
-                accent: [90, 173, 46]   as [number, number, number],
+                bg: [242, 251, 236] as [number, number, number],
+                accent: [90, 173, 46] as [number, number, number],
             },
             {
                 label: 'Transaction growth',
-                lyPct:   countTrendLY,
+                lyPct: countTrendLY,
                 prevPct: countTrend,
-                lyStr:   `${curMet.count} txns vs ${lyMet.count}`,
+                lyStr: `${curMet.count} txns vs ${lyMet.count}`,
                 prevStr: `vs ${prevMet.count}`,
-                bg:     [255, 248, 240] as [number, number, number],
-                accent: [224, 123, 32]  as [number, number, number],
+                bg: [255, 248, 240] as [number, number, number],
+                accent: [224, 123, 32] as [number, number, number],
             },
         ];
 
@@ -1095,38 +1095,38 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             doc.setFont('helvetica', 'bold');
             doc.text(kpi.label.toUpperCase(), kx + 6, ky + 7);
 
-            // ── LEFT HALF: Last Year ──
-            const lyColor: [number,number,number] = kpi.lyPct >= 0 ? [22, 163, 74] : [220, 38, 38];
-            const lyStr = `${kpi.lyPct >= 0 ? '+' : ''}${kpi.lyPct.toFixed(0)}%`;
+            // ── LEFT HALF: Previous Period ──
+            const prevColor: [number, number, number] = kpi.prevPct >= 0 ? [22, 163, 74] : [220, 38, 38];
+            const prevStr = `${kpi.prevPct >= 0 ? '+' : ''}${kpi.prevPct.toFixed(0)}%`;
 
             doc.setFontSize(16);
-            doc.setTextColor(...lyColor);
+            doc.setTextColor(...prevColor);
             doc.setFont('helvetica', 'bold');
-            doc.text(lyStr, kx + 6, ky + 22);
+            doc.text(prevStr, kx + 6, ky + 22);
 
             doc.setFontSize(6.5);
             doc.setTextColor(120, 120, 120);
             doc.setFont('helvetica', 'normal');
-            doc.text('vs last year', kx + 6, ky + 28);
+            doc.text('vs previous', kx + 6, ky + 28);
 
             // Vertical divider
             doc.setDrawColor(220, 220, 220);
             doc.setLineWidth(0.3);
             doc.line(kx + halfW, ky + 10, kx + halfW, ky + kpiH - 4);
 
-            // ── RIGHT HALF: Previous Period ──
-            const prevColor: [number,number,number] = kpi.prevPct >= 0 ? [22, 163, 74] : [220, 38, 38];
-            const prevStr = `${kpi.prevPct >= 0 ? '+' : ''}${kpi.prevPct.toFixed(0)}%`;
+            // ── RIGHT HALF: Last Year ──
+            const lyColor: [number, number, number] = kpi.lyPct >= 0 ? [22, 163, 74] : [220, 38, 38];
+            const lyStr = `${kpi.lyPct >= 0 ? '+' : ''}${kpi.lyPct.toFixed(0)}%`;
 
             doc.setFontSize(16);
-            doc.setTextColor(...prevColor);
+            doc.setTextColor(...lyColor);
             doc.setFont('helvetica', 'bold');
-            doc.text(prevStr, kx + halfW + 6, ky + 22);
+            doc.text(lyStr, kx + halfW + 6, ky + 22);
 
             doc.setFontSize(6.5);
             doc.setTextColor(120, 120, 120);
             doc.setFont('helvetica', 'normal');
-            doc.text('vs previous', kx + halfW + 6, ky + 28);
+            doc.text('vs last year', kx + halfW + 6, ky + 28);
         });
 
         curY = kpiY + kpiH + 10;
@@ -1143,9 +1143,9 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
         // Legend row — square dots (10×10 in HTML → ~3mm in PDF)
         const legItems = [
-            { label: 'Current Period',  color: [58, 127, 232] as [number, number, number] },
+            { label: 'Current Period', color: [58, 127, 232] as [number, number, number] },
             { label: 'Previous Period', color: [181, 212, 244] as [number, number, number] },
-            { label: 'Last Year',       color: [221, 221, 221] as [number, number, number] },
+            { label: 'Last Year', color: [221, 221, 221] as [number, number, number] },
         ];
         let legX = mg;
         legItems.forEach(li => {
@@ -1167,15 +1167,15 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
 
         const groups = [
-            { label: 'Collections',           cur: curMet.total,           prev: prevMet.total,           ly: lyMet.total },
-            { label: 'Customer Distribution', cur: curMet.uniqueCustomers,  prev: prevMet.uniqueCustomers,  ly: lyMet.uniqueCustomers },
-            { label: 'Transaction Volume',    cur: curMet.count,            prev: prevMet.count,            ly: lyMet.count },
+            { label: 'Collections', cur: curMet.total, prev: prevMet.total, ly: lyMet.total },
+            { label: 'Customer Distribution', cur: curMet.uniqueCustomers, prev: prevMet.uniqueCustomers, ly: lyMet.uniqueCustomers },
+            { label: 'Transaction Volume', cur: curMet.count, prev: prevMet.count, ly: lyMet.count },
         ];
 
         // Each group uses its OWN max scale so small values (customers/txns) are visible
-        const groupW    = chartAreaW / groups.length;
+        const groupW = chartAreaW / groups.length;
         const barGroupW = groupW * 0.75;   // wider bars
-        const barW      = barGroupW / 3 - 1;
+        const barW = barGroupW / 3 - 1;
 
         const barColors: [number, number, number][] = [
             [58, 127, 232],   // Current  → blue
@@ -1192,7 +1192,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         doc.setLineWidth(0.15);
         for (let step = 0; step <= steps; step++) {
             const val = (globalMax / steps) * step;
-            const yg  = chartBottom - (val / globalMax) * chartAreaH;
+            const yg = chartBottom - (val / globalMax) * chartAreaH;
             doc.setDrawColor(240, 240, 240);
             doc.line(chartAreaX, yg, chartAreaX + chartAreaW, yg);
             doc.setTextColor(204, 204, 204);
@@ -1204,8 +1204,8 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
         // Draw bars — per-group scale + larger value labels
         groups.forEach((g, gi) => {
-            const gBase    = chartAreaX + gi * groupW + (groupW - barGroupW) / 2;
-            const vals     = [g.cur, g.prev, g.ly];
+            const gBase = chartAreaX + gi * groupW + (groupW - barGroupW) / 2;
+            const vals = [g.cur, g.prev, g.ly];
             const groupMax = Math.max(...vals, 1) * 1.15;
 
             vals.forEach((val, bi) => {
@@ -1579,8 +1579,6 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 const d = parseDate(p.date);
                 if (d && d >= prevStartDate && d <= prevEndDate) {
                     const currTotal = prevCustomerMap.get(p.customerName) || 0;
-                    // Use Net Amount logic (Credit - Debit) to ensure we get actual collection value
-                    // Similar to main logic but without granular filters for now (assuming general collection)
                     const net = (p.credit || 0) - (p.debit || 0);
                     prevCustomerMap.set(p.customerName, currTotal + net);
                 }
@@ -1589,14 +1587,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             prevCustomerMap.forEach((totalAmt, name) => {
                 const allHistory = historyMap.get(name);
                 if (allHistory) {
-                    // Logic: Get 'latest' payment in prev period, and find 'gap' before it
-                    // Filter payments strictly within Prev Period
                     const paymentsInPrev = allHistory.filter(t => t >= prevStartDate.getTime() && t <= prevEndDate.getTime());
                     paymentsInPrev.sort((a, b) => a - b);
 
                     if (paymentsInPrev.length > 0) {
-                        const latestInPrev = paymentsInPrev[paymentsInPrev.length - 1]; // Anchor
-                        // Find payment strictly before this anchor
+                        const latestInPrev = paymentsInPrev[paymentsInPrev.length - 1];
                         const prevPayment = allHistory.find(t => t < latestInPrev);
 
                         let bucketKey = 'No Payment Before';
@@ -1613,6 +1608,57 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                         if (gapBucketsPrev[bucketKey]) {
                             gapBucketsPrev[bucketKey].count++;
                             gapBucketsPrev[bucketKey].totalAmount += totalAmt;
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- LAST YEAR CALCULATION ---
+        const gapBucketsLY: Record<string, { count: number, totalAmount: number }> = {
+            '0-30 Days': { count: 0, totalAmount: 0 },
+            '31-60 Days': { count: 0, totalAmount: 0 },
+            '61-90 Days': { count: 0, totalAmount: 0 },
+            '90+ Days': { count: 0, totalAmount: 0 },
+            'No Payment Before': { count: 0, totalAmount: 0 }
+        };
+
+        const hasLYData = (filters.sections?.summaryLastYear ?? true) && startDate && endDate;
+        if (hasLYData) {
+            const lyCustomerMap = new Map<string, number>();
+            baseData.forEach(p => {
+                const d = parseDate(p.date);
+                if (d && d >= lyStartDate && d <= lyEndDate) {
+                    const currTotal = lyCustomerMap.get(p.customerName) || 0;
+                    const net = (p.credit || 0) - (p.debit || 0);
+                    lyCustomerMap.set(p.customerName, currTotal + net);
+                }
+            });
+
+            lyCustomerMap.forEach((totalAmt, name) => {
+                const allHistory = historyMap.get(name);
+                if (allHistory) {
+                    const paymentsInLY = allHistory.filter(t => t >= lyStartDate.getTime() && t <= lyEndDate.getTime());
+                    paymentsInLY.sort((a, b) => a - b);
+
+                    if (paymentsInLY.length > 0) {
+                        const latestInLY = paymentsInLY[paymentsInLY.length - 1];
+                        const prevPayment = allHistory.find(t => t < latestInLY);
+
+                        let bucketKey = 'No Payment Before';
+                        if (prevPayment) {
+                            const diffMs = latestInLY - prevPayment;
+                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                            if (diffDays <= 30) bucketKey = '0-30 Days';
+                            else if (diffDays <= 60) bucketKey = '31-60 Days';
+                            else if (diffDays <= 90) bucketKey = '61-90 Days';
+                            else bucketKey = '90+ Days';
+                        }
+
+                        if (gapBucketsLY[bucketKey]) {
+                            gapBucketsLY[bucketKey].count++;
+                            gapBucketsLY[bucketKey].totalAmount += totalAmt;
                         }
                     }
                 }
@@ -1749,184 +1795,116 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
             y += 10;
 
-            // CARDS
-            const cardW = 45;
-            const cardH = 35; // Increased height for comparison
-            const cardGap = 6;
+            y += 10;
 
-            // Calculate centering
-            const pageW = 297; // A4 Landscape width in mm
-            const totalCardsW = (5 * cardW) + (4 * cardGap);
-            let cardX = (pageW - totalCardsW) / 2;
+            // --- VERTICAL BAR CHART SETTINGS ---
+            const chartW = 240;
+            const chartH = 100;
+            const chartX = (pageW - chartW) / 2;
+            const chartY = y + 15;
+            const chartBottom = chartY + chartH;
 
-            const totalCust = custRows.length;
+            // Scale for Y Axis (Based on Amount)
+            const allAmounts = [
+                ...Object.values(gapBuckets).map(b => b.totalAmount),
+                ...Object.values(gapBucketsPrev).map(b => b.totalAmount),
+                ...Object.values(gapBucketsLY).map(b => b.totalAmount)
+            ];
+            const maxAmount = Math.max(...allAmounts, 1);
+            const yStep = chartH / maxAmount;
 
-            Object.entries(gapBuckets).forEach(([label, data]) => {
-                const percent = totalCust > 0 ? (data.count / totalCust) * 100 : 0;
-                const prevCount = gapBucketsPrev[label]?.count || 0;
-                const diff = data.count - prevCount;
+            // X Axis Buckets
+            const bucketLabels = Object.keys(gapBuckets);
+            const groupW = chartW / bucketLabels.length;
+            const barW = groupW * 0.22;
+            const barGap = 2;
 
-                // Card Bg
-                doc.setFillColor(255, 255, 255);
-                doc.setDrawColor(226, 232, 240);
-                doc.roundedRect(cardX, y, cardW, cardH, 3, 3, 'FD');
+            // Draw Y-Axis Grid Lines
+            doc.setDrawColor(241, 245, 249);
+            doc.setLineWidth(0.2);
+            for (let i = 0; i <= 4; i++) {
+                const gy = chartBottom - (i * (chartH / 4));
+                doc.line(chartX, gy, chartX + chartW, gy);
 
-                // Color Strip (Left)
-                doc.setFillColor(...data.color);
-                doc.rect(cardX, y, 2, cardH, 'F');
-
-                // Label
-                doc.setFontSize(10);
-                doc.setTextColor(100, 116, 139);
-                doc.setFont('helvetica', 'bold');
-
-                // Wrap text if needed (max width = card width - padding)
-                const labelLines = doc.splitTextToSize(label.toUpperCase(), cardW - 8);
-                doc.text(labelLines, cardX + 6, y + 8);
-
-                // Count
-                doc.setFontSize(16);
-                doc.setTextColor(30, 41, 59);
-                doc.text(`${data.count}`, cardX + 6, y + 20);
-
-                // Percent
-                doc.setFontSize(10);
-                doc.setTextColor(100, 116, 139);
-                doc.setFont('helvetica', 'normal');
-                doc.text(`(${percent.toFixed(1)}%)`, cardX + 6 + (doc.getTextWidth(`${data.count}`) + 4), y + 20);
-
-                // Comparison (Previous Period)
-                if (showPrevComparison) {
-                    doc.setFontSize(9);
-
-                    // Prev Count
-                    const prevData = gapBucketsPrev[label] || { count: 0, totalAmount: 0 };
-                    const prevCount = prevData.count;
-
-                    const prevText = `Prev: ${prevCount}`;
-                    doc.setTextColor(30, 41, 59); // Slate 800
-                    doc.text(prevText, cardX + 6, y + 29);
-
-                    // Diff calculation
-                    const diff = data.count - prevCount;
-                    const diffVal = Math.abs(diff);
-                    const diffPercent = prevCount > 0 ? ((diffVal / prevCount) * 100).toFixed(0) + '%' : '-';
-                    if (diff !== 0) {
-                        const sign = diff > 0 ? '+' : '-';
-                        const diffColor: [number, number, number] = diff > 0 ? [22, 163, 74] : [220, 38, 38];
-
-                        doc.setTextColor(...diffColor);
-                        const diffText = `${sign}${diffVal} (${diffPercent})`;
-                        doc.text(diffText, cardX + 6 + (doc.getTextWidth(prevText) + 4), y + 29);
-                    } else {
-                        doc.setTextColor(148, 163, 184); // Slate 400
-                        doc.text('-', cardX + 6 + (doc.getTextWidth(prevText) + 4), y + 29);
-                    }
-                }
-
-                cardX += cardW + cardGap;
-            });
-
-            y += 45; // Moved chart up
-
-            // Centering Calculations
-            // pageW already defined above
-            const chartBarW = 140; // Reduced from 180 to fit amounts
-            const labelAreaW = 45;
-            const totalChartBlockW = labelAreaW + chartBarW;
-            const startX = (pageW - totalChartBlockW) / 2;
-            const barStartX = startX + labelAreaW;
-
-            // CHART TITLE (Centered over the block)
-            doc.setFontSize(14);
-            doc.setTextColor(30, 41, 59);
-            doc.setFont('helvetica', 'bold');
-            doc.text('Retention Distribution', startX, y);
-
-            if (showPrevComparison) {
-                const titleWidth = doc.getTextWidth('Retention Distribution');
-                doc.setFontSize(10);
-                doc.setTextColor(100, 116, 139); // Slate 500
-                doc.setFont('helvetica', 'normal');
-                doc.text('(Upper: Current / Lower: Previous)', startX + titleWidth + 4, y);
+                // Y-Axis Label (Formatted Amount)
+                doc.setFontSize(8);
+                doc.setTextColor(148, 163, 184);
+                const val = maxAmount * (i / 4);
+                const labelStr = val > 0 ? val.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 0 }) : '0';
+                doc.text(labelStr, chartX - 5, gy + 1, { align: 'right' });
             }
 
-            y += 10;
-            const barH = 6;
-            const barGap = 2; // Gap between Current & Prev bars
-            const groupGap = 8; // Gap between groups
-            let barY = y;
+            bucketLabels.forEach((label, idx) => {
+                const groupX = chartX + (idx * groupW);
+                const centerX = groupX + (groupW / 2);
 
-            // Find Max for scaling (considering both current and prev)
-            const maxCountValues = [...Object.values(gapBuckets).map(b => b.count)];
-            if (showPrevComparison) maxCountValues.push(...Object.values(gapBucketsPrev).map(b => b.count));
-            const maxCount = Math.max(...maxCountValues);
-
-            Object.entries(gapBuckets).forEach(([label, data]) => {
+                const data = gapBuckets[label];
                 const prevData = gapBucketsPrev[label] || { count: 0, totalAmount: 0 };
-                const prevCount = prevData.count;
-
-                // Label (Vertically Centered to Group)
-                doc.setFontSize(11);
-                doc.setTextColor(0, 0, 0);
-                doc.setFont('helvetica', 'bold');
-
-                // If showing compare, adjust label Y to center
-                const labelOffsetY = showPrevComparison ? (barH * 2 + barGap) / 2 + 2 : (barH / 2) + 3;
-                doc.text(label, startX, barY + labelOffsetY);
+                const lyData = gapBucketsLY[label] || { count: 0, totalAmount: 0 };
 
                 // --- Bar 1: Current ---
-                const barW1 = maxCount > 0 ? (data.count / maxCount) * chartBarW : 0;
+                const h1 = data.totalAmount * yStep;
+                const bx1 = centerX - (barW * 1.5 + barGap);
+                doc.setFillColor(...data.color);
+                doc.roundedRect(bx1, chartBottom - h1, barW, h1, 1, 1, 'F');
 
-                // Track
-                doc.setFillColor(241, 245, 249);
-                doc.roundedRect(barStartX, barY, chartBarW, barH, 1, 1, 'F');
-                // Fill
-                if (barW1 > 0) {
-                    doc.setFillColor(...data.color);
-                    doc.roundedRect(barStartX, barY, barW1, barH, 1, 1, 'F');
-                }
-                // Compare amounts
-                const currAmt = data.totalAmount;
-                const prevAmt = prevData.totalAmount;
-                const isCurrHigher = currAmt > prevAmt;
-                const isPrevHigher = prevAmt > currAmt;
+                // --- Bar 2: Previous ---
+                const h2 = prevData.totalAmount * yStep;
+                const bx2 = centerX - (barW / 2);
+                doc.setFillColor(181, 212, 244); // Light Blue (dashboard prev color)
+                doc.roundedRect(bx2, chartBottom - h2, barW, h2, 1, 1, 'F');
 
-                // Value (Current)
+                // --- Bar 3: Last Year ---
+                const h3 = lyData.totalAmount * yStep;
+                const bx3 = centerX + (barW / 2 + barGap);
+                doc.setFillColor(221, 221, 221); // Light Gray (dashboard ly color)
+                doc.roundedRect(bx3, chartBottom - h3, barW, h3, 1, 1, 'F');
+
+                // X-Axis Label
                 doc.setFontSize(9);
-                if (isCurrHigher && showPrevComparison) doc.setTextColor(21, 128, 61); // Green 700
-                else doc.setTextColor(0, 0, 0);
+                doc.setTextColor(30, 41, 59);
+                doc.setFont('helvetica', 'bold');
+                const labelLines = doc.splitTextToSize(label.toUpperCase(), groupW - 4);
+                doc.text(labelLines, centerX, chartBottom + 6, { align: 'center' });
 
-                const amtStr = data.totalAmount > 0 ? ` (${data.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} AED)` : '';
-                doc.text(`${data.count}${amtStr}`, barStartX + barW1 + 3, barY + barH - 1.5);
+                // Values on top of bars (Always visible)
+                const drawBarValue = (bx: number, h: number, count: number, amount: number) => {
+                    const labelY = chartBottom - h;
+                    doc.setFontSize(8.5);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(30, 41, 59);
+                    doc.text(`${count}`, bx + barW / 2, labelY - 6.5, { align: 'center' });
+                    
+                    doc.setFontSize(7.5);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(100, 116, 139);
+                    const amtStr = amount.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 0 });
+                    doc.text(amtStr, bx + barW / 2, labelY - 1.5, { align: 'center' });
+                };
 
-                barY += barH + barGap;
-
-                // --- Bar 2: Previous (Optional) ---
-                if (showPrevComparison) {
-                    const barW2 = maxCount > 0 ? (prevCount / maxCount) * chartBarW : 0;
-
-                    // Track
-                    doc.setFillColor(248, 250, 252);
-                    doc.roundedRect(barStartX, barY, chartBarW, barH, 1, 1, 'F');
-                    // Fill
-                    if (barW2 > 0) {
-                        doc.setFillColor(203, 213, 225); // Slate 300
-                        doc.roundedRect(barStartX, barY, barW2, barH, 1, 1, 'F');
-                    }
-                    // Value (Previous)
-                    doc.setFontSize(8);
-                    if (isPrevHigher) doc.setTextColor(21, 128, 61); // Green 700
-                    else doc.setTextColor(71, 85, 105); // Slate 600
-
-                    const prevAmtStr = prevData.totalAmount > 0 ? ` (${prevData.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })} AED)` : '';
-                    doc.text(`${prevCount}${prevAmtStr}`, barStartX + barW2 + 3, barY + barH - 1.5);
-
-                    barY += barH + barGap;
-                }
-
-                barY += groupGap; // Space between groups
+                drawBarValue(bx1, h1, data.count, data.totalAmount);
+                drawBarValue(bx2, h2, prevData.count, prevData.totalAmount);
+                drawBarValue(bx3, h3, lyData.count, lyData.totalAmount);
             });
+
+            // LEGEND
+            const legendY = chartBottom + 25;
+            const legendItems = [
+                { label: 'Current Period', color: [58, 127, 232] }, // Using a generic blue or indicate it's bucket-colored
+                { label: 'Previous Period', color: [181, 212, 244] },
+                { label: 'Last Year', color: [221, 221, 221] }
+            ];
+
+            let lx = (pageW - 120) / 2;
+            legendItems.forEach(item => {
+                doc.setFillColor(...item.color);
+                doc.rect(lx, legendY, 4, 4, 'F');
+                doc.setFontSize(9);
+                doc.setTextColor(100, 116, 139);
+                doc.text(item.label, lx + 6, legendY + 3.5);
+                lx += 45;
+            });
+
         }
 
 

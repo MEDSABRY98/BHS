@@ -23,6 +23,7 @@ export async function generateAccountStatementPDF(
   const autoTable = autoTableModule.default || autoTableModule;
 
   const doc = new jsPDF('l', 'mm', 'a4');
+  doc.setProperties({ title: 'Statements' });
   await addArabicFont(doc);
 
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -251,6 +252,7 @@ export async function generateBulkCustomerStatementsPDF(
   const autoTable = autoTableModule.default || autoTableModule;
 
   const doc = new jsPDF('l', 'mm', 'a4');
+  doc.setProperties({ title: 'Statements' });
   await addArabicFont(doc);
 
   for (let i = 0; i < statements.length; i++) {
@@ -470,6 +472,7 @@ export async function generateMonthlySeparatedPDF(
   if (sortedKeys.length === 0) return;
 
   const doc = new jsPDF('l', 'mm', 'a4');
+  doc.setProperties({ title: 'Statements' });
   await addArabicFont(doc);
   const pageWidth = doc.internal.pageSize.getWidth();
 

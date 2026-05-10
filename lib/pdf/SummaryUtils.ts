@@ -19,6 +19,7 @@ export async function generateBulkDebitSummaryPDF(
   const autoTable = autoTableModule.default || autoTableModule;
 
   const doc = new jsPDF('l', 'mm', 'a4');
+  doc.setProperties({ title: 'Statements' });
   await addArabicFont(doc);
 
   const pageWidth = doc.internal.pageSize.getWidth();
