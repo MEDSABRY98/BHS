@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X } from 'lucide-react';
 import NoData from '../01-Unified/NoDataTab';
+import SalesCustomerCategoriesTab from './SalesCustomerDetailsCategoriesTab';
 import * as XLSX from 'xlsx';
 import {
   ComposedChart,
@@ -28,15 +29,15 @@ interface SalesCustomerDetailsProps {
   initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
 }
 
-export default function SalesCustomerDetails({ 
-  customerName, 
-  customerType = 'sub', 
-  data, 
-  allData = [], 
-  onBack, 
-  initialTab = 'dashboard' 
+export default function SalesCustomerDetails({
+  customerName,
+  customerType = 'sub',
+  data,
+  allData = [],
+  onBack,
+  initialTab = 'dashboard'
 }: SalesCustomerDetailsProps) {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products' | 'invoices'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
@@ -540,7 +541,7 @@ export default function SalesCustomerDetails({
         const timestamps = salesDates.map(d => d.getTime());
         earliestSalesDate = new Date(Math.min(...timestamps));
         latestSalesDate = new Date(Math.max(...timestamps));
-        
+
         earliestSalesDate.setHours(0, 0, 0, 0);
         latestSalesDate.setHours(23, 59, 59, 999);
       }
@@ -559,7 +560,7 @@ export default function SalesCustomerDetails({
           const invDate = new Date(inv.date);
           if (!isNaN(invDate.getTime())) {
             invDate.setHours(0, 0, 0, 0);
-            
+
             if (earliestSalesDate && invDate < earliestSalesDate) return false;
             if (latestSalesDate && invDate > latestSalesDate) return false;
           }
@@ -663,7 +664,7 @@ export default function SalesCustomerDetails({
       const percent = prevData.amount !== 0 ? (diff / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
 
       const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
-      
+
       result.push({
         month: monthNames[m - 1],
         year: String(targetYear).slice(-2),
@@ -806,6 +807,15 @@ export default function SalesCustomerDetails({
               }`}
           >
             Sales by Month
+          </button>
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'categories'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+          >
+            Categories
           </button>
           <button
             onClick={() => setActiveTab('products')}
@@ -1023,16 +1033,16 @@ export default function SalesCustomerDetails({
                         <Legend verticalAlign="top" height={36} />
 
                         {/* Previous Year Bar */}
-                        <Bar 
-                          dataKey="prevAmount" 
-                          name={chartData[0]?.legendPrev || "Last Year"} 
-                          fill="#cbd5e1" 
+                        <Bar
+                          dataKey="prevAmount"
+                          name={chartData[0]?.legendPrev || "Last Year"}
+                          fill="#cbd5e1"
                           radius={[4, 4, 0, 0]}
                           barSize={45}
                         >
-                          <LabelList 
-                            dataKey="prevAmount" 
-                            position="top" 
+                          <LabelList
+                            dataKey="prevAmount"
+                            position="top"
                             formatter={(val: any) => val ? Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }) : ''}
                             style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
                             offset={10}
@@ -1040,21 +1050,21 @@ export default function SalesCustomerDetails({
                         </Bar>
 
                         {/* Current Year Bar */}
-                        <Bar 
-                          dataKey="currentAmount" 
-                          name={chartData[0]?.legendCurr || "Current Year"} 
-                          fill="#10b981" 
+                        <Bar
+                          dataKey="currentAmount"
+                          name={chartData[0]?.legendCurr || "Current Year"}
+                          fill="#10b981"
                           radius={[4, 4, 0, 0]}
                           barSize={45}
                         >
-                          <LabelList 
-                            dataKey="currentAmount" 
-                            position="top" 
+                          <LabelList
+                            dataKey="currentAmount"
+                            position="top"
                             formatter={(val: any) => val ? Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }) : ''}
                             style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
                             offset={10}
                           />
-                          
+
                           {/* Performance Indicators Above Bars */}
                           {chartData.map((entry, index) => (
                             <Cell key={`cell-${index}`} fill={entry.isPositive ? '#10b981' : '#f43f5e'} />
@@ -1062,59 +1072,59 @@ export default function SalesCustomerDetails({
                         </Bar>
 
                         {/* Top Row Performance Labels */}
-                        <Line 
-                          type="monotone" 
-                          dataKey="topBaseline" 
-                          stroke="none" 
-                          dot={false} 
-                          activeDot={false} 
-                          legendType="none" 
+                        <Line
+                          type="monotone"
+                          dataKey="topBaseline"
+                          stroke="none"
+                          dot={false}
+                          activeDot={false}
+                          legendType="none"
                         >
-                          <LabelList 
-                            dataKey="diff" 
+                          <LabelList
+                            dataKey="diff"
                             content={(props: any) => {
                               const { x, index } = props;
                               const entry = chartData[index];
                               if (!entry) return null;
-                              
+
                               const isPositive = entry.isPositive;
                               const isFuture = entry.isFuture && entry.currentAmount === 0;
                               const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
-                              
+
                               const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diff).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
                               const percentStr = isFuture ? '' : (entry.percent.toFixed(1) + '%');
 
                               return (
                                 <g style={{ pointerEvents: 'none' }}>
                                   {/* Card Background */}
-                                  <rect 
-                                    x={x - 45} 
-                                    y={10} 
-                                    width={90} 
-                                    height={55} 
-                                    rx={12} 
-                                    fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')} 
+                                  <rect
+                                    x={x - 45}
+                                    y={10}
+                                    width={90}
+                                    height={55}
+                                    rx={12}
+                                    fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')}
                                     stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')}
                                     strokeWidth={1.5}
                                     className="shadow-sm"
                                   />
                                   {/* Difference Text */}
-                                  <text 
-                                    x={x} 
-                                    y={isFuture ? 42 : 35} 
-                                    fill={color} 
-                                    textAnchor="middle" 
+                                  <text
+                                    x={x}
+                                    y={isFuture ? 42 : 35}
+                                    fill={color}
+                                    textAnchor="middle"
                                     style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}
                                   >
                                     {diffStr}
                                   </text>
                                   {/* Percentage Text */}
                                   {!isFuture && (
-                                    <text 
-                                      x={x} 
-                                      y={55} 
-                                      fill={color} 
-                                      textAnchor="middle" 
+                                    <text
+                                      x={x}
+                                      y={55}
+                                      fill={color}
+                                      textAnchor="middle"
                                       style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}
                                     >
                                       {percentStr}
@@ -1122,7 +1132,7 @@ export default function SalesCustomerDetails({
                                   )}
                                 </g>
                               );
-                            }} 
+                            }}
                           />
                         </Line>
                       </ComposedChart>
@@ -1135,6 +1145,15 @@ export default function SalesCustomerDetails({
                 </div>
               )}
             </div>          </div>
+        )}
+
+        {/* Categories Tab */}
+        {activeTab === 'categories' && (
+          <SalesCustomerCategoriesTab 
+            data={customerData} 
+            customerName={customerName}
+            searchQuery={debouncedSearchQuery}
+          />
         )}
 
         {/* Monthly Sales Tab */}

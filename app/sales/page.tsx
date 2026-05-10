@@ -8,6 +8,7 @@ import SalesInactiveCustomersTab from '@/components/05-Sales/SalesInactiveCustom
 import SalesStatisticsTab from '@/components/05-Sales/SalesStatisticsTab';
 import SalesDailySalesTab from '@/components/05-Sales/SalesDailySalesTab';
 import SalesProductsTab from '@/components/05-Sales/SalesProductsTab';
+import SalesCategoriesTab from '@/components/05-Sales/SalesCategoriesTab';
 import SalesStockReportTab from '@/components/05-Sales/SalesStockReportTab';
 
 import Login from '@/components/01-Unified/Login';
@@ -523,6 +524,7 @@ export default function SalesPage() {
     { id: 'sales-inactive-customers', label: 'Inactive' },
     { id: 'sales-statistics', label: 'Statistics' },
     { id: 'sales-daily-sales', label: 'Daily Sales' },
+    { id: 'sales-categories', label: 'Category' },
     { id: 'sales-products', label: 'Products' },
     { id: 'sales-download-form', label: 'Stock Report' },
   ];
@@ -599,6 +601,8 @@ export default function SalesPage() {
         return <SalesDailySalesTab data={globallyFilteredData} loading={loading} />;
       case 'sales-products':
         return <SalesProductsTab data={globallyFilteredData} allData={geographyFilteredData} loading={loading} />;
+      case 'sales-categories':
+        return <SalesCategoriesTab data={globallyFilteredData} loading={loading} />;
 
       case 'sales-download-form':
         return <SalesStockReportTab data={globallyFilteredData} loading={loading} />;
