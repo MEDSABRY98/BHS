@@ -35,7 +35,7 @@ export async function GET() {
     // I will implement GET to return just names for the dropdown.
     // And POST to verify credentials.
 
-    const userNames = users.map(u => ({ name: u.name, role: u.role }));
+    const userNames = users.map(u => ({ name: u.name, role: u.role, userAdmin: (u as any).userAdmin }));
     return NextResponse.json({ users: userNames });
   } catch (error) {
     console.error('API Error:', error);
@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     const user = users.find(u => u.name === name && u.password === password);
 
     if (user) {
-      return NextResponse.json({ success: true, user: { name: user.name, role: user.role } });
+      return NextResponse.json({ success: true, user: { name: user.name, role: user.role, userAdmin: (user as any).userAdmin } });
     } else {
       return NextResponse.json(
         { error: 'Invalid credentials' },

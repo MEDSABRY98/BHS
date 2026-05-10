@@ -1,6 +1,6 @@
 'use client';
 
-export async function generateLpoPackingListPDF(order: any, items: any[]) {
+export async function generateLpoPackingListPDF(order: any, items: any[], action: 'download' | 'print' = 'download') {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
   const autoTableModule = await import('jspdf-autotable');
@@ -9,6 +9,7 @@ export async function generateLpoPackingListPDF(order: any, items: any[]) {
   const JsBarcode = JsBarcodeModule.default || JsBarcodeModule;
 
   const doc = new jsPDF('p', 'mm', 'a4');
+  doc.setProperties({ title: `Packing_List_${order.ORDER_ID}` });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 10;
   
@@ -40,7 +41,7 @@ export async function generateLpoPackingListPDF(order: any, items: any[]) {
   doc.setFont('helvetica', 'bold');
   doc.text(order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || 'N/A', pageWidth / 2, y, { align: 'center' });
   
-  y += 12;
+  y += 7;
 
   // High resolution barcode helper
   const getBarcodeDataURL = (text: string) => {
@@ -93,19 +94,20 @@ export async function generateLpoPackingListPDF(order: any, items: any[]) {
       textColor: [212, 175, 55], 
       fontStyle: 'bold', 
       halign: 'center',
+      valign: 'middle',
       fontSize: 9
     },
     bodyStyles: { 
       halign: 'center',
-      fontSize: 8, 
-      cellPadding: 2, 
-      verticalAlign: 'middle' 
+      valign: 'middle',
+      fontSize: 10, 
+      cellPadding: 2
     },
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 'auto', halign: 'center' },
       2: { cellWidth: 15, halign: 'center' }, 
-      3: { cellWidth: 55, minCellHeight: 22, halign: 'center' }, 
+      3: { cellWidth: 55, minCellHeight: 22, halign: 'center', fontSize: 8 }, 
       4: { cellWidth: 15, halign: 'center' },
       5: { cellWidth: 15, halign: 'center' },
       6: { cellWidth: 25, halign: 'center' }, // Explicitly center Status column
@@ -162,5 +164,42 @@ export async function generateLpoPackingListPDF(order: any, items: any[]) {
   doc.setTextColor(180, 180, 180);
   doc.text(`Document generated on ${new Date().toLocaleString('en-GB')} • Page 1 of 1`, pageWidth / 2, 285, { align: 'center' });
 
-  doc.save(`Packing_List_${order.ORDER_ID}.pdf`);
+  // Summary Calculations
+  const totalProducts = items.length;
+  const totalRequested = items.reduce((sum, item) => sum + (parseFloat(item.QTY_REQUEST) || 0), 0);
+  const totalApproved = items.reduce((sum, item) => sum + (parseFloat(item.QTY_RECEIVED) || 0), 0);
+  const totalAmount = items.reduce((sum, item) => {
+    if (item.ITEMS_STATUS === 'Rejected') return sum;
+    return sum + ((parseFloat(item.PRICE) || 0) * (parseFloat(item.QTY_RECEIVED) || 0));
+  }, 0);
+
+  // Draw Summary Box
+  if (finalY > 240) { doc.addPage(); finalY = 20; }
+  else { finalY += 4; }
+
+  doc.setFillColor(250, 250, 250);
+  doc.setDrawColor(230, 230, 230);
+  doc.roundedRect(margin, finalY, pageWidth - 2 * margin, 25, 3, 3, 'FD');
+
+  const colWidth = (pageWidth - 2 * margin) / 4;
+  const summaryY = finalY + 8;
+
+  const drawMetric = (label: string, value: string, x: number) => {
+    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
+    doc.text(label, x + colWidth / 2, summaryY, { align: 'center' });
+    doc.setFontSize(10); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold');
+    doc.text(value, x + colWidth / 2, summaryY + 10, { align: 'center' });
+  };
+
+  drawMetric('TOTAL PRODUCTS', totalProducts.toString(), margin);
+  drawMetric('QTY REQUESTED', totalRequested.toString(), margin + colWidth);
+  drawMetric('QTY SENT', totalApproved.toString(), margin + colWidth * 2);
+  drawMetric('TOTAL VALUE', `AED ${totalAmount.toFixed(2)}`, margin + colWidth * 3);
+
+  if (action === 'print') {
+    const url = doc.output('bloburl');
+    window.open(url, '_blank');
+  } else {
+    doc.save(`Packing_List_${order.ORDER_ID}.pdf`);
+  }
 }

@@ -33,7 +33,8 @@ export default function UsersPage() {
 
   // Form states - Matching DB columns
   const [NAME, setNAME] = useState('');
-  const [ROLE, setROLE] = useState('sales_rep'); // internally sales_rep or admin
+  const [ROLE, setROLE] = useState('sales_rep'); 
+  const [USER_ADMIN, setUSER_ADMIN] = useState('user');
   const [PASSWORD, setPASSWORD] = useState('');
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function UsersPage() {
     setEditingUser(user);
     setNAME(user ? user.NAME : '');
     setROLE(user ? user.ROLE : 'sales_rep');
+    setUSER_ADMIN(user ? user.USER_ADMIN : 'user');
     setPASSWORD(user ? user.PASSWORD : '');
     setIsModalOpen(true);
   };
@@ -75,14 +77,14 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .update({ NAME, ROLE, PASSWORD })
+          .update({ NAME, ROLE, USER_ADMIN, PASSWORD })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `U-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .insert({ ID: nextId, NAME, ROLE, PASSWORD });
+          .insert({ ID: nextId, NAME, ROLE, USER_ADMIN, PASSWORD });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -155,69 +157,89 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          Array(3).fill(0).map((_, i) => (
-            <div key={i} className="h-56 bg-gray-100 rounded-[2.5rem] animate-pulse"></div>
-          ))
-        ) : filteredUsers.length === 0 ? (
-          <div className="col-span-full">
-            <NoData title="NO USERS FOUND" />
-          </div>
-        ) : (
-          filteredUsers.map((user) => (
-            <div key={user.ID} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 group transition-all duration-500 hover:border-black/10">
-              <div className="flex justify-between items-start mb-6">
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg ${
-                  user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-100 text-black/40'
-                }`}>
-                  {user.ROLE === 'admin' ? <Shield className="w-7 h-7" /> : <Users className="w-7 h-7" />}
-                </div>
-                <div className="flex gap-2">
-                  {canEdit && (
-                    <button onClick={() => handleOpenModal(user)} className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-black transition-colors">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button onClick={() => handleDelete(user.ID)} className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <h3 className="font-bold text-xl text-black leading-tight">{user.NAME}</h3>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`text-[10px] font-black uppercase tracking-widest ${
-                      user.ROLE === 'admin' ? 'text-[#D4AF37]' : 'text-gray-400'
-                    }`}>
-                      {user.ROLE === 'admin' ? 'admin' : 'user'}
-                    </span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-3 text-gray-500">
-                  <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center shrink-0">
-                    <Key className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium">PW: {'•'.repeat(user.PASSWORD?.length || 0)}</span>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-gray-50 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{user.ID}</span>
-                <div className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                  user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {user.ROLE === 'admin' ? 'admin' : 'user'}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-gray-50">
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">User ID</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Name</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Status</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Role</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Password</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                Array(5).fill(0).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="px-8 py-6">
+                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
+                    </td>
+                  </tr>
+                ))
+              ) : filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-8 py-12 text-center">
+                    <NoData title="NO USERS FOUND" />
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user) => (
+                  <tr key={user.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
+                    <td className="px-8 py-6 text-center">
+                      <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{user.ID}</span>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className="flex items-center justify-center gap-3">
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
+                          user.USER_ADMIN === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-100 text-black/40'
+                        }`}>
+                          {user.NAME.charAt(0)}
+                        </div>
+                        <span className="font-bold text-black">{user.NAME}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
+                        user.USER_ADMIN === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'
+                      }`}>
+                        {user.USER_ADMIN === 'admin' ? <Shield className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                        {user.USER_ADMIN}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{user.ROLE}</span>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className="flex items-center justify-center gap-2 text-gray-400">
+                        <Key className="w-3.5 h-3.5" />
+                        <span className="text-xs font-medium font-mono tracking-widest">
+                          {'•'.repeat(user.PASSWORD?.length || 0)}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6">
+                      <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                        {canEdit && (
+                          <button onClick={() => handleOpenModal(user)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(user.ID)} className="p-2.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* User Modal */}
@@ -245,35 +267,48 @@ export default function UsersPage() {
                 />
               </div>
 
-              {/* ROLE Field - Modern Toggle */}
+              {/* USER / ADMIN Toggle */}
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">ROLE</label>
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER / ADMIN</label>
                 <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
                   <button
                     type="button"
-                    onClick={() => setROLE('sales_rep')}
+                    onClick={() => setUSER_ADMIN('user')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      ROLE === 'sales_rep' 
+                      USER_ADMIN === 'user' 
                         ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    {ROLE === 'sales_rep' && <Check className="w-4 h-4" />}
+                    {USER_ADMIN === 'user' && <Check className="w-4 h-4" />}
                     user
                   </button>
                   <button
                     type="button"
-                    onClick={() => setROLE('admin')}
+                    onClick={() => setUSER_ADMIN('admin')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      ROLE === 'admin' 
+                      USER_ADMIN === 'admin' 
                         ? 'bg-black text-[#D4AF37] shadow-xl' 
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    {ROLE === 'admin' && <Check className="w-4 h-4" />}
+                    {USER_ADMIN === 'admin' && <Check className="w-4 h-4" />}
                     admin
                   </button>
                 </div>
+              </div>
+
+              {/* ROLE Field */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">ROLE</label>
+                <input 
+                  type="text" 
+                  value={ROLE}
+                  onChange={(e) => setROLE(e.target.value)}
+                  placeholder="Job Role (e.g. Sales Rep)"
+                  required
+                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                />
               </div>
 
               {/* PASSWORD Field */}

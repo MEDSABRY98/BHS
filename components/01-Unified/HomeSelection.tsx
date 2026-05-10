@@ -161,9 +161,9 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'delivery-tracking', title: "Delivery Tracking", icon: Truck, path: '/delivery-tracking', color: 'blue' as const },
     { id: 'inventory', title: "Inventory", icon: Package, path: '/inventory', color: 'indigo' as const },
     { id: 'wh20-items', title: "WarehouseS", icon: Package, path: '/warehouses', color: 'emerald' as const },
-    { id: 'water-delivery-note', title: "Water - Delivery Note", icon: FileText, path: '/water-delivery-note', color: 'violet' as const },
+    { id: 'water-delivery-note', title: "Waters", icon: FileText, path: '/waters', color: 'violet' as const },
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/suppliers', color: 'emerald' as const },
-    { id: 'lpo-management', title: "LPO Management", icon: ShoppingCart, path: '/app_lpos_login', color: 'yellow' as const },
+    { id: 'lpo-management', title: "LPO Management", icon: ShoppingCart, path: '/app_lpos_dashboard', color: 'yellow' as const },
   ];
 
   const allowedSystems = ALL_SYSTEMS

@@ -51,21 +51,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     setIsMounted(true);
-    const storedUser = localStorage.getItem('app_lpos_user');
-    const mainUser = localStorage.getItem('currentUser');
-    
-    if (!storedUser && !mainUser) {
-      router.push('/app_lpos_login');
+    const mainUserStr = localStorage.getItem('currentUser');
+
+    if (!mainUserStr) {
+      router.push('/');
     } else {
-      // Use LPO user if exists, otherwise main user
-      const userData = storedUser ? JSON.parse(storedUser) : JSON.parse(mainUser || '{}');
+      const userData = JSON.parse(mainUserStr);
+      // Ensure we have a NAME property for display/logic (mapping from main user's name if needed)
+      if (!userData.NAME && userData.name) {
+        userData.NAME = userData.name;
+      }
       setUser(userData);
     }
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem('app_lpos_user');
-    router.push('/app_lpos_login');
+    // Only remove main user if they really want to log out of the whole system, 
+    // but usually in this context "Sign Out" from LPO means going back to main selection.
+    router.push('/');
   };
 
   if (!isMounted || !user) return null;
@@ -80,7 +83,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const getFilteredNavItems = () => {
     if (!user) return [];
-    
+
     // Admin Sabry has full access
     if (user.NAME === 'MED Sabry' || user.name === 'med sabry') return ALL_NAV_ITEMS;
 
@@ -91,7 +94,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const mainUser = JSON.parse(mainUserStr);
         const roleStr = mainUser.role || '{}';
         const perms = JSON.parse(roleStr);
-        
+
         // If they don't have access to LPO system at all, return empty
         if (perms.systems && !perms.systems.includes('lpo-management')) return [];
 
@@ -113,10 +116,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       {/* Sidebar - Desktop */}
       <aside className="hidden lg:flex flex-col w-72 bg-black text-white shadow-2xl fixed h-screen left-0 top-0 z-50">
-        <div className="p-8 shrink-0">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-[#D4AF37] rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-[#D4AF37]/20">
-              <ReceiptText className="w-6 h-6 text-black" />
+        <div className="px-8 pt-6 pb-2 bg-black/50 backdrop-blur-md">
+          <button
+            onClick={handleLogout}
+            className="flex items-center justify-center gap-3 py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full"
+          >
+            <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span className="text-xs font-black uppercase tracking-[0.2em]">Back Home</span>
+          </button>
+        </div>
+        <div className="px-8 pt-2 pb-6 shrink-0 flex flex-col items-center justify-center">
+          <div className="flex flex-col items-center text-center">
+            <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20">
+              <ReceiptText className="w-7 h-7 text-black" />
             </div>
             <div>
               <h2 className="text-xl font-bold tracking-tight">BHS LPO'S</h2>
@@ -135,23 +147,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           ))}
         </nav>
 
-        <div className="p-6 shrink-0 border-t border-white/5 bg-black/50 backdrop-blur-md">
-          <div className="bg-white/5 rounded-2xl p-4 mb-6 flex items-center border border-white/5">
-            <div className="w-10 h-10 bg-gradient-to-tr from-[#D4AF37] to-yellow-600 rounded-full flex items-center justify-center text-black font-black mr-3 shadow-lg shadow-[#D4AF37]/20">
-              {user.NAME.charAt(0)}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-bold truncate">{user.NAME}</p>
-            </div>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center px-4 py-3 bg-red-500/10 hover:bg-red-500/20 text-red-500 rounded-xl transition-all duration-200 group"
-          >
-            <LogOut className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-sm font-bold">Sign Out</span>
-          </button>
-        </div>
+
       </aside>
 
       {/* Main Content Area - Shifted by Sidebar Width on Desktop */}
@@ -182,17 +178,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Mobile Sidebar */}
         <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-black text-white transition-transform duration-300 transform lg:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-          <div className="p-8 shrink-0">
-            <div className="flex items-center justify-between mb-8">
-              <div className="flex items-center">
-                <div className="w-8 h-8 bg-[#D4AF37] rounded-lg flex items-center justify-center mr-3">
-                  <ReceiptText className="w-5 h-5 text-black" />
-                </div>
-                <h2 className="text-lg font-bold">BHS LPO'S</h2>
+          <div className="px-8 pt-6 pb-2">
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center gap-3 py-2 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] w-full"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Back Home
+            </button>
+          </div>
+          <div className="px-8 pt-2 pb-6 shrink-0 relative flex flex-col items-center justify-center">
+            <button 
+              onClick={() => setIsSidebarOpen(false)}
+              className="absolute right-4 top-2 p-2 text-gray-400 hover:text-white"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <div className="flex flex-col items-center text-center">
+              <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center mb-3">
+                <ReceiptText className="w-6 h-6 text-black" />
               </div>
-              <button onClick={() => setIsSidebarOpen(false)}>
-                <X className="w-6 h-6 text-gray-400" />
-              </button>
+              <h2 className="text-lg font-bold">BHS LPO'S</h2>
+              <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Admin Panel</p>
             </div>
           </div>
           <nav className="flex-1 overflow-y-auto no-scrollbar">
@@ -205,21 +212,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               />
             ))}
           </nav>
-          <div className="p-6 shrink-0 border-t border-white/5">
-            <div className="bg-white/5 rounded-2xl p-4 mb-4 flex items-center">
-              <div className="w-8 h-8 bg-[#D4AF37] rounded-full flex items-center justify-center text-black font-black mr-3">
-                {user.NAME.charAt(0)}
-              </div>
-              <p className="text-sm font-bold truncate">{user.NAME}</p>
-            </div>
-            <button
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center px-4 py-3 bg-red-500/10 text-red-500 rounded-xl"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              <span className="text-sm font-bold">Sign Out</span>
-            </button>
-          </div>
+
         </aside>
 
         <main className="flex-1 p-4 md:p-8 lg:p-12">

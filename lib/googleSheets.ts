@@ -150,7 +150,7 @@ export async function getUsers() {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Users!A:C`, // NAME, ROLE, PASSWORD
+      range: `Users!A:D`, // NAME, USER/ADMIN, ROLE, PASSWORD
     });
 
     const rows = response.data.values;
@@ -161,9 +161,10 @@ export async function getUsers() {
     // Skip header row and parse data
     // Assuming header is NAME, ROLE, PASSWORD
     const users = rows.slice(1).map((row) => {
-      const [name, role, password] = row;
+      const [name, userAdmin, role, password] = row;
       return {
         name: name || '',
+        userAdmin: userAdmin || 'user',
         role: role || '',
         password: password?.toString() || '',
       };
@@ -1207,7 +1208,7 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
   }
 }
 
-// Get Water Delivery Note Data from "Water - Delivery Note" sheet
+// Get Water Delivery Note Data from "Waters" sheet
 export interface WaterDeliveryNoteItem {
   itemName: string;
 }
@@ -1225,7 +1226,7 @@ export async function getWaterDeliveryNoteData(): Promise<WaterDeliveryNoteItem[
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Water - Delivery Note!A:A`, // ITEM NAME
+      range: `Waters!A:A`, // ITEM NAME
     });
 
     const rows = response.data.values;
@@ -1247,7 +1248,7 @@ export async function getWaterDeliveryNoteData(): Promise<WaterDeliveryNoteItem[
   }
 }
 
-// Save Water Delivery Note to "Water - Delivery Note" sheet in columns C:F
+// Save Water Delivery Note to "Waters" sheet in columns C:F
 export async function saveWaterDeliveryNote(data: {
   date: string;
   deliveryNoteNumber: string;
@@ -1280,7 +1281,7 @@ export async function saveWaterDeliveryNote(data: {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Water - Delivery Note!C:F`,
+      range: `Waters!C:F`,
       valueInputOption: 'USER_ENTERED',
       requestBody: {
         values: values,
@@ -1294,7 +1295,7 @@ export async function saveWaterDeliveryNote(data: {
   }
 }
 
-// Get the next Delivery Note Number from "Water - Delivery Note" sheet
+// Get the next Delivery Note Number from "Waters" sheet
 export async function getNextDeliveryNoteNumber(): Promise<string> {
   try {
     const credentials = getServiceAccountCredentials();
@@ -1309,7 +1310,7 @@ export async function getNextDeliveryNoteNumber(): Promise<string> {
     // Get all delivery note numbers from column D
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Water - Delivery Note!D:D`, // Delivery Note Number column
+      range: `Waters!D:D`, // Delivery Note Number column
     });
 
     const rows = response.data.values;
@@ -1367,7 +1368,7 @@ export async function getWaterDeliveryNoteByNumber(deliveryNoteNumber: string): 
     // Get all data from columns C:F (Date, Delivery Note Number, Item Name, Quantity)
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Water - Delivery Note!C:F`,
+      range: `Waters!C:F`,
     });
 
     const rows = response.data.values;
@@ -1443,9 +1444,9 @@ export async function updateWaterDeliveryNote(
     const newItems = data.items.filter(item => item.itemName && item.quantity > 0);
 
     // Get sheet ID for batch operations
-    const sheetId = await getSheetId('Water - Delivery Note');
+    const sheetId = await getSheetId('Waters');
     if (!sheetId) {
-      throw new Error('Sheet "Water - Delivery Note" not found');
+      throw new Error('Sheet "Waters" not found');
     }
 
     const requests: any[] = [];
@@ -1464,7 +1465,7 @@ export async function updateWaterDeliveryNote(
       const rowIndex = existingRowIndices[i];
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Water - Delivery Note!C${rowIndex}:F${rowIndex}`,
+        range: `Waters!C${rowIndex}:F${rowIndex}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [values[i]]
@@ -1493,7 +1494,7 @@ export async function updateWaterDeliveryNote(
       const newRows = values.slice(existingRowIndices.length);
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: `Water - Delivery Note!C:F`,
+        range: `Waters!C:F`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: newRows
@@ -1530,7 +1531,7 @@ export async function getAllWaterDeliveryNotes(): Promise<any[]> {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Water - Delivery Note!C:F`, // Date, DN Number, Item Name, Quantity
+      range: `Waters!C:F`, // Date, DN Number, Item Name, Quantity
     });
 
     const rows = response.data.values;
@@ -3383,7 +3384,7 @@ export async function updateUserRole(name: string, newRole: string) {
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: SPREADSHEET_ID,
-      range: `Users!B${sheetRow}`,
+      range: `Users!C${sheetRow}`,
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [[newRole]] },
     });
@@ -3406,7 +3407,7 @@ export async function getSuppliersMatchingData() {
 
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Suppliers Matching'!A:C`, // Supplier ID, Supplier NAME, Months Matching
+      range: `'S - Matching'!A:C`, // Supplier ID, Supplier NAME, Months Matching
     });
 
     const rows = response.data.values;
@@ -3435,7 +3436,7 @@ export async function saveSuppliersMatchingData(supplierId: string, supplierName
     // Find existing row or append new
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: SPREADSHEET_ID,
-      range: `'Suppliers Matching'!A:B`,
+      range: `'S - Matching'!A:B`,
     });
 
     const rows = response.data.values || [];
@@ -3446,7 +3447,7 @@ export async function saveSuppliersMatchingData(supplierId: string, supplierName
       const sheetRow = rowIndex + 1;
       await sheets.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'Suppliers Matching'!C${sheetRow}`,
+        range: `'S - Matching'!C${sheetRow}`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [[months]],
@@ -3456,7 +3457,7 @@ export async function saveSuppliersMatchingData(supplierId: string, supplierName
       // Append new row - Only write to Column B (Name) and Column C (Months)
       await sheets.spreadsheets.values.append({
         spreadsheetId: SPREADSHEET_ID,
-        range: `'Suppliers Matching'!B:C`,
+        range: `'S - Matching'!B:C`,
         valueInputOption: 'USER_ENTERED',
         requestBody: {
           values: [[supplierName, months]],

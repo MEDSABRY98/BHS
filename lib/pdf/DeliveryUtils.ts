@@ -26,7 +26,7 @@ export async function generateWaterDeliveryNotePDF(
   let yPosition = 20;
 
   doc.setFontSize(20); doc.setFont('helvetica', 'bold');
-  doc.text('Water - Delivery Note', pageWidth / 2, yPosition, { align: 'center' });
+  doc.text('Waters', pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 10;
   doc.setFontSize(14); doc.setTextColor(0, 155, 77); doc.text(data.companyName, pageWidth / 2, yPosition, { align: 'center' });
   doc.setTextColor(0, 0, 0); yPosition += 15;

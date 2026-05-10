@@ -165,69 +165,76 @@ export default function CustomersPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {isLoading ? (
-          Array(6).fill(0).map((_, i) => (
-            <div key={i} className="h-56 bg-gray-100 rounded-[2.5rem] animate-pulse"></div>
-          ))
-        ) : filteredCustomers.length === 0 ? (
-          <div className="col-span-full">
-            <NoData title="NO CUSTOMERS FOUND" />
-          </div>
-        ) : (
-          filteredCustomers.map((customer) => (
-            <div key={customer.ID} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 group hover:shadow-xl hover:shadow-black/5 transition-all duration-500 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-black/[0.02] rounded-bl-[4rem] -mr-8 -mt-8 group-hover:bg-[#D4AF37]/5 transition-colors"></div>
-              
-              <div className="flex justify-between items-start mb-6 relative">
-                <div className="w-14 h-14 bg-black rounded-2xl flex items-center justify-center shadow-lg shadow-black/10">
-                  <Building2 className="w-7 h-7 text-[#D4AF37]" />
-                </div>
-                <div className="flex gap-2">
-                  {canEdit && (
-                    <button onClick={() => handleOpenModal(customer)} className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-black transition-colors">
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  {canDelete && (
-                    <button onClick={() => handleDelete(customer.ID)} className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-colors">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <p className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] mb-1">CUSTOMER NAME</p>
-                  <h3 className="font-bold text-xl text-black leading-tight">{customer["CUSTOMER NAME"]}</h3>
-                </div>
-                
-                <div className="flex items-center gap-3 text-gray-500">
-                  <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium">{customer["CUSTOMER CITY"]}</span>
-                </div>
-
-                <div className="flex items-center gap-3 text-gray-500">
-                  <div className="w-8 h-8 bg-gray-50 rounded-full flex items-center justify-center shrink-0">
-                    <Phone className="w-4 h-4" />
-                  </div>
-                  <span className="text-sm font-medium">ID: {customer["CUSTOMER ID"]}</span>
-                </div>
-              </div>
-
-              <div className="mt-8 pt-6 border-t border-gray-50 flex items-center justify-between">
-                <span className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                  <span className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Verified</span>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
+      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            <thead>
+              <tr className="border-b border-gray-50">
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Customer ID</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Name</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">City</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {isLoading ? (
+                Array(6).fill(0).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={5} className="px-8 py-6">
+                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
+                    </td>
+                  </tr>
+                ))
+              ) : filteredCustomers.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-8 py-12 text-center">
+                    <NoData title="NO CUSTOMERS FOUND" />
+                  </td>
+                </tr>
+              ) : (
+                filteredCustomers.map((customer) => (
+                  <tr key={customer.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
+                    <td className="px-8 py-6 text-center">
+                      <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <span className="text-xs font-medium font-mono text-gray-400 tracking-wider">{customer["CUSTOMER ID"]}</span>
+                    </td>
+                    <td className="px-8 py-6 text-left">
+                      <div className="flex items-center justify-start gap-3">
+                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5">
+                          <Building2 className="w-5 h-5 text-[#D4AF37]" />
+                        </div>
+                        <span className="font-bold text-black">{customer["CUSTOMER NAME"]}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className="flex items-center justify-center gap-2 text-gray-500">
+                        <MapPin className="w-3.5 h-3.5 text-gray-300" />
+                        <span className="text-xs font-bold uppercase tracking-widest">{customer["CUSTOMER CITY"]}</span>
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
+                        {canEdit && (
+                          <button onClick={() => handleOpenModal(customer)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => handleDelete(customer.ID)} className="p-2.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* Customer Modal */}
