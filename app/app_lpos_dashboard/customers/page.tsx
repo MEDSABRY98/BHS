@@ -65,8 +65,7 @@ export default function CustomersPage() {
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setConfirmAction('save');
-    setIsConfirmOpen(true);
+    executeSave();
   };
 
   const executeSave = async () => {
@@ -315,11 +314,11 @@ export default function CustomersPage() {
       {/* Confirmation Modal */}
       <ConfirmModal 
         isOpen={isConfirmOpen}
-        onConfirm={confirmAction === 'save' ? executeSave : executeDelete}
+        onConfirm={executeDelete}
         onCancel={() => setIsConfirmOpen(false)}
         isLoading={isSaving}
-        title={confirmAction === 'save' ? 'Confirm Save' : 'Confirm Deletion'}
-        message={confirmAction === 'save' ? 'Are you sure you want to save these changes?' : 'Are you sure you want to delete this customer? This action cannot be undone.'}
+        title="Confirm Deletion"
+        message="Are you sure you want to delete this customer? This action cannot be undone."
       />
     </div>
   );

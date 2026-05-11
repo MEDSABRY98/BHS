@@ -33,8 +33,7 @@ export default function UsersPage() {
 
   // Form states - Matching DB columns
   const [NAME, setNAME] = useState('');
-  const [ROLE, setROLE] = useState('sales_rep'); 
-  const [USER_ADMIN, setUSER_ADMIN] = useState('user');
+  const [ROLE, setROLE] = useState('user'); 
   const [PASSWORD, setPASSWORD] = useState('');
 
   useEffect(() => {
@@ -59,16 +58,14 @@ export default function UsersPage() {
   const handleOpenModal = (user: any = null) => {
     setEditingUser(user);
     setNAME(user ? user.NAME : '');
-    setROLE(user ? user.ROLE : 'sales_rep');
-    setUSER_ADMIN(user ? user.USER_ADMIN : 'user');
+    setROLE(user ? user.ROLE : 'user');
     setPASSWORD(user ? user.PASSWORD : '');
     setIsModalOpen(true);
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setConfirmAction('save');
-    setIsConfirmOpen(true);
+    executeSave();
   };
 
   const executeSave = async () => {
@@ -77,14 +74,14 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .update({ NAME, ROLE, USER_ADMIN, PASSWORD })
+          .update({ NAME, ROLE, PASSWORD })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `U-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .insert({ ID: nextId, NAME, ROLE, USER_ADMIN, PASSWORD });
+          .insert({ ID: nextId, NAME, ROLE, PASSWORD });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -194,7 +191,7 @@ export default function UsersPage() {
                     <td className="px-8 py-6 text-center">
                       <div className="flex items-center justify-center gap-3">
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
-                          user.USER_ADMIN === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-100 text-black/40'
+                          user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-100 text-black/40'
                         }`}>
                           {user.NAME.charAt(0)}
                         </div>
@@ -203,10 +200,10 @@ export default function UsersPage() {
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                        user.USER_ADMIN === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'
+                        user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'
                       }`}>
-                        {user.USER_ADMIN === 'admin' ? <Shield className="w-3 h-3" /> : <Users className="w-3 h-3" />}
-                        {user.USER_ADMIN}
+                        {user.ROLE === 'admin' ? <Shield className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+                        {user.ROLE}
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
@@ -267,49 +264,38 @@ export default function UsersPage() {
                 />
               </div>
 
-              {/* USER / ADMIN Toggle */}
+              {/* ROLE Toggle (admin/user) */}
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER / ADMIN</label>
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER ROLE</label>
                 <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
                   <button
                     type="button"
-                    onClick={() => setUSER_ADMIN('user')}
+                    onClick={() => setROLE('user')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      USER_ADMIN === 'user' 
+                      ROLE === 'user' 
                         ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    {USER_ADMIN === 'user' && <Check className="w-4 h-4" />}
+                    {ROLE === 'user' && <Check className="w-4 h-4" />}
                     user
                   </button>
                   <button
                     type="button"
-                    onClick={() => setUSER_ADMIN('admin')}
+                    onClick={() => setROLE('admin')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      USER_ADMIN === 'admin' 
+                      ROLE === 'admin' 
                         ? 'bg-black text-[#D4AF37] shadow-xl' 
                         : 'text-gray-400 hover:text-gray-600'
                     }`}
                   >
-                    {USER_ADMIN === 'admin' && <Check className="w-4 h-4" />}
+                    {ROLE === 'admin' && <Check className="w-4 h-4" />}
                     admin
                   </button>
                 </div>
               </div>
 
-              {/* ROLE Field */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">ROLE</label>
-                <input 
-                  type="text" 
-                  value={ROLE}
-                  onChange={(e) => setROLE(e.target.value)}
-                  placeholder="Job Role (e.g. Sales Rep)"
-                  required
-                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                />
-              </div>
+
 
               {/* PASSWORD Field */}
               <div className="space-y-2">
@@ -351,11 +337,11 @@ export default function UsersPage() {
 
       <ConfirmModal 
         isOpen={isConfirmOpen}
-        onConfirm={confirmAction === 'save' ? executeSave : executeDelete}
+        onConfirm={executeDelete}
         onCancel={() => setIsConfirmOpen(false)}
         isLoading={isSaving}
-        title={confirmAction === 'save' ? 'Confirm Save' : 'Confirm Deletion'}
-        message={confirmAction === 'save' ? 'Are you sure you want to save these changes?' : 'Are you sure you want to delete this user? This action cannot be undone.'}
+        title="Confirm Deletion"
+        message="Are you sure you want to delete this user? This action cannot be undone."
       />
     </div>
   );

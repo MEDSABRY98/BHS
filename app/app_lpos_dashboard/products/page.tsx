@@ -33,6 +33,7 @@ export default function ProductsPage() {
   // Form states
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState('');
+  const [productId, setProductId] = useState('');
 
   useEffect(() => {
     fetchProducts();
@@ -57,13 +58,13 @@ export default function ProductsPage() {
     setEditingProduct(product);
     setName(product ? product["PRODUCT NAME"] : '');
     setBarcode(product ? product["PRODUCT BARCODE"] : '');
+    setProductId(product ? product["PRODUCT ID"] : '');
     setIsModalOpen(true);
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    setConfirmAction('save');
-    setIsConfirmOpen(true);
+    executeSave();
   };
 
   const executeSave = async () => {
@@ -72,7 +73,11 @@ export default function ProductsPage() {
       if (editingProduct) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_PRODUCTS')
-          .update({ "PRODUCT NAME": name, "PRODUCT BARCODE": barcode })
+          .update({ 
+            "PRODUCT NAME": name, 
+            "PRODUCT BARCODE": barcode,
+            "PRODUCT ID": productId
+          })
           .eq('ID', editingProduct.ID);
         if (error) throw error;
       } else {
@@ -80,7 +85,12 @@ export default function ProductsPage() {
         const nextId = `P-${(products.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_PRODUCTS')
-          .insert({ ID: nextId, "PRODUCT NAME": name, "PRODUCT BARCODE": barcode });
+          .insert({ 
+            ID: nextId, 
+            "PRODUCT NAME": name, 
+            "PRODUCT BARCODE": barcode,
+            "PRODUCT ID": productId
+          });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -120,7 +130,8 @@ export default function ProductsPage() {
 
   const filteredProducts = products.filter(p => 
     p["PRODUCT NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p["PRODUCT BARCODE"]?.toLowerCase().includes(searchTerm.toLowerCase())
+    p["PRODUCT BARCODE"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    p["PRODUCT ID"]?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
@@ -158,7 +169,7 @@ export default function ProductsPage() {
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-gray-50">
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Product ID</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Product Name</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Barcode</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Status</th>
@@ -239,30 +250,44 @@ export default function ProductsPage() {
             </div>
 
             <form onSubmit={handleSave} className="p-8 space-y-6">
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 ml-1">Product Name</label>
-                <input 
-                  type="text" 
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="e.g. Classic Gold Fountain Pen"
-                  required
-                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-gray-700 ml-1">Product Barcode</label>
-                <div className="relative">
-                  <Barcode className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT ID</label>
                   <input 
                     type="text" 
-                    value={barcode}
-                    onChange={(e) => setBarcode(e.target.value)}
-                    placeholder="Enter unique barcode..."
+                    value={productId}
+                    onChange={(e) => setProductId(e.target.value)}
+                    placeholder="Internal SKU or ID"
                     required
-                    className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-mono"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT NAME</label>
+                  <input 
+                    type="text" 
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="e.g. Classic Gold Fountain Pen"
+                    required
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">BARCODE</label>
+                  <div className="relative">
+                    <Barcode className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input 
+                      type="text" 
+                      value={barcode}
+                      onChange={(e) => setBarcode(e.target.value)}
+                      placeholder="Barcode..."
+                      required
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -290,11 +315,11 @@ export default function ProductsPage() {
 
       <ConfirmModal 
         isOpen={isConfirmOpen}
-        onConfirm={confirmAction === 'save' ? executeSave : executeDelete}
+        onConfirm={executeDelete}
         onCancel={() => setIsConfirmOpen(false)}
         isLoading={isSaving}
-        title={confirmAction === 'save' ? 'Confirm Save' : 'Confirm Deletion'}
-        message={confirmAction === 'save' ? 'Are you sure you want to save these changes?' : 'Are you sure you want to delete this product? This action cannot be undone.'}
+        title="Confirm Deletion"
+        message="Are you sure you want to delete this product? This action cannot be undone."
       />
     </div>
   );

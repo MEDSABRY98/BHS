@@ -43,7 +43,7 @@ export function usePermissions() {
       }
     } else if (lpoUserStr) {
       const lpoUser = JSON.parse(lpoUserStr);
-      if (checkIsAdmin(lpoUser.NAME) || lpoUser.USER_ADMIN === 'admin') {
+      if (checkIsAdmin(lpoUser.NAME) || lpoUser.ROLE === 'admin') {
         setPermissions({ canEdit: true, canDelete: true, isLoaded: true });
       } else {
         // Legacy/Standalone behavior: all users have full access unless specified
