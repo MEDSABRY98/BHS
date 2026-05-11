@@ -1889,8 +1889,8 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
             // LEGEND
             const legendY = chartBottom + 25;
-            const legendItems = [
-                { label: 'Current Period', color: [58, 127, 232] }, // Using a generic blue or indicate it's bucket-colored
+            const legendItems: { label: string, color: [number, number, number] }[] = [
+                { label: 'Current Period', color: [58, 127, 232] },
                 { label: 'Previous Period', color: [181, 212, 244] },
                 { label: 'Last Year', color: [221, 221, 221] }
             ];
