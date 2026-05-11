@@ -65,8 +65,11 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
     }
   };
 
+  // 1. Filter out rejected items
+  const activeItems = items.filter(item => item.ITEMS_STATUS !== 'Rejected');
+
   // Items Table
-  const tableData = items.map((item, index) => {
+  const tableData = activeItems.map((item, index) => {
     const productName = item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || 'Unknown Product';
     const barcode = item.app_lpos_PRODUCTS?.["PRODUCT BARCODE"] || '';
     
@@ -74,19 +77,18 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
       index + 1,
       { 
         content: `${productName}\n${barcode}`, 
-        styles: { fontStyle: item.ITEMS_STATUS === 'Rejected' ? 'normal' : 'bold' } 
+        styles: { fontStyle: 'bold' } 
       },
-      item.app_lpos_PRODUCTS?.["PRODUCT UNIT"] || item.app_lpos_PRODUCTS?.UNIT || 'PCS',
+      item.UNIT || item.app_lpos_PRODUCTS?.["PRODUCT UNIT"] || 'PCS',
       barcode, 
-      item.QTY_REQUEST,
       item.QTY_RECEIVED || '0',
-      item.ITEMS_STATUS === 'Approved' ? 'OK' : item.ITEMS_STATUS === 'Rejected' ? 'REJECTED' : item.ITEMS_STATUS
+      item.ITEMS_STATUS === 'Approved' ? 'OK' : item.ITEMS_STATUS
     ];
   });
 
   const tableOptions: any = {
     startY: y,
-    head: [['#', 'Item Description & Barcode', 'Unit', 'Barcode Scanner', 'Req.', 'Packed', 'Status']],
+    head: [['#', 'Item Description & Barcode', 'Unit', 'Barcode Scanner', 'Quantity', 'Status']],
     body: tableData,
     theme: 'grid',
     headStyles: { 
@@ -108,14 +110,13 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
       1: { cellWidth: 'auto', halign: 'center' },
       2: { cellWidth: 15, halign: 'center' }, 
       3: { cellWidth: 55, minCellHeight: 22, halign: 'center', fontSize: 8 }, 
-      4: { cellWidth: 15, halign: 'center' },
-      5: { cellWidth: 15, halign: 'center' },
-      6: { cellWidth: 25, halign: 'center' }, // Explicitly center Status column
+      4: { cellWidth: 20, halign: 'center' },
+      5: { cellWidth: 25, halign: 'center' }, 
     },
     margin: { left: margin, right: margin },
     didDrawCell: (data: any) => {
       if (data.row.section === 'body' && data.column.index === 3) {
-        const barcodeText = items[data.row.index]?.app_lpos_PRODUCTS?.["PRODUCT BARCODE"];
+        const barcodeText = activeItems[data.row.index]?.app_lpos_PRODUCTS?.["PRODUCT BARCODE"];
         if (barcodeText) {
           const barcodeImg = getBarcodeDataURL(barcodeText);
           if (barcodeImg) {
@@ -129,17 +130,11 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
       }
     },
     didParseCell: (data: any) => {
-      if (data.row.section === 'body' && data.column.index === 6) {
-        if (data.cell.raw?.toString().includes('REJECTED')) {
-          data.cell.styles.textColor = [220, 38, 38];
-          data.cell.styles.fontStyle = 'bold';
-        } else if (data.cell.raw?.toString().includes('OK')) {
+      if (data.row.section === 'body' && data.column.index === 5) {
+        if (data.cell.raw?.toString().includes('OK')) {
           data.cell.styles.textColor = [5, 150, 105];
           data.cell.styles.fontStyle = 'bold';
         }
-      }
-      if (data.row.section === 'body' && (items[data.row.index]?.ITEMS_STATUS === 'Rejected')) {
-        data.cell.styles.textColor = [150, 150, 150];
       }
     }
   };
@@ -165,11 +160,9 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
   doc.text(`Document generated on ${new Date().toLocaleString('en-GB')} • Page 1 of 1`, pageWidth / 2, 285, { align: 'center' });
 
   // Summary Calculations
-  const totalProducts = items.length;
-  const totalRequested = items.reduce((sum, item) => sum + (parseFloat(item.QTY_REQUEST) || 0), 0);
-  const totalApproved = items.reduce((sum, item) => sum + (parseFloat(item.QTY_RECEIVED) || 0), 0);
-  const totalAmount = items.reduce((sum, item) => {
-    if (item.ITEMS_STATUS === 'Rejected') return sum;
+  const totalProducts = activeItems.length;
+  const totalApproved = activeItems.reduce((sum, item) => sum + (parseFloat(item.QTY_RECEIVED) || 0), 0);
+  const totalAmount = activeItems.reduce((sum, item) => {
     return sum + ((parseFloat(item.PRICE) || 0) * (parseFloat(item.QTY_RECEIVED) || 0));
   }, 0);
 
@@ -181,7 +174,7 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
   doc.setDrawColor(230, 230, 230);
   doc.roundedRect(margin, finalY, pageWidth - 2 * margin, 25, 3, 3, 'FD');
 
-  const colWidth = (pageWidth - 2 * margin) / 4;
+  const colWidth = (pageWidth - 2 * margin) / 3;
   const summaryY = finalY + 8;
 
   const drawMetric = (label: string, value: string, x: number) => {
@@ -192,9 +185,8 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
   };
 
   drawMetric('TOTAL PRODUCTS', totalProducts.toString(), margin);
-  drawMetric('QTY REQUESTED', totalRequested.toString(), margin + colWidth);
-  drawMetric('QTY SENT', totalApproved.toString(), margin + colWidth * 2);
-  drawMetric('TOTAL VALUE', `AED ${totalAmount.toFixed(2)}`, margin + colWidth * 3);
+  drawMetric('QTY SENT', totalApproved.toString(), margin + colWidth);
+  drawMetric('TOTAL VALUE', `AED ${totalAmount.toFixed(2)}`, margin + colWidth * 2);
 
   if (action === 'print') {
     const url = doc.output('bloburl');
