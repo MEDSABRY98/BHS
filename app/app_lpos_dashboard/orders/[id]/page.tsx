@@ -60,8 +60,16 @@ export default function OrderDetailsPage() {
       ]);
 
       if (orderRes.error) throw orderRes.error;
+      const initialItems = itemsRes.data || [];
+      const enrichedItems = initialItems.map((item: any) => ({
+        ...item,
+        QTY_RECEIVED: (orderRes.data.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0)) 
+          ? item.QTY_REQUEST 
+          : item.QTY_RECEIVED
+      }));
+
       setOrder(orderRes.data);
-      setItems(itemsRes.data || []);
+      setItems(enrichedItems);
       setAdminNotes(orderRes.data.NOTES || '');
     } catch (err) {
       console.error(err);

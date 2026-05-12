@@ -7,11 +7,53 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
   const autoTable = autoTableModule.default || autoTableModule;
   const JsBarcodeModule = await import('jsbarcode');
   const JsBarcode = JsBarcodeModule.default || JsBarcodeModule;
+  const QRCode = (await import('qrcode')).default;
 
   const doc = new jsPDF('p', 'mm', 'a4');
   doc.setProperties({ title: `Packing_List_${order.ORDER_ID}` });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 10;
+
+  // High resolution barcode helper
+  const getBarcodeDataURL = (text: string, options: { lineWidth?: number, displayValue?: boolean, fontSize?: number } = {}) => {
+    if (!text) return null;
+    const canvas = document.createElement('canvas');
+    const scale = 4; 
+    
+    const lineWidth = options.lineWidth || (text.length > 25 ? 1 : 2);
+    const displayValue = options.displayValue ?? false;
+    const fontSize = options.fontSize || 14;
+    
+    try {
+      JsBarcode(canvas, text, {
+        format: "CODE128",
+        lineColor: "#000",
+        width: lineWidth * scale,
+        height: 50 * scale,
+        displayValue: displayValue,
+        fontSize: fontSize * scale,
+        margin: 5 * scale,
+        background: "#ffffff"
+      });
+      return canvas.toDataURL('image/png', 1.0);
+    } catch (e) {
+      return null;
+    }
+  };
+
+  // QR Code helper for long text (Customer Name)
+  const getQRCodeDataURL = async (text: string) => {
+    if (!text) return null;
+    try {
+      return await QRCode.toDataURL(text, { 
+        margin: 1, 
+        width: 400,
+        color: { dark: '#000000', light: '#ffffff' }
+      });
+    } catch (e) {
+      return null;
+    }
+  };
   
   // Header Background - Very Slim
   doc.setFillColor(10, 10, 10);
@@ -35,35 +77,23 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
 
   y += 10;
 
-  // Row 2: Customer Name
+  // Row 2: Customer Name + QR Code
+  const customerName = order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || 'N/A';
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
-  doc.text(order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || 'N/A', pageWidth / 2, y, { align: 'center' });
+  doc.text(customerName, pageWidth / 2, y, { align: 'center' });
   
-  y += 7;
-
-  // High resolution barcode helper
-  const getBarcodeDataURL = (text: string) => {
-    if (!text) return null;
-    const canvas = document.createElement('canvas');
-    const scale = 4; 
-    try {
-      JsBarcode(canvas, text, {
-        format: "CODE128",
-        lineColor: "#000",
-        width: 2 * scale,
-        height: 50 * scale,
-        displayValue: true,
-        fontSize: 14 * scale,
-        margin: 5 * scale,
-        background: "#ffffff"
-      });
-      return canvas.toDataURL('image/png', 1.0);
-    } catch (e) {
-      return null;
-    }
-  };
+  // Use QR Code for customer name because it handles long text much better than 1D barcodes
+  const customerQR = await getQRCodeDataURL(customerName);
+  if (customerQR) {
+    y += 2;
+    const qrSize = 30; // 30mm
+    doc.addImage(customerQR, 'PNG', (pageWidth - qrSize) / 2, y, qrSize, qrSize);
+    y += qrSize + 5;
+  } else {
+    y += 7;
+  }
 
   // 1. Filter out rejected items
   const activeItems = items.filter(item => item.ITEMS_STATUS !== 'Rejected');
@@ -74,21 +104,21 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
     const barcode = item.app_lpos_PRODUCTS?.["PRODUCT BARCODE"] || '';
     
     return [
-      index + 1,
+      barcode, // Placeholder for Scanner Image (Index 0)
       { 
         content: `${productName}\n${barcode}`, 
         styles: { fontStyle: 'bold' } 
       },
       item.UNIT || item.app_lpos_PRODUCTS?.["PRODUCT UNIT"] || 'PCS',
-      barcode, 
       item.QTY_RECEIVED || '0',
+      item.PRICE || '0',
       item.ITEMS_STATUS === 'Approved' ? 'OK' : item.ITEMS_STATUS
     ];
   });
 
   const tableOptions: any = {
     startY: y,
-    head: [['#', 'Item Description & Barcode', 'Unit', 'Barcode Scanner', 'Quantity', 'Status']],
+    head: [['Barcode Scanner', 'Item Description & Barcode', 'Unit', 'Qty', 'Price', 'Status']],
     body: tableData,
     theme: 'grid',
     headStyles: { 
@@ -97,28 +127,28 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
       fontStyle: 'bold', 
       halign: 'center',
       valign: 'middle',
-      fontSize: 9
+      fontSize: 8
     },
     bodyStyles: { 
       halign: 'center',
       valign: 'middle',
-      fontSize: 10, 
+      fontSize: 9, 
       cellPadding: 2
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
+      0: { cellWidth: 45, minCellHeight: 18, halign: 'center' }, 
       1: { cellWidth: 'auto', halign: 'center' },
       2: { cellWidth: 15, halign: 'center' }, 
-      3: { cellWidth: 55, minCellHeight: 22, halign: 'center', fontSize: 8 }, 
-      4: { cellWidth: 20, halign: 'center' },
-      5: { cellWidth: 25, halign: 'center' }, 
+      3: { cellWidth: 15, halign: 'center' },
+      4: { cellWidth: 15, halign: 'center' },
+      5: { cellWidth: 20, halign: 'center' }, 
     },
     margin: { left: margin, right: margin },
     didDrawCell: (data: any) => {
-      if (data.row.section === 'body' && data.column.index === 3) {
+      if (data.row.section === 'body' && data.column.index === 0) {
         const barcodeText = activeItems[data.row.index]?.app_lpos_PRODUCTS?.["PRODUCT BARCODE"];
         if (barcodeText) {
-          const barcodeImg = getBarcodeDataURL(barcodeText);
+          const barcodeImg = getBarcodeDataURL(barcodeText, { displayValue: true, fontSize: 10 });
           if (barcodeImg) {
             const padX = 2;
             const padY = 2;
