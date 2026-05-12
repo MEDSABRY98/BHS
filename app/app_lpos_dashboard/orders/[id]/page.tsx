@@ -32,6 +32,7 @@ export default function OrderDetailsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [adminNotes, setAdminNotes] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
 
   useEffect(() => {
@@ -98,6 +99,34 @@ export default function OrderDetailsPage() {
   const confirmStatusUpdate = (status: string) => {
     setPendingStatus(status);
     setIsConfirmOpen(true);
+  };
+
+  const handleDeleteOrder = async () => {
+    setIsSaving(true);
+    try {
+      // 1. Delete items first
+      const { error: itemsError } = await app_lpos_supabase
+        .from('app_lpos_ORDERS_ITEMS')
+        .delete()
+        .eq('ORDER_ID', id);
+
+      if (itemsError) throw itemsError;
+
+      // 2. Delete the order
+      const { error: orderError } = await app_lpos_supabase
+        .from('app_lpos_ORDERS')
+        .delete()
+        .eq('ID', id);
+
+      if (orderError) throw orderError;
+
+      router.push('/app_lpos_dashboard/orders');
+    } catch (err) {
+      alert('Error deleting order: ' + (err as any).message);
+    } finally {
+      setIsSaving(false);
+      setIsDeleteModalOpen(false);
+    }
   };
 
   const executeUpdateStatus = async () => {
@@ -200,6 +229,16 @@ export default function OrderDetailsPage() {
             <ArrowLeft className="w-5 h-5" />
           </button>
           <h1 className="text-3xl font-normal text-black tracking-tighter">Order Processing</h1>
+          {canDelete && (
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              disabled={isSaving}
+              className="p-3 bg-white border border-red-100 text-red-500 rounded-2xl hover:bg-red-50 transition-all flex items-center justify-center shadow-sm"
+              title="Delete Order"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          )}
         </div>
         
         {canEdit && (
@@ -221,7 +260,7 @@ export default function OrderDetailsPage() {
             <button
               onClick={() => confirmStatusUpdate('Rejected')}
               disabled={isSaving}
-              className="px-6 py-4 bg-white border border-red-100 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all flex items-center gap-2"
+              className="w-[160px] py-4 bg-white border border-red-100 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all flex items-center justify-center gap-2"
             >
               <XCircle className="w-5 h-5" />
               REJECT
@@ -229,7 +268,7 @@ export default function OrderDetailsPage() {
             <button
               onClick={() => confirmStatusUpdate('Approved')}
               disabled={isSaving || !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected')}
-              className={`px-8 py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center gap-2 ${
+              className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${
                 isSaving || !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected')
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                   : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
@@ -306,6 +345,15 @@ export default function OrderDetailsPage() {
         message={`Are you sure you want to ${pendingStatus === 'Rejected' ? 'reject all items' : 'save and finalize'} this order?`}
       />
 
+      <ConfirmModal 
+        isOpen={isDeleteModalOpen}
+        onConfirm={handleDeleteOrder}
+        onCancel={() => setIsDeleteModalOpen(false)}
+        title="Delete Order"
+        message="Are you sure you want to permanently delete this order? This action cannot be undone and will remove all associated item records."
+        isLoading={isSaving}
+      />
+
       {/* Items Table */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 overflow-hidden">
         <div className="flex items-center justify-between mb-8 px-2">
@@ -372,10 +420,13 @@ export default function OrderDetailsPage() {
                     </div>
                   </td>
                   <td className="py-6 px-4 text-center">
-                    <div className={`inline-flex items-center px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                      item.ITEMS_STATUS === 'Rejected' ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'
+                    <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                      item.ITEMS_STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                      item.ITEMS_STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
+                      item.ITEMS_STATUS === 'Rejected' ? 'bg-red-50 text-red-600' :
+                      'bg-gray-50 text-gray-600'
                     }`}>
-                      {item.ITEMS_STATUS === 'Rejected' ? 'Rejected' : 'Active'}
+                      {item.ITEMS_STATUS || 'Pending'}
                     </div>
                   </td>
                   {canEdit && (
