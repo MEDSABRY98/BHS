@@ -112,8 +112,11 @@ export default function DashboardPage() {
         }
       });
 
-      const performanceArray = Object.values(performanceMap) as UserPerformance[];
-      setUserPerformance(performanceArray.sort((a, b) => b.total - a.total));
+      const performanceArray = Object.values(performanceMap)
+        .filter(u => u.total > 0)
+        .sort((a, b) => b.total - a.total) as UserPerformance[];
+      
+      setUserPerformance(performanceArray);
 
     } catch (err) {
       console.error('Dashboard Data Fetch Error:', err);
@@ -258,7 +261,10 @@ export default function DashboardPage() {
       {/* Recent Orders Table */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-8">
-          <h3 className="text-2xl font-black text-black">Recent Activity</h3>
+          <h3 className="text-2xl font-black text-black flex items-center gap-3">
+            <Activity className="w-6 h-6 text-[#D4AF37]" />
+            Recent Activity
+          </h3>
           <Link href="/app_lpos_dashboard/orders" className="bg-black text-white px-5 py-2.5 rounded-2xl text-xs font-black hover:bg-gray-800 transition-all flex items-center gap-2">
             VIEW ALL ORDERS <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
           </Link>
