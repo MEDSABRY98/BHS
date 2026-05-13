@@ -9,8 +9,11 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
+import { usePermissions } from '../hooks/usePermissions';
+import { ExcelUploadButton } from '../components/ExcelUploadButton';
 
 export default function OrdersPage() {
+  const { canEdit, isLoaded } = usePermissions();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -63,6 +66,7 @@ export default function OrdersPage() {
         <div>
           <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
         </div>
+        {canEdit && <ExcelUploadButton type="products" onSuccess={fetchOrders} />}
       </div>
 
       {/* Filters */}

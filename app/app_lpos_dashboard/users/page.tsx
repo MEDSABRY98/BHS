@@ -133,10 +133,10 @@ export default function UsersPage() {
         {canEdit && (
           <button 
             onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 px-8 py-4 bg-black text-[#D4AF37] rounded-2xl font-bold text-sm shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+            title="New User"
           >
-            <Plus className="w-5 h-5" />
-            NEW USER
+            <Plus className="w-6 h-6" />
           </button>
         )}
       </div>

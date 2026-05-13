@@ -18,6 +18,7 @@ import {
 import { ConfirmModal } from '../components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
+import { ExcelUploadButton } from '../components/ExcelUploadButton';
 
 export default function CustomersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -140,15 +141,20 @@ export default function CustomersPage() {
         <div>
           <h1 className="text-4xl font-normal text-black tracking-tighter">Customers</h1>
         </div>
-        {canEdit && (
-          <button 
-            onClick={() => handleOpenModal()}
-            className="flex items-center gap-2 px-8 py-4 bg-black text-[#D4AF37] rounded-2xl font-bold text-sm shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
-          >
-            <Plus className="w-5 h-5" />
-            NEW CUSTOMER
-          </button>
-        )}
+        <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
+          {canEdit && (
+            <>
+              <ExcelUploadButton type="customers" onSuccess={fetchCustomers} />
+              <button 
+                onClick={() => handleOpenModal()}
+                className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
+                title="New Customer"
+              >
+                <Plus className="w-6 h-6" />
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
