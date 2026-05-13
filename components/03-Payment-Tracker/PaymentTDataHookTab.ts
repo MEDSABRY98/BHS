@@ -332,56 +332,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     return { averageMonthly: totalMonthly / monthsCount, averageWeekly: totalWeekly / weeksCount, monthsCount, weeksCount };
   }, [data, selectedSalesRep, search, dateFrom, dateTo, chartYear, chartMonth]);
 
-  const averageCollectionDays = useMemo(() => {
-    const searchLower = search.toLowerCase().trim();
-    let filteredPayments = data.filter((row) => {
-      const t = getInvoiceType(row);
-      if (t !== 'Payment' && t !== 'R-Payment') return false;
-      if (selectedSalesRep && row.salesRep?.trim() !== selectedSalesRep) return false;
-      const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
-      const monthNum = chartMonth.trim() ? parseInt(chartMonth.trim(), 10) : null;
-      const today = new Date();
-      let startDate, endDate;
-      if ((yearNum && !isNaN(yearNum)) || (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12)) {
-        const y = yearNum && !isNaN(yearNum) ? yearNum : new Date().getFullYear();
-        if (monthNum && !isNaN(monthNum) && monthNum >= 1 && monthNum <= 12) { startDate = new Date(y, monthNum - 1, 1); endDate = new Date(y, monthNum, 0); }
-        else { startDate = new Date(y, 0, 1); endDate = new Date(y, 11, 31); }
-        endDate.setHours(23, 59, 59, 999);
-      } else if (dateFrom || dateTo) {
-        const fromDate = dateFrom ? parseDate(dateFrom) : null, toDate = dateTo ? parseDate(dateTo) : null;
-        if (fromDate && toDate) { startDate = fromDate; startDate.setHours(0, 0, 0, 0); endDate = new Date(toDate); endDate.setHours(23, 59, 59, 999); }
-        else if (fromDate) { startDate = fromDate; startDate.setHours(0, 0, 0, 0); endDate = new Date(); endDate.setHours(23, 59, 59, 999); }
-        else if (toDate) { endDate = new Date(toDate); endDate.setHours(23, 59, 59, 999); startDate = new Date(0); }
-        else { endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1); }
-      } else { endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0); startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1); }
-      const d = parseDate(row.date);
-      if (!d || d < startDate || d > endDate) return false;
-      if (searchLower && !row.customerName?.toLowerCase().includes(searchLower) && !row.number?.toLowerCase().includes(searchLower)) return false;
-      return true;
-    });
 
-    const paymentsByCust = new Map<string, any[]>();
-    filteredPayments.forEach((row) => {
-      const d = parseDate(row.date);
-      const cust = row.customerName?.trim() || '';
-      if (!d || !cust) return;
-      if (!paymentsByCust.has(cust)) paymentsByCust.set(cust, []);
-      paymentsByCust.get(cust)!.push({ date: d, amount: (row.credit || 0) - (row.debit || 0) });
-    });
-
-    const customerAverages: number[] = [];
-    paymentsByCust.forEach((payments) => {
-      if (payments.length < 2) return;
-      payments.sort((a, b) => a.date.getTime() - b.date.getTime());
-      const intervals = [];
-      for (let i = 1; i < payments.length; i++) {
-        const diff = Math.floor((payments[i].date.getTime() - payments[i - 1].date.getTime()) / 86400000);
-        if (diff > 0) intervals.push(diff);
-      }
-      if (intervals.length > 0) customerAverages.push(intervals.reduce((s, d) => s + d, 0) / intervals.length);
-    });
-    return { averageDays: customerAverages.length > 0 ? customerAverages.reduce((s, a) => s + a, 0) / customerAverages.length : 0, customersCount: customerAverages.length, totalPayments: filteredPayments.length };
-  }, [data, dateFrom, dateTo, selectedSalesRep, search, chartYear, chartMonth]);
 
   const payments = useMemo<PaymentEntry[]>(() => {
     const yearNum = chartYear.trim() ? parseInt(chartYear.trim(), 10) : null;
@@ -534,7 +485,7 @@ export function usePaymentTDataTab(data: InvoiceRow[]) {
     filteredCustomerChecklist,
     dashboardData,
     averageCollections,
-    averageCollectionDays,
+
     visiblePayments,
     filteredByCustomer,
     paymentsByPeriod,

@@ -165,7 +165,7 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             chartMonth={p.chartMonth}
             setChartMonth={p.setChartMonth}
             averageCollections={p.averageCollections}
-            averageCollectionDays={p.averageCollectionDays}
+
             dateFrom={p.dateFrom}
             dateTo={p.dateTo}
           />

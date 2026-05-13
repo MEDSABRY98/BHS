@@ -597,9 +597,11 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
 
     // --- METRICS CALCULATION (Current vs Previous Period) ---
-    const diff = endDate!.getTime() - startDate!.getTime();
-    const prevEndDate = new Date(startDate!.getTime() - 1);
-    const prevStartDate = new Date(prevEndDate.getTime() - diff);
+    const prevStartDate = new Date(startDate!);
+    prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+    
+    const prevEndDate = new Date(endDate!);
+    prevEndDate.setMonth(prevEndDate.getMonth() - 1);
 
     // Helper for specific range sums
     const getMetrics = (s: Date, e: Date) => {
@@ -1666,12 +1668,12 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         }
 
         // Retention / Gap Buckets
-        const gapBuckets: Record<string, { count: number, totalAmount: number, color: [number, number, number] }> = {
-            '0-30 Days': { count: 0, totalAmount: 0, color: [34, 197, 94] },   // Green 500
-            '31-60 Days': { count: 0, totalAmount: 0, color: [59, 130, 246] }, // Blue 500
-            '61-90 Days': { count: 0, totalAmount: 0, color: [245, 158, 11] }, // Amber 500
-            '90+ Days': { count: 0, totalAmount: 0, color: [239, 68, 68] },    // Red 500
-            'No Payment Before': { count: 0, totalAmount: 0, color: [148, 163, 184] } // Slate 400
+        const gapBuckets: Record<string, { count: number, totalAmount: number }> = {
+            '0-30 Days': { count: 0, totalAmount: 0 },
+            '31-60 Days': { count: 0, totalAmount: 0 },
+            '61-90 Days': { count: 0, totalAmount: 0 },
+            '90+ Days': { count: 0, totalAmount: 0 },
+            'No Payment Before': { count: 0, totalAmount: 0 }
         };
 
         // First, group by rep and calculate rep totals for sorting
@@ -1845,7 +1847,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
                 // --- Bar 1: Current ---
                 const h1 = data.totalAmount * yStep;
                 const bx1 = centerX - (barW * 1.5 + barGap);
-                doc.setFillColor(...data.color);
+                doc.setFillColor(58, 127, 232); // Unified Current color (Blue)
                 doc.roundedRect(bx1, chartBottom - h1, barW, h1, 1, 1, 'F');
 
                 // --- Bar 2: Previous ---

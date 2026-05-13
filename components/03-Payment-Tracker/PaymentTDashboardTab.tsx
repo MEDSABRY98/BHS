@@ -21,7 +21,7 @@ interface PaymentTDashboardTabProps {
   chartMonth: string;
   setChartMonth: (month: string) => void;
   averageCollections: any;
-  averageCollectionDays: any;
+
   dateFrom: string;
   dateTo: string;
 }
@@ -35,14 +35,14 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
   chartMonth,
   setChartMonth,
   averageCollections,
-  averageCollectionDays,
+
   dateFrom,
   dateTo,
 }) => {
   return (
     <div className="space-y-6 animate-fadeIn pb-8">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
           <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Total Collections</h3>
           <div className="text-2xl font-bold text-green-600">
@@ -71,12 +71,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
           </div>
         </div>
 
-        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
-          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Avg Coll. Days</h3>
-          <div className="text-2xl font-bold text-orange-600">
-            {averageCollectionDays.averageDays > 0 ? averageCollectionDays.averageDays.toFixed(1) : '0.0'} days
-          </div>
-        </div>
+
       </div>
 
       {/* Chart */}
@@ -146,12 +141,12 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
               cursor={{ fill: '#F9FAFB' }}
               contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}
               itemStyle={{ fontWeight: 'bold' }}
-              formatter={(value: number, name: string, props: any) => {
+            formatter={(value: number, name: string, props: any) => {
                 const rowData = props?.payload || {};
                 if (name === 'Net Collections') {
                   return [
                     <div key="custom-tooltip">
-                      <div className="text-green-600 text-lg">{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
+                      <div className="text-blue-600 text-lg font-extrabold">{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
                       <div className="text-[11px] mt-1 text-gray-400 font-medium">
                         {rowData.paymentCount || 0} Payments / {rowData.customerCount || 0} Customers
                       </div>
@@ -161,7 +156,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
                 }
                 if (name === 'Last Year') {
                   return [
-                    <div key="custom-tooltip-ly" className="text-blue-600 text-lg">
+                    <div key="custom-tooltip-ly" className="text-slate-500 text-lg font-bold">
                       {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}
                     </div>,
                     'Last Year'
@@ -175,28 +170,30 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
             <Bar
               dataKey="displayCollections"
               name="Net Collections"
-              fill="#10B981"
-              radius={[6, 6, 0, 0]}
+              fill="#3B82F6"
+              radius={[10, 10, 0, 0]}
+              barSize={32}
               label={{
                 position: 'top',
-                fill: '#10B981',
-                fontSize: 11,
-                fontWeight: 'bold',
-                dy: -10,
+                fill: '#1E40AF',
+                fontSize: 14,
+                fontWeight: '900',
+                dy: -15,
                 formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''
               }}
             />
             <Bar
               dataKey="lastYearCollections"
               name="Last Year"
-              fill="#3B82F6"
-              radius={[6, 6, 0, 0]}
+              fill="#E2E8F0"
+              radius={[10, 10, 0, 0]}
+              barSize={32}
               label={{
                 position: 'top',
-                fill: '#3B82F6',
-                fontSize: 11,
+                fill: '#64748B',
+                fontSize: 13,
                 fontWeight: 'bold',
-                dy: -10,
+                dy: -15,
                 formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''
               }}
             />
