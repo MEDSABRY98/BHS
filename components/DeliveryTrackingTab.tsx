@@ -107,6 +107,7 @@ export default function DeliveryTrackingTab() {
 
     // Import states
     const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+    const [isLpoExcelModalOpen, setIsLpoExcelModalOpen] = useState(false);
     const [importType, setImportType] = useState<'lpo' | 'loi' | 'invoice'>('lpo');
 
     // Date filters for All Orders tab
@@ -1294,6 +1295,65 @@ export default function DeliveryTrackingTab() {
                 </div>
             )}
 
+            {/* LPO EXCEL ACTIONS MODAL */}
+            {isLpoExcelModalOpen && (
+                <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+                    <div className="bg-white rounded-[28px] shadow-2xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100">
+                        <div className="p-6 text-center border-b border-slate-50 bg-slate-50/50 relative">
+                            <button
+                                onClick={() => setIsLpoExcelModalOpen(false)}
+                                className="absolute right-4 top-4 w-8 h-8 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-400 transition-colors"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                            <div className="w-16 h-16 bg-indigo-100 rounded-2xl flex items-center justify-center text-[32px] mx-auto mb-4 shadow-inner">📊</div>
+                            <h3 className="text-[20px] font-[900] text-slate-800 tracking-tight">LPO Excel Actions</h3>
+                            <p className="text-slate-500 text-[13px] font-medium mt-1">Download template or upload records</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            <button
+                                onClick={() => {
+                                    downloadTemplate('lpo');
+                                    setIsLpoExcelModalOpen(false);
+                                }}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50 transition-all flex items-center gap-4 group"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Download className="w-6 h-6" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-black text-slate-800 text-[15px]">Download Template</div>
+                                </div>
+                            </button>
+
+                            <button
+                                onClick={() => {
+                                    setImportType('lpo');
+                                    fileInputRef.current?.click();
+                                    setIsLpoExcelModalOpen(false);
+                                }}
+                                className="w-full p-4 rounded-2xl border-2 border-slate-100 hover:border-emerald-500 hover:bg-emerald-50 transition-all flex items-center gap-4 group"
+                            >
+                                <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                    <Upload className="w-6 h-6" />
+                                </div>
+                                <div className="text-left">
+                                    <div className="font-black text-slate-800 text-[15px]">Upload Excel File</div>
+                                </div>
+                            </button>
+                        </div>
+                        <div className="p-4 bg-slate-50 flex justify-center">
+                            <button
+                                onClick={() => setIsLpoExcelModalOpen(false)}
+                                className="px-8 py-2.5 rounded-xl font-black text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-all text-[13px]"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* HEADER */}
             <header className="bg-[#312E81] text-white sticky top-0 z-50 shadow-[0_4px_25px_rgba(49,46,129,0.25)]">
                 <div className={`${activeTab === 'orders' ? 'max-w-[1850px]' : 'max-w-[1600px]'} mx-auto px-8 h-[64px] flex items-center relative border-b border-white/10 transition-all duration-500`}>
@@ -1609,11 +1669,12 @@ export default function DeliveryTrackingTab() {
                                         className="hidden"
                                     />
                                     <button
-                                        onClick={() => setIsImportModalOpen(true)}
+                                        onClick={() => setIsLpoExcelModalOpen(true)}
                                         disabled={isSaving}
-                                        className="bg-white text-indigo-900 border border-slate-200 font-bold h-[52px] px-8 rounded-xl text-[14px] flex items-center gap-2 transition-all hover:bg-slate-100 disabled:opacity-50"
+                                        className="w-[52px] h-[52px] bg-white text-indigo-900 border border-slate-200 rounded-xl flex items-center justify-center transition-all hover:bg-indigo-50 hover:border-indigo-200 shadow-sm hover:shadow-md disabled:opacity-50 group"
+                                        title="LPO Excel Actions (Upload/Download)"
                                     >
-                                        <Upload className="w-4 h-4" /> Upload Excel
+                                        <FileSpreadsheet className="w-6 h-6 text-indigo-600 group-hover:scale-110 transition-transform" />
                                     </button>
                                 </div>
                                 <div className="flex items-center gap-4">
