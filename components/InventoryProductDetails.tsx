@@ -9,8 +9,9 @@ import {
     Sparkles, X, Clock, AlertTriangle, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import {
-    AreaChart, Area, XAxis, YAxis,
-    CartesianGrid, Tooltip, ResponsiveContainer
+    BarChart, Bar, XAxis, YAxis,
+    CartesianGrid, Tooltip, ResponsiveContainer,
+    LabelList, Cell
 } from 'recharts';
 
 interface AnalysisData {
@@ -109,6 +110,54 @@ export default function ProductDetails({ productId, productName, barcode, onBack
     const dailySales = avgSales3M / 30;
     const coverageDays = dailySales > 0 ? summary.currentStock / dailySales : (summary.currentStock > 0 ? 999 : 0);
     const turnoverRatio = summary.currentStock > 0 ? summary.sales / summary.currentStock : (summary.sales > 0 ? 12 : 0);
+
+    const CustomTooltip = ({ active, payload, label }: any) => {
+        if (active && payload && payload.length) {
+            return (
+                <div className="bg-white/90 backdrop-blur-md p-4 rounded-2xl border border-slate-100 shadow-xl min-w-[180px]">
+                    <p className="text-slate-700 text-xs font-bold border-b border-slate-50 mb-3 pb-2">{label}</p>
+                    <div className="flex flex-col gap-3">
+                        {payload.map((entry: any, index: number) => (
+                            <div key={index} className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div
+                                        className="w-1.5 h-1.5 rounded-full"
+                                        style={{ backgroundColor: entry.color }}
+                                    />
+                                    <span className="text-slate-500 text-[9px] font-bold uppercase tracking-wider">{entry.name}</span>
+                                </div>
+                                <span className="text-slate-900 text-lg font-black tracking-tighter">
+                                    {entry.value.toLocaleString()}
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        }
+        return null;
+    };
+
+    const RenderBarLabel = (props: any) => {
+        const { x, y, width, value, fill } = props;
+        if (!value || value === 0) return null;
+        
+        return (
+            <text 
+                x={x + width / 2} 
+                y={y - 18} 
+                fill={fill} 
+                textAnchor="middle" 
+                style={{ 
+                    fontSize: '16px', 
+                    fontWeight: 900,
+                    fontFamily: 'inherit'
+                }}
+            >
+                {value.toLocaleString()}
+            </text>
+        );
+    };
 
     // Charts expect oldest to newest
     const chartData = [...monthlyData].reverse().map(m => ({
@@ -337,131 +386,82 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                         color="bg-slate-500"
                         isAvg
                     />
-                    <StatCard
-                        title="Net Flow"
-                        value={summary.netFlow}
-                        icon={Activity}
-                        color={summary.netFlow >= 0 ? "bg-blue-600" : "bg-rose-600"}
-                    />
+
                 </div>
             </div>
 
             {/* Movement Trends Chart */}
             <div className="bg-white rounded-[40px] border border-slate-100 shadow-sm overflow-hidden p-10">
-                <div className="flex items-center justify-between mb-10">
-                    <div>
-                        <h3 className="text-lg font-medium text-slate-800 tracking-tight">
-                            {data.granularity === 'day' ? 'Daily Activity' : 'Movement Trends'}
+                <div className="flex flex-col items-center gap-6 mb-12">
+                    <div className="text-center">
+                        <h3 className="text-xl font-black text-slate-800 tracking-tight mb-2">
+                            {data.granularity === 'day' ? 'Daily Movement Analysis' : 'Monthly Performance Trends'}
                         </h3>
-                        <p className="text-slate-400 text-xs font-medium">
-                            {data.granularity === 'day' ? 'Performance over the last 7 days' : 'Monthly performance over the tracking period'}
-                        </p>
+                        <p className="text-slate-400 text-[10px] font-bold uppercase tracking-[0.2em]">Visualizing inventory velocity and cycles</p>
                     </div>
-                    <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-rose-500" />
-                            <span className="text-[10px] font-medium text-slate-500 uppercase">Sales</span>
+
+                    <div className="flex items-center gap-8 bg-slate-50 px-8 py-3 rounded-2xl border border-slate-100 shadow-sm">
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-3 h-3 rounded-full bg-emerald-500 shadow-lg shadow-emerald-200" />
+                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Sales</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full border-2 border-amber-500 border-dashed" />
-                            <span className="text-[10px] font-medium text-slate-500 uppercase">Returns</span>
+                        <div className="w-[1px] h-4 bg-slate-200" />
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-3 h-3 rounded-full bg-blue-500 shadow-lg shadow-blue-200" />
+                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Purchases</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                            <span className="text-[10px] font-medium text-slate-500 uppercase">Purchases</span>
+                        <div className="w-[1px] h-4 bg-slate-200" />
+                        <div className="flex items-center gap-2.5">
+                            <div className="w-3 h-3 rounded-full bg-rose-500 shadow-lg shadow-rose-200" />
+                            <span className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Returns</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="h-[360px] w-full">
+                <div className="h-[480px] w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                        <AreaChart data={chartData} margin={{ top: 10, right: 50, left: 10, bottom: 25 }}>
-                            <defs>
-                                <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.15} />
-                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="colorPurchases" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.15} />
-                                    <stop offset="95%" stopColor="#0ea5e9" stopOpacity={0} />
-                                </linearGradient>
-                                <linearGradient id="colorReturns" x1="0" y1="0" x2="0" y2="1">
-                                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.1} />
-                                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
-                                </linearGradient>
-                            </defs>
+                        <BarChart
+                            data={chartData}
+                            margin={{ top: 40, right: 30, left: 10, bottom: 20 }}
+                            barGap={12}
+                        >
                             <CartesianGrid strokeDasharray="5 5" vertical={false} stroke="#f1f5f9" />
                             <XAxis
                                 dataKey="month"
                                 axisLine={false}
                                 tickLine={false}
-                                tick={{ fill: '#475569', fontSize: 16, fontWeight: 700 }}
-                                dy={10}
-                                padding={{ left: 40, right: 40 }}
+                                tick={{ fill: '#475569', fontSize: 14, fontWeight: 700 }}
+                                dy={15}
                             />
                             <YAxis
                                 axisLine={false}
                                 tickLine={false}
-                                tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }}
+                                tick={{ fill: '#94a3b8', fontSize: 11 }}
+                                domain={[0, (dataMax: number) => Math.ceil(dataMax * 1.15)]}
                             />
-                            <Tooltip
-                                content={({ active, payload, label }: any) => {
-                                    if (active && payload && payload.length) {
-                                        return (
-                                            <div className="bg-white/90 backdrop-blur-md p-5 rounded-[24px] border border-slate-100 shadow-2xl min-w-[200px]">
-                                                <p className="text-slate-700 text-sm font-bold border-b border-slate-50 mb-4 pb-2">{label}</p>
-                                                <div className="flex flex-col gap-4">
-                                                    {payload.map((entry: any, index: number) => (
-                                                        <div key={index} className="flex items-center justify-between gap-6">
-                                                            <div className="flex items-center gap-2">
-                                                                <div
-                                                                    className="w-2 h-2 rounded-full"
-                                                                    style={{ backgroundColor: entry.color }}
-                                                                />
-                                                                <span className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">{entry.name}</span>
-                                                            </div>
-                                                            <span className="text-slate-900 text-xl font-black tracking-tighter">
-                                                                {entry.value.toLocaleString()}
-                                                            </span>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        );
-                                    }
-                                    return null;
-                                }}
-                                cursor={{ stroke: '#e2e8f0', strokeWidth: 2, strokeDasharray: '5 5' }}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="Sales"
-                                stroke="#10b981"
-                                strokeWidth={4}
-                                fillOpacity={1}
-                                fill="url(#colorSales)"
-                                animationDuration={1000}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="Purchases"
-                                stroke="#0ea5e9"
-                                strokeWidth={4}
-                                fillOpacity={1}
-                                fill="url(#colorPurchases)"
-                                animationDuration={1200}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="Returns"
-                                stroke="#ef4444"
-                                strokeWidth={3}
-                                strokeDasharray="5 5"
-                                fillOpacity={1}
-                                fill="url(#colorReturns)"
-                                animationDuration={1400}
-                            />
-                        </AreaChart>
+                            <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f8fafc' }} />
+
+                            <Bar dataKey="Sales" fill="#10b981" radius={[6, 6, 0, 0]} barSize={28} minPointSize={35}>
+                                <LabelList dataKey="Sales" content={<RenderBarLabel />} />
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`sales-${index}`} fill={entry.Sales === 0 ? 'transparent' : '#10b981'} />
+                                ))}
+                            </Bar>
+                            
+                            <Bar dataKey="Purchases" fill="#0ea5e9" radius={[6, 6, 0, 0]} barSize={28} minPointSize={35}>
+                                <LabelList dataKey="Purchases" content={<RenderBarLabel />} />
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`purchases-${index}`} fill={entry.Purchases === 0 ? 'transparent' : '#0ea5e9'} />
+                                ))}
+                            </Bar>
+                            
+                            <Bar dataKey="Returns" fill="#ef4444" radius={[6, 6, 0, 0]} barSize={28} minPointSize={35}>
+                                <LabelList dataKey="Returns" content={<RenderBarLabel />} />
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`returns-${index}`} fill={entry.Returns === 0 ? 'transparent' : '#ef4444'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
                     </ResponsiveContainer>
                 </div>
             </div>
@@ -490,14 +490,14 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                         <tbody className="divide-y divide-slate-50">
                             {monthlyData.map((m, idx) => (
                                 <tr key={`${m.key}-${idx}`} className="hover:bg-slate-50/70 transition-colors group">
-                                    <td className="px-10 py-6 text-slate-600 font-medium text-sm text-center">{m.label}</td>
-                                    <td className="px-10 py-6 text-center text-slate-800 font-medium text-base">
+                                    <td className="px-10 py-6 text-slate-600 font-bold text-base text-center">{m.label}</td>
+                                    <td className="px-10 py-6 text-center text-slate-900 font-black text-xl tracking-tighter">
                                         {m.sales === 0 ? <span className="opacity-20">-</span> : m.sales.toLocaleString()}
                                     </td>
-                                    <td className="px-10 py-6 text-center text-amber-500 font-medium text-base">
+                                    <td className="px-10 py-6 text-center text-amber-500 font-black text-xl tracking-tighter">
                                         {m.returns === 0 ? <span className="opacity-20">-</span> : m.returns.toLocaleString()}
                                     </td>
-                                    <td className="px-10 py-6 text-center text-emerald-600 font-medium text-base">
+                                    <td className="px-10 py-6 text-center text-emerald-600 font-black text-xl tracking-tighter">
                                         {m.purchases === 0 ? <span className="opacity-20">-</span> : m.purchases.toLocaleString()}
                                     </td>
                                 </tr>
