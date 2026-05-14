@@ -113,7 +113,11 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
     );
   }
 
-  const staffOptions = allStaff.map(s => ({ id: s.NAME, label: s.NAME }));
+  const staffOptions = allStaff.map(s => ({ id: s.ID, label: s.NAME }));
+
+  const getStaffName = (id: string) => {
+    return allStaff.find(s => s.ID === id)?.NAME || id;
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
@@ -139,10 +143,10 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                 <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[1.5rem] border border-gray-100 group hover:border-black transition-all animate-in fade-in slide-in-from-left-4">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-black text-[#D4AF37] rounded-xl flex items-center justify-center font-black text-xs">
-                      {deliveryData.DRIVERS_NAME.charAt(0).toUpperCase()}
+                      {getStaffName(deliveryData.DRIVERS_NAME).charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-sm font-black text-black tracking-tight">{deliveryData.DRIVERS_NAME}</p>
+                      <p className="text-sm font-black text-black tracking-tight">{getStaffName(deliveryData.DRIVERS_NAME)}</p>
                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Assigned Driver</p>
                     </div>
                   </div>
@@ -180,10 +184,10 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                 <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[1.5rem] border border-gray-100 group hover:border-black transition-all animate-in fade-in slide-in-from-left-4">
                   <div className="flex items-center gap-4">
                     <div className="w-10 h-10 bg-gray-200 text-gray-500 rounded-xl flex items-center justify-center font-black text-xs">
-                      {deliveryData.ASSISTANT_NAME.charAt(0).toUpperCase()}
+                      {getStaffName(deliveryData.ASSISTANT_NAME).charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <p className="text-sm font-black text-black tracking-tight">{deliveryData.ASSISTANT_NAME}</p>
+                      <p className="text-sm font-black text-black tracking-tight">{getStaffName(deliveryData.ASSISTANT_NAME)}</p>
                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Assigned Assistant</p>
                     </div>
                   </div>

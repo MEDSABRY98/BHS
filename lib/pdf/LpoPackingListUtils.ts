@@ -202,42 +202,7 @@ export async function generateLpoPackingListPDF(
     return sum + ((parseFloat(item.PRICE) || 0) * (parseFloat(item.QTY_RECEIVED) || 0));
   }, 0);
 
-  // Personnel / Logistics Section
-  if (prepStaff.length > 0 || deliveryData) {
-    if (finalY > 230) { doc.addPage(); finalY = 20; }
-    else { finalY += 4; }
-
-    doc.setFillColor(252, 252, 252);
-    doc.setDrawColor(240, 240, 240);
-    doc.roundedRect(margin, finalY, pageWidth - 2 * margin, 25, 3, 3, 'FD');
-
-    const personnelY = finalY + 8;
-    const personnelColWidth = (pageWidth - 2 * margin) / 3;
-
-    // Prep Staff
-    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
-    doc.text('PREPARED BY', margin + personnelColWidth / 2, personnelY, { align: 'center' });
-    doc.setFontSize(8); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'normal');
-    const prepNames = prepStaff.map(s => s.PREPARATION_NAME).join(', ') || 'N/A';
-    doc.text(doc.splitTextToSize(prepNames, personnelColWidth - 10), margin + personnelColWidth / 2, personnelY + 7, { align: 'center' });
-
-    // Driver
-    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
-    doc.text('DRIVER', margin + personnelColWidth + personnelColWidth / 2, personnelY, { align: 'center' });
-    doc.setFontSize(9); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold');
-    doc.text(deliveryData?.DRIVERS_NAME || 'N/A', margin + personnelColWidth + personnelColWidth / 2, personnelY + 7, { align: 'center' });
-
-    // Assistant
-    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
-    doc.text('ASSISTANT', margin + personnelColWidth * 2 + personnelColWidth / 2, personnelY, { align: 'center' });
-    doc.setFontSize(9); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold');
-    doc.text(deliveryData?.ASSISTANT_NAME || 'N/A', margin + personnelColWidth * 2 + personnelColWidth / 2, personnelY + 7, { align: 'center' });
-
-    finalY += 30;
-  }
-
-  // Summary Calculations
-
+  // Summary Calculations Block - Keep relative to content
   doc.setFillColor(250, 250, 250);
   doc.setDrawColor(230, 230, 230);
   doc.roundedRect(margin, finalY, pageWidth - 2 * margin, 25, 3, 3, 'FD');
@@ -255,6 +220,27 @@ export async function generateLpoPackingListPDF(
   drawMetric('TOTAL PRODUCTS', totalProducts.toString(), margin);
   drawMetric('QTY SENT', totalApproved.toString(), margin + colWidth);
   drawMetric('TOTAL VALUE', `AED ${totalAmount.toFixed(2)}`, margin + colWidth * 2);
+
+  // Personnel / Logistics Section - ABSOLUTE BOTTOM OF LAST PAGE
+  if (prepStaff.length > 0 || deliveryData) {
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let personnelY = pageHeight - 35; // Positioned above footer
+
+    // Line 1: Preparation Staff
+    doc.setFontSize(8); 
+    doc.setTextColor(120, 120, 120); 
+    doc.setFont('helvetica', 'bold');
+    const prepTitle = 'PREPARED BY: ';
+    const prepNames = prepStaff.map(s => s.PREPARATION_NAME).join(', ') || 'N/A';
+    doc.text(`${prepTitle}${prepNames}`, pageWidth / 2, personnelY, { align: 'center' });
+    
+    personnelY += 6;
+
+    // Line 2: Driver & Assistant
+    const driverName = deliveryData?.DRIVERS_NAME || 'N/A';
+    const assistantName = deliveryData?.ASSISTANT_NAME || 'N/A';
+    doc.text(`DRIVER: ${driverName}   |   ASSISTANT: ${assistantName}`, pageWidth / 2, personnelY, { align: 'center' });
+  }
 
   if (action === 'print') {
     const url = doc.output('bloburl');

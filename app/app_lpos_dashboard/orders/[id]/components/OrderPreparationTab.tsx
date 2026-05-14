@@ -69,12 +69,12 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
       const staffMember = allStaff.find(s => s.ID === selectedStaffId);
       const nextId = await generateNextId();
 
-      const { error } = await app_lpos_supabase
+        const { error } = await app_lpos_supabase
         .from('app_lpos_PREPARATION')
         .insert([{
           ID: nextId,
           ORDER_ID: orderId,
-          PREPARATION_NAME: staffMember.NAME
+          PREPARATION_NAME: staffMember.ID
         }]);
 
       if (error) throw error;
@@ -171,14 +171,16 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {prepStaff.map((staff) => (
-                  <tr key={staff.ID} className="group hover:bg-gray-50/50 transition-all">
-                    <td className="py-6 px-4">
-                      <span className="text-xs font-black text-gray-400">{staff.ID}</span>
-                    </td>
-                    <td className="py-6 px-4">
-                      <span className="text-sm font-black text-black">{staff.PREPARATION_NAME}</span>
-                    </td>
+                {prepStaff.map((staff) => {
+                  const staffInfo = allStaff.find(s => s.ID === staff.PREPARATION_NAME);
+                  return (
+                    <tr key={staff.ID} className="group hover:bg-gray-50/50 transition-all">
+                      <td className="py-6 px-4">
+                        <span className="text-xs font-black text-gray-400">{staff.ID}</span>
+                      </td>
+                      <td className="py-6 px-4">
+                        <span className="text-sm font-black text-black">{staffInfo?.NAME || staff.PREPARATION_NAME}</span>
+                      </td>
                     <td className="py-6 px-4">
                       <span className="text-xs text-gray-500 font-medium">
                         {new Date(staff.PREPARED_AT).toLocaleString()}
@@ -194,8 +196,9 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
                         </button>
                       </div>
                     </td>
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
