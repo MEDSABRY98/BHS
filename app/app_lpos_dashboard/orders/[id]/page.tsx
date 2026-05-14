@@ -56,7 +56,7 @@ export default function OrderDetailsPage() {
           app_lpos_CUSTOMERS ( * ),
           app_lpos_USERS ( "NAME" )
         `)
-        .eq('ID', id)
+        .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
         .maybeSingle();
 
       let noItems = false;
@@ -70,7 +70,7 @@ export default function OrderDetailsPage() {
             app_lpos_CUSTOMERS ( * ),
             app_lpos_USERS ( "NAME" )
           `)
-          .eq('ID', id)
+          .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
           .maybeSingle();
         
         if (noItemsError) throw noItemsError;
@@ -484,11 +484,11 @@ export default function OrderDetailsPage() {
         )}
         
         {activeTab === 'PREPARATION' && (
-          <OrderPreparationTab orderId={id as string} />
+          <OrderPreparationTab orderId={order.ID} />
         )}
 
         {activeTab === 'DELIVERY' && (
-          <OrderDeliveryTab orderId={id as string} />
+          <OrderDeliveryTab orderId={order.ID} />
         )}
       </div>
 

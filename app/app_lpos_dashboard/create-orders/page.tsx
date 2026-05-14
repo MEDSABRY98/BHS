@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  ReceiptText, 
-  Send, 
-  User, 
-  Users, 
-  FileText, 
+import {
+  ReceiptText,
+  Send,
+  User,
+  Users,
+  FileText,
   Activity,
   CheckCircle2,
   AlertCircle,
@@ -56,7 +56,7 @@ export default function CreateOrderPage() {
         try {
           const userData = JSON.parse(storedUser);
           const userName = userData.name || userData.NAME;
-          
+
           if (userName) {
             // Find the corresponding user in the Supabase users table to get their ID
             const dbUser = fetchedUsers.find(u => u.NAME.toLowerCase() === userName.toLowerCase());
@@ -117,7 +117,7 @@ export default function CreateOrderPage() {
 
     try {
       const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, ...rest }) => rest);
-      
+
       const { error } = await app_lpos_supabase
         .from('app_lpos_ORDERS_NO_ITEMS')
         .insert(ordersToInsert);
@@ -187,7 +187,7 @@ export default function CreateOrderPage() {
                   <FileText className="w-3 h-3" />
                   LPO ID
                 </label>
-                <input 
+                <input
                   type="text"
                   placeholder="ID..."
                   value={formData.LPO_ID}
@@ -265,18 +265,17 @@ export default function CreateOrderPage() {
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex justify-center">
-                        <span className={`inline-flex px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                          order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                          order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                          'bg-orange-50 text-orange-600'
-                        }`}>
+                        <span className={`inline-flex px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                            order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
+                              'bg-orange-50 text-orange-600'
+                          }`}>
                           {order.STATUS}
                         </span>
                       </div>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex justify-center">
-                        <button 
+                        <button
                           onClick={() => removeOrderFromList(order.tempId)}
                           className="w-10 h-10 flex items-center justify-center bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white hover:scale-110 transition-all shadow-sm"
                           title="Remove from list"
@@ -295,9 +294,8 @@ export default function CreateOrderPage() {
 
       {/* Global Message Notification */}
       {message && (
-        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[300] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${
-          message.type === 'success' ? 'bg-black text-white border-[#D4AF37]' : 'bg-red-600 text-white border-red-800'
-        }`}>
+        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[300] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${message.type === 'success' ? 'bg-black text-white border-[#D4AF37]' : 'bg-red-600 text-white border-red-800'
+          }`}>
           {message.type === 'success' ? (
             <CheckCircle2 className="w-5 h-5 text-[#D4AF37]" />
           ) : (
