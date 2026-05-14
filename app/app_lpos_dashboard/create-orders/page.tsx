@@ -167,8 +167,8 @@ export default function CreateOrderPage() {
       <div className="bg-white rounded-[3rem] p-10 shadow-2xl shadow-black/5 border border-gray-100 relative">
         <div className="space-y-8">
           <div className="flex flex-col md:flex-row items-end gap-6 w-full">
-            {/* Customer Selection - 60% Width */}
-            <div className="w-full md:w-[60%] min-w-0">
+            {/* Customer Selection - 40% Width */}
+            <div className="w-full md:w-[40%] min-w-0">
               <SearchSelect
                 label="Customer"
                 options={customers.map(c => ({ id: c.ID, label: c["CUSTOMER NAME"], subLabel: c["CUSTOMER CITY"] }))}
@@ -179,7 +179,7 @@ export default function CreateOrderPage() {
               />
             </div>
 
-            {/* Others Container - 25% Width */}
+            {/* Others Container - 60% Width */}
             <div className="w-full md:flex-1 grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] items-end gap-6">
               {/* LPO ID Input */}
               <div className="flex flex-col gap-2 min-w-0">
