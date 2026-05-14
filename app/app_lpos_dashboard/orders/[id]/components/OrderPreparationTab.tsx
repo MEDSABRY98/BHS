@@ -121,7 +121,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
         <div className="flex items-end gap-6">
           <div className="flex-1">
             <SearchSelect
-              label="Select Staff Member"
+              label=""
               placeholder="Pick a warehouse worker..."
               options={allStaff.map(s => ({ id: s.ID, label: s.NAME }))}
               value={selectedStaffId}

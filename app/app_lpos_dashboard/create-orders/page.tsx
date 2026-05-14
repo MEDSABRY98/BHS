@@ -170,7 +170,7 @@ export default function CreateOrderPage() {
             {/* Customer Selection - 40% Width */}
             <div className="w-full md:w-[40%] min-w-0">
               <SearchSelect
-                label="Customer"
+                label=""
                 options={customers.map(c => ({ id: c.ID, label: c["CUSTOMER NAME"], subLabel: c["CUSTOMER CITY"] }))}
                 value={formData.CUSTOMER_ID}
                 onChange={(val) => setFormData({ ...formData, CUSTOMER_ID: val })}
@@ -199,7 +199,7 @@ export default function CreateOrderPage() {
               {/* Status Selection */}
               <div className="min-w-0">
                 <SearchSelect
-                  label="Status"
+                  label=""
                   options={[
                     { id: 'Pending', label: 'Pending' },
                     { id: 'Approved', label: 'Approved' },

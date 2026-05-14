@@ -49,9 +49,11 @@ export default function SearchSelect({
 
   return (
     <div className="flex flex-col gap-2 relative" ref={containerRef}>
-      <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">
-        {label}
-      </label>
+      {label && (
+        <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">
+          {label}
+        </label>
+      )}
       
       <div 
         onClick={() => !isLoading && setIsOpen(!isOpen)}
@@ -105,7 +107,7 @@ export default function SearchSelect({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search team member..."
+                placeholder="Search..."
                 className="w-full pl-12 pr-6 py-4 bg-white border-2 border-transparent focus:border-black/5 rounded-2xl outline-none transition-all text-sm font-black placeholder:text-gray-300 placeholder:font-bold"
               />
             </div>
@@ -147,11 +149,13 @@ export default function SearchSelect({
                     <span className={`text-sm tracking-tight ${value === opt.id ? 'font-black text-[#D4AF37]' : 'font-black text-black group-hover:text-black'}`}>
                       {opt.label}
                     </span>
-                    <span className={`text-[9px] font-black uppercase tracking-[0.2em] mt-0.5 ${
-                      value === opt.id ? 'text-gray-400' : 'text-gray-300 group-hover:text-gray-400'
-                    }`}>
-                      Staff Member
-                    </span>
+                    {opt.subLabel && (
+                      <span className={`text-[9px] font-black uppercase tracking-[0.2em] mt-0.5 ${
+                        value === opt.id ? 'text-gray-400' : 'text-gray-300 group-hover:text-gray-400'
+                      }`}>
+                        {opt.subLabel}
+                      </span>
+                    )}
                   </div>
 
                   {value === opt.id && (
