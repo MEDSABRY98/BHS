@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin } from 'lucide-react';
+import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
 import SearchSelect from '../../../components/SearchSelect';
 
 interface OrderDeliveryTabProps {
@@ -131,31 +131,82 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
             </div>
           </div>
 
-          <div className="space-y-6">
-            <SearchSelect
-              label="Primary Driver"
-              placeholder="Select driver..."
-              options={staffOptions}
-              value={deliveryData.DRIVERS_NAME}
-              onChange={(val) => setDeliveryData({...deliveryData, DRIVERS_NAME: val})}
-            />
+          <div className="space-y-8">
+            {/* Driver Slot */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2 block">Primary Driver</label>
+              {deliveryData.DRIVERS_NAME ? (
+                <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[1.5rem] border border-gray-100 group hover:border-black transition-all animate-in fade-in slide-in-from-left-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-black text-[#D4AF37] rounded-xl flex items-center justify-center font-black text-xs">
+                      {deliveryData.DRIVERS_NAME.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-black tracking-tight">{deliveryData.DRIVERS_NAME}</p>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Assigned Driver</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleSave({ 
+                      DRIVERS_NAME: '', 
+                      DISPATCH_TIME: null, 
+                      DELIVERY_TIME: null, 
+                      STATUS: 'Assigned' 
+                    })}
+                    className="w-10 h-10 bg-white border border-red-50 text-red-400 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <SearchSelect
+                      label=""
+                      placeholder="Select driver..."
+                      options={staffOptions}
+                      value={deliveryData.DRIVERS_NAME}
+                      onChange={(val) => handleSave({ DRIVERS_NAME: val })}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
-            <SearchSelect
-              label="Assistant / Helper"
-              placeholder="Select assistant (optional)..."
-              options={staffOptions}
-              value={deliveryData.ASSISTANT_NAME}
-              onChange={(val) => setDeliveryData({...deliveryData, ASSISTANT_NAME: val})}
-            />
-
-            <div className="pt-4 flex justify-end">
-              <button
-                disabled={isSaving || !deliveryData.DRIVERS_NAME}
-                onClick={() => handleSave()}
-                className="h-[68px] w-[68px] bg-black text-[#D4AF37] rounded-2xl font-black flex items-center justify-center hover:bg-gray-900 transition-all shadow-xl shadow-black/10 active:scale-95 disabled:opacity-50"
-              >
-                {isSaving ? <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin" /> : <Save className="w-6 h-6" />}
-              </button>
+            {/* Assistant Slot */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2 block">Assistant / Helper</label>
+              {deliveryData.ASSISTANT_NAME ? (
+                <div className="flex items-center justify-between p-6 bg-gray-50 rounded-[1.5rem] border border-gray-100 group hover:border-black transition-all animate-in fade-in slide-in-from-left-4">
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 bg-gray-200 text-gray-500 rounded-xl flex items-center justify-center font-black text-xs">
+                      {deliveryData.ASSISTANT_NAME.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-black tracking-tight">{deliveryData.ASSISTANT_NAME}</p>
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Assigned Assistant</p>
+                    </div>
+                  </div>
+                  <button 
+                    onClick={() => handleSave({ ASSISTANT_NAME: '' })}
+                    className="w-10 h-10 bg-white border border-red-50 text-red-400 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <SearchSelect
+                      label=""
+                      placeholder="Select assistant (optional)..."
+                      options={staffOptions}
+                      value={deliveryData.ASSISTANT_NAME}
+                      onChange={(val) => handleSave({ ASSISTANT_NAME: val })}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -208,12 +259,12 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
             </button>
 
             <button
-              disabled={!deliveryData.DISPATCH_TIME || !!deliveryData.DELIVERY_TIME}
+              disabled={true}
               onClick={() => setTimestamp('DELIVERY_TIME')}
               className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all ${
                 deliveryData.DELIVERY_TIME 
                   ? 'bg-emerald-500 border-emerald-500 text-white shadow-xl shadow-emerald-500/20' 
-                  : 'bg-white border-gray-100 hover:border-emerald-500 group disabled:opacity-50'
+                  : 'bg-white border-gray-100 opacity-50 cursor-not-allowed group'
               }`}
             >
               <div className="flex items-center gap-5 text-left">

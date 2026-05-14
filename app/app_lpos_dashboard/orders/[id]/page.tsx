@@ -405,19 +405,25 @@ export default function OrderDetailsPage() {
           </button>
         )}
         <button
-          onClick={() => setActiveTab('PREPARATION')}
+          onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('PREPARATION')}
+          disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
+            activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 
+            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
           }`}
+          title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access preparation" : ""}
         >
           <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
           Preparation
         </button>
         <button
-          onClick={() => setActiveTab('DELIVERY')}
+          onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('DELIVERY')}
+          disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
+            activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 
+            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
           }`}
+          title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access logistics" : ""}
         >
           <Printer className="w-4 h-4" />
           Logistics / Delivery
