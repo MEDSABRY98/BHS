@@ -1,6 +1,12 @@
 'use client';
 
-export async function generateLpoPackingListPDF(order: any, items: any[], action: 'download' | 'print' = 'download') {
+export async function generateLpoPackingListPDF(
+  order: any, 
+  items: any[], 
+  action: 'download' | 'print' = 'download',
+  prepStaff: any[] = [],
+  deliveryData: any = null
+) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
   const autoTableModule = await import('jspdf-autotable');
@@ -196,9 +202,41 @@ export async function generateLpoPackingListPDF(order: any, items: any[], action
     return sum + ((parseFloat(item.PRICE) || 0) * (parseFloat(item.QTY_RECEIVED) || 0));
   }, 0);
 
-  // Draw Summary Box
-  if (finalY > 240) { doc.addPage(); finalY = 20; }
-  else { finalY += 4; }
+  // Personnel / Logistics Section
+  if (prepStaff.length > 0 || deliveryData) {
+    if (finalY > 230) { doc.addPage(); finalY = 20; }
+    else { finalY += 4; }
+
+    doc.setFillColor(252, 252, 252);
+    doc.setDrawColor(240, 240, 240);
+    doc.roundedRect(margin, finalY, pageWidth - 2 * margin, 25, 3, 3, 'FD');
+
+    const personnelY = finalY + 8;
+    const personnelColWidth = (pageWidth - 2 * margin) / 3;
+
+    // Prep Staff
+    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
+    doc.text('PREPARED BY', margin + personnelColWidth / 2, personnelY, { align: 'center' });
+    doc.setFontSize(8); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'normal');
+    const prepNames = prepStaff.map(s => s.PREPARATION_NAME).join(', ') || 'N/A';
+    doc.text(doc.splitTextToSize(prepNames, personnelColWidth - 10), margin + personnelColWidth / 2, personnelY + 7, { align: 'center' });
+
+    // Driver
+    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
+    doc.text('DRIVER', margin + personnelColWidth + personnelColWidth / 2, personnelY, { align: 'center' });
+    doc.setFontSize(9); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold');
+    doc.text(deliveryData?.DRIVERS_NAME || 'N/A', margin + personnelColWidth + personnelColWidth / 2, personnelY + 7, { align: 'center' });
+
+    // Assistant
+    doc.setFontSize(7); doc.setTextColor(120, 120, 120); doc.setFont('helvetica', 'bold');
+    doc.text('ASSISTANT', margin + personnelColWidth * 2 + personnelColWidth / 2, personnelY, { align: 'center' });
+    doc.setFontSize(9); doc.setTextColor(0, 0, 0); doc.setFont('helvetica', 'bold');
+    doc.text(deliveryData?.ASSISTANT_NAME || 'N/A', margin + personnelColWidth * 2 + personnelColWidth / 2, personnelY + 7, { align: 'center' });
+
+    finalY += 30;
+  }
+
+  // Summary Calculations
 
   doc.setFillColor(250, 250, 250);
   doc.setDrawColor(230, 230, 230);

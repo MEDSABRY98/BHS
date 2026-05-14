@@ -17,7 +17,7 @@ import {
 import { ConfirmModal } from '../components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
-import { ExcelUploadButton } from '../components/ExcelUploadButton';
+
 
 export default function ProductsPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -144,7 +144,7 @@ export default function ProductsPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (
             <>
-              <ExcelUploadButton type="products" onSuccess={fetchProducts} />
+
               <button 
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"

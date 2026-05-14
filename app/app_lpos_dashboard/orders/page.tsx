@@ -10,7 +10,7 @@ import {
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
-import { ExcelUploadButton } from '../components/ExcelUploadButton';
+
 
 export default function OrdersPage() {
   const { canEdit, isLoaded } = usePermissions();
@@ -25,17 +25,43 @@ export default function OrdersPage() {
 
   async function fetchOrders() {
     try {
-      const { data, error } = await app_lpos_supabase
-        .from('app_lpos_ORDERS')
-        .select(`
-          *,
-          app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
-          app_lpos_USERS ( "NAME" )
-        `)
-        .order('CREATED_AT', { ascending: false });
+      const [ordersRes, noItemsRes] = await Promise.all([
+        app_lpos_supabase
+          .from('app_lpos_ORDERS')
+          .select(`
+            *,
+            app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
+            app_lpos_USERS ( "NAME" )
+          `)
+          .order('CREATED_AT', { ascending: false }),
+        app_lpos_supabase
+          .from('app_lpos_ORDERS_NO_ITEMS')
+          .select(`
+            *,
+            app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
+            app_lpos_USERS ( "NAME" )
+          `)
+          .order('CREATED_AT', { ascending: false })
+      ]);
 
-      if (error) throw error;
-      setOrders(data || []);
+      if (ordersRes.error) throw ordersRes.error;
+      if (noItemsRes.error) throw noItemsRes.error;
+
+      // Merge and sort
+      const combined = [
+        ...(ordersRes.data || []).map(o => ({ ...o, source: 'standard' })),
+        ...(noItemsRes.data || []).map(o => ({ ...o, source: 'no-items' }))
+      ].sort((a, b) => {
+        // Extract numeric part (e.g., 0004 -> 4)
+        const getNum = (id: string) => parseInt(id.split('-')[1] || '0');
+        const numA = getNum(a.ORDER_ID);
+        const numB = getNum(b.ORDER_ID);
+        
+        if (numB !== numA) return numB - numA; // Primary sort: Number descending
+        return a.ORDER_ID.localeCompare(b.ORDER_ID); // Secondary: Alphabetical ascending (O- before ONI-)
+      });
+
+      setOrders(combined);
     } catch (err) {
       console.error(err);
     } finally {
@@ -66,7 +92,7 @@ export default function OrdersPage() {
         <div>
           <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
         </div>
-        {canEdit && <ExcelUploadButton type="products" onSuccess={fetchOrders} />}
+
       </div>
 
       {/* Filters */}
@@ -104,12 +130,12 @@ export default function OrdersPage() {
           <table className="w-full text-center border-collapse table-fixed">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
-                <th className="w-[20%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
-                <th className="w-[25%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
-                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
+                <th className="w-[18%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
+                <th className="w-[30%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
+                <th className="w-[17%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">

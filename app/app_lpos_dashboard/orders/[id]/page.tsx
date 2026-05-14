@@ -21,6 +21,9 @@ import {
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { usePermissions } from '../../hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/LpoPackingListUtils';
+import OrderItemsTab from './components/OrderItemsTab';
+import OrderPreparationTab from './components/OrderPreparationTab';
+import OrderDeliveryTab from './components/OrderDeliveryTab';
 
 export default function OrderDetailsPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -33,7 +36,10 @@ export default function OrderDetailsPage() {
   const [adminNotes, setAdminNotes] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isNoItemsOrder, setIsNoItemsOrder] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
+  const [prepStaff, setPrepStaff] = useState<any[]>([]);
+  const [deliveryData, setDeliveryData] = useState<any>(null);
 
   useEffect(() => {
     if (id) fetchOrderDetails();
@@ -41,37 +47,74 @@ export default function OrderDetailsPage() {
 
   async function fetchOrderDetails() {
     try {
-      const [orderRes, itemsRes] = await Promise.all([
-        app_lpos_supabase
-          .from('app_lpos_ORDERS')
+      // 1. Try fetching from standard orders table first
+      let { data: orderData, error: orderError } = await app_lpos_supabase
+        .from('app_lpos_ORDERS')
+        .select(`
+          *,
+          app_lpos_CUSTOMERS ( * ),
+          app_lpos_USERS ( "NAME" )
+        `)
+        .eq('ID', id)
+        .maybeSingle();
+
+      let noItems = false;
+
+      // 2. If not found, try the NO_ITEMS table
+      if (!orderData) {
+        const { data: noItemsData, error: noItemsError } = await app_lpos_supabase
+          .from('app_lpos_ORDERS_NO_ITEMS')
           .select(`
             *,
             app_lpos_CUSTOMERS ( * ),
             app_lpos_USERS ( "NAME" )
           `)
           .eq('ID', id)
-          .single(),
-        app_lpos_supabase
+          .maybeSingle();
+        
+        if (noItemsError) throw noItemsError;
+        if (!noItemsData) throw new Error('Order not found');
+        
+        orderData = noItemsData;
+        noItems = true;
+      }
+
+      setIsNoItemsOrder(noItems);
+
+      // 3. Fetch items only for standard orders
+      let enrichedItems = [];
+      if (!noItems) {
+        const { data: itemsData, error: itemsError } = await app_lpos_supabase
           .from('app_lpos_ORDERS_ITEMS')
           .select(`
             *,
             app_lpos_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
           `)
-          .eq('ORDER_ID', id)
+          .eq('ORDER_ID', id);
+        
+        if (itemsError) throw itemsError;
+        
+        const initialItems = itemsData || [];
+        enrichedItems = initialItems.map((item: any) => ({
+          ...item,
+          QTY_RECEIVED: (orderData.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0)) 
+            ? item.QTY_REQUEST 
+            : item.QTY_RECEIVED
+        }));
+      }
+
+      // 4. Fetch Logistics & Prep for PDF
+      const [prepRes, deliveryRes] = await Promise.all([
+        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', id),
+        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', id).maybeSingle()
       ]);
 
-      if (orderRes.error) throw orderRes.error;
-      const initialItems = itemsRes.data || [];
-      const enrichedItems = initialItems.map((item: any) => ({
-        ...item,
-        QTY_RECEIVED: (orderRes.data.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0)) 
-          ? item.QTY_REQUEST 
-          : item.QTY_RECEIVED
-      }));
+      setPrepStaff(prepRes.data || []);
+      setDeliveryData(deliveryRes.data);
 
-      setOrder(orderRes.data);
+      setOrder(orderData);
       setItems(enrichedItems);
-      setAdminNotes(orderRes.data.NOTES || '');
+      setAdminNotes(orderData.NOTES || '');
     } catch (err) {
       console.error(err);
       router.push('/app_lpos_dashboard/orders');
@@ -104,17 +147,21 @@ export default function OrderDetailsPage() {
   const handleDeleteOrder = async () => {
     setIsSaving(true);
     try {
-      // 1. Delete items first
-      const { error: itemsError } = await app_lpos_supabase
-        .from('app_lpos_ORDERS_ITEMS')
-        .delete()
-        .eq('ORDER_ID', id);
+      const targetTable = isNoItemsOrder ? 'app_lpos_ORDERS_NO_ITEMS' : 'app_lpos_ORDERS';
 
-      if (itemsError) throw itemsError;
+      // 1. Delete items if it's a standard order
+      if (!isNoItemsOrder) {
+        const { error: itemsError } = await app_lpos_supabase
+          .from('app_lpos_ORDERS_ITEMS')
+          .delete()
+          .eq('ORDER_ID', id);
+
+        if (itemsError) throw itemsError;
+      }
 
       // 2. Delete the order
       const { error: orderError } = await app_lpos_supabase
-        .from('app_lpos_ORDERS')
+        .from(targetTable)
         .delete()
         .eq('ID', id);
 
@@ -132,66 +179,65 @@ export default function OrderDetailsPage() {
   const executeUpdateStatus = async () => {
     setIsSaving(true);
     try {
+      const targetTable = isNoItemsOrder ? 'app_lpos_ORDERS_NO_ITEMS' : 'app_lpos_ORDERS';
       let statusToSave = pendingStatus;
 
-      // Prepare updates and determine final order status
-      const processedItems = items.map(item => {
-        let sentQty = parseFloat(item.QTY_RECEIVED) || 0;
-        let itemStatus = item.ITEMS_STATUS;
+      if (!isNoItemsOrder) {
+        // Prepare updates and determine final order status
+        const processedItems = items.map(item => {
+          let sentQty = parseFloat(item.QTY_RECEIVED) || 0;
+          let itemStatus = item.ITEMS_STATUS;
 
-        // Global rejection forces everything to 0 and Rejected
-        if (pendingStatus === 'Rejected') {
-          itemStatus = 'Rejected';
-          sentQty = 0;
-        } 
-        // Individual rejection or empty qty forces to 0
-        else if (itemStatus === 'Rejected' || sentQty === 0 || !item.QTY_RECEIVED) {
-          itemStatus = 'Rejected';
-          sentQty = 0;
-        } 
-        // Success case
-        else if (pendingStatus === 'Approved') {
-          itemStatus = 'Approved';
-        }
+          if (pendingStatus === 'Rejected') {
+            itemStatus = 'Rejected';
+            sentQty = 0;
+          } else if (itemStatus === 'Rejected' || sentQty === 0 || !item.QTY_RECEIVED) {
+            itemStatus = 'Rejected';
+            sentQty = 0;
+          } else if (pendingStatus === 'Approved') {
+            itemStatus = 'Approved';
+          }
 
-        return {
-          ...item,
-          finalQty: sentQty,
-          finalStatus: itemStatus
-        };
-      });
-
-      // If user is approving, check if it should be "Partially Approved" or "Rejected"
-      if (pendingStatus === 'Approved') {
-        const hasApprovedItems = processedItems.some(i => i.finalStatus === 'Approved');
-        const hasReducedOrRejected = processedItems.some(i => {
-          return i.finalStatus === 'Rejected' || i.finalQty < i.QTY_REQUEST;
+          return { ...item, finalQty: sentQty, finalStatus: itemStatus };
         });
 
-        if (!hasApprovedItems) {
-          statusToSave = 'Rejected';
-        } else if (hasReducedOrRejected) {
-          statusToSave = 'Partially Approved';
+        if (pendingStatus === 'Approved') {
+          const hasApprovedItems = processedItems.some(i => i.finalStatus === 'Approved');
+          const hasReducedOrRejected = processedItems.some(i => i.finalStatus === 'Rejected' || i.finalQty < i.QTY_REQUEST);
+
+          if (!hasApprovedItems) {
+            statusToSave = 'Rejected';
+          } else if (hasReducedOrRejected) {
+            statusToSave = 'Partially Approved';
+          }
         }
-      }
 
-      // 1. Update order status and notes
-      const { error: orderError } = await app_lpos_supabase
-        .from('app_lpos_ORDERS')
-        .update({ STATUS: statusToSave, NOTES: adminNotes })
-        .eq('ID', id);
+        // 1. Update order status and notes
+        const { error: orderError } = await app_lpos_supabase
+          .from(targetTable)
+          .update({ STATUS: statusToSave, NOTES: adminNotes })
+          .eq('ID', id);
 
-      if (orderError) throw orderError;
+        if (orderError) throw orderError;
 
-      // 2. Update item quantities and statuses
-      for (const item of processedItems) {
-        await app_lpos_supabase
-          .from('app_lpos_ORDERS_ITEMS')
-          .update({ 
-            QTY_RECEIVED: item.finalQty, 
-            ITEMS_STATUS: item.finalStatus 
-          })
-          .eq('ID', item.ID);
+        // 2. Update item quantities and statuses
+        for (const item of processedItems) {
+          await app_lpos_supabase
+            .from('app_lpos_ORDERS_ITEMS')
+            .update({ 
+              QTY_RECEIVED: item.finalQty, 
+              ITEMS_STATUS: item.finalStatus 
+            })
+            .eq('ID', item.ID);
+        }
+      } else {
+        // Direct status update for no-item orders
+        const { error: orderError } = await app_lpos_supabase
+          .from(targetTable)
+          .update({ STATUS: statusToSave, NOTES: adminNotes })
+          .eq('ID', id);
+
+        if (orderError) throw orderError;
       }
 
       await fetchOrderDetails();
@@ -202,6 +248,15 @@ export default function OrderDetailsPage() {
       setIsConfirmOpen(false);
     }
   };
+
+  const [activeTab, setActiveTab] = useState('ITEMS');
+
+  // Handle No-Items order tab default
+  useEffect(() => {
+    if (isNoItemsOrder && activeTab === 'ITEMS') {
+      setActiveTab('PREPARATION');
+    }
+  }, [isNoItemsOrder]);
 
   if (isLoading) {
     return (
@@ -244,14 +299,14 @@ export default function OrderDetailsPage() {
         {canEdit && (
           <div className="flex items-center gap-3">
             <button
-              onClick={() => generateLpoPackingListPDF(order, items, 'print')}
+              onClick={() => generateLpoPackingListPDF(order, items, 'print', prepStaff, deliveryData)}
               className="p-4 bg-white border border-gray-100 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
               title="Print Packing List"
             >
               <Printer className="w-5 h-5 text-blue-500" />
             </button>
             <button
-              onClick={() => generateLpoPackingListPDF(order, items)}
+              onClick={() => generateLpoPackingListPDF(order, items, 'download', prepStaff, deliveryData)}
               className="p-4 bg-white border border-gray-100 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
               title="Download PDF"
             >
@@ -267,9 +322,9 @@ export default function OrderDetailsPage() {
             </button>
             <button
               onClick={() => confirmStatusUpdate('Approved')}
-              disabled={isSaving || !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected')}
+              disabled={isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))}
               className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${
-                isSaving || !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected')
+                isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                   : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
               }`}
@@ -336,13 +391,67 @@ export default function OrderDetailsPage() {
         </div>
       </div>
 
+      {/* Tab Switcher */}
+      <div className="flex items-center gap-4 bg-gray-50/50 p-2 rounded-[2rem] border border-gray-100 w-full max-w-4xl mx-auto shadow-inner">
+        {!isNoItemsOrder && (
+          <button
+            onClick={() => setActiveTab('ITEMS')}
+            className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
+              activeTab === 'ITEMS' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
+            }`}
+          >
+            <Package className="w-4 h-4" />
+            Order Items
+          </button>
+        )}
+        <button
+          onClick={() => setActiveTab('PREPARATION')}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
+          }`}
+        >
+          <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
+          Preparation
+        </button>
+        <button
+          onClick={() => setActiveTab('DELIVERY')}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
+            activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
+          }`}
+        >
+          <Printer className="w-4 h-4" />
+          Logistics / Delivery
+        </button>
+      </div>
+
+      {/* Active Tab Content */}
+      <div className="min-h-[400px]">
+        {activeTab === 'ITEMS' && !isNoItemsOrder && (
+          <OrderItemsTab 
+            items={items}
+            canEdit={canEdit}
+            totalAmount={totalAmount}
+            toggleItemStatus={toggleItemStatus}
+            handleQtyChange={handleQtyChange}
+          />
+        )}
+        
+        {activeTab === 'PREPARATION' && (
+          <OrderPreparationTab orderId={id as string} />
+        )}
+
+        {activeTab === 'DELIVERY' && (
+          <OrderDeliveryTab orderId={id as string} />
+        )}
+      </div>
+
       <ConfirmModal 
         isOpen={isConfirmOpen}
         onConfirm={executeUpdateStatus}
         onCancel={() => setIsConfirmOpen(false)}
         isLoading={isSaving}
         title={pendingStatus === 'Rejected' ? 'Confirm Rejection' : 'Confirm Order Update'}
-        message={`Are you sure you want to ${pendingStatus === 'Rejected' ? 'reject all items' : 'save and finalize'} this order?`}
+        message={`Are you sure you want to ${pendingStatus === 'Rejected' ? 'reject' : 'save and finalize'} this order?`}
       />
 
       <ConfirmModal 
@@ -350,108 +459,9 @@ export default function OrderDetailsPage() {
         onConfirm={handleDeleteOrder}
         onCancel={() => setIsDeleteModalOpen(false)}
         title="Delete Order"
-        message="Are you sure you want to permanently delete this order? This action cannot be undone and will remove all associated item records."
+        message="Are you sure you want to permanently delete this order? This action cannot be undone."
         isLoading={isSaving}
       />
-
-      {/* Items Table */}
-      <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 overflow-hidden">
-        <div className="flex items-center justify-between mb-8 px-2">
-          <h3 className="text-2xl font-black text-black">Order Items</h3>
-          <div className="flex items-center gap-6">
-             <div className="text-right">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Value</p>
-              <p className="text-2xl font-black text-black">AED {totalAmount.toFixed(2)}</p>
-            </div>
-            <div className="px-4 py-2 bg-black text-[#D4AF37] rounded-xl text-xs font-black uppercase tracking-widest">
-              {items.length} Products
-            </div>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-center border-collapse">
-            <thead>
-              <tr className="border-b border-gray-100">
-                <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[15%]">Barcode</th>
-                <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[30%]">Product Name</th>
-                <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[10%]">Unit</th>
-                <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[10%]">Price</th>
-                <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[10%]">Requested</th>
-                <th className="pb-6 px-4 text-[10px] font-black text-black uppercase tracking-[0.2em] w-[10%]">Sent</th>
-                <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[10%]">Status</th>
-                {canEdit && <th className="pb-6 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[5%]">Reject</th>}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {items.map((item) => (
-                <tr key={item.ID} className={`group transition-all ${item.ITEMS_STATUS === 'Rejected' ? 'bg-red-50/30' : 'hover:bg-gray-50/50'}`}>
-                  <td className="py-6 px-4 text-center">
-                    <span className={`text-sm ${item.ITEMS_STATUS === 'Rejected' ? 'text-red-400 line-through' : 'text-gray-600'}`}>
-                      {item.app_lpos_PRODUCTS?.["PRODUCT BARCODE"]}
-                    </span>
-                  </td>
-                  <td className="py-6 px-4 text-center">
-                    <span className={`text-sm font-medium ${item.ITEMS_STATUS === 'Rejected' ? 'text-red-500 line-through opacity-50' : 'text-black'}`}>
-                      {item.app_lpos_PRODUCTS?.["PRODUCT NAME"]}
-                    </span>
-                  </td>
-                  <td className="py-6 px-4 text-center">
-                    <span className={`text-sm ${item.ITEMS_STATUS === 'Rejected' ? 'text-red-400' : 'text-gray-600'}`}>
-                      {item.UNIT}
-                    </span>
-                  </td>
-                  <td className="py-6 px-4 text-center">
-                    <span className="text-gray-600 text-sm">{item.PRICE}</span>
-                  </td>
-                  <td className="py-6 px-4 text-center">
-                    <span className="text-gray-400 text-sm">{item.QTY_REQUEST}</span>
-                  </td>
-                  <td className="py-6 px-4 text-center">
-                    <div className="flex justify-center">
-                      <input 
-                        type="text" 
-                        disabled={item.ITEMS_STATUS === 'Rejected' || !canEdit}
-                        value={item.QTY_RECEIVED || ''}
-                        onChange={(e) => handleQtyChange(item.ID, e.target.value)}
-                        placeholder="0"
-                        className={`w-24 bg-gray-50 border border-gray-100 rounded-xl py-2 px-3 text-center font-black text-black focus:ring-2 focus:ring-black/10 outline-none transition-all ${item.ITEMS_STATUS === 'Rejected' || !canEdit ? 'opacity-20' : ''}`}
-                      />
-                    </div>
-                  </td>
-                  <td className="py-6 px-4 text-center">
-                    <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                      item.ITEMS_STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                      item.ITEMS_STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                      item.ITEMS_STATUS === 'Rejected' ? 'bg-red-50 text-red-600' :
-                      'bg-gray-50 text-gray-600'
-                    }`}>
-                      {item.ITEMS_STATUS || 'Pending'}
-                    </div>
-                  </td>
-                  {canEdit && (
-                    <td className="py-6 px-4 text-center">
-                      <div className="flex justify-center">
-                        <button 
-                          onClick={() => toggleItemStatus(item.ID)}
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                            item.ITEMS_STATUS === 'Rejected' 
-                              ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' 
-                              : 'bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white'
-                          }`}
-                          title={item.ITEMS_STATUS === 'Rejected' ? "Restore Item" : "Reject Item"}
-                        >
-                          {item.ITEMS_STATUS === 'Rejected' ? <Undo2 className="w-5 h-5" /> : <Trash2 className="w-5 h-5" />}
-                        </button>
-                      </div>
-                    </td>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       {/* Admin Notes at the End */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
