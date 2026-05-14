@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  TrendingUp, 
-  Clock, 
-  CheckCircle2, 
-  Users, 
-  ArrowUpRight, 
+import {
+  TrendingUp,
+  Clock,
+  CheckCircle2,
+  Users,
+  ArrowUpRight,
   Activity,
   Calendar,
   ChevronRight,
@@ -53,11 +53,11 @@ export default function DashboardPage() {
     try {
       const [
         totalRes,
-        approvedRes, 
-        partialRes, 
-        pendingRes, 
-        rejectedRes, 
-        allOrdersRes, 
+        approvedRes,
+        partialRes,
+        pendingRes,
+        rejectedRes,
+        allOrdersRes,
         allUsersRes
       ] = await Promise.all([
         app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }),
@@ -87,7 +87,7 @@ export default function DashboardPage() {
 
       const users = allUsersRes.data || [];
       const orders = allOrdersRes.data || [];
-      
+
       const performanceMap: Record<string, UserPerformance> = users.reduce((acc: any, user: any) => {
         acc[user.ID] = {
           id: user.ID,
@@ -115,7 +115,7 @@ export default function DashboardPage() {
       const performanceArray = Object.values(performanceMap)
         .filter(u => u.total > 0)
         .sort((a, b) => b.total - a.total) as UserPerformance[];
-      
+
       setUserPerformance(performanceArray);
 
     } catch (err) {
@@ -148,39 +148,39 @@ export default function DashboardPage() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-        <StatCard 
-          title="Total LPO's" 
-          value={stats.total.toString()} 
-          icon={Package} 
-          color="bg-black" 
+        <StatCard
+          title="Total LPO's"
+          value={stats.total.toString()}
+          icon={Package}
+          color="bg-black"
           subtitle="All Time Volume"
         />
-        <StatCard 
-          title="Approved LPOs" 
-          value={stats.approved.toString()} 
-          icon={CheckCircle2} 
-          color="bg-emerald-500" 
+        <StatCard
+          title="Approved LPOs"
+          value={stats.approved.toString()}
+          icon={CheckCircle2}
+          color="bg-emerald-500"
           subtitle="Finalized Orders"
         />
-        <StatCard 
-          title="Partial Approval" 
-          value={stats.partiallyApproved.toString()} 
-          icon={AlertCircle} 
-          color="bg-orange-500" 
+        <StatCard
+          title="Partial Approval"
+          value={stats.partiallyApproved.toString()}
+          icon={AlertCircle}
+          color="bg-orange-500"
           subtitle="Incomplete Orders"
         />
-        <StatCard 
-          title="Pending LPOs" 
-          value={stats.pending.toString()} 
-          icon={Clock} 
-          color="bg-blue-500" 
+        <StatCard
+          title="Pending LPOs"
+          value={stats.pending.toString()}
+          icon={Clock}
+          color="bg-blue-500"
           subtitle="Waiting for Review"
         />
-        <StatCard 
-          title="Rejected LPOs" 
-          value={stats.rejected.toString()} 
-          icon={XCircle} 
-          color="bg-red-500" 
+        <StatCard
+          title="Rejected LPOs"
+          value={stats.rejected.toString()}
+          icon={XCircle}
+          color="bg-red-500"
           subtitle="Cancelled/Invalid"
         />
       </div>
@@ -194,7 +194,7 @@ export default function DashboardPage() {
           </h3>
           <Activity className="w-6 h-6 text-gray-200" />
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -242,8 +242,8 @@ export default function DashboardPage() {
                     <td className="py-6 px-4">
                       <div className="flex items-center justify-center gap-2">
                         <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-[#D4AF37]" 
+                          <div
+                            className="h-full bg-[#D4AF37]"
                             style={{ width: `${successRate}%` }}
                           />
                         </div>
@@ -269,7 +269,7 @@ export default function DashboardPage() {
             VIEW ALL ORDERS <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
           </Link>
         </div>
-        
+
         <div className="overflow-x-auto">
           <table className="w-full text-center border-collapse table-fixed">
             <thead>
@@ -296,7 +296,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-6 truncate">
                       <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
                     </td>
-                    
+
                     {/* 2. Date */}
                     <td className="px-6 py-6">
                       <p className="text-sm text-gray-500 font-bold">
@@ -327,15 +327,14 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </td>
-                    
+
                     {/* 5. Status */}
                     <td className="px-6 py-6">
-                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                        order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                        order.STATUS === 'Partially Approved' ? 'bg-orange-50 text-orange-600' :
-                        order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                        'bg-red-50 text-red-600'
-                      }`}>
+                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                          order.STATUS === 'Partially Approved' ? 'bg-orange-50 text-orange-600' :
+                            order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
+                              'bg-red-50 text-red-600'
+                        }`}>
                         {order.STATUS}
                       </div>
                     </td>
@@ -343,7 +342,7 @@ export default function DashboardPage() {
                     {/* 6. Action (Icon Only) */}
                     <td className="px-6 py-6">
                       <div className="flex justify-center">
-                        <Link 
+                        <Link
                           href={`/app_lpos_dashboard/orders/${order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"

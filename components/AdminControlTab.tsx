@@ -100,9 +100,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'lpo-management': [
         { id: 'lpo-dashboard', label: 'Dashboard' },
         { id: 'lpo-orders', label: 'Orders' },
-        { id: 'lpo-products', label: 'Products' },
-        { id: 'lpo-customers', label: 'Customers' },
-        { id: 'lpo-users', label: 'Users' }
+        { id: 'lpo-create-orders', label: 'Create Orders' },
+        { id: 'lpo-customers', label: 'Customers DB' },
+        { id: 'lpo-products', label: 'Products DB' },
+        { id: 'lpo-users', label: 'Users DB' },
+        { id: 'lpo-staff', label: 'Staff DB' }
     ]
 };
 
