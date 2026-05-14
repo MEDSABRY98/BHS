@@ -91,7 +91,7 @@ export default function OrderDetailsPage() {
             *,
             app_lpos_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
           `)
-          .eq('ORDER_ID', id);
+          .eq('ORDER_ID', orderData.ID);
         
         if (itemsError) throw itemsError;
         
@@ -106,8 +106,8 @@ export default function OrderDetailsPage() {
 
       // 4. Fetch Logistics & Prep for PDF
       const [prepRes, deliveryRes, staffRes] = await Promise.all([
-        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', id),
-        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', id).maybeSingle(),
+        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
+        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ID).maybeSingle(),
         app_lpos_supabase.from('app_lpos_STAFF').select('*')
       ]);
 
@@ -157,16 +157,22 @@ export default function OrderDetailsPage() {
         const { error: itemsError } = await app_lpos_supabase
           .from('app_lpos_ORDERS_ITEMS')
           .delete()
-          .eq('ORDER_ID', id);
+          .eq('ORDER_ID', order.ID);
 
         if (itemsError) throw itemsError;
       }
 
-      // 2. Delete the order
+      // 2. Delete Preparation & Delivery data (common for both types)
+      await Promise.all([
+        app_lpos_supabase.from('app_lpos_PREPARATION').delete().eq('ORDER_ID', order.ID),
+        app_lpos_supabase.from('app_lpos_DRIVERS').delete().eq('ORDER_ID', order.ID)
+      ]);
+
+      // 3. Delete the order itself
       const { error: orderError } = await app_lpos_supabase
         .from(targetTable)
         .delete()
-        .eq('ID', id);
+        .eq('ID', order.ID);
 
       if (orderError) throw orderError;
 
@@ -219,7 +225,7 @@ export default function OrderDetailsPage() {
         const { error: orderError } = await app_lpos_supabase
           .from(targetTable)
           .update({ STATUS: statusToSave, NOTES: adminNotes })
-          .eq('ID', id);
+          .eq('ID', order.ID);
 
         if (orderError) throw orderError;
 
@@ -238,7 +244,7 @@ export default function OrderDetailsPage() {
         const { error: orderError } = await app_lpos_supabase
           .from(targetTable)
           .update({ STATUS: statusToSave, NOTES: adminNotes })
-          .eq('ID', id);
+          .eq('ID', order.ID);
 
         if (orderError) throw orderError;
       }
@@ -280,8 +286,8 @@ export default function OrderDetailsPage() {
     try {
       // Re-fetch latest logistics data to ensure PDF is not stale
       const [prepRes, deliveryRes] = await Promise.all([
-        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', id),
-        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', id).maybeSingle()
+        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', order.ID),
+        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', order.ID).maybeSingle()
       ]);
 
       const latestPrep = prepRes.data || [];

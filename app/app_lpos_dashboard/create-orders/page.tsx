@@ -106,6 +106,24 @@ export default function CreateOrderPage() {
     setPendingOrders(pendingOrders.filter(o => o.tempId !== tempId));
   };
 
+  async function generateNextOrderId() {
+    const { data } = await app_lpos_supabase
+      .from('app_lpos_ORDERS_NO_ITEMS')
+      .select('ORDER_ID')
+      .order('ORDER_ID', { ascending: false })
+      .limit(1);
+
+    let nextNum = 1;
+    if (data && data.length > 0) {
+      const lastId = data[0].ORDER_ID;
+      if (lastId && lastId.startsWith('ONI-')) {
+        const lastNum = parseInt(lastId.split('-')[1]);
+        if (!isNaN(lastNum)) nextNum = lastNum + 1;
+      }
+    }
+    return `ONI-${nextNum.toString().padStart(4, '0')}`;
+  }
+
   const handleSaveAll = async () => {
     if (pendingOrders.length === 0) {
       setMessage({ type: 'error', text: 'Add at least one order to the list' });
@@ -116,7 +134,18 @@ export default function CreateOrderPage() {
     setMessage(null);
 
     try {
-      const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, ...rest }) => rest);
+      // Generate sequential IDs for each order
+      const startId = await generateNextOrderId();
+      const baseNum = parseInt(startId.split('-')[1]);
+
+      const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, ...rest }, index) => {
+        const currentId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
+        return {
+          ...rest,
+          ID: currentId,
+          ORDER_ID: currentId
+        };
+      });
 
       const { error } = await app_lpos_supabase
         .from('app_lpos_ORDERS_NO_ITEMS')
