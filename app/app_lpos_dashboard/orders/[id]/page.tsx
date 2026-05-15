@@ -310,8 +310,6 @@ export default function OrderDetailsPage() {
       const customerName = order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || '-';
 
       const exportData = items.map(item => ({
-        'Order ID': order.ORDER_ID,
-        'LPO ID': order.LPO_ID || '-',
         'Customer': customerName,
         'Order Lines/Product': item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || '-',
         'Order Lines/Quantity': item.QTY_REQUEST || 0,
@@ -320,8 +318,6 @@ export default function OrderDetailsPage() {
 
       if (exportData.length === 0 && isNoItemsOrder) {
         exportData.push({
-          'Order ID': order.ORDER_ID,
-          'LPO ID': order.LPO_ID || '-',
           'Customer': customerName,
           'Order Lines/Product': '-',
           'Order Lines/Quantity': 0,
