@@ -34,6 +34,7 @@ export default function UsersPage() {
   // Form states - Matching DB columns
   const [NAME, setNAME] = useState('');
   const [ROLE, setROLE] = useState('user'); 
+  const [USER_TYPE, setUSER_TYPE] = useState('Creator');
   const [PASSWORD, setPASSWORD] = useState('');
 
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function UsersPage() {
     setEditingUser(user);
     setNAME(user ? user.NAME : '');
     setROLE(user ? user.ROLE : 'user');
+    setUSER_TYPE(user ? user.USER_TYPE : 'Creator');
     setPASSWORD(user ? user.PASSWORD : '');
     setIsModalOpen(true);
   };
@@ -74,14 +76,14 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .update({ NAME, ROLE, PASSWORD })
+          .update({ NAME, ROLE, USER_TYPE, PASSWORD })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `U-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .insert({ ID: nextId, NAME, ROLE, PASSWORD });
+          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -161,8 +163,8 @@ export default function UsersPage() {
               <tr className="border-b border-gray-50">
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">User ID</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Name</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Status</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Role</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Permissions</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">User Type</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Password</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
               </tr>
@@ -207,7 +209,7 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{user.ROLE}</span>
+                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{user.USER_TYPE || 'Creator'}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex items-center justify-center gap-2 text-gray-400">
@@ -266,7 +268,7 @@ export default function UsersPage() {
 
               {/* ROLE Toggle (admin/user) */}
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER ROLE</label>
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PERMISSIONS</label>
                 <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
                   <button
                     type="button"
@@ -291,6 +293,35 @@ export default function UsersPage() {
                   >
                     {ROLE === 'admin' && <Check className="w-4 h-4" />}
                     admin
+                  </button>
+                </div>
+              </div>
+
+              {/* USER_TYPE Selection */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER TYPE</label>
+                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setUSER_TYPE('Creator')}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
+                      USER_TYPE === 'Creator' 
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    Creator
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setUSER_TYPE('Driver')}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
+                      USER_TYPE === 'Driver' 
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    Driver
                   </button>
                 </div>
               </div>

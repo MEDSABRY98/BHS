@@ -3,20 +3,21 @@
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  ArrowLeft, 
-  CheckCircle2, 
-  XCircle, 
-  Package, 
-  User, 
-  MapPin, 
+import {
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  Package,
+  User,
+  MapPin,
   Calendar,
   AlertCircle,
   Loader2,
   Trash2,
   Undo2,
   FileText,
-  Printer
+  Printer,
+  FileSpreadsheet
 } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -24,6 +25,7 @@ import { generateLpoPackingListPDF } from '@/lib/pdf/LpoPackingListUtils';
 import OrderItemsTab from './components/OrderItemsTab';
 import OrderPreparationTab from './components/OrderPreparationTab';
 import OrderDeliveryTab from './components/OrderDeliveryTab';
+import * as XLSX from 'xlsx';
 
 export default function OrderDetailsPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -48,8 +50,8 @@ export default function OrderDetailsPage() {
 
   async function fetchOrderDetails() {
     try {
-      // 1. Try fetching from standard orders table first
-      let { data: orderData, error: orderError } = await app_lpos_supabase
+      // 1. Fetch from the unified orders table
+      const { data: orderData, error: orderError } = await app_lpos_supabase
         .from('app_lpos_ORDERS')
         .select(`
           *,
@@ -59,26 +61,11 @@ export default function OrderDetailsPage() {
         .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
         .maybeSingle();
 
-      let noItems = false;
+      if (orderError) throw orderError;
+      if (!orderData) throw new Error('Order not found');
 
-      // 2. If not found, try the NO_ITEMS table
-      if (!orderData) {
-        const { data: noItemsData, error: noItemsError } = await app_lpos_supabase
-          .from('app_lpos_ORDERS_NO_ITEMS')
-          .select(`
-            *,
-            app_lpos_CUSTOMERS ( * ),
-            app_lpos_USERS ( "NAME" )
-          `)
-          .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
-          .maybeSingle();
-        
-        if (noItemsError) throw noItemsError;
-        if (!noItemsData) throw new Error('Order not found');
-        
-        orderData = noItemsData;
-        noItems = true;
-      }
+      const noItems = orderData.ORDER_ID?.startsWith('ONI-');
+      setIsNoItemsOrder(noItems);
 
       setIsNoItemsOrder(noItems);
 
@@ -92,14 +79,14 @@ export default function OrderDetailsPage() {
             app_lpos_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
           `)
           .eq('ORDER_ID', orderData.ID);
-        
+
         if (itemsError) throw itemsError;
-        
+
         const initialItems = itemsData || [];
         enrichedItems = initialItems.map((item: any) => ({
           ...item,
-          QTY_RECEIVED: (orderData.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0)) 
-            ? item.QTY_REQUEST 
+          QTY_RECEIVED: (orderData.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0))
+            ? item.QTY_REQUEST
             : item.QTY_RECEIVED
         }));
       }
@@ -127,7 +114,7 @@ export default function OrderDetailsPage() {
   }
 
   const handleQtyChange = (itemId: string, value: string) => {
-    setItems(items.map(item => 
+    setItems(items.map(item =>
       item.ID === itemId ? { ...item, QTY_RECEIVED: value } : item
     ));
   };
@@ -168,9 +155,9 @@ export default function OrderDetailsPage() {
         app_lpos_supabase.from('app_lpos_DRIVERS').delete().eq('ORDER_ID', order.ID)
       ]);
 
-      // 3. Delete the order itself
+      // 3. Delete the order itself from the main table
       const { error: orderError } = await app_lpos_supabase
-        .from(targetTable)
+        .from('app_lpos_ORDERS')
         .delete()
         .eq('ID', order.ID);
 
@@ -221,9 +208,9 @@ export default function OrderDetailsPage() {
           }
         }
 
-        // 1. Update order status and notes
+        // 1. Update order status and notes in the main table
         const { error: orderError } = await app_lpos_supabase
-          .from(targetTable)
+          .from('app_lpos_ORDERS')
           .update({ STATUS: statusToSave, NOTES: adminNotes })
           .eq('ID', order.ID);
 
@@ -233,16 +220,16 @@ export default function OrderDetailsPage() {
         for (const item of processedItems) {
           await app_lpos_supabase
             .from('app_lpos_ORDERS_ITEMS')
-            .update({ 
-              QTY_RECEIVED: item.finalQty, 
-              ITEMS_STATUS: item.finalStatus 
+            .update({
+              QTY_RECEIVED: item.finalQty,
+              ITEMS_STATUS: item.finalStatus
             })
             .eq('ID', item.ID);
         }
       } else {
-        // Direct status update for no-item orders
+        // Direct status update for orders without items
         const { error: orderError } = await app_lpos_supabase
-          .from(targetTable)
+          .from('app_lpos_ORDERS')
           .update({ STATUS: statusToSave, NOTES: adminNotes })
           .eq('ID', order.ID);
 
@@ -317,12 +304,46 @@ export default function OrderDetailsPage() {
     }
   };
 
+  const handleDownloadExcel = () => {
+    try {
+      const customerName = order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || '-';
+
+      const exportData = items.map(item => ({
+        'Order ID': order.ORDER_ID,
+        'LPO ID': order.LPO_ID || '-',
+        'Customer': customerName,
+        'Order Lines/Product': item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || '-',
+        'Order Lines/Quantity': item.QTY_REQUEST || 0,
+        'Order Lines/Unit Price': item.PRICE || 0
+      }));
+
+      if (exportData.length === 0 && isNoItemsOrder) {
+        exportData.push({
+          'Order ID': order.ORDER_ID,
+          'LPO ID': order.LPO_ID || '-',
+          'Customer': customerName,
+          'Order Lines/Product': '-',
+          'Order Lines/Quantity': 0,
+          'Order Lines/Unit Price': 0
+        });
+      }
+
+      const worksheet = XLSX.utils.json_to_sheet(exportData);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, "Order Details");
+      XLSX.writeFile(workbook, `Order_${order.ORDER_ID}_Export.xlsx`);
+    } catch (err) {
+      console.error('Excel Export Error:', err);
+      alert('Failed to export Excel');
+    }
+  };
+
   return (
     <div className="space-y-8 pb-20">
       {/* Header Row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <button 
+          <button
             onClick={() => router.back()}
             className="p-3 bg-white border border-gray-100 rounded-2xl hover:bg-gray-50 transition-all shadow-sm"
           >
@@ -340,9 +361,17 @@ export default function OrderDetailsPage() {
             </button>
           )}
         </div>
-        
+
         {canEdit && (
           <div className="flex items-center gap-3">
+            <button
+              onClick={handleDownloadExcel}
+              disabled={isSaving}
+              className="p-4 bg-white border border-green-100 text-green-600 rounded-2xl hover:bg-green-50 transition-all flex items-center justify-center shadow-sm"
+              title="Export to Excel"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
             <button
               onClick={() => handlePrintPDF('print')}
               disabled={isSaving}
@@ -370,11 +399,10 @@ export default function OrderDetailsPage() {
             <button
               onClick={() => confirmStatusUpdate('Approved')}
               disabled={isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))}
-              className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${
-                isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))
+              className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))
                   ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
                   : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
-              }`}
+                }`}
             >
               {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
               APPROVE
@@ -395,7 +423,7 @@ export default function OrderDetailsPage() {
               <p className="font-black text-lg text-white">{order.ORDER_ID}</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
               <Calendar className="w-5 h-5 text-[#D4AF37]" />
@@ -443,9 +471,8 @@ export default function OrderDetailsPage() {
         {!isNoItemsOrder && (
           <button
             onClick={() => setActiveTab('ITEMS')}
-            className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
-              activeTab === 'ITEMS' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
-            }`}
+            className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'ITEMS' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
+              }`}
           >
             <Package className="w-4 h-4" />
             Order Items
@@ -454,10 +481,9 @@ export default function OrderDetailsPage() {
         <button
           onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('PREPARATION')}
           disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 
-            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
-          }`}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
+              order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            }`}
           title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access preparation" : ""}
         >
           <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
@@ -466,10 +492,9 @@ export default function OrderDetailsPage() {
         <button
           onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('DELIVERY')}
           disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${
-            activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 
-            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
-          }`}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
+              order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            }`}
           title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access logistics" : ""}
         >
           <Printer className="w-4 h-4" />
@@ -480,7 +505,7 @@ export default function OrderDetailsPage() {
       {/* Active Tab Content */}
       <div className="min-h-[400px]">
         {activeTab === 'ITEMS' && !isNoItemsOrder && (
-          <OrderItemsTab 
+          <OrderItemsTab
             items={items}
             canEdit={canEdit}
             totalAmount={totalAmount}
@@ -488,7 +513,7 @@ export default function OrderDetailsPage() {
             handleQtyChange={handleQtyChange}
           />
         )}
-        
+
         {activeTab === 'PREPARATION' && (
           <OrderPreparationTab orderId={order.ID} />
         )}
@@ -498,7 +523,7 @@ export default function OrderDetailsPage() {
         )}
       </div>
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isConfirmOpen}
         onConfirm={executeUpdateStatus}
         onCancel={() => setIsConfirmOpen(false)}
@@ -507,7 +532,7 @@ export default function OrderDetailsPage() {
         message={`Are you sure you want to ${pendingStatus === 'Rejected' ? 'reject' : 'save and finalize'} this order?`}
       />
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isDeleteModalOpen}
         onConfirm={handleDeleteOrder}
         onCancel={() => setIsDeleteModalOpen(false)}

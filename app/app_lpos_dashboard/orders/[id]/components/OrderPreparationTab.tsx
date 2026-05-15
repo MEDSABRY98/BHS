@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
 import { UserPlus, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
-import SearchSelect from '../../../components/SearchSelect';
+import SearchSelect from '../../../components/DropDownList';
 import { ConfirmModal } from '../../../components/ConfirmModal';
 
 interface OrderPreparationTabProps {
@@ -69,7 +69,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
       const staffMember = allStaff.find(s => s.ID === selectedStaffId);
       const nextId = await generateNextId();
 
-        const { error } = await app_lpos_supabase
+      const { error } = await app_lpos_supabase
         .from('app_lpos_PREPARATION')
         .insert([{
           ID: nextId,
@@ -78,7 +78,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
         }]);
 
       if (error) throw error;
-      
+
       setSelectedStaffId('');
       fetchData();
     } catch (error) {
@@ -181,21 +181,21 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
                       <td className="py-6 px-4">
                         <span className="text-sm font-black text-black">{staffInfo?.NAME || staff.PREPARATION_NAME}</span>
                       </td>
-                    <td className="py-6 px-4">
-                      <span className="text-xs text-gray-500 font-medium">
-                        {new Date(staff.PREPARED_AT).toLocaleString()}
-                      </span>
-                    </td>
-                    <td className="py-6 px-4">
-                      <div className="flex justify-center">
-                        <button
-                          onClick={() => confirmDelete(staff.ID)}
-                          className="w-10 h-10 rounded-xl bg-red-50 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-95"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
-                      </div>
-                    </td>
+                      <td className="py-6 px-4">
+                        <span className="text-xs text-gray-500 font-medium">
+                          {new Date(staff.PREPARED_AT).toLocaleString()}
+                        </span>
+                      </td>
+                      <td className="py-6 px-4">
+                        <div className="flex justify-center">
+                          <button
+                            onClick={() => confirmDelete(staff.ID)}
+                            className="w-10 h-10 rounded-xl bg-red-50 text-red-400 flex items-center justify-center hover:bg-red-500 hover:text-white transition-all active:scale-95"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -205,7 +205,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
         )}
       </div>
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isDeleteModalOpen}
         onConfirm={executeDelete}
         onCancel={() => setIsDeleteModalOpen(false)}

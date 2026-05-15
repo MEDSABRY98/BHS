@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  Search, 
-  Eye, 
+import {
+  Search,
+  Eye,
   ChevronRight
 } from 'lucide-react';
 import Link from 'next/link';
@@ -25,40 +25,27 @@ export default function OrdersPage() {
 
   async function fetchOrders() {
     try {
-      const [ordersRes, noItemsRes] = await Promise.all([
-        app_lpos_supabase
-          .from('app_lpos_ORDERS')
-          .select(`
-            *,
-            app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
-            app_lpos_USERS ( "NAME" )
-          `)
-          .order('CREATED_AT', { ascending: false }),
-        app_lpos_supabase
-          .from('app_lpos_ORDERS_NO_ITEMS')
-          .select(`
-            *,
-            app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
-            app_lpos_USERS ( "NAME" )
-          `)
-          .order('CREATED_AT', { ascending: false })
-      ]);
+      const { data, error } = await app_lpos_supabase
+        .from('app_lpos_ORDERS')
+        .select(`
+          *,
+          app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
+          app_lpos_USERS ( "NAME" )
+        `)
+        .order('CREATED_AT', { ascending: false });
 
-      if (ordersRes.error) throw ordersRes.error;
-      if (noItemsRes.error) throw noItemsRes.error;
+      if (error) throw error;
 
-      // Merge and sort
-      const combined = [
-        ...(ordersRes.data || []).map(o => ({ ...o, source: 'standard' })),
-        ...(noItemsRes.data || []).map(o => ({ ...o, source: 'no-items' }))
-      ].sort((a, b) => {
-        // Extract numeric part (e.g., 0004 -> 4)
+      // Sort and identify source (though now all from one table, keeping property for safety)
+      const combined = (data || []).map(o => ({ 
+        ...o, 
+        source: o.ORDER_ID.startsWith('ONI-') ? 'no-items' : 'standard' 
+      })).sort((a, b) => {
         const getNum = (id: string) => parseInt(id.split('-')[1] || '0');
         const numA = getNum(a.ORDER_ID);
         const numB = getNum(b.ORDER_ID);
-        
-        if (numB !== numA) return numB - numA; // Primary sort: Number descending
-        return a.ORDER_ID.localeCompare(b.ORDER_ID); // Secondary: Alphabetical ascending (O- before ONI-)
+        if (numB !== numA) return numB - numA;
+        return a.ORDER_ID.localeCompare(b.ORDER_ID);
       });
 
       setOrders(combined);
@@ -70,7 +57,7 @@ export default function OrdersPage() {
   }
 
   const filteredOrders = orders.filter(order => {
-    const matchesSearch = 
+    const matchesSearch =
       order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       order.app_lpos_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -99,9 +86,9 @@ export default function OrdersPage() {
       <div className="flex flex-col md:flex-row gap-4 bg-white p-6 rounded-[2rem] shadow-sm border border-gray-100">
         <div className="relative flex-1">
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="Search by ID, Customer or Staff..." 
+          <input
+            type="text"
+            placeholder="Search by ID, Customer or Staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-14 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-sm font-medium"
@@ -112,11 +99,10 @@ export default function OrdersPage() {
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
-              className={`px-6 py-3 rounded-2xl text-xs font-black transition-all whitespace-nowrap uppercase tracking-wider ${
-                statusFilter === status 
-                  ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10' 
+              className={`px-6 py-3 rounded-2xl text-xs font-black transition-all whitespace-nowrap uppercase tracking-wider ${statusFilter === status
+                  ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
                   : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
-              }`}
+                }`}
             >
               {status}
             </button>
@@ -131,17 +117,19 @@ export default function OrdersPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
+                <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
+                <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice ID</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
-                <th className="w-[18%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
-                <th className="w-[30%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
-                <th className="w-[17%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
+                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
+                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
+                <th className="w-[13%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                <th className="w-[13%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={7}>
                     <NoData title="NO ORDERS FOUND" />
                   </td>
                 </tr>
@@ -152,15 +140,25 @@ export default function OrdersPage() {
                     <td className="px-6 py-6 truncate">
                       <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
                     </td>
-                    
-                    {/* 2. Date */}
+
+                    {/* 2. LPO ID */}
+                    <td className="px-6 py-6 truncate">
+                      <span className="font-bold text-gray-400 text-sm">{order.LPO_ID || '-'}</span>
+                    </td>
+
+                    {/* 2b. Invoice ID */}
+                    <td className="px-6 py-6 truncate">
+                      <span className="font-bold text-gray-400 text-sm">{order.INVOICE_ID || '-'}</span>
+                    </td>
+
+                    {/* 3. Date */}
                     <td className="px-6 py-6">
                       <p className="text-sm text-gray-500 font-bold">
                         {new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
                       </p>
                     </td>
 
-                    {/* 3. Sales Rep */}
+                    {/* 4. Sales Rep */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex items-center justify-center">
                         <div className="w-8 h-8 bg-black rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-black/10 shrink-0">
@@ -172,34 +170,30 @@ export default function OrdersPage() {
                       </div>
                     </td>
 
-                    {/* 4. Customer */}
+                    {/* 5. Customer */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex flex-col items-center">
                         <p className="font-black text-black text-sm truncate w-full" title={order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}>
                           {order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}
                         </p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1 truncate w-full">
-                          {order.app_lpos_CUSTOMERS?.["CUSTOMER CITY"]}
-                        </p>
-                      </div>
-                    </td>
-                    
-                    {/* 5. Status */}
-                    <td className="px-6 py-6">
-                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                        order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                        order.STATUS === 'Partially Approved' ? 'bg-orange-50 text-orange-600' :
-                        order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                        'bg-red-50 text-red-600'
-                      }`}>
-                        {order.STATUS}
                       </div>
                     </td>
 
-                    {/* 6. Action (Icon Only) */}
+                    {/* 6. Status */}
+                    <td className="px-6 py-6">
+                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest ${order.STATUS === 'Approved' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' :
+                          order.STATUS === 'Partially Approved' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
+                            order.STATUS === 'Rejected' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' :
+                              'bg-gray-100 text-gray-400'
+                        }`}>
+                        {order.STATUS || 'Pending'}
+                      </div>
+                    </td>
+
+                    {/* 7. Action (Icon Only) */}
                     <td className="px-6 py-6">
                       <div className="flex justify-center">
-                        <Link 
+                        <Link
                           href={`/app_lpos_dashboard/orders/${order.ORDER_ID || order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"

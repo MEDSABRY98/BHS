@@ -18,11 +18,11 @@ interface SearchSelectProps {
   isLoading?: boolean;
 }
 
-export default function SearchSelect({ 
-  label, 
-  options, 
-  value, 
-  onChange, 
+export default function SearchSelect({
+  label,
+  options,
+  value,
+  onChange,
   placeholder = 'Select option...',
   isLoading = false
 }: SearchSelectProps) {
@@ -42,7 +42,7 @@ export default function SearchSelect({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => 
+  const filteredOptions = options.filter(opt =>
     opt.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
     opt.subLabel?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -54,12 +54,11 @@ export default function SearchSelect({
           {label}
         </label>
       )}
-      
-      <div 
+
+      <div
         onClick={() => !isLoading && setIsOpen(!isOpen)}
-        className={`group flex items-center justify-between px-6 h-[68px] bg-white border-2 ${
-          isOpen ? 'border-black shadow-[0_0_20px_rgba(0,0,0,0.05)]' : 'border-gray-50'
-        } rounded-[1.5rem] cursor-pointer transition-all hover:bg-gray-50/50 hover:border-gray-200 shadow-sm`}
+        className={`group flex items-center justify-between px-6 h-[68px] bg-white border-2 ${isOpen ? 'border-black shadow-[0_0_20px_rgba(0,0,0,0.05)]' : 'border-gray-50'
+          } rounded-[1.5rem] cursor-pointer transition-all hover:bg-gray-50/50 hover:border-gray-200 shadow-sm`}
       >
         <div className="flex flex-col justify-center min-w-0">
           {selectedOption ? (
@@ -77,10 +76,10 @@ export default function SearchSelect({
             </span>
           )}
         </div>
-        
+
         <div className="flex items-center gap-3">
           {value && !isLoading && (
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 onChange('');
@@ -102,7 +101,7 @@ export default function SearchSelect({
           <div className="p-4 bg-gray-50/50">
             <div className="relative group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-black transition-colors" />
-              <input 
+              <input
                 autoFocus
                 type="text"
                 value={searchTerm}
@@ -112,7 +111,7 @@ export default function SearchSelect({
               />
             </div>
           </div>
-          
+
           <div className="max-h-[320px] overflow-y-auto no-scrollbar py-3">
             {filteredOptions.length === 0 ? (
               <div className="px-8 py-12 text-center">
@@ -122,50 +121,47 @@ export default function SearchSelect({
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No matching results</p>
               </div>
             ) : (
-            <div className="px-3 space-y-1 pb-2">
-              {filteredOptions.map((opt) => (
-                <div
-                  key={opt.id}
-                  onClick={() => {
-                    onChange(opt.id);
-                    setIsOpen(false);
-                    setSearchTerm('');
-                  }}
-                  className={`px-6 py-5 cursor-pointer rounded-[1.5rem] transition-all flex items-center gap-4 relative group ${
-                    value === opt.id 
-                      ? 'bg-black text-white shadow-2xl shadow-black/20' 
+              <div className="px-3 space-y-1 pb-2">
+                {filteredOptions.map((opt) => (
+                  <div
+                    key={opt.id}
+                    onClick={() => {
+                      onChange(opt.id);
+                      setIsOpen(false);
+                      setSearchTerm('');
+                    }}
+                    className={`px-6 py-5 cursor-pointer rounded-[1.5rem] transition-all flex items-center gap-4 relative group ${value === opt.id
+                      ? 'bg-black text-white shadow-2xl shadow-black/20'
                       : 'hover:bg-gray-50 text-gray-700'
-                  }`}
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
-                    value === opt.id ? 'bg-white/10 text-[#D4AF37]' : 'bg-gray-100 text-gray-400 group-hover:bg-white group-hover:text-black'
-                  }`}>
-                    <div className="w-5 h-5 flex items-center justify-center font-black text-xs">
-                      {opt.label.charAt(0).toUpperCase()}
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col min-w-0">
-                    <span className={`text-sm tracking-tight ${value === opt.id ? 'font-black text-[#D4AF37]' : 'font-black text-black group-hover:text-black'}`}>
-                      {opt.label}
-                    </span>
-                    {opt.subLabel && (
-                      <span className={`text-[9px] font-black uppercase tracking-[0.2em] mt-0.5 ${
-                        value === opt.id ? 'text-gray-400' : 'text-gray-300 group-hover:text-gray-400'
+                      }`}
+                  >
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${value === opt.id ? 'bg-white/10 text-[#D4AF37]' : 'bg-gray-100 text-gray-400 group-hover:bg-white group-hover:text-black'
                       }`}>
-                        {opt.subLabel}
+                      <div className="w-5 h-5 flex items-center justify-center font-black text-xs">
+                        {opt.label.charAt(0).toUpperCase()}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col min-w-0">
+                      <span className={`text-sm tracking-tight ${value === opt.id ? 'font-black text-[#D4AF37]' : 'font-black text-black group-hover:text-black'}`}>
+                        {opt.label}
                       </span>
+                      {opt.subLabel && (
+                        <span className={`text-[9px] font-black uppercase tracking-[0.2em] mt-0.5 ${value === opt.id ? 'text-gray-400' : 'text-gray-300 group-hover:text-gray-400'
+                          }`}>
+                          {opt.subLabel}
+                        </span>
+                      )}
+                    </div>
+
+                    {value === opt.id && (
+                      <div className="absolute right-6 w-6 h-6 bg-[#D4AF37] rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="w-4 h-4 text-black" />
+                      </div>
                     )}
                   </div>
-
-                  {value === opt.id && (
-                    <div className="absolute right-6 w-6 h-6 bg-[#D4AF37] rounded-full flex items-center justify-center">
-                      <CheckCircle2 className="w-4 h-4 text-black" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
             )}
           </div>
         </div>

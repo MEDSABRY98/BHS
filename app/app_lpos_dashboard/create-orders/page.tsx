@@ -11,10 +11,16 @@ import {
   Activity,
   CheckCircle2,
   AlertCircle,
-  XCircle
+  XCircle,
+  FileSpreadsheet,
+  Download,
+  Upload,
+  Loader2,
+  X
 } from 'lucide-react';
-import SearchSelect from '../components/SearchSelect';
+import SearchSelect from '../components/DropDownList';
 import { useRouter } from 'next/navigation';
+import * as XLSX from 'xlsx';
 
 export default function CreateOrderPage() {
   const router = useRouter();
@@ -22,6 +28,8 @@ export default function CreateOrderPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Form State
@@ -32,7 +40,7 @@ export default function CreateOrderPage() {
     CREATED_BY: '',
     CUSTOMER_ID: '',
     LPO_ID: '',
-    STATUS: 'Pending'
+    INVOICE_ID: ''
   });
 
   useEffect(() => {
@@ -97,7 +105,7 @@ export default function CreateOrderPage() {
       ...prev,
       CUSTOMER_ID: '',
       LPO_ID: '',
-      STATUS: 'Pending'
+      INVOICE_ID: ''
     }));
     setMessage(null);
   };
@@ -148,7 +156,7 @@ export default function CreateOrderPage() {
       });
 
       const { error } = await app_lpos_supabase
-        .from('app_lpos_ORDERS_NO_ITEMS')
+        .from('app_lpos_ORDERS')
         .insert(ordersToInsert);
 
       if (error) throw error;
@@ -161,6 +169,78 @@ export default function CreateOrderPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { "Customer Name": "Example Customer", "LPO ID": "LPO-001", "Invoice ID": "INV-001" }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Orders Template");
+    XLSX.writeFile(wb, "Orders_Template.xlsx");
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+        const newPendingOrders: any[] = [];
+        const errors: string[] = [];
+
+        data.forEach((row, index) => {
+          const customerName = row["Customer Name"];
+          const lpoId = row["LPO ID"];
+          const invoiceId = row["Invoice ID"];
+
+          const customer = customers.find(c => 
+            c["CUSTOMER NAME"]?.toLowerCase() === customerName?.toString().toLowerCase()
+          );
+
+          if (customer) {
+            newPendingOrders.push({
+              CREATED_BY: formData.CREATED_BY,
+              CUSTOMER_ID: customer.ID,
+              LPO_ID: lpoId || '',
+              INVOICE_ID: invoiceId || '',
+              tempId: Math.random().toString(36).substr(2, 9),
+              customerName: customer["CUSTOMER NAME"],
+              userName: users.find(u => u.ID === formData.CREATED_BY)?.NAME || 'Current User'
+            });
+          } else {
+            errors.push(`Row ${index + 2}: Customer "${customerName}" not found`);
+          }
+        });
+
+        if (newPendingOrders.length > 0) {
+          setPendingOrders(prev => [...prev, ...newPendingOrders]);
+          setMessage({ 
+            type: errors.length > 0 ? 'error' : 'success', 
+            text: `Imported ${newPendingOrders.length} orders. ${errors.length > 0 ? `${errors.length} failed.` : ''}` 
+          });
+        } else if (errors.length > 0) {
+          setMessage({ type: 'error', text: `Import failed: ${errors[0]}` });
+        }
+
+        setIsExcelModalOpen(false);
+      } catch (err) {
+        console.error('Import Error:', err);
+        setMessage({ type: 'error', text: 'Failed to parse Excel file' });
+      } finally {
+        setIsUploading(false);
+        if (e.target) e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
   };
 
   // Auto-hide messages
@@ -190,14 +270,21 @@ export default function CreateOrderPage() {
             Create New Orders
           </h1>
         </div>
+        <button
+          onClick={() => setIsExcelModalOpen(true)}
+          className="w-12 h-12 bg-white border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black hover:bg-gray-50 transition-all shadow-sm group"
+          title="Excel Actions"
+        >
+          <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
+        </button>
       </div>
 
       {/* Input Form Container */}
       <div className="bg-white rounded-[3rem] p-10 shadow-2xl shadow-black/5 border border-gray-100 relative">
         <div className="space-y-8">
-          <div className="flex flex-col md:flex-row items-end gap-6 w-full">
-            {/* Customer Selection - 40% Width */}
-            <div className="w-full md:w-[40%] min-w-0">
+          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] items-end gap-6 w-full">
+            {/* 1. Customer Selection */}
+            <div className="min-w-0">
               <SearchSelect
                 label=""
                 options={customers.map(c => ({ id: c.ID, label: c["CUSTOMER NAME"], subLabel: c["CUSTOMER CITY"] }))}
@@ -208,49 +295,47 @@ export default function CreateOrderPage() {
               />
             </div>
 
-            {/* Others Container - 60% Width */}
-            <div className="w-full md:flex-1 grid grid-cols-1 md:grid-cols-[1fr_1fr_auto] items-end gap-6">
-              {/* LPO ID Input */}
-              <div className="flex flex-col gap-2 min-w-0">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
-                  <FileText className="w-3 h-3" />
-                  LPO ID
-                </label>
-                <input
-                  type="text"
-                  placeholder="ID..."
-                  value={formData.LPO_ID}
-                  onChange={(e) => setFormData({ ...formData, LPO_ID: e.target.value })}
-                  className="w-full px-6 h-[68px] bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-black text-black truncate"
-                />
-              </div>
+            {/* 2. LPO ID Input */}
+            <div className="flex flex-col gap-2 min-w-0">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
+                <FileText className="w-3 h-3" />
+                LPO ID
+              </label>
+              <input
+                type="text"
+                placeholder="ID..."
+                value={formData.LPO_ID}
+                onChange={(e) => setFormData({ ...formData, LPO_ID: e.target.value })}
+                className="w-full px-6 h-[68px] bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-black text-black truncate"
+              />
+            </div>
 
-              {/* Status Selection */}
-              <div className="min-w-0">
-                <SearchSelect
-                  label=""
-                  options={[
-                    { id: 'Pending', label: 'Pending' },
-                    { id: 'Approved', label: 'Approved' },
-                    { id: 'Rejected', label: 'Rejected' }
-                  ]}
-                  value={formData.STATUS}
-                  onChange={(val) => setFormData({ ...formData, STATUS: val })}
-                />
-              </div>
+            {/* 3. Invoice ID Input */}
+            <div className="flex flex-col gap-2 min-w-0">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
+                <FileText className="w-3 h-3" />
+                Invoice ID
+              </label>
+              <input
+                type="text"
+                placeholder="Invoice..."
+                value={formData.INVOICE_ID}
+                onChange={(e) => setFormData({ ...formData, INVOICE_ID: e.target.value })}
+                className="w-full px-6 h-[68px] bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-black text-black truncate"
+              />
+            </div>
 
-              {/* Add Button - Icon Only */}
-              <div className="flex flex-col gap-2 w-fit">
-                <div className="h-4" /> {/* Spacer to align with labels */}
-                <button
-                  onClick={addOrderToList}
-                  type="button"
-                  className="w-[68px] h-[68px] bg-[#D4AF37] text-black rounded-2xl font-black shadow-lg shadow-[#D4AF37]/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
-                  title="Add to List"
-                >
-                  <Send className="w-6 h-6" />
-                </button>
-              </div>
+            {/* 4. Add Button */}
+            <div className="flex flex-col gap-2 w-fit">
+              <div className="h-4" /> {/* Spacer to align with labels */}
+              <button
+                onClick={addOrderToList}
+                type="button"
+                className="w-[68px] h-[68px] bg-[#D4AF37] text-black rounded-2xl font-black shadow-lg shadow-[#D4AF37]/20 hover:scale-105 active:scale-95 transition-all flex items-center justify-center"
+                title="Add to List"
+              >
+                <Send className="w-6 h-6" />
+              </button>
             </div>
           </div>
         </div>
@@ -278,9 +363,9 @@ export default function CreateOrderPage() {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
-                  <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">INVOICE_ID</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -293,14 +378,7 @@ export default function CreateOrderPage() {
                       <span className="font-bold text-gray-600 text-sm">{order.LPO_ID || '-'}</span>
                     </td>
                     <td className="px-8 py-6">
-                      <div className="flex justify-center">
-                        <span className={`inline-flex px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                            order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                              'bg-orange-50 text-orange-600'
-                          }`}>
-                          {order.STATUS}
-                        </span>
-                      </div>
+                      <span className="font-bold text-gray-600 text-sm">{order.INVOICE_ID || '-'}</span>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex justify-center">
@@ -321,9 +399,62 @@ export default function CreateOrderPage() {
         </div>
       )}
 
+      {/* Excel Modal */}
+      {isExcelModalOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-md" onClick={() => !isUploading && setIsExcelModalOpen(false)} />
+          <div className="bg-white rounded-[3rem] p-10 shadow-2xl relative w-full max-w-xl animate-in zoom-in-95 duration-300 border border-white/20">
+            <button
+              onClick={() => setIsExcelModalOpen(false)}
+              className="absolute top-8 right-8 w-10 h-10 flex items-center justify-center text-gray-300 hover:text-black hover:bg-gray-50 rounded-xl transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-10">
+              <div className="w-14 h-14 bg-emerald-50 rounded-[1.25rem] flex items-center justify-center mb-6">
+                <FileSpreadsheet className="w-7 h-7 text-emerald-600" />
+              </div>
+              <h3 className="text-2xl font-black text-black">Excel Actions</h3>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Import orders or download template</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={downloadTemplate}
+                className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4"
+              >
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-black group-hover:text-white transition-all">
+                  <Download className="w-6 h-6" />
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-black text-black uppercase tracking-widest">Template</p>
+                </div>
+              </button>
+
+              <label className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4 cursor-pointer relative overflow-hidden">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-[#D4AF37] group-hover:text-black transition-all">
+                  {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-black text-black uppercase tracking-widest">{isUploading ? 'Uploading...' : 'Import Data'}</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Global Message Notification */}
       {message && (
-        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[300] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${message.type === 'success' ? 'bg-black text-white border-[#D4AF37]' : 'bg-red-600 text-white border-red-800'
+        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${message.type === 'success' ? 'bg-black text-white border-[#D4AF37]' : 'bg-red-600 text-white border-red-800'
           }`}>
           {message.type === 'success' ? (
             <CheckCircle2 className="w-5 h-5 text-[#D4AF37]" />

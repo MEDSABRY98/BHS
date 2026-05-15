@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
 import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
-import SearchSelect from '../../../components/SearchSelect';
+import SearchSelect from '../../../components/DropDownList';
 
 interface OrderDeliveryTabProps {
   orderId: string;
@@ -35,13 +35,21 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
         .select('*')
         .eq('ORDER_ID', orderId)
         .maybeSingle();
-      
-      setDeliveryData(delData || {
+
+      // Sanitize data: convert empty strings to null for FK columns
+      const sanitizedDelData = delData ? {
+        ...delData,
+        DRIVERS_NAME: delData.DRIVERS_NAME || null,
+        ASSISTANT_NAME: delData.ASSISTANT_NAME || null,
+        TRACKING_NOTES: delData.TRACKING_NOTES || null
+      } : null;
+
+      setDeliveryData(sanitizedDelData || {
         ORDER_ID: orderId,
-        DRIVERS_NAME: '',
-        ASSISTANT_NAME: '',
+        DRIVERS_NAME: null,
+        ASSISTANT_NAME: null,
         STATUS: 'Assigned',
-        TRACKING_NOTES: ''
+        TRACKING_NOTES: null
       });
     } catch (error) {
       console.error('Error fetching delivery data:', error);
@@ -67,8 +75,13 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
   const handleSave = async (updatedFields: any = {}) => {
     setIsSaving(true);
     try {
-      const currentData = { ...deliveryData, ...updatedFields };
-      
+      // Sanitize fields: convert empty strings to null for FK columns
+      const sanitizedFields = { ...updatedFields };
+      if (sanitizedFields.DRIVERS_NAME === '') sanitizedFields.DRIVERS_NAME = null;
+      if (sanitizedFields.ASSISTANT_NAME === '') sanitizedFields.ASSISTANT_NAME = null;
+
+      const currentData = { ...deliveryData, ...sanitizedFields };
+
       if (!currentData.ID) {
         // Create new record
         const nextId = await generateNextId();
@@ -76,23 +89,30 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
           .from('app_lpos_DRIVERS')
           .insert([{ ...currentData, ID: nextId }])
           .select()
-          .single();
+          .maybeSingle();
         if (error) throw error;
-        setDeliveryData(data);
+        if (data) setDeliveryData(data);
       } else {
         // Update existing record
         const { data, error } = await app_lpos_supabase
           .from('app_lpos_DRIVERS')
-          .update(currentData)
+          .update(sanitizedFields)
           .eq('ID', currentData.ID)
           .select()
-          .single();
+          .maybeSingle();
         if (error) throw error;
-        setDeliveryData(data);
+        if (data) setDeliveryData(data);
+        else setDeliveryData(currentData);
       }
-    } catch (error) {
-      console.error('Error saving delivery data:', error);
-      alert('Failed to update tracking');
+    } catch (error: any) {
+      console.error('Detailed error saving delivery data:', {
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+        code: error.code,
+        error
+      });
+      alert(`Failed to update tracking: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSaving(false);
     }
@@ -122,7 +142,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-12">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        
+
         {/* Left Side: Assignment */}
         <div className="bg-white rounded-[2.5rem] p-10 shadow-sm border border-gray-100 space-y-10">
           <div className="flex items-center gap-4 mb-2">
@@ -150,12 +170,12 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Assigned Driver</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => handleSave({ 
-                      DRIVERS_NAME: '', 
-                      DISPATCH_TIME: null, 
-                      DELIVERY_TIME: null, 
-                      STATUS: 'Assigned' 
+                  <button
+                    onClick={() => handleSave({
+                      DRIVERS_NAME: null,
+                      DISPATCH_TIME: null,
+                      DELIVERY_TIME: null,
+                      STATUS: 'Assigned'
                     })}
                     className="w-10 h-10 bg-white border border-red-50 text-red-400 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95"
                   >
@@ -191,8 +211,8 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                       <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest mt-0.5">Assigned Assistant</p>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => handleSave({ ASSISTANT_NAME: '' })}
+                  <button
+                    onClick={() => handleSave({ ASSISTANT_NAME: null })}
                     className="w-10 h-10 bg-white border border-red-50 text-red-400 rounded-xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shadow-sm active:scale-95"
                   >
                     <Trash2 className="w-4 h-4" />
@@ -227,11 +247,10 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                 <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Real-time status updates</p>
               </div>
             </div>
-            <div className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm ${
-              deliveryData.STATUS === 'Delivered' ? 'bg-emerald-500 text-white' :
+            <div className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm ${deliveryData.STATUS === 'Delivered' ? 'bg-emerald-500 text-white' :
               deliveryData.STATUS === 'Dispatched' ? 'bg-black text-[#D4AF37]' :
-              'bg-gray-50 text-gray-400'
-            }`}>
+                'bg-gray-50 text-gray-400'
+              }`}>
               {deliveryData.STATUS}
             </div>
           </div>
@@ -240,11 +259,10 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
             <button
               disabled={!deliveryData.ID || !!deliveryData.DISPATCH_TIME}
               onClick={() => setTimestamp('DISPATCH_TIME')}
-              className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all ${
-                deliveryData.DISPATCH_TIME 
-                  ? 'bg-black border-black text-white' 
-                  : 'bg-white border-gray-100 hover:border-black group'
-              }`}
+              className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all ${deliveryData.DISPATCH_TIME
+                ? 'bg-black border-black text-white'
+                : 'bg-white border-gray-100 hover:border-black group'
+                }`}
             >
               <div className="flex items-center gap-5 text-left">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${deliveryData.DISPATCH_TIME ? 'bg-white/10' : 'bg-gray-50 group-hover:bg-black group-hover:text-white'}`}>
@@ -265,11 +283,10 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
             <button
               disabled={true}
               onClick={() => setTimestamp('DELIVERY_TIME')}
-              className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all ${
-                deliveryData.DELIVERY_TIME 
-                  ? 'bg-emerald-500 border-emerald-500 text-white shadow-xl shadow-emerald-500/20' 
-                  : 'bg-white border-gray-100 opacity-50 cursor-not-allowed group'
-              }`}
+              className={`flex items-center justify-between p-6 rounded-[2rem] border transition-all ${deliveryData.DELIVERY_TIME
+                ? 'bg-emerald-500 border-emerald-500 text-white shadow-xl shadow-emerald-500/20'
+                : 'bg-white border-gray-100 opacity-50 cursor-not-allowed group'
+                }`}
             >
               <div className="flex items-center gap-5 text-left">
                 <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-all ${deliveryData.DELIVERY_TIME ? 'bg-white/10' : 'bg-gray-50 group-hover:bg-emerald-500 group-hover:text-white'}`}>
@@ -293,7 +310,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
             <textarea
               placeholder="Enter notes about delivery, location, etc..."
               value={deliveryData.TRACKING_NOTES || ''}
-              onChange={(e) => setDeliveryData({...deliveryData, TRACKING_NOTES: e.target.value})}
+              onChange={(e) => setDeliveryData({ ...deliveryData, TRACKING_NOTES: e.target.value })}
               onBlur={() => handleSave()}
               className="w-full bg-gray-50 border border-gray-100 rounded-[2rem] p-6 text-sm font-medium focus:ring-2 focus:ring-black/10 outline-none transition-all min-h-[150px] resize-none"
             />
