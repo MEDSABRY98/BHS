@@ -25,6 +25,7 @@ import { generateLpoPackingListPDF } from '@/lib/pdf/LpoPackingListUtils';
 import OrderItemsTab from './components/OrderItemsTab';
 import OrderPreparationTab from './components/OrderPreparationTab';
 import OrderDeliveryTab from './components/OrderDeliveryTab';
+import InvoicesStatusTab from './components/InvoicesStatusTab';
 import * as XLSX from 'xlsx';
 
 export default function OrderDetailsPage() {
@@ -500,6 +501,17 @@ export default function OrderDetailsPage() {
           <Printer className="w-4 h-4" />
           Logistics / Delivery
         </button>
+        <button
+          onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('INVOICES')}
+          disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'INVOICES' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
+              order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            }`}
+          title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access invoices" : ""}
+        >
+          <FileText className="w-4 h-4" />
+          Invoices Status
+        </button>
       </div>
 
       {/* Active Tab Content */}
@@ -520,6 +532,10 @@ export default function OrderDetailsPage() {
 
         {activeTab === 'DELIVERY' && (
           <OrderDeliveryTab orderId={order.ID} />
+        )}
+
+        {activeTab === 'INVOICES' && (
+          <InvoicesStatusTab orderId={order.ID} />
         )}
       </div>
 
