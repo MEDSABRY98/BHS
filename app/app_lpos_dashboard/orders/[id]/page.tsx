@@ -310,10 +310,9 @@ export default function OrderDetailsPage() {
       const customerName = order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || '-';
 
       const exportData = items.map(item => ({
-        'Customer': customerName,
-        'Order Lines/Product': item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || '-',
-        'Order Lines/Quantity': item.QTY_REQUEST || 0,
-        'Order Lines/Unit Price': item.PRICE || 0
+        'Product': item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || '-',
+        'Unit': item.UNIT || item.app_lpos_PRODUCTS?.["PRODUCT UNIT"] || '-',
+        'Quantity': item.QTY_REQUEST || 0
       }));
 
       if (exportData.length === 0 && isNoItemsOrder) {
@@ -397,8 +396,8 @@ export default function OrderDetailsPage() {
               onClick={() => confirmStatusUpdate('Approved')}
               disabled={isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))}
               className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
-                  : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
                 }`}
             >
               {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
@@ -479,7 +478,7 @@ export default function OrderDetailsPage() {
           onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('PREPARATION')}
           disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-              order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
           title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access preparation" : ""}
         >
@@ -490,7 +489,7 @@ export default function OrderDetailsPage() {
           onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('DELIVERY')}
           disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-              order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
           title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access logistics" : ""}
         >
@@ -501,7 +500,7 @@ export default function OrderDetailsPage() {
           onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('INVOICES')}
           disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'INVOICES' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-              order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
           title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access invoices" : ""}
         >

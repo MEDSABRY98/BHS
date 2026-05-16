@@ -55,7 +55,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
     try {
       const { error } = await app_lpos_supabase
         .from('app_lpos_DRIVERS')
-        .update({ 
+        .update({
           OFFICE_HANDOVER_STATUS: 'Confirmed',
           OFFICE_HANDOVER_TIME: new Date().toISOString()
         })
@@ -96,61 +96,61 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
           {/* Vertical Line Connector */}
           <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-gray-100" />
 
-        {/* Step 1: Customer Signature */}
-        <div className="relative flex items-start gap-8 group">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.IS_CUSTOMER_SIGNED ? 'bg-black shadow-black/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
-            <FileCheck className={`w-7 h-7 ${deliveryData.IS_CUSTOMER_SIGNED ? 'text-[#D4AF37]' : ''}`} />
-          </div>
-          <div className="pt-1 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-black text-black">Customer Signature</h3>
-              <div className={`w-32 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${deliveryData.IS_CUSTOMER_SIGNED ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-gray-100 text-gray-400'}`}>
-                {deliveryData.IS_CUSTOMER_SIGNED ? 'Completed' : 'Pending'}
-              </div>
+          {/* Step 1: Customer Signature */}
+          <div className="relative flex items-start gap-8 group">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.IS_CUSTOMER_SIGNED ? 'bg-black shadow-black/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
+              <FileCheck className={`w-7 h-7 ${deliveryData.IS_CUSTOMER_SIGNED ? 'text-[#D4AF37]' : ''}`} />
             </div>
-          </div>
-        </div>
-
-        {/* Step 2: Driver Handover */}
-        <div className="relative flex items-start gap-8 group">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.OFFICE_HANDOVER_ID ? 'bg-black shadow-black/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
-            <UserCheck className={`w-7 h-7 ${deliveryData.OFFICE_HANDOVER_ID ? 'text-[#D4AF37]' : ''}`} />
-          </div>
-          <div className="pt-1 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-black text-black">Driver Handover</h3>
-              <div className={`w-32 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${deliveryData.OFFICE_HANDOVER_ID ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-gray-100 text-gray-400'}`}>
-                {deliveryData.OFFICE_HANDOVER_ID ? 'Handed Over' : 'Waiting'}
-              </div>
-            </div>
-            <div className="flex items-center gap-4 mt-2">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-gray-300" />
-                <span className="text-xs font-bold text-gray-600">{handoverUser?.NAME || 'Not Yet'}</span>
-              </div>
-              {deliveryData.OFFICE_HANDOVER_TIME && (
-                <div className="flex items-center gap-2">
-                  <Clock className="w-4 h-4 text-gray-300" />
-                  <span className="text-xs font-bold text-gray-500">{new Date(deliveryData.OFFICE_HANDOVER_TIME).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <div className="pt-1 flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-black text-black">Customer Signature</h3>
+                <div className={`w-32 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${deliveryData.IS_CUSTOMER_SIGNED ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-gray-100 text-gray-400'}`}>
+                  {deliveryData.IS_CUSTOMER_SIGNED ? 'Completed' : 'Pending'}
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Step 3: Office Confirmation */}
-        <div className="relative flex items-start gap-8 group">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'bg-black shadow-black/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
-            <CheckCircle2 className={`w-7 h-7 ${deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'text-[#D4AF37]' : ''}`} />
-          </div>
-          <div className="pt-1 flex-1">
-            <div className="flex items-center justify-between mb-1">
-              <h3 className="text-lg font-black text-black">Office Confirmation</h3>
-              <div className={`w-32 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'}`}>
-                {deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'Verified' : 'Action Required'}
               </div>
             </div>
           </div>
+
+          {/* Step 2: Driver Handover */}
+          <div className="relative flex items-start gap-8 group">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.OFFICE_HANDOVER_ID ? 'bg-black shadow-black/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
+              <UserCheck className={`w-7 h-7 ${deliveryData.OFFICE_HANDOVER_ID ? 'text-[#D4AF37]' : ''}`} />
+            </div>
+            <div className="pt-1 flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-black text-black">Driver Handover</h3>
+                <div className={`w-32 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${deliveryData.OFFICE_HANDOVER_ID ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-gray-100 text-gray-400'}`}>
+                  {deliveryData.OFFICE_HANDOVER_ID ? 'Handed Over' : 'Waiting'}
+                </div>
+              </div>
+              <div className="flex items-center gap-4 mt-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-gray-300" />
+                  <span className="text-xs font-bold text-gray-600">{handoverUser?.NAME || 'Not Yet'}</span>
+                </div>
+                {deliveryData.OFFICE_HANDOVER_TIME && (
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-gray-300" />
+                    <span className="text-xs font-bold text-gray-500">{new Date(deliveryData.OFFICE_HANDOVER_TIME).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Step 3: Office Confirmation */}
+          <div className="relative flex items-start gap-8 group">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'bg-black shadow-black/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
+              <CheckCircle2 className={`w-7 h-7 ${deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'text-[#D4AF37]' : ''}`} />
+            </div>
+            <div className="pt-1 flex-1">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-black text-black">Office Confirmation</h3>
+                <div className={`w-32 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-widest text-center ${deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-amber-500 text-white shadow-lg shadow-amber-500/20'}`}>
+                  {deliveryData.OFFICE_HANDOVER_STATUS === 'Confirmed' ? 'Verified' : 'Action Required'}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -163,8 +163,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
               <CheckCircle2 className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h4 className="text-emerald-900 font-black text-lg">Confirm Receipt?</h4>
-              <p className="text-emerald-700/70 text-sm font-bold">Has the invoice been physically handed over to the office?</p>
+              <h4 className="text-emerald-900 font-black text-lg">Confirm Receipt</h4>
             </div>
           </div>
           <button

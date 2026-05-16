@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
 import {
   Search,
@@ -10,6 +10,7 @@ import {
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
+import OrdersFilterMenu, { FilterCriteria } from './components/OrdersFilterMenu';
 
 
 export default function OrdersPage() {
@@ -18,10 +19,25 @@ export default function OrdersPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [advancedFilters, setAdvancedFilters] = useState<FilterCriteria>({
+    invoiceStatus: 'All',
+    driverId: 'All',
+    prepStaffName: 'All'
+  });
 
   useEffect(() => {
+    fetchStaff();
     fetchOrders();
   }, []);
+
+  async function fetchStaff() {
+    const { data } = await app_lpos_supabase
+      .from('app_lpos_STAFF')
+      .select('ID, NAME')
+      .order('NAME');
+    if (data) setStaffList(data);
+  }
 
   async function fetchOrders() {
     try {
@@ -30,25 +46,21 @@ export default function OrdersPage() {
         .select(`
           *,
           app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
-          app_lpos_USERS ( "NAME" )
+          app_lpos_USERS ( "NAME" ),
+          app_lpos_DRIVERS ( 
+            ID,
+            DRIVERS_NAME, 
+            OFFICE_HANDOVER_STATUS
+          ),
+          app_lpos_PREPARATION (
+            PREPARATION_NAME
+          )
         `)
         .order('CREATED_AT', { ascending: false });
 
       if (error) throw error;
 
-      // Sort and identify source (though now all from one table, keeping property for safety)
-      const combined = (data || []).map(o => ({ 
-        ...o, 
-        source: o.ORDER_ID.startsWith('ONI-') ? 'no-items' : 'standard' 
-      })).sort((a, b) => {
-        const getNum = (id: string) => parseInt(id.split('-')[1] || '0');
-        const numA = getNum(a.ORDER_ID);
-        const numB = getNum(b.ORDER_ID);
-        if (numB !== numA) return numB - numA;
-        return a.ORDER_ID.localeCompare(b.ORDER_ID);
-      });
-
-      setOrders(combined);
+      setOrders(data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -56,14 +68,61 @@ export default function OrdersPage() {
     }
   }
 
-  const filteredOrders = orders.filter(order => {
-    const matchesSearch =
-      order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.app_lpos_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'All' || order.STATUS === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const processedOrders = useMemo(() => {
+    return orders.map(o => {
+      const drv = o.app_lpos_DRIVERS?.[0];
+      return {
+        ...o,
+        source: o.ORDER_ID?.startsWith('ONI-') ? 'no-items' : 'standard',
+        driver_id: drv?.DRIVERS_NAME,
+        handover_status: drv?.OFFICE_HANDOVER_STATUS || 'Not Handed Over',
+        prep_staff_ids: o.app_lpos_PREPARATION?.map((p: any) => p.PREPARATION_NAME) || []
+      };
+    }).sort((a, b) => {
+      const getNum = (id: string) => parseInt(id.split('-')[1] || '0');
+      const numA = getNum(a.ORDER_ID || '');
+      const numB = getNum(b.ORDER_ID || '');
+      if (numB !== numA) return numB - numA;
+      return (a.ORDER_ID || '').localeCompare(b.ORDER_ID || '');
+    });
+  }, [orders]);
+
+  const filteredOrders = useMemo(() => {
+    return processedOrders.filter(order => {
+      // 1. Search Filter
+      const matchesSearch =
+        order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.app_lpos_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
+
+      // 2. Tab Status Filter
+      const matchesStatus = statusFilter === 'All' || order.STATUS === statusFilter;
+
+      // 3. Advanced Filters
+      let matchesAdvanced = true;
+
+      if (advancedFilters.invoiceStatus !== 'All') {
+        const status = order.handover_status;
+        if (advancedFilters.invoiceStatus === 'Handed Over') {
+          matchesAdvanced = status === 'Handed Over' || status === 'Pending Confirmation';
+        } else if (advancedFilters.invoiceStatus === 'Confirmed') {
+          matchesAdvanced = status === 'Confirmed';
+        } else if (advancedFilters.invoiceStatus === 'Pending') {
+          matchesAdvanced = !status || status === 'Not Handed Over' || status === 'Pending Handover';
+        }
+      }
+
+      if (matchesAdvanced && advancedFilters.driverId !== 'All') {
+        matchesAdvanced = order.driver_id === advancedFilters.driverId;
+      }
+
+      if (matchesAdvanced && advancedFilters.prepStaffName !== 'All') {
+        matchesAdvanced = order.prep_staff_ids.includes(advancedFilters.prepStaffName);
+      }
+
+      return matchesSearch && matchesStatus && matchesAdvanced;
+    });
+  }, [processedOrders, searchTerm, statusFilter, advancedFilters]);
 
   if (isLoading) {
     return (
@@ -75,11 +134,13 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
-        </div>
-
+      <div className="flex items-center gap-4">
+        <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
+        <OrdersFilterMenu
+          activeFilters={advancedFilters}
+          onFilterChange={setAdvancedFilters}
+          staffList={staffList}
+        />
       </div>
 
       {/* Filters */}
@@ -100,8 +161,8 @@ export default function OrdersPage() {
               key={status}
               onClick={() => setStatusFilter(status)}
               className={`px-6 py-3 rounded-2xl text-xs font-black transition-all whitespace-nowrap uppercase tracking-wider ${statusFilter === status
-                  ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
-                  : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
+                ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+                : 'bg-gray-50 text-gray-400 hover:bg-gray-100'
                 }`}
             >
               {status}
@@ -116,20 +177,21 @@ export default function OrdersPage() {
           <table className="w-full text-center border-collapse table-fixed">
             <thead>
               <tr className="border-b border-gray-100">
-                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
-                <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
-                <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice ID</th>
-                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
-                <th className="w-[13%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
-                <th className="w-[13%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
+                <th className="w-[8%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice ID</th>
+                <th className="w-[8%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
+                <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
+                <th className="w-[22%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Amount</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={9}>
                     <NoData title="NO ORDERS FOUND" />
                   </td>
                 </tr>
@@ -173,18 +235,23 @@ export default function OrdersPage() {
                     {/* 5. Customer */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex flex-col items-center">
-                        <p className="font-black text-black text-sm truncate w-full" title={order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}>
+                        <p className="font-black text-black text-sm whitespace-normal leading-tight" title={order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}>
                           {order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}
                         </p>
                       </div>
                     </td>
 
-                    {/* 6. Status */}
+                    {/* 6. Amount */}
+                    <td className="px-6 py-6">
+                      <span className="font-black text-black text-sm">{order.AMOUNT?.toLocaleString() || '0'} AED</span>
+                    </td>
+
+                    {/* 7. Status */}
                     <td className="px-6 py-6">
                       <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest ${order.STATUS === 'Approved' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' :
-                          order.STATUS === 'Partially Approved' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
-                            order.STATUS === 'Rejected' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' :
-                              'bg-gray-100 text-gray-400'
+                        order.STATUS === 'Partially Approved' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
+                          order.STATUS === 'Rejected' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' :
+                            'bg-gray-100 text-gray-400'
                         }`}>
                         {order.STATUS || 'Pending'}
                       </div>

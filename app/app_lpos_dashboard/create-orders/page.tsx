@@ -40,7 +40,8 @@ export default function CreateOrderPage() {
     CREATED_BY: '',
     CUSTOMER_ID: '',
     LPO_ID: '',
-    INVOICE_ID: ''
+    INVOICE_ID: '',
+    AMOUNT: ''
   });
 
   useEffect(() => {
@@ -89,6 +90,16 @@ export default function CreateOrderPage() {
       return;
     }
 
+    if (!formData.AMOUNT || parseFloat(formData.AMOUNT) <= 0) {
+      setMessage({ type: 'error', text: 'Please enter a valid order amount' });
+      return;
+    }
+
+    if (!formData.LPO_ID && !formData.INVOICE_ID) {
+      setMessage({ type: 'error', text: 'Please enter either LPO ID or Invoice ID' });
+      return;
+    }
+
     const customer = customers.find(c => c.ID === formData.CUSTOMER_ID);
     const user = users.find(u => u.ID === formData.CREATED_BY);
 
@@ -105,7 +116,8 @@ export default function CreateOrderPage() {
       ...prev,
       CUSTOMER_ID: '',
       LPO_ID: '',
-      INVOICE_ID: ''
+      INVOICE_ID: '',
+      AMOUNT: ''
     }));
     setMessage(null);
   };
@@ -116,8 +128,9 @@ export default function CreateOrderPage() {
 
   async function generateNextOrderId() {
     const { data } = await app_lpos_supabase
-      .from('app_lpos_ORDERS_NO_ITEMS')
+      .from('app_lpos_ORDERS')
       .select('ORDER_ID')
+      .ilike('ORDER_ID', 'ONI-%')
       .order('ORDER_ID', { ascending: false })
       .limit(1);
 
@@ -151,7 +164,8 @@ export default function CreateOrderPage() {
         return {
           ...rest,
           ID: currentId,
-          ORDER_ID: currentId
+          ORDER_ID: currentId,
+          AMOUNT: parseFloat(rest.AMOUNT) || 0
         };
       });
 
@@ -173,7 +187,7 @@ export default function CreateOrderPage() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { "Customer Name": "Example Customer", "LPO ID": "LPO-001", "Invoice ID": "INV-001" }
+      { "Customer Name": "Example Customer", "LPO ID": "LPO-001", "Invoice ID": "INV-001", "Amount": 1500.50 }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders Template");
@@ -207,15 +221,23 @@ export default function CreateOrderPage() {
           );
 
           if (customer) {
-            newPendingOrders.push({
-              CREATED_BY: formData.CREATED_BY,
-              CUSTOMER_ID: customer.ID,
-              LPO_ID: lpoId || '',
-              INVOICE_ID: invoiceId || '',
-              tempId: Math.random().toString(36).substr(2, 9),
-              customerName: customer["CUSTOMER NAME"],
-              userName: users.find(u => u.ID === formData.CREATED_BY)?.NAME || 'Current User'
-            });
+            const hasAmount = row["Amount"] && parseFloat(row["Amount"]) > 0;
+            const hasId = lpoId || invoiceId;
+
+            if (hasAmount && hasId) {
+              newPendingOrders.push({
+                CREATED_BY: formData.CREATED_BY,
+                CUSTOMER_ID: customer.ID,
+                LPO_ID: lpoId || '',
+                INVOICE_ID: invoiceId || '',
+                AMOUNT: row["Amount"] || 0,
+                tempId: Math.random().toString(36).substr(2, 9),
+                customerName: customer["CUSTOMER NAME"],
+                userName: users.find(u => u.ID === formData.CREATED_BY)?.NAME || 'Current User'
+              });
+            } else {
+              errors.push(`Row ${index + 2}: Amount and at least one ID (LPO or Invoice) are required`);
+            }
           } else {
             errors.push(`Row ${index + 2}: Customer "${customerName}" not found`);
           }
@@ -282,7 +304,7 @@ export default function CreateOrderPage() {
       {/* Input Form Container */}
       <div className="bg-white rounded-[3rem] p-10 shadow-2xl shadow-black/5 border border-gray-100 relative">
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_auto] items-end gap-6 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-6 w-full">
             {/* 1. Customer Selection */}
             <div className="min-w-0">
               <SearchSelect
@@ -322,6 +344,22 @@ export default function CreateOrderPage() {
                 value={formData.INVOICE_ID}
                 onChange={(e) => setFormData({ ...formData, INVOICE_ID: e.target.value })}
                 className="w-full px-6 h-[68px] bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-black text-black truncate"
+              />
+            </div>
+
+            {/* 3b. Amount Input */}
+            <div className="flex flex-col gap-2 min-w-0">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2 text-[#D4AF37]">
+                <Activity className="w-3 h-3" />
+                AMOUNT
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="0.00"
+                value={formData.AMOUNT}
+                onChange={(e) => setFormData({ ...formData, AMOUNT: e.target.value })}
+                className="w-full px-6 h-[68px] bg-amber-50/30 border border-[#D4AF37]/20 rounded-2xl focus:outline-none focus:ring-4 focus:ring-[#D4AF37]/10 focus:bg-white focus:border-[#D4AF37] transition-all text-sm font-black text-black"
               />
             </div>
 
@@ -365,6 +403,7 @@ export default function CreateOrderPage() {
                   <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">INVOICE_ID</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">AMOUNT</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
                 </tr>
               </thead>
@@ -379,6 +418,9 @@ export default function CreateOrderPage() {
                     </td>
                     <td className="px-8 py-6">
                       <span className="font-bold text-gray-600 text-sm">{order.INVOICE_ID || '-'}</span>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className="font-black text-black text-sm">{parseFloat(order.AMOUNT).toLocaleString()} AED</span>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex justify-center">
