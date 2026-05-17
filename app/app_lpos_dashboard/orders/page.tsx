@@ -108,16 +108,16 @@ export default function OrdersPage() {
         const notes = order.tracking_notes;
         if (advancedFilters.invoiceStatus === 'Handed Over') {
           matchesAdvanced = (status === 'Handed Over' || status === 'Pending Confirmation' || status === 'Pending') &&
-                            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
-                            notes !== 'SYSTEM_CANCELLED';
+            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
+            notes !== 'SYSTEM_CANCELLED';
         } else if (advancedFilters.invoiceStatus === 'Confirmed') {
           matchesAdvanced = status === 'Confirmed' &&
-                            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
-                            notes !== 'SYSTEM_CANCELLED';
+            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
+            notes !== 'SYSTEM_CANCELLED';
         } else if (advancedFilters.invoiceStatus === 'Pending') {
           matchesAdvanced = (!status || status === 'Not Handed Over' || status === 'Pending Handover') &&
-                            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
-                            notes !== 'SYSTEM_CANCELLED';
+            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
+            notes !== 'SYSTEM_CANCELLED';
         } else if (advancedFilters.invoiceStatus === 'AlreadyReceived') {
           matchesAdvanced = notes === 'SYSTEM_ALREADY_RECEIVED';
         } else if (advancedFilters.invoiceStatus === 'Returned') {
@@ -191,7 +191,7 @@ export default function OrdersPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="w-[8%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
-                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order Date</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice ID</th>
                 <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>

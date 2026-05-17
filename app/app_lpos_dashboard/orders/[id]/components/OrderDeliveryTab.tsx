@@ -151,7 +151,6 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
             </div>
             <div>
               <h3 className="text-xl font-black text-black">Logistics Team</h3>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Assign personnel for delivery</p>
             </div>
           </div>
 
@@ -192,7 +191,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                       value={deliveryData.DRIVERS_NAME}
                       onChange={(val) => {
                         const now = new Date().toISOString();
-                        handleSave({ 
+                        handleSave({
                           DRIVERS_NAME: val,
                           DISPATCH_TIME: deliveryData.DISPATCH_TIME || now,
                           STATUS: deliveryData.STATUS === 'Assigned' || !deliveryData.STATUS ? 'Dispatched' : deliveryData.STATUS
@@ -251,7 +250,6 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
               </div>
               <div>
                 <h3 className="text-xl font-black text-black">Delivery Tracking</h3>
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Real-time status updates</p>
               </div>
             </div>
             <div className={`px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-sm ${deliveryData.STATUS === 'Delivered' ? 'bg-emerald-500 text-white' :

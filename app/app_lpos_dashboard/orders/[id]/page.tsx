@@ -27,6 +27,7 @@ import OrderItemsTab from './components/OrderItemsTab';
 import OrderPreparationTab from './components/OrderPreparationTab';
 import OrderDeliveryTab from './components/OrderDeliveryTab';
 import InvoicesStatusTab from './components/InvoicesStatusTab';
+import NoData from '@/components/01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
 export default function OrderDetailsPage() {
@@ -514,34 +515,25 @@ export default function OrderDetailsPage() {
           </button>
         )}
         <button
-          onClick={() => isTabsEnabled && setActiveTab('PREPARATION')}
-          disabled={!isTabsEnabled}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-            !isTabsEnabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+          onClick={() => setActiveTab('PREPARATION')}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
-          title={!isTabsEnabled ? "Approve order first to access preparation" : ""}
         >
           <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
           Preparation
         </button>
         <button
-          onClick={() => isTabsEnabled && setActiveTab('DELIVERY')}
-          disabled={!isTabsEnabled}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-            !isTabsEnabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+          onClick={() => setActiveTab('DELIVERY')}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
-          title={!isTabsEnabled ? "Approve order first to access logistics" : ""}
         >
           <Printer className="w-4 h-4" />
           Logistics / Delivery
         </button>
         <button
-          onClick={() => isTabsEnabled && setActiveTab('INVOICES')}
-          disabled={!isTabsEnabled}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'INVOICES' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-            !isTabsEnabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+          onClick={() => setActiveTab('INVOICES')}
+          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'INVOICES' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
-          title={!isTabsEnabled ? "Approve order first to access invoices" : ""}
         >
           <FileText className="w-4 h-4" />
           Invoices Status
@@ -561,15 +553,27 @@ export default function OrderDetailsPage() {
         )}
 
         {activeTab === 'PREPARATION' && (
-          <OrderPreparationTab orderId={order.ID} />
+          !isTabsEnabled ? (
+            <NoData title="ORDER NOT APPROVED" />
+          ) : (
+            <OrderPreparationTab orderId={order.ID} />
+          )
         )}
 
         {activeTab === 'DELIVERY' && (
-          <OrderDeliveryTab orderId={order.ID} />
+          !isTabsEnabled ? (
+            <NoData title="ORDER NOT APPROVED" />
+          ) : (
+            <OrderDeliveryTab orderId={order.ID} />
+          )
         )}
 
         {activeTab === 'INVOICES' && (
-          <InvoicesStatusTab orderId={order.ID} />
+          !isTabsEnabled ? (
+            <NoData title="ORDER NOT APPROVED" />
+          ) : (
+            <InvoicesStatusTab orderId={order.ID} />
+          )
         )}
       </div>
 

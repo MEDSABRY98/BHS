@@ -5,6 +5,7 @@ import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
 import { UserPlus, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import SearchSelect from '../../../components/DropDownList';
 import { ConfirmModal } from '../../../components/ConfirmModal';
+import NoData from '@/components/01-Unified/NoDataTab';
 
 interface OrderPreparationTabProps {
   orderId: string;
@@ -153,12 +154,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
             <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading staff assignments...</p>
           </div>
         ) : prepStaff.length === 0 ? (
-          <div className="py-20 text-center bg-gray-50/50 rounded-[2rem] border-2 border-dashed border-gray-100 mx-2">
-            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-sm">
-              <Clock className="w-8 h-8 text-gray-200" />
-            </div>
-            <p className="text-sm font-bold text-gray-400">No staff assigned to this order yet</p>
-          </div>
+          <NoData title="NO STAFF ASSIGNED" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-center border-collapse">
