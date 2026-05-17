@@ -11,14 +11,14 @@ interface OrdersFilterMenuProps {
 }
 
 export interface FilterCriteria {
-  invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending';
+  invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending' | 'AlreadyReceived' | 'Returned';
   driverId: string;
   prepStaffName: string;
 }
 
 export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffList }: OrdersFilterMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [prepStaff, setPrepStaff] = useState<string[]>([]);
+  const [driversList, setDriversList] = useState<any[]>([]);
 
   useEffect(() => {
     fetchFilterData();
@@ -26,12 +26,15 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
 
   async function fetchFilterData() {
     try {
-      const { data: prepData } = await app_lpos_supabase
-        .from('app_lpos_PREPARATION')
-        .select('PREPARATION_NAME');
-      
-      const uniquePreps = Array.from(new Set((prepData || []).map(p => p.PREPARATION_NAME))).filter(Boolean) as string[];
-      setPrepStaff(uniquePreps.sort());
+      // Fetch drivers from USERS where USER_TYPE === 'Driver'
+      const { data: driverData } = await app_lpos_supabase
+        .from('app_lpos_USERS')
+        .select('ID, NAME')
+        .eq('USER_TYPE', 'Driver')
+        .order('NAME');
+      if (driverData) {
+        setDriversList(driverData);
+      }
     } catch (err) {
       console.error('Error fetching filter data:', err);
     }
@@ -104,6 +107,8 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                     <option value="Pending">Pending Handover</option>
                     <option value="Handed Over">Handed Over</option>
                     <option value="Confirmed">Confirmed</option>
+                    <option value="AlreadyReceived">Already Received</option>
+                    <option value="Returned">Returned & Cancelled</option>
                   </select>
                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
                 </div>
@@ -122,8 +127,8 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-black/5"
                   >
                     <option value="All">All Drivers</option>
-                    {staffList.filter(s => s.ID.startsWith('S-')).map(s => (
-                      <option key={s.ID} value={s.ID}>{s.NAME}</option>
+                    {driversList.map(d => (
+                      <option key={d.ID} value={d.ID}>{d.NAME}</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
@@ -143,8 +148,8 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-black/5"
                   >
                     <option value="All">All Staff</option>
-                    {prepStaff.map(id => (
-                      <option key={id} value={id}>{staffList.find(s => s.ID === id)?.NAME || id}</option>
+                    {staffList.map(s => (
+                      <option key={s.ID} value={s.ID}>{s.NAME}</option>
                     ))}
                   </select>
                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />

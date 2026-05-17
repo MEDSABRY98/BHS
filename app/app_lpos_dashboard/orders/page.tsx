@@ -50,7 +50,8 @@ export default function OrdersPage() {
           app_lpos_DRIVERS ( 
             ID,
             DRIVERS_NAME, 
-            OFFICE_HANDOVER_STATUS
+            OFFICE_HANDOVER_STATUS,
+            TRACKING_NOTES
           ),
           app_lpos_PREPARATION (
             PREPARATION_NAME
@@ -76,6 +77,7 @@ export default function OrdersPage() {
         source: o.ORDER_ID?.startsWith('ONI-') ? 'no-items' : 'standard',
         driver_id: drv?.DRIVERS_NAME,
         handover_status: drv?.OFFICE_HANDOVER_STATUS || 'Not Handed Over',
+        tracking_notes: drv?.TRACKING_NOTES || '',
         prep_staff_ids: o.app_lpos_PREPARATION?.map((p: any) => p.PREPARATION_NAME) || []
       };
     }).sort((a, b) => {
@@ -103,12 +105,23 @@ export default function OrdersPage() {
 
       if (advancedFilters.invoiceStatus !== 'All') {
         const status = order.handover_status;
+        const notes = order.tracking_notes;
         if (advancedFilters.invoiceStatus === 'Handed Over') {
-          matchesAdvanced = status === 'Handed Over' || status === 'Pending Confirmation';
+          matchesAdvanced = (status === 'Handed Over' || status === 'Pending Confirmation' || status === 'Pending') &&
+                            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
+                            notes !== 'SYSTEM_CANCELLED';
         } else if (advancedFilters.invoiceStatus === 'Confirmed') {
-          matchesAdvanced = status === 'Confirmed';
+          matchesAdvanced = status === 'Confirmed' &&
+                            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
+                            notes !== 'SYSTEM_CANCELLED';
         } else if (advancedFilters.invoiceStatus === 'Pending') {
-          matchesAdvanced = !status || status === 'Not Handed Over' || status === 'Pending Handover';
+          matchesAdvanced = (!status || status === 'Not Handed Over' || status === 'Pending Handover') &&
+                            notes !== 'SYSTEM_ALREADY_RECEIVED' &&
+                            notes !== 'SYSTEM_CANCELLED';
+        } else if (advancedFilters.invoiceStatus === 'AlreadyReceived') {
+          matchesAdvanced = notes === 'SYSTEM_ALREADY_RECEIVED';
+        } else if (advancedFilters.invoiceStatus === 'Returned') {
+          matchesAdvanced = notes === 'SYSTEM_CANCELLED';
         }
       }
 
@@ -178,9 +191,9 @@ export default function OrdersPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="w-[8%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
+                <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice ID</th>
-                <th className="w-[8%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
                 <th className="w-[12%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
                 <th className="w-[22%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Amount</th>
@@ -203,24 +216,24 @@ export default function OrdersPage() {
                       <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
                     </td>
 
-                    {/* 2. LPO ID */}
+                    {/* 2. Date */}
+                    <td className="px-6 py-6">
+                      <p className="text-sm text-gray-500 font-bold">
+                        {new Date(order.ORDER_DATE || order.CREATED_AT).toLocaleDateString('en-GB')}
+                      </p>
+                    </td>
+
+                    {/* 3. LPO ID */}
                     <td className="px-6 py-6 truncate">
                       <span className="font-bold text-gray-400 text-sm">{order.LPO_ID || '-'}</span>
                     </td>
 
-                    {/* 2b. Invoice ID */}
+                    {/* 4. Invoice ID */}
                     <td className="px-6 py-6 truncate">
                       <span className="font-bold text-gray-400 text-sm">{order.INVOICE_ID || '-'}</span>
                     </td>
 
-                    {/* 3. Date */}
-                    <td className="px-6 py-6">
-                      <p className="text-sm text-gray-500 font-bold">
-                        {new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
-                      </p>
-                    </td>
-
-                    {/* 4. Sales Rep */}
+                    {/* 5. Sales Rep */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex items-center justify-center">
                         <div className="w-8 h-8 bg-black rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-black/10 shrink-0">
@@ -232,7 +245,7 @@ export default function OrdersPage() {
                       </div>
                     </td>
 
-                    {/* 5. Customer */}
+                    {/* 6. Customer */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex flex-col items-center">
                         <p className="font-black text-black text-sm whitespace-normal leading-tight" title={order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}>
@@ -241,7 +254,7 @@ export default function OrdersPage() {
                       </div>
                     </td>
 
-                    {/* 6. Amount */}
+                    {/* 7. Amount */}
                     <td className="px-6 py-6">
                       <span className="font-black text-black text-sm">{order.AMOUNT?.toLocaleString() || '0'} AED</span>
                     </td>

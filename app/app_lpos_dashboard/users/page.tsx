@@ -36,6 +36,7 @@ export default function UsersPage() {
   const [ROLE, setROLE] = useState('user'); 
   const [USER_TYPE, setUSER_TYPE] = useState('Creator');
   const [PASSWORD, setPASSWORD] = useState('');
+  const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -62,6 +63,7 @@ export default function UsersPage() {
     setROLE(user ? user.ROLE : 'user');
     setUSER_TYPE(user ? user.USER_TYPE : 'Creator');
     setPASSWORD(user ? user.PASSWORD : '');
+    setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
     setIsModalOpen(true);
   };
 
@@ -76,14 +78,14 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .update({ NAME, ROLE, USER_TYPE, PASSWORD })
+          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `U-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_USERS')
-          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD });
+          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -165,6 +167,7 @@ export default function UsersPage() {
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Name</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Permissions</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">User Type</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">In Office</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Password</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
               </tr>
@@ -173,14 +176,14 @@ export default function UsersPage() {
               {isLoading ? (
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-8 py-6">
+                    <td colSpan={7} className="px-8 py-6">
                       <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-8 py-12 text-center">
+                  <td colSpan={7} className="px-8 py-12 text-center">
                     <NoData title="NO USERS FOUND" />
                   </td>
                 </tr>
@@ -191,14 +194,7 @@ export default function UsersPage() {
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{user.ID}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black shrink-0 ${
-                          user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-100 text-black/40'
-                        }`}>
-                          {user.NAME.charAt(0)}
-                        </div>
-                        <span className="font-bold text-black">{user.NAME}</span>
-                      </div>
+                      <span className="font-bold text-black">{user.NAME}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
@@ -210,6 +206,13 @@ export default function UsersPage() {
                     </td>
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{user.USER_TYPE || 'Creator'}</span>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${
+                        user.IS_IN_OFFICE ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {user.IS_IN_OFFICE ? 'TRUE' : 'FALSE'}
+                      </div>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex items-center justify-center gap-2 text-gray-400">
@@ -326,7 +329,36 @@ export default function UsersPage() {
                 </div>
               </div>
 
-
+              {/* IS_IN_OFFICE Toggle */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">OFFICE STATUS</label>
+                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setIS_IN_OFFICE(true)}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
+                      IS_IN_OFFICE 
+                        ? 'bg-emerald-500 text-white shadow-xl' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {IS_IN_OFFICE && <Check className="w-4 h-4" />}
+                    TRUE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIS_IN_OFFICE(false)}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
+                      !IS_IN_OFFICE 
+                        ? 'bg-red-500 text-white shadow-xl' 
+                        : 'text-gray-400 hover:text-gray-600'
+                    }`}
+                  >
+                    {!IS_IN_OFFICE && <Check className="w-4 h-4" />}
+                    FALSE
+                  </button>
+                </div>
+              </div>
 
               {/* PASSWORD Field */}
               <div className="space-y-2">

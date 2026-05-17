@@ -11,8 +11,7 @@ import {
   X, 
   Save,
   Loader2,
-  Check,
-  Briefcase
+  Check
 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -32,7 +31,6 @@ export default function StaffPage() {
 
   // Form states
   const [NAME, setNAME] = useState('');
-  const [ROLE, setROLE] = useState('Staff'); 
 
   useEffect(() => {
     fetchStaff();
@@ -56,7 +54,6 @@ export default function StaffPage() {
   const handleOpenModal = (item: any = null) => {
     setEditingStaff(item);
     setNAME(item ? item.NAME : '');
-    setROLE(item ? item.ROLE || 'Staff' : 'Staff');
     setIsModalOpen(true);
   };
 
@@ -85,14 +82,14 @@ export default function StaffPage() {
       if (editingStaff) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_STAFF')
-          .update({ NAME, ROLE })
+          .update({ NAME })
           .eq('ID', editingStaff.ID);
         if (error) throw error;
       } else {
         const nextId = await generateNextId();
         const { error } = await app_lpos_supabase
           .from('app_lpos_STAFF')
-          .insert({ ID: nextId, NAME, ROLE });
+          .insert({ ID: nextId, NAME });
         if (error) throw error;
       }
       setIsModalOpen(false);
@@ -170,24 +167,23 @@ export default function StaffPage() {
           <table className="w-full border-collapse table-fixed">
             <thead>
               <tr className="border-b border-gray-50">
-                <th className="w-[15%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Staff ID</th>
-                <th className="w-[45%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Name</th>
-                <th className="w-[25%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Designation / Role</th>
-                <th className="w-[15%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
+                <th className="w-[25%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Staff ID</th>
+                <th className="w-[50%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Name</th>
+                <th className="w-[25%] px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {isLoading ? (
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={4} className="px-8 py-6">
+                    <td colSpan={3} className="px-8 py-6">
                       <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : filteredStaff.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-8 py-12 text-center">
+                  <td colSpan={3} className="px-8 py-12 text-center">
                     <NoData title="NO STAFF FOUND" />
                   </td>
                 </tr>
@@ -198,18 +194,7 @@ export default function StaffPage() {
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{person.ID}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center font-black text-[#D4AF37] shrink-0 shadow-lg shadow-black/10">
-                          {person.NAME.charAt(0)}
-                        </div>
-                        <span className="font-bold text-black">{person.NAME}</span>
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-400 rounded-xl text-[10px] font-black uppercase tracking-widest border border-gray-100">
-                        <Briefcase className="w-3.5 h-3.5" />
-                        {person.ROLE || 'Staff'}
-                      </div>
+                      <span className="font-bold text-black">{person.NAME}</span>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
@@ -256,22 +241,6 @@ export default function StaffPage() {
                   required
                   className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                 />
-              </div>
-
-              {/* ROLE Field */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">DESIGNATION / ROLE</label>
-                <div className="relative">
-                  <Briefcase className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input 
-                    type="text" 
-                    value={ROLE}
-                    onChange={(e) => setROLE(e.target.value)}
-                    placeholder="e.g. Warehouse, Driver, Assistant..."
-                    required
-                    className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                  />
-                </div>
               </div>
 
               <div className="pt-4 flex gap-4">

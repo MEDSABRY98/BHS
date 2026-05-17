@@ -9,7 +9,8 @@ import {
   XCircle,
   Package,
   User,
-  MapPin,
+  Hash,
+  Banknote,
   Calendar,
   AlertCircle,
   Loader2,
@@ -333,6 +334,8 @@ export default function OrderDetailsPage() {
     }
   };
 
+  const isTabsEnabled = isNoItemsOrder || order?.STATUS === 'Approved' || order?.STATUS === 'Partially Approved';
+
   return (
     <div className="space-y-8 pb-20">
       {/* Header Row */}
@@ -406,9 +409,16 @@ export default function OrderDetailsPage() {
         )}
       </div>
 
+      {/* Standalone Customer Name */}
+      <div className="px-2 -mt-2 mb-2 text-center">
+        <h2 className="text-2xl text-gray-800 font-normal truncate">
+          {order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}
+        </h2>
+      </div>
+
       {/* Customer Info Row - Horizontal */}
       <div className="bg-black rounded-[2.5rem] p-8 text-white shadow-xl shadow-black/20 overflow-hidden">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-8">
+        <div className="flex items-center justify-center gap-8 overflow-hidden w-full">
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
               <Package className="w-5 h-5 text-[#D4AF37]" />
@@ -424,10 +434,58 @@ export default function OrderDetailsPage() {
               <Calendar className="w-5 h-5 text-[#D4AF37]" />
             </div>
             <div>
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Date</p>
+              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Created At</p>
               <p className="font-black text-lg text-white">{new Date(order.CREATED_AT).toLocaleDateString('en-GB')}</p>
             </div>
           </div>
+
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+              <Calendar className="w-5 h-5 text-[#D4AF37]" />
+            </div>
+            <div>
+              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Order Date</p>
+              <p className="font-black text-lg text-white">
+                {order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
+              </p>
+            </div>
+          </div>
+
+          {order.INVOICE_ID && (
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+                <Hash className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <div>
+                <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Invoice ID</p>
+                <p className="font-black text-lg text-white">{order.INVOICE_ID}</p>
+              </div>
+            </div>
+          )}
+
+          {order.LPO_ID && (
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+                <Hash className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <div>
+                <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">LPO ID</p>
+                <p className="font-black text-lg text-white">{order.LPO_ID}</p>
+              </div>
+            </div>
+          )}
+
+          {order.AMOUNT > 0 && (
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
+                <Banknote className="w-5 h-5 text-[#D4AF37]" />
+              </div>
+              <div>
+                <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Amount</p>
+                <p className="font-black text-lg text-white">{order.AMOUNT.toLocaleString()} AED</p>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-4">
             <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
@@ -439,25 +497,7 @@ export default function OrderDetailsPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 md:col-span-2">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-              <User className="w-5 h-5 text-[#D4AF37]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Customer</p>
-              <p className="font-black text-lg text-white truncate">{order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-              <MapPin className="w-5 h-5 text-[#D4AF37]" />
-            </div>
-            <div>
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">City</p>
-              <p className="font-black text-lg text-white">{order.app_lpos_CUSTOMERS?.["CUSTOMER CITY"]}</p>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -474,34 +514,34 @@ export default function OrderDetailsPage() {
           </button>
         )}
         <button
-          onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('PREPARATION')}
-          disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
+          onClick={() => isTabsEnabled && setActiveTab('PREPARATION')}
+          disabled={!isTabsEnabled}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            !isTabsEnabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
-          title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access preparation" : ""}
+          title={!isTabsEnabled ? "Approve order first to access preparation" : ""}
         >
           <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
           Preparation
         </button>
         <button
-          onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('DELIVERY')}
-          disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
+          onClick={() => isTabsEnabled && setActiveTab('DELIVERY')}
+          disabled={!isTabsEnabled}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            !isTabsEnabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
-          title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access logistics" : ""}
+          title={!isTabsEnabled ? "Approve order first to access logistics" : ""}
         >
           <Printer className="w-4 h-4" />
           Logistics / Delivery
         </button>
         <button
-          onClick={() => (order.STATUS === 'Approved' || order.STATUS === 'Partially Approved') && setActiveTab('INVOICES')}
-          disabled={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved'}
+          onClick={() => isTabsEnabled && setActiveTab('INVOICES')}
+          disabled={!isTabsEnabled}
           className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'INVOICES' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' :
-            order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
+            !isTabsEnabled ? 'text-gray-300 cursor-not-allowed opacity-50' : 'text-gray-400 hover:text-black hover:bg-white'
             }`}
-          title={order.STATUS !== 'Approved' && order.STATUS !== 'Partially Approved' ? "Approve order first to access invoices" : ""}
+          title={!isTabsEnabled ? "Approve order first to access invoices" : ""}
         >
           <FileText className="w-4 h-4" />
           Invoices Status

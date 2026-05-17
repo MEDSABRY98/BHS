@@ -275,8 +275,8 @@ export default function DashboardPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
                 <th className="w-[20%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
+                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Date</th>
                 <th className="w-[25%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
                 <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
@@ -297,14 +297,7 @@ export default function DashboardPage() {
                       <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
                     </td>
 
-                    {/* 2. Date */}
-                    <td className="px-6 py-6">
-                      <p className="text-sm text-gray-500 font-bold">
-                        {new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
-                      </p>
-                    </td>
-
-                    {/* 3. Sales Rep */}
+                    {/* 2. Sales Rep */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex items-center justify-center">
                         <div className="w-8 h-8 bg-black rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-black/10 shrink-0">
@@ -314,6 +307,13 @@ export default function DashboardPage() {
                         </div>
                         <span className="text-sm font-bold text-gray-700 truncate">{order.app_lpos_USERS?.NAME}</span>
                       </div>
+                    </td>
+
+                    {/* 3. Date */}
+                    <td className="px-6 py-6">
+                      <p className="text-sm text-gray-500 font-bold">
+                        {new Date(order.ORDER_DATE || order.CREATED_AT).toLocaleDateString('en-GB')}
+                      </p>
                     </td>
 
                     {/* 4. Customer */}

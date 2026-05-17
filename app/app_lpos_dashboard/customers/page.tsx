@@ -13,8 +13,14 @@ import {
   MapPin,
   Building2,
   Loader2,
-  Phone
+  Phone,
+  FileSpreadsheet,
+  Download,
+  Upload,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { ConfirmModal } from '../components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
@@ -31,6 +37,9 @@ export default function CustomersPage() {
   const [confirmAction, setConfirmAction] = useState<'save' | 'delete'>('save');
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Form states - Matching DB columns
   const [CUSTOMER_NAME, setCUSTOMER_NAME] = useState('');
@@ -128,6 +137,135 @@ export default function CustomersPage() {
       setItemToDelete(null);
     }
   };
+ 
+  const triggerMessage = (type: 'success' | 'error', text: string) => {
+    setMessage({ type, text });
+    setTimeout(() => setMessage(null), 5000);
+  };
+
+  const downloadCustomersExcel = () => {
+    try {
+      const exportData = customers.map(c => ({
+        "ID": c.ID,
+        "Customer ID": c["CUSTOMER ID"] || '',
+        "Customer Name": c["CUSTOMER NAME"] || '',
+        "Customer City": c["CUSTOMER CITY"] || ''
+      }));
+      
+      // If there's no customer data yet, provide a sample row
+      if (exportData.length === 0) {
+        exportData.push({
+          "ID": "C-0001",
+          "Customer ID": "CUST-1001",
+          "Customer Name": "Lulu Hypermarket",
+          "Customer City": "Dubai"
+        });
+      }
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Customers");
+      XLSX.writeFile(wb, "Customers_Data.xlsx");
+      triggerMessage('success', 'Excel file exported successfully!');
+    } catch (err: any) {
+      console.error(err);
+      triggerMessage('error', 'Failed to export Excel file');
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    setMessage(null);
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+        if (data.length === 0) {
+          triggerMessage('error', 'Excel file is empty');
+          setIsUploading(false);
+          return;
+        }
+
+        // Fetch latest customers from DB to ensure sequential IDs are unique and correct
+        const { data: latestCustomers, error: fetchErr } = await app_lpos_supabase
+          .from('app_lpos_CUSTOMERS')
+          .select('ID');
+
+        if (fetchErr) throw fetchErr;
+
+        let highestNum = 0;
+        (latestCustomers || []).forEach(c => {
+          if (c.ID && c.ID.startsWith('C-')) {
+            const num = parseInt(c.ID.split('-')[1]);
+            if (!isNaN(num) && num > highestNum) {
+              highestNum = num;
+            }
+          }
+        });
+
+        const recordsToUpsert = [];
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i];
+          let id = row["ID"]?.toString().trim();
+          const customerId = row["Customer ID"]?.toString().trim() || '';
+          const customerName = row["Customer Name"]?.toString().trim();
+          const customerCity = row["Customer City"]?.toString().trim() || '';
+
+          if (!customerName) {
+            triggerMessage('error', `Row ${i + 2}: 'Customer Name' is required`);
+            setIsUploading(false);
+            return;
+          }
+
+          if (!id) {
+            highestNum++;
+            id = `C-${highestNum.toString().padStart(4, '0')}`;
+          }
+
+          recordsToUpsert.push({
+            ID: id,
+            "CUSTOMER ID": customerId,
+            "CUSTOMER NAME": customerName,
+            "CUSTOMER CITY": customerCity
+          });
+        }
+
+        // Perform bulk upsert
+        const { error: upsertErr } = await app_lpos_supabase
+          .from('app_lpos_CUSTOMERS')
+          .upsert(recordsToUpsert);
+
+        if (upsertErr) throw upsertErr;
+
+        triggerMessage('success', `${recordsToUpsert.length} customers processed successfully!`);
+        setIsExcelModalOpen(false);
+        fetchCustomers();
+      } catch (err: any) {
+        console.error(err);
+        triggerMessage('error', err.message || 'Failed to process Excel file');
+      } finally {
+        setIsUploading(false);
+        // Reset file input
+        e.target.value = '';
+      }
+    };
+
+    reader.onerror = () => {
+      triggerMessage('error', 'Error reading Excel file');
+      setIsUploading(false);
+    };
+
+    reader.readAsBinaryString(file);
+  };
 
   const filteredCustomers = customers.filter(c => 
     c["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -139,12 +277,18 @@ export default function CustomersPage() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Customers</h1>
+        <h1 className="text-4xl font-normal text-black tracking-tighter">Customers</h1>
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (
             <>
-
+              <button
+                onClick={() => setIsExcelModalOpen(true)}
+                className="w-12 h-12 bg-white border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black hover:bg-gray-50 transition-all shadow-sm group"
+                title="Excel Actions"
+              >
+                <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
+              </button>
               <button 
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
@@ -326,6 +470,73 @@ export default function CustomersPage() {
         title="Confirm Deletion"
         message="Are you sure you want to delete this customer? This action cannot be undone."
       />
+
+      {/* Excel Modal */}
+      {isExcelModalOpen && (
+        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="absolute inset-0 bg-transparent" onClick={() => !isUploading && setIsExcelModalOpen(false)} />
+          <div className="bg-white rounded-[3rem] p-10 shadow-2xl relative w-full max-w-xl animate-in zoom-in-95 duration-300 border border-white/20">
+            <button
+              onClick={() => setIsExcelModalOpen(false)}
+              className="absolute top-8 right-8 w-10 h-10 flex items-center justify-center text-gray-300 hover:text-black hover:bg-gray-50 rounded-xl transition-all"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-10">
+              <div className="w-14 h-14 bg-emerald-50 rounded-[1.25rem] flex items-center justify-center mb-6">
+                <FileSpreadsheet className="w-7 h-7 text-emerald-600" />
+              </div>
+              <h3 className="text-2xl font-black text-black">Excel Actions</h3>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Update or add customers via Excel</p>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <button
+                onClick={downloadCustomersExcel}
+                className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4"
+              >
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-black group-hover:text-white transition-all">
+                  <Download className="w-6 h-6" />
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-black text-black uppercase tracking-widest">Download Data</p>
+                </div>
+              </button>
+
+              <label className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4 cursor-pointer relative overflow-hidden">
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  className="absolute inset-0 opacity-0 cursor-pointer"
+                />
+                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                  {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                </div>
+                <div className="text-center">
+                  <p className="text-xs font-black text-black uppercase tracking-widest">{isUploading ? 'Uploading...' : 'Upload Update'}</p>
+                </div>
+              </label>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Global Message Notification */}
+      {message && (
+        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${
+          message.type === 'success' ? 'bg-black text-white border-emerald-500' : 'bg-red-600 text-white border-red-800'
+        }`}>
+          {message.type === 'success' ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          ) : (
+            <AlertCircle className="w-5 h-5" />
+          )}
+          <p className="text-[11px] font-black uppercase tracking-widest leading-none">{message.text}</p>
+        </div>
+      )}
     </div>
   );
 }

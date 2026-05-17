@@ -190,7 +190,14 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
                       placeholder="Select driver..."
                       options={staffOptions}
                       value={deliveryData.DRIVERS_NAME}
-                      onChange={(val) => handleSave({ DRIVERS_NAME: val })}
+                      onChange={(val) => {
+                        const now = new Date().toISOString();
+                        handleSave({ 
+                          DRIVERS_NAME: val,
+                          DISPATCH_TIME: deliveryData.DISPATCH_TIME || now,
+                          STATUS: deliveryData.STATUS === 'Assigned' || !deliveryData.STATUS ? 'Dispatched' : deliveryData.STATUS
+                        });
+                      }}
                     />
                   </div>
                 </div>

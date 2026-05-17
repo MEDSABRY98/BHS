@@ -16,7 +16,8 @@ import {
   Download,
   Upload,
   Loader2,
-  X
+  X,
+  Calendar
 } from 'lucide-react';
 import SearchSelect from '../components/DropDownList';
 import { useRouter } from 'next/navigation';
@@ -26,6 +27,7 @@ export default function CreateOrderPage() {
   const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
+  const [staff, setStaff] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
@@ -41,7 +43,9 @@ export default function CreateOrderPage() {
     CUSTOMER_ID: '',
     LPO_ID: '',
     INVOICE_ID: '',
-    AMOUNT: ''
+    AMOUNT: '',
+    DRIVER_ID: '',
+    ORDER_DATE: ''
   });
 
   useEffect(() => {
@@ -50,14 +54,16 @@ export default function CreateOrderPage() {
 
   async function fetchInitialData() {
     try {
-      const [usersRes, customersRes] = await Promise.all([
+      const [usersRes, customersRes, staffRes] = await Promise.all([
         app_lpos_supabase.from('app_lpos_USERS').select('*').order('NAME'),
-        app_lpos_supabase.from('app_lpos_CUSTOMERS').select('*').order('CUSTOMER NAME')
+        app_lpos_supabase.from('app_lpos_CUSTOMERS').select('*').order('CUSTOMER NAME'),
+        app_lpos_supabase.from('app_lpos_STAFF').select('*').order('NAME')
       ]);
 
       const fetchedUsers = usersRes.data || [];
       setUsers(fetchedUsers);
       setCustomers(customersRes.data || []);
+      setStaff(staffRes.data || []);
 
       // Auto-set the logged-in user as the Sales Rep by matching NAME
       const storedUser = localStorage.getItem('currentUser');
@@ -102,12 +108,15 @@ export default function CreateOrderPage() {
 
     const customer = customers.find(c => c.ID === formData.CUSTOMER_ID);
     const user = users.find(u => u.ID === formData.CREATED_BY);
+    const matchedDriver = staff.find(s => s.ID === formData.DRIVER_ID);
 
     const newOrder = {
       ...formData,
       tempId: Math.random().toString(36).substr(2, 9),
       customerName: customer?.["CUSTOMER NAME"],
-      userName: user?.NAME || 'Current User'
+      userName: user?.NAME || 'Current User',
+      driverId: formData.DRIVER_ID || null,
+      driverName: matchedDriver?.NAME || ''
     };
 
     setPendingOrders([...pendingOrders, newOrder]);
@@ -117,7 +126,9 @@ export default function CreateOrderPage() {
       CUSTOMER_ID: '',
       LPO_ID: '',
       INVOICE_ID: '',
-      AMOUNT: ''
+      AMOUNT: '',
+      DRIVER_ID: '',
+      ORDER_DATE: ''
     }));
     setMessage(null);
   };
@@ -129,20 +140,41 @@ export default function CreateOrderPage() {
   async function generateNextOrderId() {
     const { data } = await app_lpos_supabase
       .from('app_lpos_ORDERS')
-      .select('ORDER_ID')
-      .ilike('ORDER_ID', 'ONI-%')
-      .order('ORDER_ID', { ascending: false })
+      .select('ORDER_ID');
+
+    let highestNum = 0;
+    if (data && data.length > 0) {
+      data.forEach(row => {
+        const lastId = row.ORDER_ID;
+        if (lastId) {
+          const parts = lastId.split('-');
+          const num = parseInt(parts[parts.length - 1]);
+          if (!isNaN(num) && num > highestNum) {
+            highestNum = num;
+          }
+        }
+      });
+    }
+    const nextNum = highestNum + 1;
+    return `ONI-${nextNum.toString().padStart(4, '0')}`;
+  }
+
+  async function generateNextDriverId() {
+    const { data } = await app_lpos_supabase
+      .from('app_lpos_DRIVERS')
+      .select('ID')
+      .order('ID', { ascending: false })
       .limit(1);
 
     let nextNum = 1;
     if (data && data.length > 0) {
-      const lastId = data[0].ORDER_ID;
-      if (lastId && lastId.startsWith('ONI-')) {
+      const lastId = data[0].ID;
+      if (lastId && lastId.startsWith('DRI-')) {
         const lastNum = parseInt(lastId.split('-')[1]);
         if (!isNaN(lastNum)) nextNum = lastNum + 1;
       }
     }
-    return `ONI-${nextNum.toString().padStart(4, '0')}`;
+    return `DRI-${nextNum.toString().padStart(4, '0')}`;
   }
 
   const handleSaveAll = async () => {
@@ -159,21 +191,53 @@ export default function CreateOrderPage() {
       const startId = await generateNextOrderId();
       const baseNum = parseInt(startId.split('-')[1]);
 
-      const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, ...rest }, index) => {
+      const tempIdToOrderId: Record<string, string> = {};
+      const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
         const currentId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
+        tempIdToOrderId[tempId] = currentId;
+        
+        const orderDateVal = rest.ORDER_DATE 
+          ? new Date(rest.ORDER_DATE).toISOString() 
+          : new Date().toISOString();
+
         return {
           ...rest,
           ID: currentId,
           ORDER_ID: currentId,
-          AMOUNT: parseFloat(rest.AMOUNT) || 0
+          AMOUNT: parseFloat(rest.AMOUNT) || 0,
+          ORDER_DATE: orderDateVal
         };
       });
 
-      const { error } = await app_lpos_supabase
+      const { error: orderError } = await app_lpos_supabase
         .from('app_lpos_ORDERS')
         .insert(ordersToInsert);
 
-      if (error) throw error;
+      if (orderError) throw orderError;
+
+      // Insert drivers for those who have a driver assigned
+      const ordersWithDrivers = pendingOrders.filter(o => o.driverId);
+      if (ordersWithDrivers.length > 0) {
+        const startDriverId = await generateNextDriverId();
+        const baseDriverNum = parseInt(startDriverId.split('-')[1]);
+
+        const driversToInsert = ordersWithDrivers.map((order, index) => {
+          const currentDriverId = `DRI-${(baseDriverNum + index).toString().padStart(4, '0')}`;
+          return {
+            ID: currentDriverId,
+            ORDER_ID: tempIdToOrderId[order.tempId],
+            DRIVERS_NAME: order.driverId,
+            STATUS: 'Dispatched',
+            DISPATCH_TIME: new Date().toISOString()
+          };
+        });
+
+        const { error: driverError } = await app_lpos_supabase
+          .from('app_lpos_DRIVERS')
+          .insert(driversToInsert);
+
+        if (driverError) throw driverError;
+      }
 
       setMessage({ type: 'success', text: `${pendingOrders.length} Orders created successfully!` });
       setPendingOrders([]);
@@ -187,7 +251,7 @@ export default function CreateOrderPage() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { "Customer Name": "Example Customer", "LPO ID": "LPO-001", "Invoice ID": "INV-001", "Amount": 1500.50 }
+      { "Customer Name": "Example Customer", "LPO ID": "LPO-001", "Invoice ID": "INV-001", "Amount": 1500.50, "Driver": "Driver Name", "Order Date": "2026-05-18" }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders Template");
@@ -215,6 +279,7 @@ export default function CreateOrderPage() {
           const customerName = row["Customer Name"];
           const lpoId = row["LPO ID"];
           const invoiceId = row["Invoice ID"];
+          const driverName = row["Driver"];
 
           const customer = customers.find(c => 
             c["CUSTOMER NAME"]?.toLowerCase() === customerName?.toString().toLowerCase()
@@ -225,6 +290,41 @@ export default function CreateOrderPage() {
             const hasId = lpoId || invoiceId;
 
             if (hasAmount && hasId) {
+              let driverId = null;
+              let matchedDriverName = '';
+              
+              if (driverName) {
+                const matchedStaff = staff.find(s => 
+                  s.NAME?.toLowerCase() === driverName?.toString().trim().toLowerCase()
+                );
+                if (matchedStaff) {
+                  driverId = matchedStaff.ID;
+                  matchedDriverName = matchedStaff.NAME;
+                } else {
+                  errors.push(`Row ${index + 2}: Driver "${driverName}" not found in staff list`);
+                  return;
+                }
+              }
+
+              // Convert Excel serial date or string to Date format
+              let parsedOrderDate = '';
+              if (row["Order Date"]) {
+                try {
+                  const rawDate = row["Order Date"];
+                  if (typeof rawDate === 'number') {
+                    const dateObj = new Date((rawDate - 25569) * 86400 * 1000);
+                    parsedOrderDate = dateObj.toISOString().split('T')[0];
+                  } else {
+                    const dateObj = new Date(rawDate.toString().trim());
+                    if (!isNaN(dateObj.getTime())) {
+                      parsedOrderDate = dateObj.toISOString().split('T')[0];
+                    }
+                  }
+                } catch (e) {
+                  console.error('Error parsing excel date', e);
+                }
+              }
+
               newPendingOrders.push({
                 CREATED_BY: formData.CREATED_BY,
                 CUSTOMER_ID: customer.ID,
@@ -233,7 +333,10 @@ export default function CreateOrderPage() {
                 AMOUNT: row["Amount"] || 0,
                 tempId: Math.random().toString(36).substr(2, 9),
                 customerName: customer["CUSTOMER NAME"],
-                userName: users.find(u => u.ID === formData.CREATED_BY)?.NAME || 'Current User'
+                userName: users.find(u => u.ID === formData.CREATED_BY)?.NAME || 'Current User',
+                driverId: driverId,
+                driverName: matchedDriverName,
+                ORDER_DATE: parsedOrderDate
               });
             } else {
               errors.push(`Row ${index + 2}: Amount and at least one ID (LPO or Invoice) are required`);
@@ -304,7 +407,21 @@ export default function CreateOrderPage() {
       {/* Input Form Container */}
       <div className="bg-white rounded-[3rem] p-10 shadow-2xl shadow-black/5 border border-gray-100 relative">
         <div className="space-y-8">
-          <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_1fr_1fr_auto] items-end gap-6 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-[1.4fr_2.5fr_1.1fr_1.1fr_0.9fr_1.4fr_auto] items-end gap-6 w-full">
+            {/* 3d. Order Date Input (Optional) */}
+            <div className="flex flex-col gap-2 min-w-0">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 flex items-center gap-2">
+                <Calendar className="w-3 h-3 text-[#D4AF37]" />
+                Order Date
+              </label>
+              <input
+                type="date"
+                value={formData.ORDER_DATE}
+                onChange={(e) => setFormData({ ...formData, ORDER_DATE: e.target.value })}
+                className="w-full px-6 h-[68px] bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-bold text-black"
+              />
+            </div>
+
             {/* 1. Customer Selection */}
             <div className="min-w-0">
               <SearchSelect
@@ -363,6 +480,18 @@ export default function CreateOrderPage() {
               />
             </div>
 
+            {/* 3c. Driver Selection */}
+            <div className="min-w-0">
+              <SearchSelect
+                label=""
+                options={staff.map(s => ({ id: s.ID, label: s.NAME }))}
+                value={formData.DRIVER_ID}
+                onChange={(val) => setFormData({ ...formData, DRIVER_ID: val })}
+                placeholder="Driver"
+                isLoading={isLoading}
+              />
+            </div>
+
             {/* 4. Add Button */}
             <div className="flex flex-col gap-2 w-fit">
               <div className="h-4" /> {/* Spacer to align with labels */}
@@ -398,18 +527,23 @@ export default function CreateOrderPage() {
 
           <div className="overflow-hidden rounded-[2.5rem] border border-gray-50">
             <table className="w-full text-center">
-              <thead className="bg-gray-50">
-                <tr>
+               <thead className="bg-gray-50">
+                 <tr>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order Date</th>
                   <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">INVOICE_ID</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">AMOUNT</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Driver</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
                 {pendingOrders.map((order) => (
                   <tr key={order.tempId} className="hover:bg-gray-50/50 transition-all">
+                    <td className="px-8 py-6">
+                      <span className="font-bold text-gray-600 text-sm">{order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : 'Today'}</span>
+                    </td>
                     <td className="px-8 py-6">
                       <span className="font-black text-black text-sm">{order.customerName}</span>
                     </td>
@@ -421,6 +555,9 @@ export default function CreateOrderPage() {
                     </td>
                     <td className="px-8 py-6">
                       <span className="font-black text-black text-sm">{parseFloat(order.AMOUNT).toLocaleString()} AED</span>
+                    </td>
+                    <td className="px-8 py-6">
+                      <span className="font-bold text-gray-600 text-sm">{order.driverName || '-'}</span>
                     </td>
                     <td className="px-8 py-6">
                       <div className="flex justify-center">
