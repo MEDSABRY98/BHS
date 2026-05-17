@@ -59,19 +59,20 @@ export async function generateAccountStatementPDF(
   const now = new Date();
   const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
   
-  if (monthsLabel && monthsLabel !== 'All Months' && monthsLabel !== 'All Months (Net Only)') {
-    let balanceDateStr = monthsLabel.replace('Up To ', '');
-    const parts = balanceDateStr.split('/');
-    if (parts.length === 3) {
-      const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+  let balanceDateStr = '';
+  for (let i = invoices.length - 1; i >= 0; i--) {
+    if (invoices[i].date) {
+      const d = new Date(invoices[i].date);
       if (!isNaN(d.getTime())) {
         balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
+        break;
       }
     }
-    doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
-  } else {
-    doc.text(`Date: ${currentDate}`, margin, yPosition);
   }
+  if (!balanceDateStr) {
+    balanceDateStr = currentDate;
+  }
+  doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
   yPosition += 8;
 
   const tableData = invoices.map((inv) => {
@@ -82,8 +83,10 @@ export async function generateAccountStatementPDF(
         dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
       }
     }
-    let type = getInvoiceType(inv);
-    if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
+    const num = (inv.number || '').trim().toUpperCase();
+    const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
+    let type = isSpecialType ? '-' : getInvoiceType(inv);
+    if (!isSpecialType && inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
       const d = new Date(inv.date);
       if (!isNaN(d.getTime())) {
         const yy = d.getFullYear().toString().slice(-2);
@@ -156,7 +159,13 @@ export async function generateAccountStatementPDF(
         data.cell.styles.fillColor = [255, 235, 235];
       }
       if (data.column.index === 1 && data.row.index < tableData.length) {
-        data.cell.styles.textColor = [255, 255, 255];
+        const num = (inv?.number || '').trim().toUpperCase();
+        const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
+        if (isSpecialType) {
+          data.cell.styles.textColor = [0, 0, 0];
+        } else {
+          data.cell.styles.textColor = [255, 255, 255];
+        }
       }
       if (data.column.index === 5 && data.row.index < tableData.length) {
         const nd = invoices[data.row.index].netDebt;
@@ -169,6 +178,7 @@ export async function generateAccountStatementPDF(
         const inv = invoices[data.row.index];
         if (!inv) return;
         const text = Array.isArray(data.cell.text) ? data.cell.text.join('') : data.cell.text;
+        if (!text || !text.trim() || text === '-') return; // Don't draw badge for empty text or dash
         const type = getInvoiceType(inv);
         const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
         const isReturnPayment = inv && type === 'R-Payment';
@@ -293,19 +303,20 @@ export async function generateBulkCustomerStatementsPDF(
     const now = new Date();
     const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
     
-    if (monthsLabel && monthsLabel !== 'All Months' && monthsLabel !== 'All Months (Net Only)') {
-      let balanceDateStr = monthsLabel.replace('Up To ', '');
-      const parts = balanceDateStr.split('/');
-      if (parts.length === 3) {
-        const d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+    let balanceDateStr = '';
+    for (let i = invoices.length - 1; i >= 0; i--) {
+      if (invoices[i].date) {
+        const d = new Date(invoices[i].date);
         if (!isNaN(d.getTime())) {
           balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
+          break;
         }
       }
-      doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
-    } else {
-      doc.text(`Date: ${currentDate}`, margin, yPosition);
     }
+    if (!balanceDateStr) {
+      balanceDateStr = currentDate;
+    }
+    doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
     yPosition += 8;
 
     const tableData = invoices.map((inv) => {
@@ -316,8 +327,10 @@ export async function generateBulkCustomerStatementsPDF(
           dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         }
       }
-      let type = getInvoiceType(inv);
-      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
+      const num = (inv.number || '').trim().toUpperCase();
+      const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
+      let type = isSpecialType ? '-' : getInvoiceType(inv);
+      if (!isSpecialType && inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
         const d = new Date(inv.date);
         if (!isNaN(d.getTime())) {
           const yy = d.getFullYear().toString().slice(-2);
@@ -370,7 +383,13 @@ export async function generateBulkCustomerStatementsPDF(
           data.cell.styles.fillColor = [255, 235, 235];
         }
         if (data.column.index === 1 && data.row.index < tableData.length) {
-          data.cell.styles.textColor = [255, 255, 255];
+          const num = (inv?.number || '').trim().toUpperCase();
+          const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
+          if (isSpecialType) {
+            data.cell.styles.textColor = [0, 0, 0];
+          } else {
+            data.cell.styles.textColor = [255, 255, 255];
+          }
         }
         if (data.column.index === 5 && data.row.index < tableData.length) {
           const nd = invoices[data.row.index].netDebt;
@@ -383,6 +402,7 @@ export async function generateBulkCustomerStatementsPDF(
           const inv = invoices[data.row.index];
           if (!inv) return;
           const text = Array.isArray(data.cell.text) ? data.cell.text.join('') : data.cell.text;
+          if (!text || !text.trim() || text === '-') return; // Don't draw badge for empty text or dash
           const type = getInvoiceType(inv);
           const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
           const isReturnPayment = inv && type === 'R-Payment';
@@ -511,7 +531,21 @@ export async function generateMonthlySeparatedPDF(
     doc.setFont('helvetica', 'normal');
     const now = new Date();
     const currentDate = `${now.getDate()}-${now.toLocaleDateString('en-US', { month: 'short' })}-${now.getFullYear()}`;
-    doc.text(`Generated: ${currentDate}`, margin, yPosition);
+    
+    let balanceDateStr = '';
+    for (let j = monthInvoices.length - 1; j >= 0; j--) {
+      if (monthInvoices[j].date) {
+        const d = new Date(monthInvoices[j].date);
+        if (!isNaN(d.getTime())) {
+          balanceDateStr = `${d.getDate()}-${d.toLocaleDateString('en-US', { month: 'short' })}-${d.getFullYear()}`;
+          break;
+        }
+      }
+    }
+    if (!balanceDateStr) {
+      balanceDateStr = currentDate;
+    }
+    doc.text(`Date Generated: ${currentDate}   #   Date Balance: ${balanceDateStr}`, margin, yPosition);
     yPosition += 8;
 
     const tableData = monthInvoices.map((inv) => {
@@ -522,8 +556,10 @@ export async function generateMonthlySeparatedPDF(
           dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         }
       }
-      let type = getInvoiceType(inv);
-      if (inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
+      const num = (inv.number || '').trim().toUpperCase();
+      const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
+      let type = isSpecialType ? '-' : getInvoiceType(inv);
+      if (!isSpecialType && inv.date && (type === 'Sales' || type === 'Return' || type === 'Discount' || type === 'Payment' || type === 'R-Payment' || type === 'Our-Paid')) {
         const d = new Date(inv.date);
         if (!isNaN(d.getTime())) {
           const yy = d.getFullYear().toString().slice(-2);
@@ -575,11 +611,19 @@ export async function generateMonthlySeparatedPDF(
         const isReturnPayment = inv && getInvoiceType(inv) === 'R-Payment';
         if (isReturnPayment && data.column.index !== 1) data.cell.styles.fillColor = [255, 235, 235];
         if (data.column.index === 1 && data.row.index < tableData.length - 1) {
-          const type = getInvoiceType(monthInvoices[data.row.index]);
-          const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
-          data.cell.styles.fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor;
-          data.cell.styles.textColor = isReturnPayment ? [185, 28, 28] : colors.textColor;
-          data.cell.styles.fontStyle = 'bold';
+          const num = (inv?.number || '').trim().toUpperCase();
+          const isSpecialType = num.startsWith('BIL') || num.startsWith('JV');
+          if (isSpecialType) {
+            data.cell.styles.fillColor = [255, 255, 255];
+            data.cell.styles.textColor = [0, 0, 0];
+            data.cell.styles.fontStyle = 'normal';
+          } else {
+            const type = getInvoiceType(monthInvoices[data.row.index]);
+            const colors = TYPE_BADGE_COLORS[type] || TYPE_BADGE_COLORS['Invoice/Txn'];
+            data.cell.styles.fillColor = isReturnPayment ? [254, 226, 226] : colors.fillColor;
+            data.cell.styles.textColor = isReturnPayment ? [185, 28, 28] : colors.textColor;
+            data.cell.styles.fontStyle = 'bold';
+          }
         }
         if (data.column.index === 5 && data.row.index < tableData.length - 1) {
           const netDebt = monthInvoices[data.row.index].netDebt;
