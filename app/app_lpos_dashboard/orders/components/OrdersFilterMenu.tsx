@@ -102,10 +102,10 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   placeholder="All Invoices"
                   options={[
                     { id: 'All', label: 'All Invoices' },
-                    { id: 'Pending', label: 'Pending Handover', subLabel: 'Awaiting Handover' },
-                    { id: 'Handed Over', label: 'Handed Over', subLabel: 'Assigned to Driver' },
-                    { id: 'Confirmed', label: 'Confirmed', subLabel: 'Fully Delivered' },
-                    { id: 'Returned', label: 'Returned & Cancelled', subLabel: 'Returned' }
+                    { id: 'Pending', label: 'Pending Handover' },
+                    { id: 'Handed Over', label: 'Handed Over' },
+                    { id: 'Confirmed', label: 'Confirmed' },
+                    { id: 'Returned', label: 'Returned & Cancelled' }
                   ]}
                   value={activeFilters.invoiceStatus}
                   onChange={(val) => onFilterChange({ ...activeFilters, invoiceStatus: (val as any) || 'All' })}
@@ -123,7 +123,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   placeholder="All Drivers"
                   options={[
                     { id: 'All', label: 'All Drivers' },
-                    ...driversList.map(d => ({ id: d.ID, label: d.NAME, subLabel: `Staff ID: ${d.ID}` }))
+                    ...driversList.map(d => ({ id: d.ID, label: d.NAME }))
                   ]}
                   value={activeFilters.driverId}
                   onChange={(val) => onFilterChange({ ...activeFilters, driverId: val || 'All' })}
@@ -141,7 +141,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   placeholder="All Staff"
                   options={[
                     { id: 'All', label: 'All Staff' },
-                    ...staffList.map(s => ({ id: s.ID, label: s.NAME, subLabel: `Staff ID: ${s.ID}` }))
+                    ...staffList.map(s => ({ id: s.ID, label: s.NAME }))
                   ]}
                   value={activeFilters.prepStaffName}
                   onChange={(val) => onFilterChange({ ...activeFilters, prepStaffName: val || 'All' })}
