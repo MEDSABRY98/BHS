@@ -16,6 +16,7 @@ interface SearchSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   isLoading?: boolean;
+  direction?: 'up' | 'down';
 }
 
 export default function SearchSelect({
@@ -24,7 +25,8 @@ export default function SearchSelect({
   value,
   onChange,
   placeholder = 'Select option...',
-  isLoading = false
+  isLoading = false,
+  direction = 'down'
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -97,7 +99,7 @@ export default function SearchSelect({
       </div>
 
       {isOpen && (
-        <div className="absolute top-[calc(100%+12px)] left-0 right-0 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-[100] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
+        <div className={`absolute ${direction === 'up' ? 'bottom-[calc(100%+12px)]' : 'top-[calc(100%+12px)]'} left-0 right-0 bg-white border border-gray-100 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] z-[100] overflow-hidden animate-in fade-in ${direction === 'up' ? 'slide-in-from-bottom-2' : 'slide-in-from-top-2'} duration-300`}>
           <div className="p-4 bg-gray-50/50">
             <div className="relative group">
               <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-black transition-colors" />

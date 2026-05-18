@@ -145,6 +145,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   ]}
                   value={activeFilters.prepStaffName}
                   onChange={(val) => onFilterChange({ ...activeFilters, prepStaffName: val || 'All' })}
+                  direction="up"
                 />
               </div>
 
