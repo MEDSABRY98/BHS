@@ -25,6 +25,7 @@ export default function OrdersPage() {
     driverId: 'All',
     prepStaffName: 'All'
   });
+  const [isFiltersLoaded, setIsFiltersLoaded] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -48,21 +49,28 @@ export default function OrdersPage() {
           console.error('Error parsing stored advanced filters:', e);
         }
       }
+      setIsFiltersLoaded(true);
     }
   }, []);
 
-  // Save filters to sessionStorage when they change
+  // Save filters to sessionStorage ONLY after they have been loaded on mount
   useEffect(() => {
-    sessionStorage.setItem('orders_searchTerm', searchTerm);
-  }, [searchTerm]);
+    if (isFiltersLoaded) {
+      sessionStorage.setItem('orders_searchTerm', searchTerm);
+    }
+  }, [searchTerm, isFiltersLoaded]);
 
   useEffect(() => {
-    sessionStorage.setItem('orders_statusFilter', statusFilter);
-  }, [statusFilter]);
+    if (isFiltersLoaded) {
+      sessionStorage.setItem('orders_statusFilter', statusFilter);
+    }
+  }, [statusFilter, isFiltersLoaded]);
 
   useEffect(() => {
-    sessionStorage.setItem('orders_advancedFilters', JSON.stringify(advancedFilters));
-  }, [advancedFilters]);
+    if (isFiltersLoaded) {
+      sessionStorage.setItem('orders_advancedFilters', JSON.stringify(advancedFilters));
+    }
+  }, [advancedFilters, isFiltersLoaded]);
 
   async function fetchStaff() {
     const { data } = await app_lpos_supabase
