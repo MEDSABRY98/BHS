@@ -94,6 +94,7 @@ export default function OrdersPage() {
       // 1. Search Filter
       const matchesSearch =
         order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.INVOICE_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.app_lpos_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
 
@@ -162,7 +163,7 @@ export default function OrdersPage() {
           <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by ID, Customer or Staff..."
+            placeholder="Search by Order ID, Invoice ID, Customer or Staff..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-14 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-sm font-medium"

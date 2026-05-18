@@ -90,7 +90,7 @@ export default function CreateOrderPage() {
     }
   }
 
-  const addOrderToList = () => {
+  const addOrderToList = async () => {
     if (!formData.CUSTOMER_ID) {
       setMessage({ type: 'error', text: 'Please select a customer first' });
       return;
@@ -104,6 +104,33 @@ export default function CreateOrderPage() {
     if (!formData.LPO_ID && !formData.INVOICE_ID) {
       setMessage({ type: 'error', text: 'Please enter either LPO ID or Invoice ID' });
       return;
+    }
+
+    // 1. Validation for duplicate Invoice ID
+    if (formData.INVOICE_ID) {
+      const trimmedInvoice = formData.INVOICE_ID.trim();
+      const invoiceLower = trimmedInvoice.toLowerCase();
+
+      // Check current pending list
+      const isDuplicateInPending = pendingOrders.some(
+        o => o.INVOICE_ID && o.INVOICE_ID.trim().toLowerCase() === invoiceLower
+      );
+      if (isDuplicateInPending) {
+        setMessage({ type: 'error', text: `Invoice ID "${trimmedInvoice}" is already in the pending list` });
+        return;
+      }
+
+      // Check Supabase database
+      const { data, error } = await app_lpos_supabase
+        .from('app_lpos_ORDERS')
+        .select('ORDER_ID')
+        .eq('INVOICE_ID', trimmedInvoice)
+        .limit(1);
+
+      if (data && data.length > 0) {
+        setMessage({ type: 'error', text: `Invoice ID "${trimmedInvoice}" already exists in Order ${data[0].ORDER_ID}` });
+        return;
+      }
     }
 
     const customer = customers.find(c => c.ID === formData.CUSTOMER_ID);
@@ -264,7 +291,7 @@ export default function CreateOrderPage() {
 
     setIsUploading(true);
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const bstr = evt.target?.result;
         const wb = XLSX.read(bstr, { type: 'binary' });
@@ -275,11 +302,64 @@ export default function CreateOrderPage() {
         const newPendingOrders: any[] = [];
         const errors: string[] = [];
 
+        // 1. Get all unique non-empty Invoice IDs from the uploaded excel data to check database
+        const uploadedInvoiceIds: string[] = data
+          .map(row => row["Invoice ID"]?.toString().trim())
+          .filter(Boolean);
+
+        // Fetch existing Invoice IDs from the database to prevent duplicates
+        let dbExistingInvoices: Record<string, string> = {}; // invoice_id -> order_id
+        if (uploadedInvoiceIds.length > 0) {
+          const { data: dbOrders, error: dbError } = await app_lpos_supabase
+            .from('app_lpos_ORDERS')
+            .select('ORDER_ID, INVOICE_ID')
+            .in('INVOICE_ID', uploadedInvoiceIds);
+          
+          if (!dbError && dbOrders) {
+            dbOrders.forEach(row => {
+              if (row.INVOICE_ID && row.ORDER_ID) {
+                dbExistingInvoices[row.INVOICE_ID.trim().toLowerCase()] = row.ORDER_ID;
+              }
+            });
+          }
+        }
+
+        // 2. Keep track of duplicates seen in this Excel sheet and current pending orders list
+        const sheetInvoicesSeen = new Set<string>();
+        const pendingInvoicesSeen = new Set<string>(
+          pendingOrders.map(o => o.INVOICE_ID?.trim().toLowerCase()).filter(Boolean)
+        );
+
         data.forEach((row, index) => {
           const customerName = row["Customer Name"];
           const lpoId = row["LPO ID"];
-          const invoiceId = row["Invoice ID"];
+          const invoiceId = row["Invoice ID"]?.toString().trim();
           const driverName = row["Driver"];
+
+          // Check if invoice ID is duplicate
+          if (invoiceId) {
+            const invoiceLower = invoiceId.toLowerCase();
+
+            // Check database
+            if (dbExistingInvoices[invoiceLower]) {
+              errors.push(`Row ${index + 2}: Invoice ID "${invoiceId}" already exists in database (Order ${dbExistingInvoices[invoiceLower]})`);
+              return;
+            }
+
+            // Check current pending list
+            if (pendingInvoicesSeen.has(invoiceLower)) {
+              errors.push(`Row ${index + 2}: Invoice ID "${invoiceId}" is already in the pending list`);
+              return;
+            }
+
+            // Check within this Excel file
+            if (sheetInvoicesSeen.has(invoiceLower)) {
+              errors.push(`Row ${index + 2}: Duplicate Invoice ID "${invoiceId}" inside the Excel sheet`);
+              return;
+            }
+
+            sheetInvoicesSeen.add(invoiceLower);
+          }
 
           const customer = customers.find(c => 
             c["CUSTOMER NAME"]?.toLowerCase() === customerName?.toString().toLowerCase()
