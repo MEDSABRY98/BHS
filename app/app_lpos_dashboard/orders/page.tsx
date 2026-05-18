@@ -189,11 +189,17 @@ export default function OrdersPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
-        <OrdersFilterMenu
-          activeFilters={advancedFilters}
-          onFilterChange={setAdvancedFilters}
-          staffList={staffList}
-        />
+        <div className="flex items-center gap-3">
+          <OrdersFilterMenu
+            activeFilters={advancedFilters}
+            onFilterChange={setAdvancedFilters}
+            staffList={staffList}
+          />
+          <div className="px-4 py-2 bg-[#D4AF37]/10 text-black border border-[#D4AF37]/20 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+            <span className="w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse" />
+            {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
+          </div>
+        </div>
       </div>
 
       {/* Filters */}
