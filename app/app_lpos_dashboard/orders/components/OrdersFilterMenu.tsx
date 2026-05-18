@@ -11,7 +11,7 @@ interface OrdersFilterMenuProps {
 }
 
 export interface FilterCriteria {
-  invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending' | 'AlreadyReceived' | 'Returned';
+  invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending' | 'Returned';
   driverId: string;
   prepStaffName: string;
 }
@@ -106,7 +106,6 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                     <option value="Pending">Pending Handover</option>
                     <option value="Handed Over">Handed Over</option>
                     <option value="Confirmed">Confirmed</option>
-                    <option value="AlreadyReceived">Already Received</option>
                     <option value="Returned">Returned & Cancelled</option>
                   </select>
                   <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />

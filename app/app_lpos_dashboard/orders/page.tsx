@@ -119,8 +119,6 @@ export default function OrdersPage() {
           matchesAdvanced = (!status || status === 'Not Handed Over' || status === 'Pending Handover') &&
             notes !== 'SYSTEM_ALREADY_RECEIVED' &&
             notes !== 'SYSTEM_CANCELLED';
-        } else if (advancedFilters.invoiceStatus === 'AlreadyReceived') {
-          matchesAdvanced = notes === 'SYSTEM_ALREADY_RECEIVED';
         } else if (advancedFilters.invoiceStatus === 'Returned') {
           matchesAdvanced = notes === 'SYSTEM_CANCELLED';
         }
