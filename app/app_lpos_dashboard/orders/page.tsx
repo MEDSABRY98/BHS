@@ -31,6 +31,39 @@ export default function OrdersPage() {
     fetchOrders();
   }, []);
 
+  // Load saved filters from sessionStorage on mount to avoid hydration mismatch
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedSearch = sessionStorage.getItem('orders_searchTerm');
+      if (savedSearch !== null) setSearchTerm(savedSearch);
+
+      const savedStatus = sessionStorage.getItem('orders_statusFilter');
+      if (savedStatus !== null) setStatusFilter(savedStatus);
+
+      const savedAdvanced = sessionStorage.getItem('orders_advancedFilters');
+      if (savedAdvanced !== null) {
+        try {
+          setAdvancedFilters(JSON.parse(savedAdvanced));
+        } catch (e) {
+          console.error('Error parsing stored advanced filters:', e);
+        }
+      }
+    }
+  }, []);
+
+  // Save filters to sessionStorage when they change
+  useEffect(() => {
+    sessionStorage.setItem('orders_searchTerm', searchTerm);
+  }, [searchTerm]);
+
+  useEffect(() => {
+    sessionStorage.setItem('orders_statusFilter', statusFilter);
+  }, [statusFilter]);
+
+  useEffect(() => {
+    sessionStorage.setItem('orders_advancedFilters', JSON.stringify(advancedFilters));
+  }, [advancedFilters]);
+
   async function fetchStaff() {
     const { data } = await app_lpos_supabase
       .from('app_lpos_STAFF')
