@@ -794,11 +794,11 @@ export default function CreateOrderPage() {
             </div>
 
             {/* Tab Bar Selector */}
-            <div className="flex gap-6 border-b border-gray-100 pb-4 mb-8">
+            <div className="flex w-full border-b border-gray-100 pb-4 mb-8">
               <button
                 type="button"
                 onClick={() => setExcelActionType('import')}
-                className={`pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+                className={`flex-1 text-center pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
                   excelActionType === 'import' 
                     ? 'text-black' 
                     : 'text-gray-400 hover:text-black'
@@ -812,7 +812,7 @@ export default function CreateOrderPage() {
               <button
                 type="button"
                 onClick={() => setExcelActionType('update')}
-                className={`pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+                className={`flex-1 text-center pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
                   excelActionType === 'update' 
                     ? 'text-black' 
                     : 'text-gray-400 hover:text-black'
