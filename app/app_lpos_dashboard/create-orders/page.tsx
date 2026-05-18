@@ -784,15 +784,12 @@ export default function CreateOrderPage() {
             >
               <X className="w-5 h-5" />
             </button>
-
             <div className="mb-8">
               <div className="w-14 h-14 bg-emerald-50 rounded-[1.25rem] flex items-center justify-center mb-6">
                 <FileSpreadsheet className="w-7 h-7 text-emerald-600" />
               </div>
               <h3 className="text-2xl font-black text-black">Excel Actions</h3>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Import new orders or update existing ones by Invoice ID</p>
             </div>
-
             {/* Tab Bar Selector */}
             <div className="flex w-full border-b border-gray-100 pb-4 mb-8">
               <button
