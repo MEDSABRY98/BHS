@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
 import { Filter, X, ChevronDown, User, Truck, ClipboardList, RotateCcw } from 'lucide-react';
+import SearchSelect from '../../components/DropDownList';
 
 interface OrdersFilterMenuProps {
   onFilterChange: (filters: FilterCriteria) => void;
@@ -96,20 +97,19 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   <ClipboardList className="w-4 h-4" />
                   <p className="text-[10px] font-black uppercase tracking-widest">Invoices Status</p>
                 </div>
-                <div className="relative">
-                  <select
-                    value={activeFilters.invoiceStatus}
-                    onChange={(e) => onFilterChange({ ...activeFilters, invoiceStatus: e.target.value as any })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-black/5"
-                  >
-                    <option value="All">All Invoices</option>
-                    <option value="Pending">Pending Handover</option>
-                    <option value="Handed Over">Handed Over</option>
-                    <option value="Confirmed">Confirmed</option>
-                    <option value="Returned">Returned & Cancelled</option>
-                  </select>
-                  <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
+                <SearchSelect
+                  label=""
+                  placeholder="All Invoices"
+                  options={[
+                    { id: 'All', label: 'All Invoices' },
+                    { id: 'Pending', label: 'Pending Handover', subLabel: 'Awaiting Handover' },
+                    { id: 'Handed Over', label: 'Handed Over', subLabel: 'Assigned to Driver' },
+                    { id: 'Confirmed', label: 'Confirmed', subLabel: 'Fully Delivered' },
+                    { id: 'Returned', label: 'Returned & Cancelled', subLabel: 'Returned' }
+                  ]}
+                  value={activeFilters.invoiceStatus}
+                  onChange={(val) => onFilterChange({ ...activeFilters, invoiceStatus: (val as any) || 'All' })}
+                />
               </div>
 
               {/* 2. Driver */}
@@ -118,19 +118,16 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   <Truck className="w-4 h-4" />
                   <p className="text-[10px] font-black uppercase tracking-widest">Assignee (Driver)</p>
                 </div>
-                <div className="relative">
-                  <select
-                    value={activeFilters.driverId}
-                    onChange={(e) => onFilterChange({ ...activeFilters, driverId: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-black/5"
-                  >
-                    <option value="All">All Drivers</option>
-                    {driversList.map(d => (
-                      <option key={d.ID} value={d.ID}>{d.NAME}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
+                <SearchSelect
+                  label=""
+                  placeholder="All Drivers"
+                  options={[
+                    { id: 'All', label: 'All Drivers' },
+                    ...driversList.map(d => ({ id: d.ID, label: d.NAME, subLabel: `Staff ID: ${d.ID}` }))
+                  ]}
+                  value={activeFilters.driverId}
+                  onChange={(val) => onFilterChange({ ...activeFilters, driverId: val || 'All' })}
+                />
               </div>
 
               {/* 3. Prep Staff */}
@@ -139,19 +136,16 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                   <User className="w-4 h-4" />
                   <p className="text-[10px] font-black uppercase tracking-widest">Prepared By</p>
                 </div>
-                <div className="relative">
-                  <select
-                    value={activeFilters.prepStaffName}
-                    onChange={(e) => onFilterChange({ ...activeFilters, prepStaffName: e.target.value })}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-5 py-4 text-xs font-bold text-gray-700 appearance-none focus:outline-none focus:ring-2 focus:ring-black/5"
-                  >
-                    <option value="All">All Staff</option>
-                    {staffList.map(s => (
-                      <option key={s.ID} value={s.ID}>{s.NAME}</option>
-                    ))}
-                  </select>
-                  <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-                </div>
+                <SearchSelect
+                  label=""
+                  placeholder="All Staff"
+                  options={[
+                    { id: 'All', label: 'All Staff' },
+                    ...staffList.map(s => ({ id: s.ID, label: s.NAME, subLabel: `Staff ID: ${s.ID}` }))
+                  ]}
+                  value={activeFilters.prepStaffName}
+                  onChange={(val) => onFilterChange({ ...activeFilters, prepStaffName: val || 'All' })}
+                />
               </div>
 
               <div className="pt-6 flex gap-4">
