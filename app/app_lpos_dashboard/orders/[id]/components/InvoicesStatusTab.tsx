@@ -104,7 +104,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       // 3. Fetch driver staff details if DRIVERS_NAME exists
       if (delData?.DRIVERS_NAME) {
         const { data: staffData } = await app_lpos_supabase
-          .from('app_lpos_STAFF')
+          .from('app_lpos_USERS')
           .select('NAME')
           .eq('ID', delData.DRIVERS_NAME)
           .maybeSingle();

@@ -24,7 +24,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
     try {
       // Fetch all staff for dropdowns
       const { data: staffData } = await app_lpos_supabase
-        .from('app_lpos_STAFF')
+        .from('app_lpos_USERS')
         .select('*')
         .order('NAME');
       setAllStaff(staffData || []);

@@ -80,7 +80,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { id: 'lpo-customers', href: '/app_lpos_dashboard/customers', icon: UserCircle, label: 'Customers DB' },
     { id: 'lpo-products', href: '/app_lpos_dashboard/products', icon: Package, label: 'Products DB' },
     { id: 'lpo-users', href: '/app_lpos_dashboard/users', icon: Users, label: 'Users DB' },
-    { id: 'lpo-staff', href: '/app_lpos_dashboard/staff', icon: UserCircle, label: 'Staff DB' },
   ];
 
   const getFilteredNavItems = () => {

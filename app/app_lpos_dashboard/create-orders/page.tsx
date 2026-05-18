@@ -27,7 +27,6 @@ export default function CreateOrderPage() {
   const router = useRouter();
   const [users, setUsers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
-  const [staff, setStaff] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
@@ -55,16 +54,14 @@ export default function CreateOrderPage() {
 
   async function fetchInitialData() {
     try {
-      const [usersRes, customersRes, staffRes] = await Promise.all([
+      const [usersRes, customersRes] = await Promise.all([
         app_lpos_supabase.from('app_lpos_USERS').select('*').order('NAME'),
-        app_lpos_supabase.from('app_lpos_CUSTOMERS').select('*').order('CUSTOMER NAME'),
-        app_lpos_supabase.from('app_lpos_STAFF').select('*').order('NAME')
+        app_lpos_supabase.from('app_lpos_CUSTOMERS').select('*').order('CUSTOMER NAME')
       ]);
 
       const fetchedUsers = usersRes.data || [];
       setUsers(fetchedUsers);
       setCustomers(customersRes.data || []);
-      setStaff(staffRes.data || []);
 
       // Auto-set the logged-in user as the Sales Rep by matching NAME
       const storedUser = localStorage.getItem('currentUser');
@@ -136,7 +133,7 @@ export default function CreateOrderPage() {
 
     const customer = customers.find(c => c.ID === formData.CUSTOMER_ID);
     const user = users.find(u => u.ID === formData.CREATED_BY);
-    const matchedDriver = staff.find(s => s.ID === formData.DRIVER_ID);
+    const matchedDriver = users.find(u => u.ID === formData.DRIVER_ID);
 
     const newOrder = {
       ...formData,
@@ -375,14 +372,14 @@ export default function CreateOrderPage() {
               let matchedDriverName = '';
               
               if (driverName) {
-                const matchedStaff = staff.find(s => 
-                  s.NAME?.toLowerCase() === driverName?.toString().trim().toLowerCase()
+                const matchedStaff = users.find(u => 
+                  u.NAME?.toLowerCase() === driverName?.toString().trim().toLowerCase()
                 );
                 if (matchedStaff) {
                   driverId = matchedStaff.ID;
                   matchedDriverName = matchedStaff.NAME;
                 } else {
-                  errors.push(`Row ${index + 2}: Driver "${driverName}" not found in staff list`);
+                  errors.push(`Row ${index + 2}: Driver "${driverName}" not found in users list`);
                   return;
                 }
               }
@@ -679,7 +676,7 @@ export default function CreateOrderPage() {
             <div className="min-w-0">
               <SearchSelect
                 label=""
-                options={staff.map(s => ({ id: s.ID, label: s.NAME }))}
+                options={users.filter(u => u.USER_TYPE === 'Driver').map(u => ({ id: u.ID, label: u.NAME }))}
                 value={formData.DRIVER_ID}
                 onChange={(val) => setFormData({ ...formData, DRIVER_ID: val })}
                 placeholder="Driver"

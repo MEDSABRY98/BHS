@@ -98,7 +98,7 @@ export default function OrderDetailsPage() {
       const [prepRes, deliveryRes, staffRes] = await Promise.all([
         app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
         app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ID).maybeSingle(),
-        app_lpos_supabase.from('app_lpos_STAFF').select('*')
+        app_lpos_supabase.from('app_lpos_USERS').select('*')
       ]);
 
       setPrepStaff(prepRes.data || []);

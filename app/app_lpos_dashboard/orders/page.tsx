@@ -74,7 +74,7 @@ export default function OrdersPage() {
 
   async function fetchStaff() {
     const { data } = await app_lpos_supabase
-      .from('app_lpos_STAFF')
+      .from('app_lpos_USERS')
       .select('ID, NAME')
       .order('NAME');
     if (data) setStaffList(data);
