@@ -32,6 +32,7 @@ export default function CreateOrderPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [excelActionType, setExcelActionType] = useState<'import' | 'update'>('import');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Form State
@@ -448,6 +449,120 @@ export default function CreateOrderPage() {
     reader.readAsBinaryString(file);
   };
 
+  const downloadUpdateTemplate = () => {
+    const ws = XLSX.utils.json_to_sheet([
+      { "Invoice ID": "INV-001", "Customer Name": "Example Customer", "Amount": 1500.50 }
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Update Template");
+    XLSX.writeFile(wb, "Orders_Update_Template.xlsx");
+  };
+
+  const handleUpdateFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const data: any[] = XLSX.utils.sheet_to_json(ws);
+
+        let updatedCount = 0;
+        const errors: string[] = [];
+
+        for (let index = 0; index < data.length; index++) {
+          const row = data[index];
+          const invoiceId = row["Invoice ID"]?.toString().trim();
+          const customerName = row["Customer Name"]?.toString().trim();
+          const amount = row["Amount"];
+
+          if (!invoiceId) {
+            errors.push(`Row ${index + 2}: Invoice ID is required`);
+            continue;
+          }
+
+          // Check if this invoice ID exists in database
+          const { data: dbOrders, error: findError } = await app_lpos_supabase
+            .from('app_lpos_ORDERS')
+            .select('ORDER_ID')
+            .eq('INVOICE_ID', invoiceId)
+            .limit(1);
+
+          if (findError || !dbOrders || dbOrders.length === 0) {
+            errors.push(`Row ${index + 2}: Invoice ID "${invoiceId}" not found in database`);
+            continue;
+          }
+
+          const orderId = dbOrders[0].ORDER_ID;
+          const updatePayload: any = {};
+
+          // Validate and parse amount if provided
+          if (amount !== undefined && amount !== null && amount !== '') {
+            const parsedAmount = parseFloat(amount);
+            if (!isNaN(parsedAmount) && parsedAmount >= 0) {
+              updatePayload.AMOUNT = parsedAmount;
+            } else {
+              errors.push(`Row ${index + 2}: Invalid amount "${amount}"`);
+              continue;
+            }
+          }
+
+          // Validate and match Customer Name if provided
+          if (customerName) {
+            const matchedCustomer = customers.find(c =>
+              c["CUSTOMER NAME"]?.toLowerCase() === customerName.toLowerCase()
+            );
+            if (matchedCustomer) {
+              updatePayload.CUSTOMER_ID = matchedCustomer.ID;
+            } else {
+              errors.push(`Row ${index + 2}: Customer "${customerName}" not found in customers list`);
+              continue;
+            }
+          }
+
+          // Perform database update
+          if (Object.keys(updatePayload).length > 0) {
+            const { error: updateErr } = await app_lpos_supabase
+              .from('app_lpos_ORDERS')
+              .update(updatePayload)
+              .eq('ORDER_ID', orderId);
+
+            if (updateErr) {
+              errors.push(`Row ${index + 2}: Failed to update Order ${orderId}: ${updateErr.message}`);
+            } else {
+              updatedCount++;
+            }
+          } else {
+            errors.push(`Row ${index + 2}: Nothing to update`);
+          }
+        }
+
+        if (updatedCount > 0) {
+          setMessage({
+            type: errors.length > 0 ? 'error' : 'success',
+            text: `Successfully updated ${updatedCount} orders. ${errors.length > 0 ? `${errors.length} failed.` : ''}`
+          });
+        } else if (errors.length > 0) {
+          setMessage({ type: 'error', text: `Update failed: ${errors[0]}` });
+        }
+
+        setIsExcelModalOpen(false);
+      } catch (err) {
+        console.error('Update Error:', err);
+        setMessage({ type: 'error', text: 'Failed to update via Excel' });
+      } finally {
+        setIsUploading(false);
+        if (e.target) e.target.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
   // Auto-hide messages
   useEffect(() => {
     if (message) {
@@ -670,43 +785,109 @@ export default function CreateOrderPage() {
               <X className="w-5 h-5" />
             </button>
 
-            <div className="mb-10">
+            <div className="mb-8">
               <div className="w-14 h-14 bg-emerald-50 rounded-[1.25rem] flex items-center justify-center mb-6">
                 <FileSpreadsheet className="w-7 h-7 text-emerald-600" />
               </div>
               <h3 className="text-2xl font-black text-black">Excel Actions</h3>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Import orders or download template</p>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Import new orders or update existing ones by Invoice ID</p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Tab Bar Selector */}
+            <div className="flex gap-6 border-b border-gray-100 pb-4 mb-8">
               <button
-                onClick={downloadTemplate}
-                className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4"
+                type="button"
+                onClick={() => setExcelActionType('import')}
+                className={`pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+                  excelActionType === 'import' 
+                    ? 'text-black' 
+                    : 'text-gray-400 hover:text-black'
+                }`}
               >
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-black group-hover:text-white transition-all">
-                  <Download className="w-6 h-6" />
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-black text-black uppercase tracking-widest">Template</p>
-                </div>
+                Import New Orders
+                {excelActionType === 'import' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#D4AF37] rounded-full animate-in fade-in duration-300" />
+                )}
               </button>
-
-              <label className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4 cursor-pointer relative overflow-hidden">
-                <input
-                  type="file"
-                  accept=".xlsx, .xls"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-[#D4AF37] group-hover:text-black transition-all">
-                  {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-black text-black uppercase tracking-widest">{isUploading ? 'Uploading...' : 'Import Data'}</p>
-                </div>
-              </label>
+              <button
+                type="button"
+                onClick={() => setExcelActionType('update')}
+                className={`pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+                  excelActionType === 'update' 
+                    ? 'text-black' 
+                    : 'text-gray-400 hover:text-black'
+                }`}
+              >
+                Update Details by Invoice ID
+                {excelActionType === 'update' && (
+                  <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#D4AF37] rounded-full animate-in fade-in duration-300" />
+                )}
+              </button>
             </div>
+
+            {excelActionType === 'import' ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300">
+                <button
+                  type="button"
+                  onClick={downloadTemplate}
+                  className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4"
+                >
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-black group-hover:text-white transition-all">
+                    <Download className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-black text-black uppercase tracking-widest">Download Template</p>
+                  </div>
+                </button>
+
+                <label className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4 cursor-pointer relative overflow-hidden">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleFileUpload}
+                    disabled={isUploading}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-[#D4AF37] group-hover:text-black transition-all">
+                    {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-black text-black uppercase tracking-widest">{isUploading ? 'Uploading...' : 'Import Data'}</p>
+                  </div>
+                </label>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in fade-in duration-300">
+                <button
+                  type="button"
+                  onClick={downloadUpdateTemplate}
+                  className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4"
+                >
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-black group-hover:text-white transition-all">
+                    <Download className="w-6 h-6" />
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-black text-black uppercase tracking-widest">Update Template</p>
+                  </div>
+                </button>
+
+                <label className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4 cursor-pointer relative overflow-hidden">
+                  <input
+                    type="file"
+                    accept=".xlsx, .xls"
+                    onChange={handleUpdateFileUpload}
+                    disabled={isUploading}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                  />
+                  <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-[#D4AF37] group-hover:text-black transition-all">
+                    {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                  </div>
+                  <div className="text-center">
+                    <p className="text-xs font-black text-black uppercase tracking-widest">{isUploading ? 'Updating...' : 'Update Data'}</p>
+                  </div>
+                </label>
+              </div>
+            )}
           </div>
         </div>
       )}
