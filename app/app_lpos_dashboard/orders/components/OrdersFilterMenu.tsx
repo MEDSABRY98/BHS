@@ -26,11 +26,10 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
 
   async function fetchFilterData() {
     try {
-      // Fetch drivers from USERS where USER_TYPE === 'Driver'
+      // Fetch drivers from STAFF master table since assignment uses staff IDs
       const { data: driverData } = await app_lpos_supabase
-        .from('app_lpos_USERS')
+        .from('app_lpos_STAFF')
         .select('ID, NAME')
-        .eq('USER_TYPE', 'Driver')
         .order('NAME');
       if (driverData) {
         setDriversList(driverData);
