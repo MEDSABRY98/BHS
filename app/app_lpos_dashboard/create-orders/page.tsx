@@ -791,34 +791,29 @@ export default function CreateOrderPage() {
               <h3 className="text-2xl font-black text-black">Excel Actions</h3>
             </div>
             {/* Tab Bar Selector */}
-            <div className="flex w-full border-b border-gray-100 pb-4 mb-8">
+            {/* Tab Bar Selector (Segmented Pill Switcher) */}
+            <div className="flex w-full bg-gray-50 border border-gray-100 p-1.5 rounded-[1.5rem] mb-8">
               <button
                 type="button"
                 onClick={() => setExcelActionType('import')}
-                className={`flex-1 text-center pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+                className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${
                   excelActionType === 'import' 
-                    ? 'text-black' 
+                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50' 
                     : 'text-gray-400 hover:text-black'
                 }`}
               >
                 Import New Orders
-                {excelActionType === 'import' && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#D4AF37] rounded-full animate-in fade-in duration-300" />
-                )}
               </button>
               <button
                 type="button"
                 onClick={() => setExcelActionType('update')}
-                className={`flex-1 text-center pb-2 text-[10px] font-black uppercase tracking-[0.2em] transition-all relative ${
+                className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${
                   excelActionType === 'update' 
-                    ? 'text-black' 
+                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50' 
                     : 'text-gray-400 hover:text-black'
                 }`}
               >
-                Update Details by Invoice ID
-                {excelActionType === 'update' && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#D4AF37] rounded-full animate-in fade-in duration-300" />
-                )}
+                Update Details
               </button>
             </div>
 
