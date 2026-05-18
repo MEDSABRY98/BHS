@@ -79,7 +79,7 @@ export async function generateLpoPackingListPDF(
   doc.setFont('helvetica', 'normal');
   doc.text(`Date: ${new Date(order.CREATED_AT).toLocaleDateString('en-GB')}`, margin, y);
   doc.text(`Order ID: ${order.ORDER_ID}`, pageWidth / 2, y, { align: 'center' });
-  doc.text(`User: ${order.app_lpos_USERS?.NAME || 'N/A'}`, pageWidth - margin, y, { align: 'right' });
+  doc.text(`User: ${order.bhs_USERS?.NAME || 'N/A'}`, pageWidth - margin, y, { align: 'right' });
 
   y += 10;
 

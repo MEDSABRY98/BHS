@@ -13,7 +13,8 @@ import {
   Menu,
   X,
   ReceiptText,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -77,6 +78,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { id: 'lpo-dashboard', href: '/app_lpos_dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'lpo-orders', href: '/app_lpos_dashboard/orders', icon: ShoppingCart, label: 'Orders' },
     { id: 'lpo-create-orders', href: '/app_lpos_dashboard/create-orders', icon: ReceiptText, label: 'Create Orders' },
+    { id: 'lpo-reports', href: '/app_lpos_dashboard/reports', icon: FileText, label: 'Reports' },
     { id: 'lpo-customers', href: '/app_lpos_dashboard/customers', icon: UserCircle, label: 'Customers DB' },
     { id: 'lpo-products', href: '/app_lpos_dashboard/products', icon: Package, label: 'Products DB' },
     { id: 'lpo-users', href: '/app_lpos_dashboard/users', icon: Users, label: 'Users DB' },

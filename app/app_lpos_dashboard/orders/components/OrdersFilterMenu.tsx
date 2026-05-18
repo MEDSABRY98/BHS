@@ -29,7 +29,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
     try {
       // Fetch drivers from STAFF master table since assignment uses staff IDs
       const { data: driverData } = await app_lpos_supabase
-        .from('app_lpos_USERS')
+        .from('bhs_USERS')
         .select('ID, NAME')
         .eq('USER_TYPE', 'Driver')
         .order('NAME');

@@ -29,7 +29,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
     try {
       // Fetch all staff for dropdown
       const { data: staffData } = await app_lpos_supabase
-        .from('app_lpos_USERS')
+        .from('bhs_USERS')
         .select('*')
         .order('NAME');
       setAllStaff(staffData || []);

@@ -53,13 +53,12 @@ export default function OrderDetailsPage() {
 
   async function fetchOrderDetails() {
     try {
-      // 1. Fetch from the unified orders table
       const { data: orderData, error: orderError } = await app_lpos_supabase
         .from('app_lpos_ORDERS')
         .select(`
           *,
           app_lpos_CUSTOMERS ( * ),
-          app_lpos_USERS ( "NAME" )
+          bhs_USERS ( "NAME" )
         `)
         .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
         .maybeSingle();
@@ -98,7 +97,7 @@ export default function OrderDetailsPage() {
       const [prepRes, deliveryRes, staffRes] = await Promise.all([
         app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
         app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ID).maybeSingle(),
-        app_lpos_supabase.from('app_lpos_USERS').select('*')
+        app_lpos_supabase.from('bhs_USERS').select('*')
       ]);
 
       setPrepStaff(prepRes.data || []);
@@ -494,7 +493,7 @@ export default function OrderDetailsPage() {
             </div>
             <div className="min-w-0">
               <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Sales Rep</p>
-              <p className="font-black text-lg text-white truncate">{order.app_lpos_USERS?.NAME}</p>
+              <p className="font-black text-lg text-white truncate">{order.bhs_USERS?.NAME}</p>
             </div>
           </div>
 

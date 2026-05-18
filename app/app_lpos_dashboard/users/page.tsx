@@ -45,7 +45,7 @@ export default function UsersPage() {
   async function fetchUsers() {
     try {
       const { data, error } = await app_lpos_supabase
-        .from('app_lpos_USERS')
+        .from('bhs_USERS')
         .select('*')
         .order('NAME');
       if (error) throw error;
@@ -77,14 +77,14 @@ export default function UsersPage() {
     try {
       if (editingUser) {
         const { error } = await app_lpos_supabase
-          .from('app_lpos_USERS')
+          .from('bhs_USERS')
           .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `U-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
-          .from('app_lpos_USERS')
+          .from('bhs_USERS')
           .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE });
         if (error) throw error;
       }
@@ -109,7 +109,7 @@ export default function UsersPage() {
     setIsSaving(true);
     try {
       const { error } = await app_lpos_supabase
-        .from('app_lpos_USERS')
+        .from('bhs_USERS')
         .delete()
         .eq('ID', itemToDelete);
       if (error) throw error;

@@ -74,7 +74,7 @@ export default function OrdersPage() {
 
   async function fetchStaff() {
     const { data } = await app_lpos_supabase
-      .from('app_lpos_USERS')
+      .from('bhs_USERS')
       .select('ID, NAME')
       .order('NAME');
     if (data) setStaffList(data);
@@ -87,7 +87,7 @@ export default function OrdersPage() {
         .select(`
           *,
           app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
-          app_lpos_USERS ( "NAME" ),
+          bhs_USERS ( "NAME" ),
           app_lpos_DRIVERS ( 
             ID,
             DRIVERS_NAME, 
@@ -137,7 +137,7 @@ export default function OrdersPage() {
         order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.INVOICE_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.app_lpos_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
+        order.bhs_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // 2. Tab Status Filter
       const matchesStatus = statusFilter === 'All' || order.STATUS === statusFilter;
@@ -284,10 +284,10 @@ export default function OrdersPage() {
                       <div className="flex items-center justify-center">
                         <div className="w-8 h-8 bg-black rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-black/10 shrink-0">
                           <span className="text-[10px] font-black text-[#D4AF37]">
-                            {order.app_lpos_USERS?.NAME?.charAt(0)}
+                            {order.bhs_USERS?.NAME?.charAt(0)}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-gray-700 truncate">{order.app_lpos_USERS?.NAME}</span>
+                        <span className="text-sm font-bold text-gray-700 truncate">{order.bhs_USERS?.NAME}</span>
                       </div>
                     </td>
 

@@ -69,10 +69,10 @@ export default function DashboardPage() {
           .select(`
             *,
             app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
-            app_lpos_USERS ( "NAME" )
+            bhs_USERS ( "NAME" )
           `)
           .order('ORDER_ID', { ascending: false }),
-        app_lpos_supabase.from('app_lpos_USERS').select('*')
+        app_lpos_supabase.from('bhs_USERS').select('*')
       ]);
 
       setStats({
@@ -309,10 +309,10 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-center">
                         <div className="w-8 h-8 bg-black rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-black/10 shrink-0">
                           <span className="text-[10px] font-black text-[#D4AF37]">
-                            {order.app_lpos_USERS?.NAME?.charAt(0)}
+                            {order.bhs_USERS?.NAME?.charAt(0)}
                           </span>
                         </div>
-                        <span className="text-sm font-bold text-gray-700 truncate">{order.app_lpos_USERS?.NAME}</span>
+                        <span className="text-sm font-bold text-gray-700 truncate">{order.bhs_USERS?.NAME}</span>
                       </div>
                     </td>
 

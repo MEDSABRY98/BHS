@@ -54,7 +54,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         const name = parsed.name || parsed.NAME;
         if (name) {
           const { data } = await app_lpos_supabase
-            .from('app_lpos_USERS')
+            .from('bhs_USERS')
             .select('*')
             .eq('NAME', name)
             .maybeSingle();
@@ -92,7 +92,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       // 2. Fetch handover user details if ID exists
       if (delData?.OFFICE_HANDOVER_ID) {
         const { data: userData } = await app_lpos_supabase
-          .from('app_lpos_USERS')
+          .from('bhs_USERS')
           .select('NAME')
           .eq('ID', delData.OFFICE_HANDOVER_ID)
           .maybeSingle();
@@ -104,7 +104,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       // 3. Fetch driver staff details if DRIVERS_NAME exists
       if (delData?.DRIVERS_NAME) {
         const { data: staffData } = await app_lpos_supabase
-          .from('app_lpos_USERS')
+          .from('bhs_USERS')
           .select('NAME')
           .eq('ID', delData.DRIVERS_NAME)
           .maybeSingle();
