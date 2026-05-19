@@ -4,10 +4,10 @@ import { useState, useEffect, useMemo } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import SearchSelect from '../../components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
-import { generatePendingDriverInvoicesPDF } from '@/lib/pdf/PendingDriverInvoicesPdf';
+import { generateDeliveredDriverInvoicesPDF } from '@/lib/pdf/DeliveredDriverInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
 
-export default function PendingDriverInvoices() {
+export default function DeliveredDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [invoices, setInvoices] = useState<any[]>([]);
@@ -23,7 +23,7 @@ export default function PendingDriverInvoices() {
 
   useEffect(() => {
     if (selectedDriverId) {
-      fetchPendingInvoices();
+      fetchDeliveredInvoices();
     } else {
       setInvoices([]);
     }
@@ -46,7 +46,7 @@ export default function PendingDriverInvoices() {
     }
   }
 
-  async function fetchPendingInvoices() {
+  async function fetchDeliveredInvoices() {
     setIsInvoicesLoading(true);
     try {
       // Fetch all invoices assigned to this driver
@@ -58,31 +58,34 @@ export default function PendingDriverInvoices() {
           app_lpos_DRIVERS!inner (
             DRIVERS_NAME,
             STATUS,
-            OFFICE_HANDOVER_STATUS
+            OFFICE_HANDOVER_STATUS,
+            OFFICE_HANDOVER_TIME,
+            DELIVERY_TIME
           )
         `)
         .eq('app_lpos_DRIVERS.DRIVERS_NAME', selectedDriverId);
 
       if (error) throw error;
 
-      // Filter in frontend to handle NULLs and non-Confirmed handovers accurately
-      const pendingList = (data || []).filter((order: any) => {
+      // Filter in frontend to show ONLY Confirmed handovers
+      const deliveredList = (data || []).filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
-        return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
+        return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS === 'Confirmed';
       });
 
-      setInvoices(pendingList);
+      setInvoices(deliveredList);
     } catch (err) {
-      console.error('Error fetching pending invoices:', err);
+      console.error('Error fetching delivered invoices:', err);
     } finally {
       setIsInvoicesLoading(false);
     }
   }
 
-  // Filter invoices by Date Range:
+  // Filter invoices by Office Handover Date Range:
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
-      const dateStr = inv.ORDER_DATE || inv.CREATED_AT;
+      const driverRecord = inv.app_lpos_DRIVERS?.[0];
+      const dateStr = driverRecord?.OFFICE_HANDOVER_TIME || inv.ORDER_DATE || inv.CREATED_AT;
       if (!dateStr) return true;
 
       const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
@@ -120,7 +123,7 @@ export default function PendingDriverInvoices() {
     if (sortedInvoices.length === 0) return;
     setIsGeneratingPdf(true);
     try {
-      await generatePendingDriverInvoicesPDF(selectedDriverName, sortedInvoices, action, fromDate, toDate);
+      await generateDeliveredDriverInvoicesPDF(selectedDriverName, sortedInvoices, action, fromDate, toDate);
     } catch (err) {
       console.error('PDF Generation failed:', err);
     } finally {
@@ -228,10 +231,10 @@ export default function PendingDriverInvoices() {
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 px-2">
             <div>
               <h3 className="text-2xl font-black text-black tracking-tight">
-                {selectedDriverName}'s Invoices
+                {selectedDriverName}'s Delivered Invoices
               </h3>
               <p className="text-xs text-gray-500 mt-1 font-medium">
-                Pending office confirmation
+                Confirmed office handovers
               </p>
             </div>
 
@@ -244,7 +247,7 @@ export default function PendingDriverInvoices() {
                   </p>
                 </div>
                 <div className="px-5 py-3 bg-gray-50 text-black border border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest">
-                  {sortedInvoices.length} Pending
+                  {sortedInvoices.length} Confirmed
                 </div>
               </div>
             )}
@@ -256,13 +259,14 @@ export default function PendingDriverInvoices() {
               <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Invoices...</p>
             </div>
           ) : sortedInvoices.length === 0 ? (
-            <NoData title="NO PENDING INVOICES" />
+            <NoData title="NO CONFIRMED INVOICES" />
           ) : (
             <div className="overflow-x-auto rounded-[2.5rem] border border-gray-50">
               <table className="w-full text-center border-collapse">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="py-6 px-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice Date</th>
+                    <th className="py-6 px-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Handover Date</th>
                     <th className="py-6 px-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice / Order ID</th>
                     <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Name</th>
                     <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Amount</th>
@@ -274,10 +278,19 @@ export default function PendingDriverInvoices() {
                       ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
                       : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
 
+                    const driverRecord = inv.app_lpos_DRIVERS?.[0];
+                    const handoverDateStr = driverRecord?.OFFICE_HANDOVER_TIME;
+                    const formattedHandoverDate = handoverDateStr
+                      ? new Date(handoverDateStr).toLocaleDateString('en-GB')
+                      : '-';
+
                     return (
                       <tr key={inv.ID} className="group hover:bg-gray-50/50 transition-all duration-200">
                         <td className="py-6 px-6">
                           <span className="text-sm font-bold text-gray-600">{formattedDate}</span>
+                        </td>
+                        <td className="py-6 px-6">
+                          <span className="text-sm font-bold text-gray-600">{formattedHandoverDate}</span>
                         </td>
                         <td className="py-6 px-6">
                           <span className="text-sm font-black text-black">{inv.INVOICE_ID || inv.ORDER_ID || '-'}</span>

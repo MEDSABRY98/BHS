@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
+import { app_lpos_supabase } from '@/lib/supabase';
 import { Filter, X, ChevronDown, User, Truck, ClipboardList, RotateCcw } from 'lucide-react';
 import SearchSelect from '../../components/DropDownList';
 
@@ -49,19 +49,18 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
     });
   };
 
-  const hasActiveFilters = activeFilters.invoiceStatus !== 'All' || 
-                          activeFilters.driverId !== 'All' || 
-                          activeFilters.prepStaffName !== 'All';
+  const hasActiveFilters = activeFilters.invoiceStatus !== 'All' ||
+    activeFilters.driverId !== 'All' ||
+    activeFilters.prepStaffName !== 'All';
 
   return (
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className={`p-3 rounded-2xl border transition-all flex items-center justify-center relative ${
-          hasActiveFilters 
-            ? 'bg-black text-[#D4AF37] border-black shadow-lg shadow-black/10' 
+        className={`p-3 rounded-2xl border transition-all flex items-center justify-center relative ${hasActiveFilters
+            ? 'bg-black text-[#D4AF37] border-black shadow-lg shadow-black/10'
             : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'
-        }`}
+          }`}
         title="Advanced Filters"
       >
         <Filter className="w-5 h-5" />
@@ -72,19 +71,19 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
 
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300" 
-            onClick={() => setIsOpen(false)} 
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+            onClick={() => setIsOpen(false)}
           />
-          
+
           <div className="relative w-full max-w-md bg-white rounded-[3rem] shadow-2xl border border-gray-100 p-10 animate-in zoom-in-95 duration-300">
             <div className="flex items-center justify-between mb-10">
               <div>
                 <h3 className="text-2xl font-black text-black tracking-tight">Advanced Filters</h3>
                 <p className="text-gray-400 text-sm font-bold mt-1">Refine your orders view</p>
               </div>
-              <button 
-                onClick={() => setIsOpen(false)} 
+              <button
+                onClick={() => setIsOpen(false)}
                 className="w-10 h-10 flex items-center justify-center rounded-xl bg-gray-50 text-gray-400 hover:text-black transition-all"
               >
                 <X className="w-5 h-5" />

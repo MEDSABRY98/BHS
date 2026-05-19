@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
+import { app_lpos_supabase } from '@/lib/supabase';
 import {
   ArrowLeft,
   CheckCircle2,

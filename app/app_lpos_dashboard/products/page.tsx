@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  Package, 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  X, 
+import { app_lpos_supabase } from '@/lib/supabase';
+import {
+  Package,
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
   Save,
   Barcode,
   Loader2,
@@ -74,8 +74,8 @@ export default function ProductsPage() {
       if (editingProduct) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_PRODUCTS')
-          .update({ 
-            "PRODUCT NAME": name, 
+          .update({
+            "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
             "PRODUCT ID": productId
           })
@@ -86,9 +86,9 @@ export default function ProductsPage() {
         const nextId = `P-${(products.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_PRODUCTS')
-          .insert({ 
-            ID: nextId, 
-            "PRODUCT NAME": name, 
+          .insert({
+            ID: nextId,
+            "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
             "PRODUCT ID": productId
           });
@@ -129,7 +129,7 @@ export default function ProductsPage() {
     }
   };
 
-  const filteredProducts = products.filter(p => 
+  const filteredProducts = products.filter(p =>
     p["PRODUCT NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p["PRODUCT BARCODE"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p["PRODUCT ID"]?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -145,7 +145,7 @@ export default function ProductsPage() {
           {canEdit && (
             <>
 
-              <button 
+              <button
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
                 title="New Product"
@@ -160,9 +160,9 @@ export default function ProductsPage() {
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="Search by product name or barcode..." 
+          <input
+            type="text"
+            placeholder="Search by product name or barcode..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
@@ -259,8 +259,8 @@ export default function ProductsPage() {
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT ID</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={productId}
                     onChange={(e) => setProductId(e.target.value)}
                     placeholder="Internal SKU or ID"
@@ -271,8 +271,8 @@ export default function ProductsPage() {
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT NAME</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     placeholder="e.g. Classic Gold Fountain Pen"
@@ -285,8 +285,8 @@ export default function ProductsPage() {
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">BARCODE</label>
                   <div className="relative">
                     <Barcode className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={barcode}
                       onChange={(e) => setBarcode(e.target.value)}
                       placeholder="Barcode..."
@@ -298,15 +298,15 @@ export default function ProductsPage() {
               </div>
 
               <div className="pt-4 flex gap-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 py-4 bg-gray-100 text-gray-700 rounded-2xl font-bold hover:bg-gray-200 transition-all"
                 >
                   CANCEL
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isSaving}
                   className="flex-1 py-4 bg-black text-[#D4AF37] rounded-2xl font-bold shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
@@ -319,7 +319,7 @@ export default function ProductsPage() {
         </div>
       )}
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isConfirmOpen}
         onConfirm={executeDelete}
         onCancel={() => setIsConfirmOpen(false)}

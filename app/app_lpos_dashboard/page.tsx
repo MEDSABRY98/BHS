@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
+import { app_lpos_supabase } from '@/lib/supabase';
 import {
   TrendingUp,
   Clock,
@@ -331,9 +331,9 @@ export default function DashboardPage() {
                     {/* 5. Status */}
                     <td className="px-6 py-6">
                       <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                          order.STATUS === 'Partially Approved' ? 'bg-orange-50 text-orange-600' :
-                            order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                              'bg-red-50 text-red-600'
+                        order.STATUS === 'Partially Approved' ? 'bg-orange-50 text-orange-600' :
+                          order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
+                            'bg-red-50 text-red-600'
                         }`}>
                         {order.STATUS}
                       </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
+import { app_lpos_supabase } from '@/lib/supabase';
 import {
   ReceiptText,
   Send,
@@ -220,9 +220,9 @@ export default function CreateOrderPage() {
       const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
         const currentId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
         tempIdToOrderId[tempId] = currentId;
-        
-        const orderDateVal = rest.ORDER_DATE 
-          ? new Date(rest.ORDER_DATE).toISOString() 
+
+        const orderDateVal = rest.ORDER_DATE
+          ? new Date(rest.ORDER_DATE).toISOString()
           : new Date().toISOString();
 
         return {
@@ -312,7 +312,7 @@ export default function CreateOrderPage() {
             .from('app_lpos_ORDERS')
             .select('ORDER_ID, INVOICE_ID')
             .in('INVOICE_ID', uploadedInvoiceIds);
-          
+
           if (!dbError && dbOrders) {
             dbOrders.forEach(row => {
               if (row.INVOICE_ID && row.ORDER_ID) {
@@ -359,7 +359,7 @@ export default function CreateOrderPage() {
             sheetInvoicesSeen.add(invoiceLower);
           }
 
-          const customer = customers.find(c => 
+          const customer = customers.find(c =>
             c["CUSTOMER NAME"]?.toLowerCase() === customerName?.toString().toLowerCase()
           );
 
@@ -370,9 +370,9 @@ export default function CreateOrderPage() {
             if (hasAmount && hasId) {
               let driverId = null;
               let matchedDriverName = '';
-              
+
               if (driverName) {
-                const matchedStaff = users.find(u => 
+                const matchedStaff = users.find(u =>
                   u.NAME?.toLowerCase() === driverName?.toString().trim().toLowerCase()
                 );
                 if (matchedStaff) {
@@ -426,9 +426,9 @@ export default function CreateOrderPage() {
 
         if (newPendingOrders.length > 0) {
           setPendingOrders(prev => [...prev, ...newPendingOrders]);
-          setMessage({ 
-            type: errors.length > 0 ? 'error' : 'success', 
-            text: `Imported ${newPendingOrders.length} orders. ${errors.length > 0 ? `${errors.length} failed.` : ''}` 
+          setMessage({
+            type: errors.length > 0 ? 'error' : 'success',
+            text: `Imported ${newPendingOrders.length} orders. ${errors.length > 0 ? `${errors.length} failed.` : ''}`
           });
         } else if (errors.length > 0) {
           setMessage({ type: 'error', text: `Import failed: ${errors[0]}` });
@@ -719,8 +719,8 @@ export default function CreateOrderPage() {
 
           <div className="overflow-hidden rounded-[2.5rem] border border-gray-50">
             <table className="w-full text-center">
-               <thead className="bg-gray-50">
-                 <tr>
+              <thead className="bg-gray-50">
+                <tr>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order Date</th>
                   <th className="px-8 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
                   <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">LPO ID</th>
@@ -793,22 +793,20 @@ export default function CreateOrderPage() {
               <button
                 type="button"
                 onClick={() => setExcelActionType('import')}
-                className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${
-                  excelActionType === 'import' 
-                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50' 
+                className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${excelActionType === 'import'
+                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50'
                     : 'text-gray-400 hover:text-black'
-                }`}
+                  }`}
               >
                 Import New Orders
               </button>
               <button
                 type="button"
                 onClick={() => setExcelActionType('update')}
-                className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${
-                  excelActionType === 'update' 
-                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50' 
+                className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${excelActionType === 'update'
+                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50'
                     : 'text-gray-400 hover:text-black'
-                }`}
+                  }`}
               >
                 Update Details
               </button>

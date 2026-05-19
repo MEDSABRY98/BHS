@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
+import { app_lpos_supabase } from '@/lib/supabase';
 import { UserPlus, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import SearchSelect from '../../../components/DropDownList';
 import { ConfirmModal } from '../../../components/ConfirmModal';

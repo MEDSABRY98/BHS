@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  UserCircle, 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  X, 
+import { app_lpos_supabase } from '@/lib/supabase';
+import {
+  UserCircle,
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
   Save,
   MapPin,
   Building2,
@@ -84,8 +84,8 @@ export default function CustomersPage() {
       if (editingCustomer) {
         const { error } = await app_lpos_supabase
           .from('app_lpos_CUSTOMERS')
-          .update({ 
-            "CUSTOMER NAME": CUSTOMER_NAME, 
+          .update({
+            "CUSTOMER NAME": CUSTOMER_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID
           })
@@ -95,9 +95,9 @@ export default function CustomersPage() {
         const nextId = `C-${(customers.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_CUSTOMERS')
-          .insert({ 
-            ID: nextId, 
-            "CUSTOMER NAME": CUSTOMER_NAME, 
+          .insert({
+            ID: nextId,
+            "CUSTOMER NAME": CUSTOMER_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID
           });
@@ -137,7 +137,7 @@ export default function CustomersPage() {
       setItemToDelete(null);
     }
   };
- 
+
   const triggerMessage = (type: 'success' | 'error', text: string) => {
     setMessage({ type, text });
     setTimeout(() => setMessage(null), 5000);
@@ -151,7 +151,7 @@ export default function CustomersPage() {
         "Customer Name": c["CUSTOMER NAME"] || '',
         "Customer City": c["CUSTOMER CITY"] || ''
       }));
-      
+
       // If there's no customer data yet, provide a sample row
       if (exportData.length === 0) {
         exportData.push({
@@ -267,7 +267,7 @@ export default function CustomersPage() {
     reader.readAsBinaryString(file);
   };
 
-  const filteredCustomers = customers.filter(c => 
+  const filteredCustomers = customers.filter(c =>
     c["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c["CUSTOMER ID"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c["CUSTOMER CITY"]?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -277,7 +277,7 @@ export default function CustomersPage() {
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-        <h1 className="text-4xl font-normal text-black tracking-tighter">Customers</h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter">Customers</h1>
         </div>
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (
@@ -289,7 +289,7 @@ export default function CustomersPage() {
               >
                 <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
               </button>
-              <button 
+              <button
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
                 title="New Customer"
@@ -304,9 +304,9 @@ export default function CustomersPage() {
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="Search by customer name, ID, or city..." 
+          <input
+            type="text"
+            placeholder="Search by customer name, ID, or city..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
@@ -401,8 +401,8 @@ export default function CustomersPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="md:col-span-2 space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER NAME</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={CUSTOMER_NAME}
                     onChange={(e) => setCUSTOMER_NAME(e.target.value)}
                     placeholder="Full Company Name"
@@ -413,8 +413,8 @@ export default function CustomersPage() {
 
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER ID</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={CUSTOMER_ID}
                     onChange={(e) => setCUSTOMER_ID(e.target.value)}
                     placeholder="TRN or Reg No."
@@ -427,8 +427,8 @@ export default function CustomersPage() {
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER CITY</label>
                   <div className="relative">
                     <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       value={CUSTOMER_CITY}
                       onChange={(e) => setCUSTOMER_CITY(e.target.value)}
                       placeholder="e.g. Dubai"
@@ -440,15 +440,15 @@ export default function CustomersPage() {
               </div>
 
               <div className="pt-4 flex gap-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all"
                 >
                   CANCEL
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isSaving}
                   className="flex-1 py-4 bg-black text-[#D4AF37] rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
@@ -462,7 +462,7 @@ export default function CustomersPage() {
       )}
 
       {/* Confirmation Modal */}
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isConfirmOpen}
         onConfirm={executeDelete}
         onCancel={() => setIsConfirmOpen(false)}
@@ -526,9 +526,8 @@ export default function CustomersPage() {
 
       {/* Global Message Notification */}
       {message && (
-        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${
-          message.type === 'success' ? 'bg-black text-white border-emerald-500' : 'bg-red-600 text-white border-red-800'
-        }`}>
+        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${message.type === 'success' ? 'bg-black text-white border-emerald-500' : 'bg-red-600 text-white border-red-800'
+          }`}>
           {message.type === 'success' ? (
             <CheckCircle2 className="w-5 h-5 text-emerald-400" />
           ) : (

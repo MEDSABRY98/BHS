@@ -1,6 +1,6 @@
 'use client';
 
-export async function generatePendingDriverInvoicesPDF(
+export async function generateDeliveredDriverInvoicesPDF(
   driverName: string,
   invoices: any[],
   action: 'download' | 'print' = 'download',
@@ -13,7 +13,7 @@ export async function generatePendingDriverInvoicesPDF(
   const autoTable = autoTableModule.default || autoTableModule;
 
   const doc = new jsPDF('p', 'mm', 'a4');
-  doc.setProperties({ title: `Pending_Invoices_${driverName.replace(/\s+/g, '_')}` });
+  doc.setProperties({ title: `Delivered_Invoices_${driverName.replace(/\s+/g, '_')}` });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 10;
@@ -26,7 +26,7 @@ export async function generatePendingDriverInvoicesPDF(
   doc.setFontSize(14);
   doc.setTextColor(212, 175, 55); // Gold
   doc.setFont('helvetica', 'bold');
-  doc.text('PENDING DRIVER INVOICES REPORT', pageWidth / 2, 13, { align: 'center' });
+  doc.text('DELIVERED DRIVER INVOICES REPORT', pageWidth / 2, 13, { align: 'center' });
 
   let y = 24;
 
@@ -89,8 +89,15 @@ export async function generatePendingDriverInvoicesPDF(
       ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
       : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
 
+    const driverRecord = inv.app_lpos_DRIVERS?.[0];
+    const handoverDateStr = driverRecord?.OFFICE_HANDOVER_TIME;
+    const formattedHandoverDate = handoverDateStr
+      ? new Date(handoverDateStr).toLocaleDateString('en-GB')
+      : '-';
+
     return [
       formattedDate,
+      formattedHandoverDate,
       inv.INVOICE_ID || inv.ORDER_ID || '-',
       inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer',
       `AED ${(parseFloat(inv.AMOUNT) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
@@ -99,7 +106,7 @@ export async function generatePendingDriverInvoicesPDF(
 
   const tableOptions: any = {
     startY: y,
-    head: [['Invoice Date', 'Invoice ID', 'Customer Name', 'Amount (AED)']],
+    head: [['Invoice Date', 'Handover Date', 'Invoice ID', 'Customer Name', 'Amount (AED)']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -118,10 +125,11 @@ export async function generatePendingDriverInvoicesPDF(
       cellPadding: 4.5
     },
     columnStyles: {
-      0: { cellWidth: 32, halign: 'center' },
-      1: { cellWidth: 48, halign: 'center' },
-      2: { cellWidth: 'auto', halign: 'center' },
-      3: { cellWidth: 42, fontStyle: 'bold', halign: 'center' }
+      0: { cellWidth: 26, halign: 'center' },
+      1: { cellWidth: 26, halign: 'center' },
+      2: { cellWidth: 32, halign: 'center' },
+      3: { cellWidth: 'auto', halign: 'center' },
+      4: { cellWidth: 32, fontStyle: 'bold', halign: 'center' }
     },
     margin: { left: margin, right: margin }
   };
@@ -148,6 +156,6 @@ export async function generatePendingDriverInvoicesPDF(
     const url = doc.output('bloburl');
     window.open(url, '_blank');
   } else {
-    doc.save(`Pending_Invoices_${driverName.replace(/\s+/g, '_')}.pdf`);
+    doc.save(`Delivered_Invoices_${driverName.replace(/\s+/g, '_')}.pdf`);
   }
 }

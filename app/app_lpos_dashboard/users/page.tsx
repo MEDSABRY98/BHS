@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
-import { 
-  Users, 
-  Search, 
-  Plus, 
-  Edit2, 
-  Trash2, 
-  X, 
+import { app_lpos_supabase } from '@/lib/supabase';
+import {
+  Users,
+  Search,
+  Plus,
+  Edit2,
+  Trash2,
+  X,
   Save,
   Shield,
   Key,
@@ -33,7 +33,7 @@ export default function UsersPage() {
 
   // Form states - Matching DB columns
   const [NAME, setNAME] = useState('');
-  const [ROLE, setROLE] = useState('user'); 
+  const [ROLE, setROLE] = useState('user');
   const [USER_TYPE, setUSER_TYPE] = useState('Creator');
   const [PASSWORD, setPASSWORD] = useState('');
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
@@ -123,7 +123,7 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter(u =>
     u.NAME?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.ID?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -135,7 +135,7 @@ export default function UsersPage() {
           <h1 className="text-4xl font-normal text-black tracking-tighter">Users</h1>
         </div>
         {canEdit && (
-          <button 
+          <button
             onClick={() => handleOpenModal()}
             className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
             title="New User"
@@ -148,9 +148,9 @@ export default function UsersPage() {
       <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-          <input 
-            type="text" 
-            placeholder="Search by name or user ID..." 
+          <input
+            type="text"
+            placeholder="Search by name or user ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
@@ -197,9 +197,8 @@ export default function UsersPage() {
                       <span className="font-bold text-black">{user.NAME}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${
-                        user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'
-                      }`}>
+                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'
+                        }`}>
                         {user.ROLE === 'admin' ? <Shield className="w-3 h-3" /> : <Users className="w-3 h-3" />}
                         {user.ROLE}
                       </div>
@@ -208,9 +207,8 @@ export default function UsersPage() {
                       <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{user.USER_TYPE || 'Creator'}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${
-                        user.IS_IN_OFFICE ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                      }`}>
+                      <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${user.IS_IN_OFFICE ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                        }`}>
                         {user.IS_IN_OFFICE ? 'TRUE' : 'FALSE'}
                       </div>
                     </td>
@@ -259,8 +257,8 @@ export default function UsersPage() {
               {/* NAME Field */}
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">NAME</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={NAME}
                   onChange={(e) => setNAME(e.target.value)}
                   placeholder="Full Name"
@@ -276,11 +274,10 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={() => setROLE('user')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      ROLE === 'user' 
-                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'user'
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     {ROLE === 'user' && <Check className="w-4 h-4" />}
                     user
@@ -288,11 +285,10 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={() => setROLE('admin')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      ROLE === 'admin' 
-                        ? 'bg-black text-[#D4AF37] shadow-xl' 
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'admin'
+                        ? 'bg-black text-[#D4AF37] shadow-xl'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     {ROLE === 'admin' && <Check className="w-4 h-4" />}
                     admin
@@ -307,22 +303,20 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={() => setUSER_TYPE('Creator')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      USER_TYPE === 'Creator' 
-                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Creator'
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     Creator
                   </button>
                   <button
                     type="button"
                     onClick={() => setUSER_TYPE('Driver')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      USER_TYPE === 'Driver' 
-                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100' 
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Driver'
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     Driver
                   </button>
@@ -336,11 +330,10 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={() => setIS_IN_OFFICE(true)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      IS_IN_OFFICE 
-                        ? 'bg-emerald-500 text-white shadow-xl' 
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${IS_IN_OFFICE
+                        ? 'bg-emerald-500 text-white shadow-xl'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     {IS_IN_OFFICE && <Check className="w-4 h-4" />}
                     TRUE
@@ -348,11 +341,10 @@ export default function UsersPage() {
                   <button
                     type="button"
                     onClick={() => setIS_IN_OFFICE(false)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${
-                      !IS_IN_OFFICE 
-                        ? 'bg-red-500 text-white shadow-xl' 
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!IS_IN_OFFICE
+                        ? 'bg-red-500 text-white shadow-xl'
                         : 'text-gray-400 hover:text-gray-600'
-                    }`}
+                      }`}
                   >
                     {!IS_IN_OFFICE && <Check className="w-4 h-4" />}
                     FALSE
@@ -365,8 +357,8 @@ export default function UsersPage() {
                 <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PASSWORD</label>
                 <div className="relative">
                   <Key className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     value={PASSWORD}
                     onChange={(e) => setPASSWORD(e.target.value)}
                     placeholder="Access Code"
@@ -377,15 +369,15 @@ export default function UsersPage() {
               </div>
 
               <div className="pt-4 flex gap-4">
-                <button 
-                  type="button" 
+                <button
+                  type="button"
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 py-4 bg-gray-50 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all"
                 >
                   CANCEL
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={isSaving}
                   className="flex-1 py-4 bg-black text-[#D4AF37] rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                 >
@@ -398,7 +390,7 @@ export default function UsersPage() {
         </div>
       )}
 
-      <ConfirmModal 
+      <ConfirmModal
         isOpen={isConfirmOpen}
         onConfirm={executeDelete}
         onCancel={() => setIsConfirmOpen(false)}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/app_lpos_supabase';
+import { app_lpos_supabase } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck } from 'lucide-react';
 import NoData from '@/components/01-Unified/NoDataTab';
 
@@ -139,16 +139,27 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         OFFICE_HANDOVER_TIME: new Date().toISOString()
       };
 
-      if (newStatus === 'Rejected' && isBypass) {
-        updatePayload = {
-          STATUS: 'Assigned',
-          DELIVERY_TIME: null,
-          IS_CUSTOMER_SIGNED: false,
-          OFFICE_HANDOVER_ID: null,
-          OFFICE_HANDOVER_STATUS: null,
-          OFFICE_HANDOVER_TIME: null,
-          TRACKING_NOTES: null
-        };
+      if (newStatus === 'Rejected') {
+        if (isBypass) {
+          updatePayload = {
+            STATUS: 'Assigned',
+            DELIVERY_TIME: null,
+            IS_CUSTOMER_SIGNED: false,
+            OFFICE_HANDOVER_ID: null,
+            OFFICE_HANDOVER_STATUS: null,
+            OFFICE_HANDOVER_TIME: null,
+            TRACKING_NOTES: null
+          };
+        } else {
+          updatePayload = {
+            STATUS: 'Delivered',
+            IS_CUSTOMER_SIGNED: false,
+            OFFICE_HANDOVER_ID: null,
+            OFFICE_HANDOVER_STATUS: null,
+            OFFICE_HANDOVER_TIME: null,
+            TRACKING_NOTES: null
+          };
+        }
       }
 
       const { error } = await app_lpos_supabase
