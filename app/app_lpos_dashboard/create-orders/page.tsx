@@ -276,7 +276,14 @@ export default function CreateOrderPage() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { "Order Date": "2026-05-18", "Driver": "Driver Name", "Customer Name": "Example Customer", "LPO ID": "LPO-001", "Invoice ID": "INV-001", "Amount": 1500.50 }
+      { 
+        "Order Date": "2026-05-18", 
+        "LPO ID": "LPO-001", 
+        "Invoice ID": "INV-001", 
+        "Driver": "Driver Name", 
+        "Customer Name": "Example Customer", 
+        "Amount": 1500.50 
+      }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders Template");
