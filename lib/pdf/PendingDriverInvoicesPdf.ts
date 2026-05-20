@@ -1,16 +1,15 @@
-'use client';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export async function generatePendingDriverInvoicesPDF(
   driverName: string,
   invoices: any[],
   action: 'download' | 'print' = 'download',
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  driverSignature?: string,
+  adminSignature?: string
 ) {
-  const jsPDFModule = await import('jspdf');
-  const jsPDF = jsPDFModule.default;
-  const autoTableModule = await import('jspdf-autotable');
-  const autoTable = autoTableModule.default || autoTableModule;
 
   const doc = new jsPDF('p', 'mm', 'a4');
   doc.setProperties({ title: `Pending_Invoices_${driverName.replace(/\s+/g, '_')}` });
@@ -206,6 +205,53 @@ export async function generatePendingDriverInvoicesPDF(
     if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(summaryTableOptions);
     else if (typeof autoTable === 'function') autoTable(doc, summaryTableOptions);
   }
+
+  // Draw Signatures section
+  const lastPageNum = (doc as any).internal.getNumberOfPages();
+  doc.setPage(lastPageNum);
+
+  const finalY = (doc as any).lastAutoTable?.finalY || 100;
+  let sigY = finalY + 15;
+
+  if (sigY + 25 > pageHeight - 15) {
+    doc.addPage();
+    sigY = 25; // top of new page
+  }
+
+  doc.setDrawColor(200, 200, 200);
+  doc.setLineWidth(0.3);
+
+  // Receiver/Admin Signature (Left)
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.setFont('helvetica', 'normal');
+  doc.text("Receiver's Signature:", margin + 10, sigY);
+  
+  if (adminSignature) {
+    try {
+      doc.addImage(adminSignature, 'PNG', margin + 15, sigY + 2, 55, 16);
+    } catch (e) {
+      console.error('Error adding admin signature image to PDF:', e);
+    }
+  }
+  doc.line(margin + 10, sigY + 19, margin + 80, sigY + 19);
+
+  // Driver Signature (Right)
+  doc.text("Driver's Signature:", pageWidth - margin - 80, sigY);
+
+  if (driverSignature) {
+    try {
+      doc.addImage(driverSignature, 'PNG', pageWidth - margin - 75, sigY + 2, 55, 16);
+    } catch (e) {
+      console.error('Error adding driver signature image to PDF:', e);
+    }
+  }
+  doc.line(pageWidth - margin - 80, sigY + 19, pageWidth - margin - 10, sigY + 19);
+  
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.setTextColor(120, 120, 120);
+  doc.text(`Name: ${driverName}`, pageWidth - margin - 80, sigY + 23);
 
   // Footer on all pages
   const totalPages = (doc as any).internal.getNumberOfPages();

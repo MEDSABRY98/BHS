@@ -1,16 +1,15 @@
-'use client';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export async function generateDeliveredDriverInvoicesPDF(
   driverName: string,
   invoices: any[],
   action: 'download' | 'print' = 'download',
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  driverSignature?: string,
+  adminSignature?: string
 ) {
-  const jsPDFModule = await import('jspdf');
-  const jsPDF = jsPDFModule.default;
-  const autoTableModule = await import('jspdf-autotable');
-  const autoTable = autoTableModule.default || autoTableModule;
 
   const doc = new jsPDF('p', 'mm', 'a4');
   doc.setProperties({ title: `Delivered_Invoices_${driverName.replace(/\s+/g, '_')}` });
@@ -168,7 +167,14 @@ export async function generateDeliveredDriverInvoicesPDF(
       doc.setTextColor(100, 100, 100);
       doc.setFont('helvetica', 'normal');
       doc.text("Receiver's Signature:", margin + 10, sigY);
-      doc.line(margin + 10, sigY + 12, margin + 80, sigY + 12);
+      if (adminSignature) {
+        try {
+          doc.addImage(adminSignature, 'PNG', margin + 15, sigY + 2, 55, 16);
+        } catch (e) {
+          console.error('Error adding admin signature image to PDF:', e);
+        }
+      }
+      doc.line(margin + 10, sigY + 19, margin + 80, sigY + 19);
     } else {
       // Both Receiver's and Driver's Signatures
       doc.setFontSize(9);
@@ -177,14 +183,30 @@ export async function generateDeliveredDriverInvoicesPDF(
 
       // Receiver
       doc.text("Receiver's Signature:", margin + 10, sigY);
-      doc.line(margin + 10, sigY + 12, margin + 80, sigY + 12);
+      if (adminSignature) {
+        try {
+          doc.addImage(adminSignature, 'PNG', margin + 15, sigY + 2, 55, 16);
+        } catch (e) {
+          console.error('Error adding admin signature image to PDF:', e);
+        }
+      }
+      doc.line(margin + 10, sigY + 19, margin + 80, sigY + 19);
 
       // Driver
       doc.text("Driver's Signature:", pageWidth - margin - 80, sigY);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(0, 0, 0);
-      doc.text(driverName, pageWidth - margin - 80, sigY + 5);
-      doc.line(pageWidth - margin - 80, sigY + 12, pageWidth - margin - 10, sigY + 12);
+      if (driverSignature) {
+        try {
+          doc.addImage(driverSignature, 'PNG', pageWidth - margin - 75, sigY + 2, 55, 16);
+        } catch (e) {
+          console.error('Error adding driver signature image to PDF:', e);
+        }
+      }
+      doc.line(pageWidth - margin - 80, sigY + 19, pageWidth - margin - 10, sigY + 19);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Name: ${driverName}`, pageWidth - margin - 80, sigY + 23);
     }
   };
 

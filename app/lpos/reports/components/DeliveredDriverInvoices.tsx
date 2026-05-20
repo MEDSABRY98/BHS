@@ -3,9 +3,10 @@
 import { useState, useEffect, useMemo } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import SearchSelect from '../../components/DropDownList';
-import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
+import { FileText, Loader2, Download, Printer, AlertCircle, FilePenLine } from 'lucide-react';
 import { generateDeliveredDriverInvoicesPDF } from '@/lib/pdf/DeliveredDriverInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
+import SignatureModal from './SignatureModal';
 
 export default function DeliveredDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -16,6 +17,19 @@ export default function DeliveredDriverInvoices() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [currentAdmin, setCurrentAdmin] = useState<any>(null);
+
+  useEffect(() => {
+    const mainUserStr = localStorage.getItem('currentUser');
+    if (mainUserStr) {
+      const u = JSON.parse(mainUserStr);
+      setCurrentAdmin({
+        id: u.id || u.ID || 'U-0001',
+        name: u.name || u.NAME || 'MED Sabry'
+      });
+    }
+  }, []);
 
   useEffect(() => {
     fetchDrivers();
@@ -123,7 +137,39 @@ export default function DeliveredDriverInvoices() {
     if (sortedInvoices.length === 0) return;
     setIsGeneratingPdf(true);
     try {
-      await generateDeliveredDriverInvoicesPDF(selectedDriverName, sortedInvoices, action, fromDate, toDate);
+      // Fetch driver signature from database
+      let driverSignature = '';
+      const { data: driverData, error: driverErr } = await app_lpos_supabase
+        .from('bhs_USERS')
+        .select('SIGNATURE')
+        .eq('ID', selectedDriverId)
+        .single();
+      if (!driverErr && driverData?.SIGNATURE) {
+        driverSignature = driverData.SIGNATURE;
+      }
+
+      // Fetch admin signature from database
+      let adminSignature = '';
+      if (currentAdmin?.id) {
+        const { data: adminData, error: adminErr } = await app_lpos_supabase
+          .from('bhs_USERS')
+          .select('SIGNATURE')
+          .eq('ID', currentAdmin.id)
+          .single();
+        if (!adminErr && adminData?.SIGNATURE) {
+          adminSignature = adminData.SIGNATURE;
+        }
+      }
+
+      await generateDeliveredDriverInvoicesPDF(
+        selectedDriverName, 
+        sortedInvoices, 
+        action, 
+        fromDate, 
+        toDate,
+        driverSignature,
+        adminSignature
+      );
     } catch (err) {
       console.error('PDF Generation failed:', err);
     } finally {
@@ -198,30 +244,40 @@ export default function DeliveredDriverInvoices() {
             />
           </div>
 
-          {selectedDriverId && sortedInvoices.length > 0 && (
-            <div className="flex gap-4 shrink-0 w-full lg:w-auto justify-end lg:justify-start">
-              <button
-                disabled={isGeneratingPdf}
-                onClick={() => handlePdfAction('print')}
-                title="Print Report"
-                className="w-[68px] h-[68px] bg-white border border-gray-200 text-black hover:border-black rounded-2xl transition-all flex items-center justify-center shadow-sm"
-              >
-                <Printer className="w-5 h-5" />
-              </button>
-              <button
-                disabled={isGeneratingPdf}
-                onClick={() => handlePdfAction('download')}
-                title="Download PDF"
-                className="w-[68px] h-[68px] bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/10 hover:bg-gray-900 transition-all flex items-center justify-center"
-              >
-                {isGeneratingPdf ? (
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                ) : (
-                  <Download className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-          )}
+          <div className="flex gap-4 shrink-0 w-full lg:w-auto justify-end lg:justify-start">
+            <button
+              onClick={() => setIsSignatureModalOpen(true)}
+              title="Manage Signatures"
+              className="w-[68px] h-[68px] bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer"
+            >
+              <FilePenLine className="w-5 h-5" />
+            </button>
+
+            {selectedDriverId && sortedInvoices.length > 0 && (
+              <>
+                <button
+                  disabled={isGeneratingPdf}
+                  onClick={() => handlePdfAction('print')}
+                  title="Print Report"
+                  className="w-[68px] h-[68px] bg-white border border-gray-200 text-black hover:border-black rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer"
+                >
+                  <Printer className="w-5 h-5" />
+                </button>
+                <button
+                  disabled={isGeneratingPdf}
+                  onClick={() => handlePdfAction('download')}
+                  title="Download PDF"
+                  className="w-[68px] h-[68px] bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/10 hover:bg-gray-900 transition-all flex items-center justify-center cursor-pointer"
+                >
+                  {isGeneratingPdf ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Download className="w-5 h-5" />
+                  )}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -313,6 +369,15 @@ export default function DeliveredDriverInvoices() {
             </div>
           )}
         </div>
+      )}
+
+      {currentAdmin && (
+        <SignatureModal
+          isOpen={isSignatureModalOpen}
+          onClose={() => setIsSignatureModalOpen(false)}
+          currentAdminId={currentAdmin.id}
+          currentAdminName={currentAdmin.name}
+        />
       )}
     </div>
   );
