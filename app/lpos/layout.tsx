@@ -94,13 +94,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isMounted || !user) return null;
 
   const ALL_NAV_ITEMS = [
-    { id: 'lpo-dashboard', href: '/app_lpos_dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'lpo-orders', href: '/app_lpos_dashboard/orders', icon: ShoppingCart, label: 'Orders' },
-    { id: 'lpo-create-orders', href: '/app_lpos_dashboard/create-orders', icon: ReceiptText, label: 'Create Orders' },
-    { id: 'lpo-reports', href: '/app_lpos_dashboard/reports', icon: FileText, label: 'Reports' },
-    { id: 'lpo-customers', href: '/app_lpos_dashboard/customers', icon: UserCircle, label: 'Customers DB' },
-    { id: 'lpo-products', href: '/app_lpos_dashboard/products', icon: Package, label: 'Products DB' },
-    { id: 'lpo-users', href: '/app_lpos_dashboard/users', icon: Users, label: 'Users DB' },
+    { id: 'lpo-dashboard', href: '/lpos', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'lpo-orders', href: '/lpos/orders', icon: ShoppingCart, label: 'Orders' },
+    { id: 'lpo-create-orders', href: '/lpos/create-orders', icon: ReceiptText, label: 'Create Orders' },
+    { id: 'lpo-reports', href: '/lpos/reports', icon: FileText, label: 'Reports' },
+    { id: 'lpo-customers', href: '/lpos/customers', icon: UserCircle, label: 'Customers DB' },
+    { id: 'lpo-products', href: '/lpos/products', icon: Package, label: 'Products DB' },
+    { id: 'lpo-users', href: '/lpos/users', icon: Users, label: 'Users DB' },
   ];
 
   const getFilteredNavItems = () => {
@@ -170,7 +170,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavItem
               key={item.href}
               {...item}
-              isActive={pathname === item.href || (item.href !== '/app_lpos_dashboard' && pathname.startsWith(item.href))}
+              isActive={pathname === item.href || (item.href !== '/lpos' && pathname.startsWith(item.href))}
               isCollapsed={isCollapsed}
             />
           ))}
@@ -254,7 +254,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </aside>
 
         <main className="flex-1 p-4 md:p-8 lg:p-12">
-          <div className={`${(pathname === '/app_lpos_dashboard/orders' || pathname === '/app_lpos_dashboard/create-orders') ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+          <div className={`${(pathname === '/lpos/orders' || pathname === '/lpos/create-orders') ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
             {children}
           </div>
         </main>

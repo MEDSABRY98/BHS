@@ -230,7 +230,8 @@ export default function CreateOrderPage() {
           ID: currentId,
           ORDER_ID: currentId,
           AMOUNT: parseFloat(rest.AMOUNT) || 0,
-          ORDER_DATE: orderDateVal
+          ORDER_DATE: orderDateVal,
+          STATUS: 'Approved'
         };
       });
 

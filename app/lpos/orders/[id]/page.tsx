@@ -18,7 +18,8 @@ import {
   Undo2,
   FileText,
   Printer,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Edit2
 } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { usePermissions } from '../../hooks/usePermissions';
@@ -42,6 +43,7 @@ export default function OrderDetailsPage() {
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isNoItemsOrder, setIsNoItemsOrder] = useState(false);
+  const [isEditingStatus, setIsEditingStatus] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
   const [prepStaff, setPrepStaff] = useState<any[]>([]);
   const [deliveryData, setDeliveryData] = useState<any>(null);
@@ -109,7 +111,7 @@ export default function OrderDetailsPage() {
       setAdminNotes(orderData.NOTES || '');
     } catch (err) {
       console.error(err);
-      router.push('/app_lpos_dashboard/orders');
+      router.push('/lpos/orders');
     } finally {
       setIsLoading(false);
     }
@@ -165,7 +167,7 @@ export default function OrderDetailsPage() {
 
       if (orderError) throw orderError;
 
-      router.push('/app_lpos_dashboard/orders');
+      router.push('/lpos/orders');
     } catch (err) {
       alert('Error deleting order: ' + (err as any).message);
     } finally {
@@ -239,6 +241,7 @@ export default function OrderDetailsPage() {
       }
 
       await fetchOrderDetails();
+      setIsEditingStatus(false);
     } catch (err) {
       alert('Error updating order: ' + (err as any).message);
     } finally {
@@ -386,25 +389,38 @@ export default function OrderDetailsPage() {
             >
               <FileText className="w-5 h-5 text-red-500" />
             </button>
-            <button
-              onClick={() => confirmStatusUpdate('Rejected')}
-              disabled={isSaving}
-              className="w-[160px] py-4 bg-white border border-red-100 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all flex items-center justify-center gap-2"
-            >
-              <XCircle className="w-5 h-5" />
-              REJECT
-            </button>
-            <button
-              onClick={() => confirmStatusUpdate('Approved')}
-              disabled={isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))}
-              className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
-                : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
-                }`}
-            >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-              APPROVE
-            </button>
+            {(order?.STATUS === 'Pending' || isEditingStatus) ? (
+              <>
+                <button
+                  onClick={() => confirmStatusUpdate('Rejected')}
+                  disabled={isSaving}
+                  className="w-[160px] py-4 bg-white border border-red-100 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                >
+                  <XCircle className="w-5 h-5" />
+                  REJECT
+                </button>
+                <button
+                  onClick={() => confirmStatusUpdate('Approved')}
+                  disabled={isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))}
+                  className={`w-[160px] py-4 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl transition-all flex items-center justify-center gap-2 ${isSaving || (!isNoItemsOrder && !items.some(item => (parseFloat(item.QTY_RECEIVED) || 0) > 0 && item.ITEMS_STATUS !== 'Rejected'))
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed shadow-none'
+                    : 'bg-black text-[#D4AF37] shadow-black/20 hover:scale-[1.02] active:scale-[0.98]'
+                    }`}
+                >
+                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                  {order?.STATUS === 'Pending' ? 'APPROVE' : 'CONFIRM'}
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setIsEditingStatus(true)}
+                disabled={isSaving}
+                className="p-4 bg-white border border-gray-100 text-black rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
+                title="Edit Status"
+              >
+                <Edit2 className="w-5 h-5 text-[#D4AF37]" />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -544,7 +560,7 @@ export default function OrderDetailsPage() {
         {activeTab === 'ITEMS' && !isNoItemsOrder && (
           <OrderItemsTab
             items={items}
-            canEdit={canEdit}
+            canEdit={canEdit && (order?.STATUS === 'Pending' || isEditingStatus)}
             totalAmount={totalAmount}
             toggleItemStatus={toggleItemStatus}
             handleQtyChange={handleQtyChange}
@@ -599,10 +615,10 @@ export default function OrderDetailsPage() {
         <h3 className="text-xl font-black mb-6 text-black">Admin Notes</h3>
         <textarea
           value={adminNotes}
-          readOnly={!canEdit}
+          readOnly={!canEdit || (order?.STATUS !== 'Pending' && !isEditingStatus)}
           onChange={(e) => setAdminNotes(e.target.value)}
-          placeholder={canEdit ? "Add any internal notes about this order..." : "No notes available"}
-          className={`w-full h-32 p-6 bg-gray-50 border border-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold placeholder:text-gray-400 resize-none ${!canEdit ? 'opacity-50 cursor-not-allowed' : ''}`}
+          placeholder={canEdit && (order?.STATUS === 'Pending' || isEditingStatus) ? "Add any internal notes about this order..." : "No notes available"}
+          className={`w-full h-32 p-6 bg-gray-50 border border-gray-100 rounded-3xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold placeholder:text-gray-400 resize-none ${!canEdit || (order?.STATUS !== 'Pending' && !isEditingStatus) ? 'opacity-50 cursor-not-allowed' : ''}`}
         />
       </div>
     </div>

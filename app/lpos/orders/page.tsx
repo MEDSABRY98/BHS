@@ -5,16 +5,20 @@ import { app_lpos_supabase } from '@/lib/supabase';
 import {
   Search,
   Eye,
-  ChevronRight
+  ChevronRight,
+  CheckCircle2,
+  XCircle,
+  Trash2
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from './components/OrdersFilterMenu';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 
 export default function OrdersPage() {
-  const { canEdit, isLoaded } = usePermissions();
+  const { canEdit, canDelete, isLoaded } = usePermissions();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -28,6 +32,16 @@ export default function OrdersPage() {
   const [isFiltersLoaded, setIsFiltersLoaded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 50;
+
+  const [selectedOrderIds, setSelectedOrderIds] = useState<string[]>([]);
+  const [isBulkActionModalOpen, setIsBulkActionModalOpen] = useState(false);
+  const [bulkActionType, setBulkActionType] = useState<'Approve' | 'Reject' | 'Delete' | null>(null);
+  const [isBulkSaving, setIsBulkSaving] = useState(false);
+
+  // Clear selected checkbox state when filters, pagination, or search change
+  useEffect(() => {
+    setSelectedOrderIds([]);
+  }, [searchTerm, statusFilter, advancedFilters, currentPage]);
 
   useEffect(() => {
     fetchStaff();
@@ -117,6 +131,116 @@ export default function OrdersPage() {
     }
   }
 
+  const handleBulkAction = async () => {
+    if (!bulkActionType || selectedOrderIds.length === 0) return;
+    setIsBulkSaving(true);
+    try {
+      if (bulkActionType === 'Approve') {
+        // 1. Fetch items for selected orders
+        const { data: items } = await app_lpos_supabase
+          .from('app_lpos_ORDERS_ITEMS')
+          .select('ID, QTY_REQUEST, QTY_RECEIVED')
+          .in('ORDER_ID', selectedOrderIds);
+
+        // 2. Update status of the orders to Approved
+        const { error: ordersError } = await app_lpos_supabase
+          .from('app_lpos_ORDERS')
+          .update({ STATUS: 'Approved' })
+          .in('ID', selectedOrderIds);
+
+        if (ordersError) throw ordersError;
+
+        // 3. Update items (set QTY_RECEIVED to QTY_REQUEST and ITEMS_STATUS to Approved)
+        if (items && items.length > 0) {
+          await Promise.all(
+            items.map((item: any) => {
+              const qty = item.QTY_RECEIVED || item.QTY_REQUEST || 0;
+              return app_lpos_supabase
+                .from('app_lpos_ORDERS_ITEMS')
+                .update({
+                  ITEMS_STATUS: 'Approved',
+                  QTY_RECEIVED: qty
+                })
+                .eq('ID', item.ID);
+            })
+          );
+        }
+      } else if (bulkActionType === 'Reject') {
+        // 1. Update status of the orders to Rejected
+        const { error: ordersError } = await app_lpos_supabase
+          .from('app_lpos_ORDERS')
+          .update({ STATUS: 'Rejected' })
+          .in('ID', selectedOrderIds);
+
+        if (ordersError) throw ordersError;
+
+        // 2. Update status of all items in these orders to Rejected and QTY_RECEIVED = 0
+        const { error: itemsError } = await app_lpos_supabase
+          .from('app_lpos_ORDERS_ITEMS')
+          .update({ ITEMS_STATUS: 'Rejected', QTY_RECEIVED: 0 })
+          .in('ORDER_ID', selectedOrderIds);
+      } else if (bulkActionType === 'Delete') {
+        // 1. Delete items
+        await app_lpos_supabase
+          .from('app_lpos_ORDERS_ITEMS')
+          .delete()
+          .in('ORDER_ID', selectedOrderIds);
+
+        // 2. Delete Preparation
+        await app_lpos_supabase
+          .from('app_lpos_PREPARATION')
+          .delete()
+          .in('ORDER_ID', selectedOrderIds);
+
+        // 3. Delete Drivers/Logistics
+        await app_lpos_supabase
+          .from('app_lpos_DRIVERS')
+          .delete()
+          .in('ORDER_ID', selectedOrderIds);
+
+        // 4. Delete the orders
+        const { error: ordersError } = await app_lpos_supabase
+          .from('app_lpos_ORDERS')
+          .delete()
+          .in('ID', selectedOrderIds);
+
+        if (ordersError) throw ordersError;
+      }
+
+      // Re-fetch all orders
+      await fetchOrders();
+      setSelectedOrderIds([]);
+    } catch (err) {
+      alert(`Error performing bulk ${bulkActionType}: ${(err as any).message}`);
+    } finally {
+      setIsBulkSaving(false);
+      setIsBulkActionModalOpen(false);
+      setBulkActionType(null);
+    }
+  };
+
+  const getModalTitleAndMessage = () => {
+    switch (bulkActionType) {
+      case 'Approve':
+        return {
+          title: 'Confirm Bulk Approval',
+          message: `Are you sure you want to approve all ${selectedOrderIds.length} selected orders? This will also mark all their items as approved and auto-fill quantities.`
+        };
+      case 'Reject':
+        return {
+          title: 'Confirm Bulk Rejection',
+          message: `Are you sure you want to reject all ${selectedOrderIds.length} selected orders?`
+        };
+      case 'Delete':
+        return {
+          title: 'Confirm Bulk Deletion',
+          message: `Are you sure you want to permanently delete all ${selectedOrderIds.length} selected orders? This action is irreversible.`
+        };
+      default:
+        return { title: '', message: '' };
+    }
+  };
+
   const processedOrders = useMemo(() => {
     return orders.map(o => {
       const drv = o.app_lpos_DRIVERS?.[0];
@@ -203,19 +327,65 @@ export default function OrdersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
-        <div className="flex items-center gap-3">
-          <OrdersFilterMenu
-            activeFilters={advancedFilters}
-            onFilterChange={setAdvancedFilters}
-            staffList={staffList}
-          />
-          <div className="px-4 py-2 bg-[#D4AF37]/10 text-black border border-[#D4AF37]/20 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
-            <span className="w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse" />
-            {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <h1 className="text-4xl font-normal text-black tracking-tighter">Orders</h1>
+          <div className="flex items-center gap-3">
+            <OrdersFilterMenu
+              activeFilters={advancedFilters}
+              onFilterChange={setAdvancedFilters}
+              staffList={staffList}
+            />
+            <div className="px-4 py-2 bg-[#D4AF37]/10 text-black border border-[#D4AF37]/20 rounded-2xl text-[11px] font-black uppercase tracking-widest flex items-center gap-2">
+              <span className="w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse" />
+              {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
+            </div>
           </div>
         </div>
+
+        {selectedOrderIds.length > 0 && (
+          <div className="flex items-center gap-2 bg-gray-50 border border-gray-100 rounded-[1.25rem] p-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+            <span className="text-xs font-black text-gray-500 uppercase tracking-wider px-3">
+              {selectedOrderIds.length} Selected
+            </span>
+            {canEdit && (
+              <>
+                <button
+                  onClick={() => {
+                    setBulkActionType('Approve');
+                    setIsBulkActionModalOpen(true);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 hover:scale-105 active:scale-95 transition-all shadow-md shadow-emerald-500/10"
+                  title="Bulk Approve"
+                >
+                  <CheckCircle2 className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => {
+                    setBulkActionType('Reject');
+                    setIsBulkActionModalOpen(true);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center bg-white border border-red-100 text-red-500 rounded-xl hover:bg-red-50 hover:scale-105 active:scale-95 transition-all shadow-sm"
+                  title="Bulk Reject"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </>
+            )}
+            {canDelete && (
+              <button
+                onClick={() => {
+                  setBulkActionType('Delete');
+                  setIsBulkActionModalOpen(true);
+                }}
+                className="w-10 h-10 flex items-center justify-center bg-red-600 text-white rounded-xl hover:bg-red-700 hover:scale-105 active:scale-95 transition-all shadow-md shadow-red-600/10"
+                title="Bulk Delete"
+              >
+                <Trash2 className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Filters */}
@@ -252,6 +422,22 @@ export default function OrdersPage() {
           <table className="w-full text-center border-collapse min-w-[1100px]">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="px-6 py-6 w-[60px] text-center">
+                  <input
+                    type="checkbox"
+                    className="w-5 h-5 accent-[#D4AF37] rounded-lg border-gray-300 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                    checked={paginatedOrders.length > 0 && paginatedOrders.every(o => selectedOrderIds.includes(o.ID))}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        const pageIds = paginatedOrders.map(o => o.ID);
+                        setSelectedOrderIds(prev => Array.from(new Set([...prev, ...pageIds])));
+                      } else {
+                        const pageIds = paginatedOrders.map(o => o.ID);
+                        setSelectedOrderIds(prev => prev.filter(id => !pageIds.includes(id)));
+                      }
+                    }}
+                  />
+                </th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[100px]">Order ID</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[120px]">Order Date</th>
                 <th className="px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] min-w-[140px]">LPO ID</th>
@@ -266,13 +452,28 @@ export default function OrdersPage() {
             <tbody className="divide-y divide-gray-50">
               {paginatedOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={9}>
+                  <td colSpan={10}>
                     <NoData title="NO ORDERS FOUND" />
                   </td>
                 </tr>
               ) : (
                 paginatedOrders.map((order) => (
                   <tr key={order.ID} className="group hover:bg-gray-50/50 transition-all">
+                    {/* Checkbox */}
+                    <td className="px-6 py-6 text-center whitespace-nowrap">
+                      <input
+                        type="checkbox"
+                        className="w-5 h-5 accent-[#D4AF37] rounded-lg border-gray-300 focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                        checked={selectedOrderIds.includes(order.ID)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedOrderIds(prev => [...prev, order.ID]);
+                          } else {
+                            setSelectedOrderIds(prev => prev.filter(id => id !== order.ID));
+                          }
+                        }}
+                      />
+                    </td>
                     {/* 1. Order ID */}
                     <td className="px-6 py-6 whitespace-nowrap">
                       <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
@@ -331,7 +532,7 @@ export default function OrdersPage() {
                     <td className="px-6 py-6 whitespace-nowrap">
                       <div className="flex justify-center">
                         <Link
-                          href={`/app_lpos_dashboard/orders/${order.ORDER_ID || order.ID}`}
+                          href={`/lpos/orders/${order.ORDER_ID || order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"
                         >
@@ -403,6 +604,18 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={isBulkActionModalOpen}
+        onConfirm={handleBulkAction}
+        onCancel={() => {
+          setIsBulkActionModalOpen(false);
+          setBulkActionType(null);
+        }}
+        isLoading={isBulkSaving}
+        title={getModalTitleAndMessage().title}
+        message={getModalTitleAndMessage().message}
+      />
     </div>
   );
 }
