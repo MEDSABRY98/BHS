@@ -129,6 +129,84 @@ export async function generatePendingDriverInvoicesPDF(
   if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
   else if (typeof autoTable === 'function') autoTable(doc, tableOptions);
 
+  // Group invoices by date and count them for page 2 summary
+  const dateGroups: { [key: string]: { dateObj: Date; formattedDate: string; count: number } } = {};
+
+  invoices.forEach((inv) => {
+    const rawDate = inv.ORDER_DATE || inv.CREATED_AT;
+    if (!rawDate) return;
+    const dateObj = new Date(rawDate);
+    const year = dateObj.getFullYear();
+    const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getDate()).padStart(2, '0');
+    const dateKey = `${year}-${month}-${day}`;
+
+    if (!dateGroups[dateKey]) {
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+      const monthName = months[dateObj.getMonth()];
+      const formattedDate = `${day}-${monthName}-${year}`;
+
+      dateGroups[dateKey] = {
+        dateObj,
+        formattedDate,
+        count: 0
+      };
+    }
+    dateGroups[dateKey].count += 1;
+  });
+
+  // Sort by date from oldest to newest
+  const sortedDateGroups = Object.values(dateGroups).sort((a, b) => a.dateObj.getTime() - b.dateObj.getTime());
+
+  if (sortedDateGroups.length > 0) {
+    doc.addPage();
+
+    // Header Background - Premium Slim Black Bar for Page 2
+    doc.setFillColor(10, 10, 10);
+    doc.rect(0, 0, pageWidth, 20, 'F');
+
+    // Title - Centered Gold
+    doc.setFontSize(14);
+    doc.setTextColor(212, 175, 55); // Gold
+    doc.setFont('helvetica', 'bold');
+    doc.text(`INVOICES SUMMARY BY DATE - ${driverName.toUpperCase()}`, pageWidth / 2, 13, { align: 'center' });
+
+    const summaryTableData = sortedDateGroups.map(group => [
+      group.formattedDate,
+      group.count.toString()
+    ]);
+
+    const summaryTableOptions: any = {
+      startY: 28,
+      head: [['Invoice Date', 'Number of Invoices']],
+      body: summaryTableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [10, 10, 10],
+        textColor: [212, 175, 55],
+        fontStyle: 'bold',
+        halign: 'center',
+        valign: 'middle',
+        fontSize: 10,
+        cellPadding: 3
+      },
+      bodyStyles: {
+        halign: 'center',
+        valign: 'middle',
+        fontSize: 10,
+        cellPadding: 3
+      },
+      columnStyles: {
+        0: { cellWidth: 80, halign: 'center' },
+        1: { cellWidth: 80, halign: 'center' }
+      },
+      margin: { left: (pageWidth - 160) / 2, right: (pageWidth - 160) / 2 }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(summaryTableOptions);
+    else if (typeof autoTable === 'function') autoTable(doc, summaryTableOptions);
+  }
+
   // Footer on all pages
   const totalPages = (doc as any).internal.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {

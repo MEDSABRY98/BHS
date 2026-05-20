@@ -14,6 +14,7 @@ import {
   X,
   ReceiptText,
   ChevronRight,
+  ChevronLeft,
   FileText
 } from 'lucide-react';
 
@@ -23,22 +24,26 @@ interface NavItemProps {
   label: string;
   isActive: boolean;
   onClick?: () => void;
+  isCollapsed?: boolean;
 }
 
-function NavItem({ href, icon: Icon, label, isActive, onClick }: NavItemProps) {
+function NavItem({ href, icon: Icon, label, isActive, onClick, isCollapsed }: NavItemProps) {
   return (
     <Link
       href={href}
       replace
       onClick={onClick}
-      className={`flex items-center px-6 py-4 transition-all duration-200 group ${isActive
+      className={`flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group ${isActive
         ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white'
         : 'text-gray-400 hover:text-white hover:bg-white/5'
         }`}
+      title={isCollapsed ? label : undefined}
     >
-      <Icon className={`w-5 h-5 mr-4 transition-colors ${isActive ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
-      <span className="font-medium text-sm tracking-wide">{label}</span>
-      {isActive && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
+      <Icon className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${isActive ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+      {!isCollapsed && (
+        <span className="font-medium text-sm tracking-wide whitespace-nowrap animate-in fade-in duration-200">{label}</span>
+      )}
+      {!isCollapsed && isActive && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37] animate-in fade-in duration-200" />}
     </Link>
   );
 }
@@ -47,8 +52,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('sidebarCollapsed');
+    if (stored === 'true') {
+      setIsCollapsed(true);
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextState = !isCollapsed;
+    setIsCollapsed(nextState);
+    localStorage.setItem('sidebarCollapsed', String(nextState));
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -118,25 +137,31 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
       {/* Sidebar - Desktop */}
-      <aside className="hidden lg:flex flex-col w-72 bg-black text-white shadow-2xl fixed h-screen left-0 top-0 z-50">
-        <div className="px-8 pt-6 pb-2 bg-black/50 backdrop-blur-md">
+      <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-black text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <div className={`px-4 ${isCollapsed ? 'lg:px-4' : 'lg:px-8'} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
           <button
             onClick={handleLogout}
-            className="flex items-center justify-center gap-3 py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full"
+            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full`}
           >
-            <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-            <span className="text-xs font-black uppercase tracking-[0.2em]">Back Home</span>
+            <LogOut className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+            {!isCollapsed && (
+              <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
+                Back Home
+              </span>
+            )}
           </button>
         </div>
-        <div className="px-8 pt-2 pb-6 shrink-0 flex flex-col items-center justify-center">
+        <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300`}>
           <div className="flex flex-col items-center text-center">
-            <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20">
+            <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20 transition-all duration-300">
               <ReceiptText className="w-7 h-7 text-black" />
             </div>
-            <div>
-              <h2 className="text-xl font-bold tracking-tight">BHS LPO'S</h2>
-              <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Admin Panel</p>
-            </div>
+            {!isCollapsed && (
+              <div className="animate-in fade-in duration-300">
+                <h2 className="text-xl font-bold tracking-tight">BHS LPO'S</h2>
+                <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Admin Panel</p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -146,15 +171,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               key={item.href}
               {...item}
               isActive={pathname === item.href || (item.href !== '/app_lpos_dashboard' && pathname.startsWith(item.href))}
+              isCollapsed={isCollapsed}
             />
           ))}
         </nav>
 
-
+        {/* Toggle Button */}
+        <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
+          <button 
+            onClick={toggleSidebar} 
+            className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
+            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+          >
+            {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          </button>
+        </div>
       </aside>
 
       {/* Main Content Area - Shifted by Sidebar Width on Desktop */}
-      <div className="flex-1 flex flex-col min-w-0 lg:ml-72 transition-all duration-300">
+      <div className={`flex-1 flex flex-col min-w-0 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
         {/* Header - Mobile */}
         <header className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 sticky top-0 z-30">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-black">
