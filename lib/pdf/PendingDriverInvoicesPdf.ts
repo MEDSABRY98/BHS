@@ -85,7 +85,7 @@ export async function generatePendingDriverInvoicesPDF(
 
   // Table Data mapping
   const tableData = invoices.map((inv) => {
-    const formattedDate = inv.ORDER_DATE 
+    const formattedDate = inv.ORDER_DATE
       ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
       : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
 
@@ -137,7 +137,7 @@ export async function generatePendingDriverInvoicesPDF(
     doc.setTextColor(180, 180, 180);
     doc.setFont('helvetica', 'normal');
     doc.text(
-      `BHS Logistics LPOS System • Page ${i} of ${totalPages} • Generated on ${new Date().toLocaleString()}`,
+      `Page ${i} of ${totalPages}`,
       pageWidth / 2,
       pageHeight - 8,
       { align: 'center' }

@@ -438,6 +438,22 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
     const yearsSet = new Set<string>();
+
+    // Determine the fixed set of years from all outstanding transactions across all customers
+    data.forEach(row => {
+      let amount = 0;
+      if (!row.matching) amount = row.debit - row.credit;
+      else if (row.residualAmount !== undefined && Math.abs(row.residualAmount) > 0.01) amount = row.residualAmount;
+      if (Math.abs(amount) > 0.01) {
+        const d = parseDate(row.date);
+        let yr = d ? d.getFullYear().toString() : 'Unknown';
+        if ((row.number?.toString().toUpperCase() || '').startsWith('OB')) {
+          yr = 'OB';
+        }
+        if (yr !== 'Unknown') yearsSet.add(yr);
+      }
+    });
+
     const validCustomers = new Set(filteredData.map(c => c.customerName));
     const customerTransactions = new Map<string, InvoiceRow[]>();
     data.forEach(row => {
@@ -461,7 +477,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
             yr = 'OB';
           }
           
-          if (yr !== 'Unknown') yearsSet.add(yr);
           customerTotal += amount;
           customerYearly[yr] = (customerYearly[yr] || 0) + amount;
           
