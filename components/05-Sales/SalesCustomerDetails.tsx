@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X } from 'lucide-react';
+import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
 import NoData from '../01-Unified/NoDataTab';
 import SalesCustomerCategoriesTab from './SalesCustomerDetailsCategoriesTab';
 import * as XLSX from 'xlsx';
@@ -27,6 +27,7 @@ interface SalesCustomerDetailsProps {
   allData?: SalesInvoice[]; // Full dataset (not date filtered)
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
+  showCosts?: boolean;
 }
 
 export default function SalesCustomerDetails({
@@ -35,7 +36,8 @@ export default function SalesCustomerDetails({
   data,
   allData = [],
   onBack,
-  initialTab = 'dashboard'
+  initialTab = 'dashboard',
+  showCosts = true
 }: SalesCustomerDetailsProps) {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +48,7 @@ export default function SalesCustomerDetails({
   const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
   const [invoicesPage, setInvoicesPage] = useState(1);
   const invoicesPerPage = 50;
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
 
   // Debounce search query
   useEffect(() => {
@@ -354,6 +357,7 @@ export default function SalesCustomerDetails({
       costCount: number;
       priceCount: number;
       subCustomers: Set<string>;
+      items: SalesInvoice[];
     }>();
 
     customerData.forEach(item => {
@@ -369,9 +373,11 @@ export default function SalesCustomerDetails({
         totalPrice: 0,
         costCount: 0,
         priceCount: 0,
-        subCustomers: new Set<string>()
+        subCustomers: new Set<string>(),
+        items: [] as SalesInvoice[]
       };
 
+      existing.items.push(item);
       existing.amount += item.amount;
       existing.qty += item.qty;
 
@@ -693,23 +699,32 @@ export default function SalesCustomerDetails({
   const exportProductsToExcel = () => {
     const workbook = XLSX.utils.book_new();
 
-    const headers = ['#', 'Barcode', 'Product', 'Amount', 'Avg Cost', 'Avg Price', 'Quantity', 'Purchase Count', 'LID'];
+    const headers = showCosts
+      ? ['#', 'Barcode', 'Product', 'Amount', 'Avg Cost', 'Avg Price', 'Quantity', 'Purchase Count', 'LID']
+      : ['#', 'Barcode', 'Product', 'Amount', 'Avg Price', 'Quantity', 'Purchase Count', 'LID'];
 
-    const rows = productsData.map((item: any, index: number) => [
-      index + 1,
-      item.barcode || '-',
-      item.product,
-      item.amount.toFixed(2),
-      item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2),
-      item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
-      item.qty.toFixed(0),
-      item.invoiceCount || 0,
-      item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      }) : '-',
-    ]);
+    const rows = productsData.map((item: any, index: number) => {
+      const row = [
+        index + 1,
+        item.barcode || '-',
+        item.product,
+        item.amount.toFixed(2),
+      ];
+      if (showCosts) {
+        row.push(item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2));
+      }
+      row.push(
+        item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
+        item.qty.toFixed(0),
+        item.invoiceCount || 0,
+        item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }) : '-',
+      );
+      return row;
+    });
 
     const sheetData = [headers, ...rows];
     const sheet = XLSX.utils.aoa_to_sheet(sheetData);
@@ -757,6 +772,62 @@ export default function SalesCustomerDetails({
     const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
     const filename = `sales_customer_invoices_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
+  };
+
+  // Format date as DD/MM/YYYY
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return '';
+    }
+  };
+
+  // Export Single Invoice to Excel
+  const exportSingleInvoiceToExcel = (invoice: any) => {
+    const header = [
+      ['Customer Name:', invoice.customerName],
+      ['Invoice Number:', invoice.invoiceNumber],
+      ['Date:', formatDate(invoice.invoiceDate)],
+      [],
+      showCosts
+        ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+        : ['Barcode', 'Product', 'Quantity', 'Price', 'Total']
+    ];
+
+    const rows = invoice.items.map((item: SalesInvoice) => {
+      const row = [
+        item.barcode || '-',
+        item.product || '-',
+        item.qty || 0,
+      ];
+      if (showCosts) {
+        row.push(item.productCost || 0);
+      }
+      row.push(
+        item.productPrice || 0,
+        item.amount || 0
+      );
+      return row;
+    });
+
+    const footer = [
+      [],
+      [...Array(showCosts ? 4 : 3).fill(''), 'Total Amount:', invoice.amount]
+    ];
+
+    const worksheetData = [...header, ...rows, ...footer];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    const sheetName = String(invoice.invoiceNumber).replace(/[:\\/?*[\]]/g, '_').slice(0, 31);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, `Invoice_${invoice.invoiceNumber}.xlsx`);
   };
 
   return (
@@ -1249,7 +1320,7 @@ export default function SalesCustomerDetails({
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-36">Barcode</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-64">Product</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Amount</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Avg Cost</th>
+                    {showCosts && <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Avg Cost</th>}
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Avg Price</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-24">Quantity</th>
                     <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Purchase Count</th>
@@ -1275,12 +1346,14 @@ export default function SalesCustomerDetails({
                           maximumFractionDigits: 2
                         })}
                       </td>
-                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
-                        {item.avgCost % 1 === 0
-                          ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                          : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        }
-                      </td>
+                      {showCosts && (
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.avgCost % 1 === 0
+                            ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                            : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                         {item.avgPrice % 1 === 0
                           ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -1397,7 +1470,17 @@ export default function SalesCustomerDetails({
                             {item.subCustomerNames}
                           </td>
                         )}
-                        <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">{item.invoiceNumber}</td>
+                        <td className="py-3 px-4 text-base text-green-600 font-semibold text-center">
+                          <button 
+                            onClick={() => setSelectedInvoice({
+                              ...item,
+                              customerName: customerType === 'main' ? (item.subCustomerNames || customerName) : customerName
+                            })}
+                            className="hover:underline font-bold"
+                          >
+                            {item.invoiceNumber}
+                          </button>
+                        </td>
                         <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
                           {item.amount.toLocaleString('en-US', {
                             minimumFractionDigits: 2,
@@ -1595,6 +1678,92 @@ export default function SalesCustomerDetails({
                 >
                   Close
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Invoice Details Modal */}
+        {selectedInvoice && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <ShoppingBag className="w-5 h-5 text-green-600" />
+                    Invoice Details: {selectedInvoice.invoiceNumber}
+                  </h3>
+                  <p className="text-sm text-gray-500 font-medium">
+                    {selectedInvoice.customerName} | {formatDate(selectedInvoice.invoiceDate)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => exportSingleInvoiceToExcel(selectedInvoice)}
+                    className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors flex items-center justify-center border border-emerald-100 shadow-sm group"
+                    title="Export Invoice to Excel"
+                  >
+                    <FileSpreadsheet className="w-5 h-5 transition-transform group-hover:scale-110" />
+                  </button>
+                  <button 
+                    onClick={() => setSelectedInvoice(null)}
+                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body - Items Table */}
+              <div className="flex-1 overflow-auto p-6">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
+                    <tr className="border-b border-gray-200">
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Barcode</th>
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Qty</th>
+                      {showCosts && <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cost</th>}
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Price</th>
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {selectedInvoice.items?.map((item: SalesInvoice, idx: number) => (
+                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-4 text-center font-mono text-[11px] text-gray-500">{item.barcode || '-'}</td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="font-bold text-gray-800">{item.product}</div>
+                        </td>
+                        <td className="py-3 px-4 text-center font-semibold text-gray-700">{item.qty}</td>
+                        {showCosts && (
+                          <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                            {item.productCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                        )}
+                        <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                          {item.productPrice?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold text-gray-900">
+                          {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Modal Footer - Totals Breakdown */}
+              <div className="px-8 py-6 bg-gray-50 border-t border-gray-200">
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex justify-between w-full max-w-[240px] text-green-700 mt-1">
+                    <span className="text-lg font-black uppercase tracking-wider">Total Amount:</span>
+                    <span className="text-2xl font-black">
+                      {selectedInvoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <span className="text-xs ml-1 font-bold">AED</span>
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

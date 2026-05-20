@@ -477,16 +477,6 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
               Market
             </button>
             <button
-              onClick={() => setActiveSubTab('merchandiser')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'merchandiser'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              Merchandiser
-            </button>
-            <button
               onClick={() => setActiveSubTab('salesrep')}
               className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'salesrep'
                 ? 'bg-green-600 text-white shadow-md'
@@ -495,6 +485,16 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
             >
               <UserCircle className="w-5 h-5" />
               Sales Rep
+            </button>
+            <button
+              onClick={() => setActiveSubTab('merchandiser')}
+              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'merchandiser'
+                ? 'bg-green-600 text-white shadow-md'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+            >
+              <ShoppingBag className="w-5 h-5" />
+              Merchandiser
             </button>
           </div>
         </div>

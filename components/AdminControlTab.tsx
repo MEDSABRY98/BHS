@@ -110,6 +110,9 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
 
 // Action-level permissions per system
 const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }[]> = {
+    'sales': [
+        { id: 'view-costs', label: 'View Cost Columns', icon: '💰' }
+    ],
     'delivery-tracking': [
         { id: 'add', label: 'Add (New LPO)', icon: '➕' },
         { id: 'edit', label: 'Edit Orders', icon: '✏️' },
@@ -123,6 +126,7 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
         { id: 'delete', label: 'Admin (Add/Edit/Delete)', icon: '🗑️' }
     ]
 };
+
 
 export default function AdminControlTab() {
     const [users, setUsers] = useState<UserPermissions[]>([]);

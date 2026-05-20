@@ -168,7 +168,7 @@ export default function SalesCategoriesTab({ data, loading }: SalesCategoriesTab
     <div className="space-y-6">
       {/* Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <h1 className="text-2xl font-medium text-slate-800">Sales by Product Category</h1>
+        <h1 className="text-2xl font-medium text-slate-800">Sales Product Category</h1>
 
         <div className="flex items-center gap-3 flex-1 max-w-2xl">
           <div className="relative flex-1 group">

@@ -12,6 +12,7 @@ interface SalesCustomersTabProps {
   allData: SalesInvoice[]; // Geography filtered but not date filtered
   loading: boolean;
   onUploadMapping?: (mapping: Record<string, any>) => void;
+  showCosts?: boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -44,7 +45,7 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
 
 CustomerRow.displayName = 'CustomerRow';
 
-export default function SalesCustomersTab({ data, allData, loading, onUploadMapping }: SalesCustomersTabProps) {
+export default function SalesCustomersTab({ data, allData, loading, onUploadMapping, showCosts = true }: SalesCustomersTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -283,6 +284,7 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
       data={data} 
       allData={allData}
       onBack={() => setSelectedCustomer(null)} 
+      showCosts={showCosts}
     />
   );
 

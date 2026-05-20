@@ -9,9 +9,10 @@ import NoData from '../01-Unified/NoDataTab';
 interface SalesDailySalesTabProps {
   data: SalesInvoice[];
   loading: boolean;
+  showCosts?: boolean;
 }
 
-export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTabProps) {
+export default function SalesDailySalesTab({ data, loading, showCosts = true }: SalesDailySalesTabProps) {
   const [searchQuery1, setSearchQuery1] = useState('');
   const [searchQuery2, setSearchQuery2] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -417,16 +418,21 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
 
   // Export to Excel - All Invoices
   const exportAllInvoicesToExcel = () => {
-    const worksheetData = dailySalesData.map((item: any) => ({
-      'Invoice Date': formatDate(item.invoiceDate),
-      'Invoice Number': item.invoiceNumber,
-      'Customer Name': item.customerName,
-      'Amount': item.amount,
-      'Quantity': item.qty,
-      'Products Count': item.productsCount,
-      'Avg Cost': item.avgCost,
-      'Avg Price': item.avgPrice
-    }));
+    const worksheetData = dailySalesData.map((item: any) => {
+      const row: any = {
+        'Invoice Date': formatDate(item.invoiceDate),
+        'Invoice Number': item.invoiceNumber,
+        'Customer Name': item.customerName,
+        'Amount': item.amount,
+        'Quantity': item.qty,
+        'Products Count': item.productsCount,
+      };
+      if (showCosts) {
+        row['Avg Cost'] = item.avgCost;
+      }
+      row['Avg Price'] = item.avgPrice;
+      return row;
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(worksheetData);
     const workbook = XLSX.utils.book_new();
@@ -475,21 +481,30 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
       ['Invoice Number:', invoice.invoiceNumber],
       ['Date:', formatDate(invoice.invoiceDate)],
       [],
-      ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+      showCosts
+        ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+        : ['Barcode', 'Product', 'Quantity', 'Price', 'Total']
     ];
 
-    const rows = invoice.items.map((item: SalesInvoice) => [
-      item.barcode || '-',
-      item.product || '-',
-      item.qty || 0,
-      item.productCost || 0,
-      item.productPrice || 0,
-      item.amount || 0
-    ]);
+    const rows = invoice.items.map((item: SalesInvoice) => {
+      const row = [
+        item.barcode || '-',
+        item.product || '-',
+        item.qty || 0,
+      ];
+      if (showCosts) {
+        row.push(item.productCost || 0);
+      }
+      row.push(
+        item.productPrice || 0,
+        item.amount || 0
+      );
+      return row;
+    });
 
     const footer = [
       [],
-      ['', '', '', '', 'Total Amount:', invoice.amount]
+      [...Array(showCosts ? 4 : 3).fill(''), 'Total Amount:', invoice.amount]
     ];
 
     const worksheetData = [...header, ...rows, ...footer];
@@ -681,7 +696,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                       <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Amount</th>
                       <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Quantity</th>
                       <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-32">Products Count</th>
-                      <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Avg Cost</th>
+                      {showCosts && <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Avg Cost</th>}
                       <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-28">Avg Price</th>
                     </tr>
                   </thead>
@@ -709,12 +724,14 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.productsCount}
                         </td>
-                        <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
-                          {item.avgCost % 1 === 0
-                            ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
-                            : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                          }
-                        </td>
+                        {showCosts && (
+                          <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
+                            {item.avgCost % 1 === 0
+                              ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                              : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                            }
+                          </td>
+                        )}
                         <td className="text-center py-3 px-4 text-sm font-semibold text-gray-800">
                           {item.avgPrice % 1 === 0
                             ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
@@ -904,7 +921,7 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                     <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Barcode</th>
                     <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
                     <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Qty</th>
-                    <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cost</th>
+                    {showCosts && <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cost</th>}
                     <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Price</th>
                     <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Total</th>
                   </tr>
@@ -917,9 +934,11 @@ export default function SalesDailySalesTab({ data, loading }: SalesDailySalesTab
                         <div className="font-bold text-gray-800">{item.product}</div>
                       </td>
                       <td className="py-3 px-4 text-center font-semibold text-gray-700">{item.qty}</td>
-                      <td className="py-3 px-4 text-center font-semibold text-gray-700">
-                        {item.productCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                      </td>
+                      {showCosts && (
+                        <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                          {item.productCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                      )}
                       <td className="py-3 px-4 text-center font-semibold text-gray-700">
                         {item.productPrice?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </td>

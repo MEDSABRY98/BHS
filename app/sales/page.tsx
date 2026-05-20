@@ -212,6 +212,21 @@ export default function SalesPage() {
     }
   }, [currentUser, activeTab]);
 
+  const showCosts = useMemo(() => {
+    const userName = currentUser?.name?.toLowerCase() || '';
+    if (userName === 'med sabry') return true;
+    try {
+      const roleStr = currentUser?.role || '';
+      if (!roleStr) return true;
+      if (roleStr === 'Admin') return true;
+      const perms = JSON.parse(roleStr);
+      if (perms['sales-actions'] !== undefined) {
+        return perms['sales-actions'].includes('view-costs');
+      }
+    } catch (e) {}
+    return true; // default to true
+  }, [currentUser]);
+
   // Reset scroll position when tab changes
   useEffect(() => {
     if (mainContentRef.current) {
@@ -384,15 +399,24 @@ export default function SalesPage() {
     return filtered;
   }, [augmentedData, invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep, filterProductTag]);
 
-  // geographyFilteredData (respects Area, Market, Rep, Merchandiser but IGNORES time)
+  // geographyFilteredData (respects Area, Market, Rep, Merchandiser, Invoice Type, Product Category but IGNORES time)
   const geographyFilteredData = useMemo(() => {
     let filtered = [...augmentedData];
+    if (invoiceTypeFilter !== 'all') {
+      filtered = filtered.filter(item => {
+        const num = item.invoiceNumber?.trim().toUpperCase() || '';
+        if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
+        if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+        return true;
+      });
+    }
+    if (filterProductTag) filtered = filtered.filter(item => item.productTag === filterProductTag);
     if (filterArea) filtered = filtered.filter(item => item.area === filterArea);
     if (filterMarket) filtered = filtered.filter(item => item.market === filterMarket);
     if (filterMerchandiser) filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
     if (filterSalesRep) filtered = filtered.filter(item => item.salesRep === filterSalesRep);
     return filtered;
-  }, [augmentedData, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
+  }, [augmentedData, invoiceTypeFilter, filterProductTag, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
 
   // Unique values for dropdowns
   const uniqueValues = useMemo(() => {
@@ -479,8 +503,8 @@ export default function SalesPage() {
 
   const downloadTemplate = () => {
     const template = [
-      ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'MERCHANDISER', 'SALESREP'],
-      ['12345', 'Main Company', 'Branch A', 'Cairo', 'Main Market', 'John Doe', 'Jane Smith']
+      ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'],
+      ['12345', 'Main Company', 'Branch A', 'Cairo', 'Main Market', 'Jane Smith', 'John Doe']
     ];
     const ws = XLSX.utils.aoa_to_sheet(template);
     const wb = XLSX.utils.book_new();
@@ -507,7 +531,7 @@ export default function SalesPage() {
       alert('No current customer data found to extract.');
       return;
     }
-    const headers = ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'MERCHANDISER', 'SALESREP'];
+    const headers = ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'];
     const rows = uniqueCustomers.map(c => [c.id, c.mainName, c.subName, '', '', '', '']);
     const template = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(template);
@@ -581,6 +605,7 @@ export default function SalesPage() {
             allData={geographyFilteredData}
             loading={loading} 
             onUploadMapping={handleUploadMapping} 
+            showCosts={showCosts}
           />
         );
 
@@ -598,7 +623,7 @@ export default function SalesPage() {
       case 'sales-statistics':
         return <SalesStatisticsTab data={globallyFilteredData} loading={loading} />;
       case 'sales-daily-sales':
-        return <SalesDailySalesTab data={globallyFilteredData} loading={loading} />;
+        return <SalesDailySalesTab data={globallyFilteredData} loading={loading} showCosts={showCosts} />;
       case 'sales-products':
         return <SalesProductsTab data={globallyFilteredData} allData={geographyFilteredData} loading={loading} />;
       case 'sales-categories':
@@ -887,21 +912,20 @@ export default function SalesPage() {
               {/* Tab Navigation */}
               <div className="px-10 py-5 bg-slate-50 border-b border-slate-100 flex items-center gap-2 shrink-0">
                 {[
-                  { id: 'mode', label: 'Reporting Mode', icon: LayoutGrid },
-                  { id: 'timing', label: 'Timing & Periods', icon: Calendar },
-                  { id: 'product', label: 'Product Category', icon: ShoppingBag },
-                  { id: 'outreach', label: 'Team & Territory', icon: Users },
-                  ...(activeTab === 'sales-inactive-customers' ? [{ id: 'advanced', label: 'Comprehensive Filters', icon: MoreVertical }] : [])
+                  { id: 'mode', label: 'Reporting Mode' },
+                  { id: 'timing', label: 'Timing & Periods' },
+                  { id: 'product', label: 'Product Category' },
+                  { id: 'outreach', label: 'Team & Territory' },
+                  ...(activeTab === 'sales-inactive-customers' ? [{ id: 'advanced', label: 'Comprehensive Filters' }] : [])
                 ].map((tab) => (
                   <button
                     key={tab.id}
                     onClick={() => setActiveFilterTab(tab.id as any)}
-                    className={`flex-1 flex items-center justify-center gap-2.5 px-2 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeFilterTab === tab.id
+                    className={`flex-1 flex items-center justify-center px-2 py-4 rounded-2xl text-xs font-black uppercase tracking-widest transition-all ${activeFilterTab === tab.id
                       ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 ring-4 ring-slate-900/10'
                       : 'text-slate-400 hover:bg-white hover:text-slate-600 border border-transparent hover:border-slate-100'
                       }`}
                   >
-                    <tab.icon className={`w-4 h-4 ${activeFilterTab === tab.id ? 'text-white' : 'text-slate-400'}`} />
                     <span className="truncate">{tab.label}</span>
                   </button>
                 ))}

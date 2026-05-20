@@ -1188,8 +1188,8 @@ export async function getSalesData(): Promise<SalesInvoice[]> {
         customerName: customerName,
         area: area,
         market: row[6]?.toString().trim() || '',
-        merchandiser: row[7]?.toString().trim() || '', // Shifted from 6 to 7
-        salesRep: row[8]?.toString().trim() || '',     // Shifted from 7 to 8
+        salesRep: row[7]?.toString().trim() || '',     // Swapped with merchandiser
+        merchandiser: row[8]?.toString().trim() || '', // Swapped with salesRep
         productId: row[9]?.toString().trim() || '',    // Shifted from 8 to 9
         barcode: row[10]?.toString().trim() || '',     // Shifted from 9 to 10
         product: row[11]?.toString().trim() || '',     // Shifted from 10 to 11
