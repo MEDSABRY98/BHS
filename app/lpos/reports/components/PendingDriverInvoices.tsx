@@ -279,7 +279,7 @@ export default function PendingDriverInvoices() {
                   disabled={isGeneratingPdf}
                   onClick={() => handlePdfAction('print')}
                   title="Print Report"
-                  className="w-[68px] h-[68px] bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer"
+                  className="w-[56px] h-[56px] bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer"
                 >
                   <Printer className="w-5 h-5" />
                 </button>
@@ -287,7 +287,7 @@ export default function PendingDriverInvoices() {
                   disabled={isGeneratingPdf}
                   onClick={() => handlePdfAction('download')}
                   title="Download PDF"
-                  className="w-[68px] h-[68px] bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/10 hover:bg-gray-900 transition-all flex items-center justify-center cursor-pointer"
+                  className="w-[56px] h-[56px] bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/10 hover:bg-gray-900 transition-all flex items-center justify-center cursor-pointer"
                 >
                   {isGeneratingPdf ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -302,7 +302,9 @@ export default function PendingDriverInvoices() {
       </div>
 
       {/* Report Results */}
-      {selectedDriverId && (
+      {!selectedDriverId ? (
+        <NoData title="Please Pick a Driver" />
+      ) : (
         <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-gray-100">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 px-2">
             <div>
