@@ -203,6 +203,7 @@ export default function DeliveredDriverInvoices() {
               value={selectedDriverId}
               onChange={setSelectedDriverId}
               isLoading={isDriversLoading}
+              heightClass="h-[56px]"
             />
           </div>
 

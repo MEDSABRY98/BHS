@@ -17,6 +17,7 @@ interface SearchSelectProps {
   placeholder?: string;
   isLoading?: boolean;
   direction?: 'up' | 'down';
+  heightClass?: string;
 }
 
 export default function SearchSelect({
@@ -26,7 +27,8 @@ export default function SearchSelect({
   onChange,
   placeholder = 'Select option...',
   isLoading = false,
-  direction = 'down'
+  direction = 'down',
+  heightClass = 'h-[68px]'
 }: SearchSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -59,7 +61,7 @@ export default function SearchSelect({
 
       <div
         onClick={() => !isLoading && setIsOpen(!isOpen)}
-        className={`group flex items-center justify-between px-6 h-[68px] bg-white border-2 ${isOpen ? 'border-black shadow-[0_0_20px_rgba(0,0,0,0.05)]' : 'border-gray-50'
+        className={`group flex items-center justify-between px-6 ${heightClass} bg-white border-2 ${isOpen ? 'border-black shadow-[0_0_20px_rgba(0,0,0,0.05)]' : 'border-gray-50'
           } rounded-[1.5rem] cursor-pointer transition-all hover:bg-gray-50/50 hover:border-gray-200 shadow-sm`}
       >
         <div className="flex flex-col justify-center min-w-0">

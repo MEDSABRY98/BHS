@@ -170,6 +170,7 @@ function drawPageHeader(
     return [
       formattedDate,
       inv.INVOICE_ID || inv.ORDER_ID || '-',
+      inv.LPO_ID || '-',
       inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer',
       `AED ${(parseFloat(inv.AMOUNT) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     ];
@@ -177,7 +178,7 @@ function drawPageHeader(
 
   const tableOptions: any = {
     startY: y,
-    head: [['Invoice Date', 'Invoice ID', 'Customer Name', 'Amount (AED)']],
+    head: [['Invoice Date', 'Invoice ID', 'LPO ID', 'Customer Name', 'Amount (AED)']],
     body: tableData,
     theme: 'grid',
     headStyles: {
@@ -196,10 +197,11 @@ function drawPageHeader(
       cellPadding: 4.5
     },
     columnStyles: {
-      0: { cellWidth: 32, halign: 'center' },
-      1: { cellWidth: 42, halign: 'center' },
-      2: { cellWidth: 'auto', halign: 'center' },
-      3: { cellWidth: 42, fontStyle: 'bold', halign: 'center' }
+      0: { cellWidth: 26, halign: 'center' },
+      1: { cellWidth: 32, halign: 'center' },
+      2: { cellWidth: 32, halign: 'center' },
+      3: { cellWidth: 'auto', halign: 'center' },
+      4: { cellWidth: 35, fontStyle: 'bold', halign: 'center' }
     },
     margin: { left: margin, right: margin }
   };

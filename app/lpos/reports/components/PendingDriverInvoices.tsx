@@ -202,6 +202,7 @@ export default function PendingDriverInvoices() {
               value={selectedDriverId}
               onChange={setSelectedDriverId}
               isLoading={isDriversLoading}
+              heightClass="h-[56px]"
             />
           </div>
 

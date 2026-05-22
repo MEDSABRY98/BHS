@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { ClipboardList, CheckCircle2, User } from 'lucide-react';
+import { ClipboardList, CheckCircle2, User, ClipboardCheck } from 'lucide-react';
 import PendingDriverInvoices from './components/PendingDriverInvoices';
 import DeliveredDriverInvoices from './components/DeliveredDriverInvoices';
 import PendingCustomerInvoices from './components/PendingCustomerInvoices';
+import HandoverReports from './components/DailyHandover';
 
-type ReportTab = 'pending' | 'delivered' | 'pending-customer';
+type ReportTab = 'pending' | 'pending-customer' | 'delivered' | 'handover';
 
 export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState<ReportTab>('pending');
@@ -23,7 +24,7 @@ export default function ReportsPage() {
       </div>
 
       {/* Segmented Pill Selector (Report Types) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 bg-white p-2 rounded-[2rem] border border-gray-100 shadow-sm w-full max-w-4xl mx-auto">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2 bg-white p-2 rounded-[2rem] border border-gray-100 shadow-sm w-full max-w-5xl mx-auto">
         <button
           onClick={() => setActiveTab('pending')}
           className={`flex items-center justify-center gap-3 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 w-full cursor-pointer ${
@@ -59,6 +60,18 @@ export default function ReportsPage() {
           <CheckCircle2 className="w-4 h-4" />
           Delivered Invoices
         </button>
+
+        <button
+          onClick={() => setActiveTab('handover')}
+          className={`flex items-center justify-center gap-3 px-6 py-3.5 rounded-[1.5rem] text-[10px] font-black uppercase tracking-[0.2em] transition-all duration-300 w-full cursor-pointer ${
+            activeTab === 'handover'
+              ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+              : 'text-gray-400 hover:text-black hover:bg-gray-50'
+          }`}
+        >
+          <ClipboardCheck className="w-4 h-4" />
+          Daily Handover
+        </button>
       </div>
 
       {/* Render active report sub-component */}
@@ -66,9 +79,11 @@ export default function ReportsPage() {
         {activeTab === 'pending' && <PendingDriverInvoices />}
         {activeTab === 'pending-customer' && <PendingCustomerInvoices />}
         {activeTab === 'delivered' && <DeliveredDriverInvoices />}
+        {activeTab === 'handover' && <HandoverReports />}
       </div>
     </div>
   );
 }
+
 
 

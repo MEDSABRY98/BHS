@@ -5,9 +5,11 @@ import { app_lpos_supabase } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, Search } from 'lucide-react';
 import { generatePendingCustomerInvoicesPDF } from '@/lib/pdf/PendingCustomerInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
+import SearchSelect from '../../components/DropDownList';
 
 export default function PendingCustomerInvoices() {
   const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedDriverId, setSelectedDriverId] = useState('');
   const [drivers, setDrivers] = useState<any[]>([]);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [isInvoicesLoading, setIsInvoicesLoading] = useState(true);
@@ -67,7 +69,7 @@ export default function PendingCustomerInvoices() {
 
   const isSearchValid = customerSearch.trim().length >= 2;
 
-  // Filter invoices by search term and date range:
+  // Filter invoices by search term, date range, and selected driver:
   const filteredInvoices = useMemo(() => {
     if (!isSearchValid) return [];
 
@@ -78,7 +80,15 @@ export default function PendingCustomerInvoices() {
         return false;
       }
 
-      // 2. Date range match
+      // 2. Driver filter match (Optional)
+      if (selectedDriverId) {
+        const driverRecord = inv.app_lpos_DRIVERS?.[0];
+        if (driverRecord?.DRIVERS_NAME !== selectedDriverId) {
+          return false;
+        }
+      }
+
+      // 3. Date range match
       const dateStr = inv.ORDER_DATE || inv.CREATED_AT;
       if (dateStr) {
         const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
@@ -87,7 +97,7 @@ export default function PendingCustomerInvoices() {
       }
       return true;
     });
-  }, [invoices, customerSearch, isSearchValid, fromDate, toDate]);
+  }, [invoices, customerSearch, isSearchValid, fromDate, toDate, selectedDriverId]);
 
   // Sorted invoices:
   // 1st: by Date from oldest
@@ -155,6 +165,31 @@ export default function PendingCustomerInvoices() {
               />
               <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
             </div>
+          </div>
+
+          {/* Driver Dropdown Filter */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between ml-1 mb-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
+                Filter by Driver
+              </label>
+              {selectedDriverId && (
+                <button
+                  onClick={() => setSelectedDriverId('')}
+                  className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <SearchSelect
+              label=""
+              placeholder="All Drivers"
+              options={drivers.map((d) => ({ id: d.ID, label: d.NAME }))}
+              value={selectedDriverId}
+              onChange={setSelectedDriverId}
+              heightClass="h-[56px]"
+            />
           </div>
 
           <div className="w-full lg:w-48 shrink-0">
