@@ -16,6 +16,7 @@ export default function DeliveredDriverInvoices() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [customerSearch, setCustomerSearch] = useState('');
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
 
   useEffect(() => {
@@ -93,9 +94,17 @@ export default function DeliveredDriverInvoices() {
     }
   }
 
-  // Filter invoices by Office Handover Date Range:
+  // Filter invoices by Office Handover Date Range and Customer Name:
   const filteredInvoices = useMemo(() => {
     return invoices.filter((inv) => {
+      // Customer search filter
+      if (customerSearch) {
+        const custName = inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || '';
+        if (!custName.toLowerCase().includes(customerSearch.toLowerCase())) {
+          return false;
+        }
+      }
+
       const driverRecord = inv.app_lpos_DRIVERS?.[0];
       const dateStr = driverRecord?.OFFICE_HANDOVER_TIME || inv.ORDER_DATE || inv.CREATED_AT;
       if (!dateStr) return true;
@@ -106,7 +115,7 @@ export default function DeliveredDriverInvoices() {
       if (toDate && datePart > toDate) return false;
       return true;
     });
-  }, [invoices, fromDate, toDate]);
+  }, [invoices, fromDate, toDate, customerSearch]);
 
   // Sorted invoices based on USER request:
   // 1st: by Date from oldest (من الأقدم)
@@ -181,7 +190,6 @@ export default function DeliveredDriverInvoices() {
 
   return (
     <div className="space-y-8">
-      {/* Selector Area */}
       <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-gray-100">
         <div className="flex flex-col lg:flex-row lg:items-end gap-6">
           <div className="flex-1 min-w-0">
@@ -195,6 +203,29 @@ export default function DeliveredDriverInvoices() {
               value={selectedDriverId}
               onChange={setSelectedDriverId}
               isLoading={isDriversLoading}
+            />
+          </div>
+
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center justify-between ml-1 mb-2">
+              <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
+                Search Customer
+              </label>
+              {customerSearch && (
+                <button
+                  onClick={() => setCustomerSearch('')}
+                  className="text-[9px] font-black text-red-500 hover:text-red-700 uppercase tracking-widest transition-colors"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            <input
+              type="text"
+              placeholder="Search by customer name..."
+              value={customerSearch}
+              onChange={(e) => setCustomerSearch(e.target.value)}
+              className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 h-[56px] focus:ring-4 focus:ring-black/5 placeholder:text-gray-400 font-sans"
             />
           </div>
 
