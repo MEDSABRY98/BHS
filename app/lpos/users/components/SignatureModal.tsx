@@ -11,9 +11,16 @@ interface SignatureModalProps {
   onClose: () => void;
   currentAdminId: string;
   currentAdminName: string;
+  initialUserId?: string;
 }
 
-export default function SignatureModal({ isOpen, onClose, currentAdminId, currentAdminName }: SignatureModalProps) {
+export default function SignatureModal({ 
+  isOpen, 
+  onClose, 
+  currentAdminId, 
+  currentAdminName,
+  initialUserId 
+}: SignatureModalProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +34,12 @@ export default function SignatureModal({ isOpen, onClose, currentAdminId, curren
       fetchUsers();
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedUserId(initialUserId || currentAdminId);
+    }
+  }, [initialUserId, currentAdminId, isOpen]);
 
   useEffect(() => {
     if (selectedUserId) {
@@ -56,7 +69,6 @@ export default function SignatureModal({ isOpen, onClose, currentAdminId, curren
       });
 
       setUsers(sortedUsers);
-      setSelectedUserId(currentAdminId);
     } catch (err) {
       console.error('Error fetching users for signatures:', err);
     } finally {

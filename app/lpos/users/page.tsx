@@ -13,11 +13,13 @@ import {
   Shield,
   Key,
   Loader2,
-  Check
+  Check,
+  FilePenLine
 } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../hooks/usePermissions';
+import SignatureModal from './components/SignatureModal';
 
 export default function UsersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -30,6 +32,9 @@ export default function UsersPage() {
   const [confirmAction, setConfirmAction] = useState<'save' | 'delete'>('save');
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
+  const [selectedSignatureUserId, setSelectedSignatureUserId] = useState<string | undefined>(undefined);
+  const [currentAdmin, setCurrentAdmin] = useState<any>(null);
 
   // Form states - Matching DB columns
   const [NAME, setNAME] = useState('');
@@ -40,7 +45,20 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
+    const mainUserStr = localStorage.getItem('currentUser');
+    if (mainUserStr) {
+      const u = JSON.parse(mainUserStr);
+      setCurrentAdmin({
+        id: u.id || u.ID || 'U-0001',
+        name: u.name || u.NAME || 'MED Sabry'
+      });
+    }
   }, []);
+
+  const handleOpenSignatureModal = (userId?: string) => {
+    setSelectedSignatureUserId(userId);
+    setIsSignatureModalOpen(true);
+  };
 
   async function fetchUsers() {
     try {
@@ -135,13 +153,22 @@ export default function UsersPage() {
           <h1 className="text-4xl font-normal text-black tracking-tighter">Users</h1>
         </div>
         {canEdit && (
-          <button
-            onClick={() => handleOpenModal()}
-            className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
-            title="New User"
-          >
-            <Plus className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => handleOpenSignatureModal()}
+              className="p-4 bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer"
+              title="Manage Signatures"
+            >
+              <FilePenLine className="w-6 h-6" />
+            </button>
+            <button
+              onClick={() => handleOpenModal()}
+              className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer"
+              title="New User"
+            >
+              <Plus className="w-6 h-6" />
+            </button>
+          </div>
         )}
       </div>
 
@@ -168,6 +195,7 @@ export default function UsersPage() {
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Permissions</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">User Type</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">In Office</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Signature</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Password</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
               </tr>
@@ -176,14 +204,14 @@ export default function UsersPage() {
               {isLoading ? (
                 Array(5).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={7} className="px-8 py-6">
+                    <td colSpan={8} className="px-8 py-6">
                       <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-8 py-12 text-center">
+                  <td colSpan={8} className="px-8 py-12 text-center">
                     <NoData title="NO USERS FOUND" />
                   </td>
                 </tr>
@@ -213,6 +241,17 @@ export default function UsersPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
+                      {user.SIGNATURE ? (
+                        <img
+                          src={user.SIGNATURE}
+                          alt="Signature"
+                          className="h-8 max-w-[80px] object-contain bg-gray-50 border border-gray-100/50 rounded p-0.5 mx-auto"
+                        />
+                      ) : (
+                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">-</span>
+                      )}
+                    </td>
+                    <td className="px-8 py-6 text-center">
                       <div className="flex items-center justify-center gap-2 text-gray-400">
                         <Key className="w-3.5 h-3.5" />
                         <span className="text-xs font-medium font-mono tracking-widest">
@@ -223,9 +262,18 @@ export default function UsersPage() {
                     <td className="px-8 py-6">
                       <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
                         {canEdit && (
-                          <button onClick={() => handleOpenModal(user)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              onClick={() => handleOpenSignatureModal(user.ID)}
+                              className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100"
+                              title="Edit Signature"
+                            >
+                              <FilePenLine className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => handleOpenModal(user)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                         {canDelete && (
                           <button onClick={() => handleDelete(user.ID)} className="p-2.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100">
@@ -398,6 +446,19 @@ export default function UsersPage() {
         title="Confirm Deletion"
         message="Are you sure you want to delete this user? This action cannot be undone."
       />
+
+      {isSignatureModalOpen && currentAdmin && (
+        <SignatureModal
+          isOpen={isSignatureModalOpen}
+          onClose={() => {
+            setIsSignatureModalOpen(false);
+            fetchUsers();
+          }}
+          currentAdminId={currentAdmin.id}
+          currentAdminName={currentAdmin.name}
+          initialUserId={selectedSignatureUserId}
+        />
+      )}
     </div>
   );
 }

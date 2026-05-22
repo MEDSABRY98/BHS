@@ -3,10 +3,9 @@
 import { useState, useEffect, useMemo } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import SearchSelect from '../../components/DropDownList';
-import { FileText, Loader2, Download, Printer, AlertCircle, FilePenLine } from 'lucide-react';
+import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/lib/pdf/PendingDriverInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
-import SignatureModal from './SignatureModal';
 
 
 export default function PendingDriverInvoices() {
@@ -18,7 +17,6 @@ export default function PendingDriverInvoices() {
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
-  const [isSignatureModalOpen, setIsSignatureModalOpen] = useState(false);
   const [currentAdmin, setCurrentAdmin] = useState<any>(null);
 
   useEffect(() => {
@@ -244,14 +242,6 @@ export default function PendingDriverInvoices() {
           </div>
 
           <div className="flex gap-4 shrink-0 w-full lg:w-auto justify-end lg:justify-start">
-            <button
-              onClick={() => setIsSignatureModalOpen(true)}
-              title="Manage Signatures"
-              className="w-[68px] h-[68px] bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer"
-            >
-              <FilePenLine className="w-5 h-5" />
-            </button>
-
             {selectedDriverId && sortedInvoices.length > 0 && (
               <>
                 <button
@@ -358,14 +348,6 @@ export default function PendingDriverInvoices() {
             </div>
           )}
         </div>
-      )}
-      {currentAdmin && (
-        <SignatureModal
-          isOpen={isSignatureModalOpen}
-          onClose={() => setIsSignatureModalOpen(false)}
-          currentAdminId={currentAdmin.id}
-          currentAdminName={currentAdmin.name}
-        />
       )}
     </div>
   );

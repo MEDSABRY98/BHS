@@ -221,21 +221,6 @@ export async function generatePendingDriverInvoicesPDF(
   doc.setDrawColor(200, 200, 200);
   doc.setLineWidth(0.3);
 
-  // Receiver/Admin Signature (Left)
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text("Receiver's Signature:", margin + 10, sigY);
-  
-  if (adminSignature) {
-    try {
-      doc.addImage(adminSignature, 'PNG', margin + 15, sigY + 2, 55, 16);
-    } catch (e) {
-      console.error('Error adding admin signature image to PDF:', e);
-    }
-  }
-  doc.line(margin + 10, sigY + 19, margin + 80, sigY + 19);
-
   // Driver Signature (Right)
   doc.text("Driver's Signature:", pageWidth - margin - 80, sigY);
 
