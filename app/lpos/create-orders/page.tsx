@@ -181,7 +181,7 @@ export default function CreateOrderPage() {
       });
     }
     const nextNum = highestNum + 1;
-    return `ONI-${nextNum.toString().padStart(4, '0')}`;
+    return `R-${nextNum.toString().padStart(4, '0')}`;
   }
 
   async function generateNextDriverId() {
@@ -194,12 +194,12 @@ export default function CreateOrderPage() {
     let nextNum = 1;
     if (data && data.length > 0) {
       const lastId = data[0].ID;
-      if (lastId && lastId.startsWith('DRI-')) {
+      if (lastId && lastId.startsWith('R-')) {
         const lastNum = parseInt(lastId.split('-')[1]);
         if (!isNaN(lastNum)) nextNum = lastNum + 1;
       }
     }
-    return `DRI-${nextNum.toString().padStart(4, '0')}`;
+    return `R-${nextNum.toString().padStart(4, '0')}`;
   }
 
   const handleSaveAll = async () => {
@@ -218,7 +218,7 @@ export default function CreateOrderPage() {
 
       const tempIdToOrderId: Record<string, string> = {};
       const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
-        const currentId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
+        const currentId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
         tempIdToOrderId[tempId] = currentId;
 
         const orderDateVal = rest.ORDER_DATE
@@ -248,7 +248,7 @@ export default function CreateOrderPage() {
         const baseDriverNum = parseInt(startDriverId.split('-')[1]);
 
         const driversToInsert = ordersWithDrivers.map((order, index) => {
-          const currentDriverId = `DRI-${(baseDriverNum + index).toString().padStart(4, '0')}`;
+          const currentDriverId = `R-${(baseDriverNum + index).toString().padStart(4, '0')}`;
           return {
             ID: currentDriverId,
             ORDER_ID: tempIdToOrderId[order.tempId],

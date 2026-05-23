@@ -246,7 +246,7 @@ export default function OrdersPage() {
       const drv = o.app_lpos_DRIVERS?.[0];
       return {
         ...o,
-        source: o.ORDER_ID?.startsWith('ONI-') ? 'no-items' : 'standard',
+        source: 'standard',
         driver_id: drv?.DRIVERS_NAME,
         handover_status: drv?.OFFICE_HANDOVER_STATUS || 'Not Handed Over',
         tracking_notes: drv?.TRACKING_NOTES || '',

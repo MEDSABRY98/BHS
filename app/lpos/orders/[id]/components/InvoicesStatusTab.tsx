@@ -277,9 +277,9 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
                   <ShieldCheck className="w-4 h-4 text-gray-300" />
                   <span className="text-xs font-bold text-gray-600">
                     {deliveryData.TRACKING_NOTES === 'SYSTEM_ALREADY_RECEIVED'
-                      ? 'Already Received by Office (Target: U-0001)'
+                      ? 'Already Received by Office (Target: R-0001)'
                       : deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED'
-                        ? 'Returned & Cancelled at Warehouse (Target: U-0007)'
+                        ? 'Returned & Cancelled at Warehouse (Target: R-0007)'
                         : handoverUser?.NAME || 'Not Yet'}
                   </span>
                 </div>

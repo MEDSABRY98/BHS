@@ -65,11 +65,11 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
       .order('ID', { ascending: false })
       .limit(1);
 
-    if (!data || data.length === 0) return 'DRI-0001';
+    if (!data || data.length === 0) return 'R-0001';
 
     const lastId = data[0].ID;
     const lastNum = parseInt(lastId.split('-')[1]);
-    return `DRI-${(lastNum + 1).toString().padStart(4, '0')}`;
+    return `R-${(lastNum + 1).toString().padStart(4, '0')}`;
   };
 
   const handleSave = async (updatedFields: any = {}) => {

@@ -49,7 +49,7 @@ export default function UsersPage() {
     if (mainUserStr) {
       const u = JSON.parse(mainUserStr);
       setCurrentAdmin({
-        id: u.id || u.ID || 'U-0001',
+        id: u.id || u.ID || 'R-0001',
         name: u.name || u.NAME || 'MED Sabry'
       });
     }
@@ -100,7 +100,7 @@ export default function UsersPage() {
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
-        const nextId = `U-${(users.length + 1).toString().padStart(4, '0')}`;
+        const nextId = `R-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('bhs_USERS')
           .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE });

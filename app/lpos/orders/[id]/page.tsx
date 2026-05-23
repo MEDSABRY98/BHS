@@ -67,26 +67,23 @@ export default function OrderDetailsPage() {
 
       if (orderError) throw orderError;
       if (!orderData) throw new Error('Order not found');
+      // 3. Fetch items
+      const { data: itemsData, error: itemsError } = await app_lpos_supabase
+        .from('app_lpos_ORDERS_ITEMS')
+        .select(`
+          *,
+          app_lpos_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
+        `)
+        .eq('ORDER_ID', orderData.ID);
 
-      const noItems = orderData.ORDER_ID?.startsWith('ONI-');
+      if (itemsError) throw itemsError;
+
+      const initialItems = itemsData || [];
+      const noItems = initialItems.length === 0;
       setIsNoItemsOrder(noItems);
 
-      setIsNoItemsOrder(noItems);
-
-      // 3. Fetch items only for standard orders
       let enrichedItems = [];
       if (!noItems) {
-        const { data: itemsData, error: itemsError } = await app_lpos_supabase
-          .from('app_lpos_ORDERS_ITEMS')
-          .select(`
-            *,
-            app_lpos_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
-          `)
-          .eq('ORDER_ID', orderData.ID);
-
-        if (itemsError) throw itemsError;
-
-        const initialItems = itemsData || [];
         enrichedItems = initialItems.map((item: any) => ({
           ...item,
           QTY_RECEIVED: (orderData.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0))

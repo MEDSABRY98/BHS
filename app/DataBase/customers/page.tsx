@@ -92,7 +92,7 @@ export default function CustomersPage() {
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
       } else {
-        const nextId = `C-${(customers.length + 1).toString().padStart(4, '0')}`;
+        const nextId = `R-${(customers.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_CUSTOMERS')
           .insert({
@@ -155,7 +155,7 @@ export default function CustomersPage() {
       // If there's no customer data yet, provide a sample row
       if (exportData.length === 0) {
         exportData.push({
-          "ID": "C-0001",
+          "ID": "R-0001",
           "Customer ID": "CUST-1001",
           "Customer Name": "Lulu Hypermarket",
           "Customer City": "Dubai"
@@ -204,7 +204,7 @@ export default function CustomersPage() {
 
         let highestNum = 0;
         (latestCustomers || []).forEach(c => {
-          if (c.ID && c.ID.startsWith('C-')) {
+          if (c.ID && c.ID.startsWith('R-')) {
             const num = parseInt(c.ID.split('-')[1]);
             if (!isNaN(num) && num > highestNum) {
               highestNum = num;
@@ -228,7 +228,7 @@ export default function CustomersPage() {
 
           if (!id) {
             highestNum++;
-            id = `C-${highestNum.toString().padStart(4, '0')}`;
+            id = `R-${highestNum.toString().padStart(4, '0')}`;
           }
 
           recordsToUpsert.push({

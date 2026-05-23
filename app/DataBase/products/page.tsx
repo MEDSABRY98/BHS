@@ -83,7 +83,7 @@ export default function ProductsPage() {
         if (error) throw error;
       } else {
         // Simple ID generation for new products
-        const nextId = `P-${(products.length + 1).toString().padStart(4, '0')}`;
+        const nextId = `R-${(products.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('app_lpos_PRODUCTS')
           .insert({

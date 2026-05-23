@@ -21,7 +21,7 @@ export default function PendingDriverInvoices() {
     if (mainUserStr) {
       const u = JSON.parse(mainUserStr);
       setCurrentAdmin({
-        id: u.id || u.ID || 'U-0001',
+        id: u.id || u.ID || 'R-0001',
         name: u.name || u.NAME || 'MED Sabry'
       });
     }
