@@ -165,12 +165,12 @@ export default function CreateOrderPage() {
   async function generateNextOrderId() {
     const { data } = await app_lpos_supabase
       .from('app_lpos_ORDERS')
-      .select('ORDER_ID');
+      .select('ID');
 
     let highestNum = 0;
     if (data && data.length > 0) {
       data.forEach(row => {
-        const lastId = row.ORDER_ID;
+        const lastId = row.ID;
         if (lastId) {
           const parts = lastId.split('-');
           const num = parseInt(parts[parts.length - 1]);
@@ -218,8 +218,9 @@ export default function CreateOrderPage() {
 
       const tempIdToOrderId: Record<string, string> = {};
       const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
-        const currentId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
-        tempIdToOrderId[tempId] = currentId;
+        const currentPkId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
+        const currentOrderId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
+        tempIdToOrderId[tempId] = currentPkId;
 
         const orderDateVal = rest.ORDER_DATE
           ? new Date(rest.ORDER_DATE).toISOString()
@@ -227,8 +228,8 @@ export default function CreateOrderPage() {
 
         return {
           ...rest,
-          ID: currentId,
-          ORDER_ID: currentId,
+          ID: currentPkId,
+          ORDER_ID: currentOrderId,
           AMOUNT: parseFloat(rest.AMOUNT) || 0,
           ORDER_DATE: orderDateVal,
           STATUS: 'Approved'
