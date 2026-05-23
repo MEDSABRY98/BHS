@@ -14,6 +14,7 @@ interface SidebarProps {
 export default function Sidebar({ activeTab, onTabChange, onLogout, currentUser, lastUpdated, sidebarOpen = true }: SidebarProps) {
   const allTabs = [
     { id: 'customers', label: 'Customers', icon: '👥' },
+    { id: 'customers-group', label: 'Customers Group', icon: '🗂️' },
     { id: 'customers-mins', label: 'Customers Credit', icon: '💳' },
     { id: 'all-transactions', label: 'All Transactions', icon: '📋' },
     { id: 'customers-open-matches', label: 'Open Transactions', icon: '🔗' },

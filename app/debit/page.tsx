@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 
 import CustomersTab from '@/components/02-Debit/CustomersTab/CustomersTab';
 import CustomersLandingTab from '@/components/02-Debit/CustomersTab/CustomersSwitchsTab';
+import CustomersGroupTab from '@/components/02-Debit/CustomersGroupTab';
 import OpenTransactionsTab from '@/components/02-Debit/OpenTransactionsTab';
 import AllTransactionsTab from '@/components/02-Debit/AllTransactionsTab';
 import PaymentTrackerTab from '@/components/03-Payment-Tracker/PaymentTrackerTab';
@@ -139,6 +140,7 @@ function DebitPageContent() {
 
   const allTabs = [
     { id: 'customers', label: 'Customers' },
+    { id: 'customers-group', label: 'Customers Group' },
     { id: 'all-transactions', label: 'All Transactions' },
     { id: 'customers-open-matches', label: 'Open Transactions' },
     { id: 'payment-tracker', label: 'Payment Tracker' },
@@ -186,6 +188,8 @@ function DebitPageContent() {
     switch (activeTab) {
       case 'customers':
         return <CustomersLandingTab data={data} initialCustomer={initialCustomer} />;
+      case 'customers-group':
+        return <CustomersGroupTab data={data} />;
       case 'all-transactions':
         return <AllTransactionsTab data={data} />;
       case 'customers-open-matches':

@@ -62,7 +62,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
               return (
                 <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-1 py-2 text-center text-xs font-medium text-gray-500 border-r border-gray-100">{index + 1}</td>
-                  <td className="px-2 py-2 border-r border-gray-100 overflow-hidden text-ellipsis whitespace-nowrap">
+                  <td className="px-2 py-2 border-r border-gray-100 whitespace-normal break-words">
                     <div className="flex items-center justify-center gap-2">
                       <input
                         type="checkbox"
@@ -73,7 +73,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
                       />
                       <button
                         onClick={() => setSelectedCustomer(customer.customerName)}
-                        className="text-xs font-bold text-gray-900 hover:text-blue-600 hover:underline text-center w-full truncate"
+                        className="text-xs font-bold text-gray-900 hover:text-blue-600 hover:underline text-center w-full whitespace-normal break-words"
                         title={customer.customerName}
                       >
                         {customer.customerName}

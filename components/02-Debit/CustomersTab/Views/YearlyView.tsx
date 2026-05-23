@@ -88,7 +88,7 @@ const YearlyView: React.FC<YearlyViewProps> = ({
               yearlyPivotData.rows.map((row, index) => (
                 <tr key={row.customerName} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-center text-sm font-medium text-slate-500 border-r border-gray-100">{index + 1}</td>
-                  <td className="px-6 py-4 border-r border-gray-100 font-bold text-slate-900 text-center">
+                  <td className="px-6 py-4 border-r border-gray-100 font-bold text-slate-900 text-center whitespace-normal break-words">
                     <div className="flex items-center justify-center gap-3">
                       <input
                         type="checkbox"
@@ -97,7 +97,7 @@ const YearlyView: React.FC<YearlyViewProps> = ({
                         onClick={(e) => e.stopPropagation()}
                         className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
                       />
-                      <button onClick={() => setSelectedCustomer(row.customerName)} className="hover:text-blue-600 transition-colors truncate">
+                      <button onClick={() => setSelectedCustomer(row.customerName)} className="hover:text-blue-600 transition-colors whitespace-normal break-words">
                         {row.customerName}
                       </button>
                     </div>
