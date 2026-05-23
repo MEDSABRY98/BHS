@@ -84,7 +84,7 @@ export async function generateLpoPackingListPDF(
   y += 10;
 
   // Row 2: Customer Name + QR Code
-  const customerName = order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || 'N/A';
+  const customerName = order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || 'N/A';
   doc.setFontSize(14);
   doc.setTextColor(0, 0, 0);
   doc.setFont('helvetica', 'bold');
@@ -106,8 +106,8 @@ export async function generateLpoPackingListPDF(
 
   // Items Table
   const tableData = activeItems.map((item, index) => {
-    const productName = item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || 'Unknown Product';
-    const barcode = item.app_lpos_PRODUCTS?.["PRODUCT BARCODE"] || '';
+    const productName = item.bhs_PRODUCTS?.["PRODUCT NAME"] || 'Unknown Product';
+    const barcode = item.bhs_PRODUCTS?.["PRODUCT BARCODE"] || '';
     
     return [
       barcode, // Placeholder for Scanner Image (Index 0)
@@ -115,7 +115,7 @@ export async function generateLpoPackingListPDF(
         content: `${productName}\n${barcode}`, 
         styles: { fontStyle: 'bold' } 
       },
-      item.UNIT || item.app_lpos_PRODUCTS?.["PRODUCT UNIT"] || 'PCS',
+      item.UNIT || item.bhs_PRODUCTS?.["PRODUCT UNIT"] || 'PCS',
       item.QTY_RECEIVED || '0',
       item.PRICE || '0',
       item.ITEMS_STATUS === 'Approved' ? 'OK' : item.ITEMS_STATUS
@@ -152,7 +152,7 @@ export async function generateLpoPackingListPDF(
     margin: { left: margin, right: margin },
     didDrawCell: (data: any) => {
       if (data.row.section === 'body' && data.column.index === 0) {
-        const barcodeText = activeItems[data.row.index]?.app_lpos_PRODUCTS?.["PRODUCT BARCODE"];
+        const barcodeText = activeItems[data.row.index]?.bhs_PRODUCTS?.["PRODUCT BARCODE"];
         if (barcodeText) {
           const barcodeImg = getBarcodeDataURL(barcodeText, { displayValue: true, fontSize: 10 });
           if (barcodeImg) {

@@ -107,7 +107,7 @@ export default function OrdersPage() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          app_lpos_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
           bhs_USERS ( "NAME" ),
           app_lpos_DRIVERS ( 
             ID,
@@ -267,7 +267,7 @@ export default function OrdersPage() {
       const matchesSearch =
         order.ORDER_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.INVOICE_ID?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.bhs_CUSTOMERS?.["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         order.bhs_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // 2. Tab Status Filter
@@ -504,8 +504,8 @@ export default function OrdersPage() {
                     {/* 6. Customer */}
                     <td className="px-6 py-6">
                       <div className="flex flex-col items-center">
-                        <p className="font-black text-black text-sm whitespace-normal leading-tight break-words text-center" title={order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}>
-                          {order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}
+                        <p className="font-black text-black text-sm whitespace-normal leading-tight break-words text-center" title={order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}>
+                          {order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}
                         </p>
                       </div>
                     </td>

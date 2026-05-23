@@ -51,12 +51,12 @@ export default function OrderItemsTab({
               <tr key={item.ID} className={`group transition-all ${item.ITEMS_STATUS === 'Rejected' ? 'bg-red-50/30' : 'hover:bg-gray-50/50'}`}>
                 <td className="py-6 px-4 text-center">
                   <span className={`text-sm ${item.ITEMS_STATUS === 'Rejected' ? 'text-red-400 line-through' : 'text-gray-600'}`}>
-                    {item.app_lpos_PRODUCTS?.["PRODUCT BARCODE"]}
+                    {item.bhs_PRODUCTS?.["PRODUCT BARCODE"]}
                   </span>
                 </td>
                 <td className="py-6 px-4 text-center">
                   <span className={`text-sm font-medium ${item.ITEMS_STATUS === 'Rejected' ? 'text-red-500 line-through opacity-50' : 'text-black'}`}>
-                    {item.app_lpos_PRODUCTS?.["PRODUCT NAME"]}
+                    {item.bhs_PRODUCTS?.["PRODUCT NAME"]}
                   </span>
                 </td>
                 <td className="py-6 px-4 text-center">

@@ -35,7 +35,7 @@ export async function generateDailyHandoverPDF(
     return [
       formattedOrderDate,
       inv.INVOICE_ID || inv.ORDER_ID || '-',
-      inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer',
+      inv.bhs_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer',
       `AED ${(parseFloat(inv.AMOUNT) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
     ];
   });

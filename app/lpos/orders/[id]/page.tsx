@@ -59,7 +59,7 @@ export default function OrderDetailsPage() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          app_lpos_CUSTOMERS ( * ),
+          bhs_CUSTOMERS ( * ),
           bhs_USERS ( "NAME" )
         `)
         .or(`ID.eq.${id},ORDER_ID.eq.${id}`)
@@ -72,7 +72,7 @@ export default function OrderDetailsPage() {
         .from('app_lpos_ORDERS_ITEMS')
         .select(`
           *,
-          app_lpos_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
+          bhs_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
         `)
         .eq('ORDER_ID', orderData.ID);
 
@@ -308,11 +308,11 @@ export default function OrderDetailsPage() {
 
   const handleDownloadExcel = () => {
     try {
-      const customerName = order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"] || '-';
+      const customerName = order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || '-';
 
       const exportData: any[] = items.map(item => ({
-        'Product': item.app_lpos_PRODUCTS?.["PRODUCT NAME"] || '-',
-        'Unit': item.UNIT || item.app_lpos_PRODUCTS?.["PRODUCT UNIT"] || '-',
+        'Product': item.bhs_PRODUCTS?.["PRODUCT NAME"] || '-',
+        'Unit': item.UNIT || item.bhs_PRODUCTS?.["PRODUCT UNIT"] || '-',
         'Quantity': item.QTY_REQUEST || 0
       }));
 
@@ -425,7 +425,7 @@ export default function OrderDetailsPage() {
       {/* Standalone Customer Name */}
       <div className="px-2 -mt-2 mb-2 text-center">
         <h2 className="text-2xl text-gray-800 font-normal truncate">
-          {order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}
+          {order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}
         </h2>
       </div>
 

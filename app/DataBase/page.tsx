@@ -68,8 +68,8 @@ export default function DatabaseDashboard() {
         const { app_lpos_supabase } = await import('@/lib/supabase');
         
         const [custRes, prodRes, userRes] = await Promise.all([
-          app_lpos_supabase.from('app_lpos_CUSTOMERS').select('ID', { count: 'exact', head: true }),
-          app_lpos_supabase.from('app_lpos_PRODUCTS').select('ID', { count: 'exact', head: true }),
+          app_lpos_supabase.from('bhs_CUSTOMERS').select('ID', { count: 'exact', head: true }),
+          app_lpos_supabase.from('bhs_PRODUCTS').select('ID', { count: 'exact', head: true }),
           app_lpos_supabase.from('bhs_USERS').select('ID', { count: 'exact', head: true })
         ]);
 

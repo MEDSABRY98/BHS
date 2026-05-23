@@ -67,7 +67,7 @@ export default function DeliveredDriverInvoices() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME" ),
           app_lpos_DRIVERS!inner (
             DRIVERS_NAME,
             STATUS,
@@ -99,7 +99,7 @@ export default function DeliveredDriverInvoices() {
     return invoices.filter((inv) => {
       // Customer search filter
       if (customerSearch) {
-        const custName = inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || '';
+        const custName = inv.bhs_CUSTOMERS?.['CUSTOMER NAME'] || '';
         if (!custName.toLowerCase().includes(customerSearch.toLowerCase())) {
           return false;
         }
@@ -377,7 +377,7 @@ export default function DeliveredDriverInvoices() {
                         </td>
                         <td className="py-6 px-6 text-center">
                           <span className="text-sm font-black text-black group-hover:text-[#D4AF37] transition-colors">
-                            {inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer'}
+                            {inv.bhs_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer'}
                           </span>
                         </td>
                         <td className="py-6 px-6 text-center">

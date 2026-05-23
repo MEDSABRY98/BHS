@@ -48,7 +48,7 @@ export default function PendingDriverInvoices() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME" ),
           app_lpos_DRIVERS (
             DRIVERS_NAME,
             STATUS,
@@ -75,7 +75,7 @@ export default function PendingDriverInvoices() {
     return invoices.filter((inv) => {
       // Customer search filter
       if (customerSearch) {
-        const custName = inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || '';
+        const custName = inv.bhs_CUSTOMERS?.['CUSTOMER NAME'] || '';
         if (!custName.toLowerCase().includes(customerSearch.trim().toLowerCase())) {
           return false;
         }

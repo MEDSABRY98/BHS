@@ -43,7 +43,7 @@ export default function PendingCustomerInvoices() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME" ),
           app_lpos_DRIVERS!inner (
             DRIVERS_NAME,
             STATUS,
@@ -75,7 +75,7 @@ export default function PendingCustomerInvoices() {
 
     return invoices.filter((inv) => {
       // 1. Customer Name match
-      const custName = inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || '';
+      const custName = inv.bhs_CUSTOMERS?.['CUSTOMER NAME'] || '';
       if (!custName.toLowerCase().includes(customerSearch.trim().toLowerCase())) {
         return false;
       }
@@ -346,7 +346,7 @@ export default function PendingCustomerInvoices() {
                         </td>
                         <td className="px-8 py-5 whitespace-nowrap">
                           <span className="text-sm font-bold text-gray-800">
-                            {inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer'}
+                            {inv.bhs_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer'}
                           </span>
                         </td>
                         <td className="px-8 py-5 whitespace-nowrap">

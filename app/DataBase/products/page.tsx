@@ -43,7 +43,7 @@ export default function ProductsPage() {
   async function fetchProducts() {
     try {
       const { data, error } = await app_lpos_supabase
-        .from('app_lpos_PRODUCTS')
+        .from('bhs_PRODUCTS')
         .select('*')
         .order('PRODUCT NAME');
       if (error) throw error;
@@ -73,7 +73,7 @@ export default function ProductsPage() {
     try {
       if (editingProduct) {
         const { error } = await app_lpos_supabase
-          .from('app_lpos_PRODUCTS')
+          .from('bhs_PRODUCTS')
           .update({
             "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
@@ -85,7 +85,7 @@ export default function ProductsPage() {
         // Simple ID generation for new products
         const nextId = `R-${(products.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
-          .from('app_lpos_PRODUCTS')
+          .from('bhs_PRODUCTS')
           .insert({
             ID: nextId,
             "PRODUCT NAME": name,
@@ -115,7 +115,7 @@ export default function ProductsPage() {
     setIsSaving(true);
     try {
       const { error } = await app_lpos_supabase
-        .from('app_lpos_PRODUCTS')
+        .from('bhs_PRODUCTS')
         .delete()
         .eq('ID', itemToDelete);
       if (error) throw error;

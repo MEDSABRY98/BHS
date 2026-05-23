@@ -53,7 +53,7 @@ export default function CustomersPage() {
   async function fetchCustomers() {
     try {
       const { data, error } = await app_lpos_supabase
-        .from('app_lpos_CUSTOMERS')
+        .from('bhs_CUSTOMERS')
         .select('*')
         .order('CUSTOMER NAME');
       if (error) throw error;
@@ -83,7 +83,7 @@ export default function CustomersPage() {
     try {
       if (editingCustomer) {
         const { error } = await app_lpos_supabase
-          .from('app_lpos_CUSTOMERS')
+          .from('bhs_CUSTOMERS')
           .update({
             "CUSTOMER NAME": CUSTOMER_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
@@ -94,7 +94,7 @@ export default function CustomersPage() {
       } else {
         const nextId = `R-${(customers.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
-          .from('app_lpos_CUSTOMERS')
+          .from('bhs_CUSTOMERS')
           .insert({
             ID: nextId,
             "CUSTOMER NAME": CUSTOMER_NAME,
@@ -124,7 +124,7 @@ export default function CustomersPage() {
     setIsSaving(true);
     try {
       const { error } = await app_lpos_supabase
-        .from('app_lpos_CUSTOMERS')
+        .from('bhs_CUSTOMERS')
         .delete()
         .eq('ID', itemToDelete);
       if (error) throw error;
@@ -197,7 +197,7 @@ export default function CustomersPage() {
 
         // Fetch latest customers from DB to ensure sequential IDs are unique and correct
         const { data: latestCustomers, error: fetchErr } = await app_lpos_supabase
-          .from('app_lpos_CUSTOMERS')
+          .from('bhs_CUSTOMERS')
           .select('ID');
 
         if (fetchErr) throw fetchErr;
@@ -241,7 +241,7 @@ export default function CustomersPage() {
 
         // Perform bulk upsert
         const { error: upsertErr } = await app_lpos_supabase
-          .from('app_lpos_CUSTOMERS')
+          .from('bhs_CUSTOMERS')
           .upsert(recordsToUpsert);
 
         if (upsertErr) throw upsertErr;

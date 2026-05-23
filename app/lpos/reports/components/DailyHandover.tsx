@@ -67,7 +67,7 @@ export default function HandoverReports() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME" ),
           app_lpos_DRIVERS!inner (
             DRIVERS_NAME,
             STATUS,

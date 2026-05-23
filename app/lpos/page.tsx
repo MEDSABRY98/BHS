@@ -68,7 +68,7 @@ export default function DashboardPage() {
         app_lpos_supabase.from('app_lpos_ORDERS')
           .select(`
             *,
-            app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
+            bhs_CUSTOMERS ( "CUSTOMER NAME" ),
             bhs_USERS ( "NAME" )
           `)
           .order('ORDER_ID', { ascending: false }),
@@ -319,11 +319,11 @@ export default function DashboardPage() {
                     {/* 4. Customer */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex flex-col items-center">
-                        <p className="font-black text-black text-sm truncate w-full" title={order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}>
-                          {order.app_lpos_CUSTOMERS?.["CUSTOMER NAME"]}
+                        <p className="font-black text-black text-sm truncate w-full" title={order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}>
+                          {order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}
                         </p>
                         <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1 truncate w-full">
-                          {order.app_lpos_CUSTOMERS?.["CUSTOMER CITY"]}
+                          {order.bhs_CUSTOMERS?.["CUSTOMER CITY"]}
                         </p>
                       </div>
                     </td>
