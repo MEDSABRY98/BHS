@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { toast } from './01-Unified/Notification';
 import { ArrowRight, Calendar, Save, Plus, AlertTriangle, Trash2, MoreVertical, Eye, RefreshCcw, FileCheck, Users, ChevronDown, ChevronUp, FileSpreadsheet, FileText, Edit } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -74,10 +75,16 @@ export default function DocumentsTrackingTab() {
     const [pdfType, setPdfType] = useState<'received' | 'delivered'>('delivered');
     const [pdfPersonName, setPdfPersonName] = useState('');
 
-    // Notification state
-    const [notification, setNotification] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+    // Notification loading state
     const [isLoading, setIsLoading] = useState(false);
 
+    const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
+        if (type === 'success') {
+            toast.success(msg);
+        } else {
+            toast.error(msg);
+        }
+    };
 
     // Confirmation state
     const [confirmDelete, setConfirmDelete] = useState<{ isOpen: boolean; checkId: string | null }>({
@@ -91,11 +98,6 @@ export default function DocumentsTrackingTab() {
     // Edit modal state
     const [editMode, setEditMode] = useState<{ isOpen: boolean; check: Check | null }>({ isOpen: false, check: null });
     const [editFormData, setEditFormData] = useState<any>({});
-
-    const showNotify = (msg: string, type: 'success' | 'error' = 'success') => {
-        setNotification({ msg, type });
-        setTimeout(() => setNotification(null), 3000);
-    };
 
     // Drafts for bulk registration
     const [drafts, setDrafts] = useState<any[]>([
@@ -144,7 +146,7 @@ export default function DocumentsTrackingTab() {
             }
         } catch (error) {
             console.error('Error fetching checks:', error);
-            showNotify('خطأ في تحميل البيانات من السيرفر', 'error');
+            showNotify('Error loading data from server', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -233,12 +235,12 @@ export default function DocumentsTrackingTab() {
         const validDrafts = activeDrafts.filter(d => d.num && d.client && d.amount && d.date && d.checkDate && d.bank);
 
         if (activeDrafts.length === 0) {
-            showNotify('لا توجد بيانات ليتم حفظها', 'error');
+            showNotify('No data to save', 'error');
             return;
         }
 
         if (validDrafts.length < activeDrafts.length) {
-            showNotify('يرجى إكمال كافة البيانات الستة المطلوبة لكل صف بدأت بتعبئته', 'error');
+            showNotify('Please complete all six required fields for each drafted row', 'error');
             return;
         }
 
@@ -274,7 +276,7 @@ export default function DocumentsTrackingTab() {
             });
 
             if (response.ok) {
-                showNotify(`تم حفظ ${validDrafts.length} شيك بنجاح`);
+                showNotify(`Successfully saved ${validDrafts.length} checks`);
                 setDrafts([{ id: Date.now(), num: '', client: '', amount: '', date: new Date().toISOString().split('T')[0], checkDate: '', bank: '', notes: '' }]);
                 await fetchChecks();
             } else {
@@ -282,7 +284,7 @@ export default function DocumentsTrackingTab() {
             }
         } catch (error) {
             console.error('Error saving drafts:', error);
-            showNotify('خطأ أثناء حفظ البيانات في جوجل شيت', 'error');
+            showNotify('Error saving data to Google Sheets', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -309,13 +311,13 @@ export default function DocumentsTrackingTab() {
             });
 
             if (response.ok) {
-                showNotify('تم حذف الشيك من جوجل شيت', 'error');
+                showNotify('Check deleted successfully', 'success');
                 setConfirmDelete({ isOpen: false, checkId: null });
                 await fetchChecks();
             }
         } catch (error) {
             console.error('Error deleting check:', error);
-            showNotify('فشل في حذف الشيك من جوجل شيت', 'error');
+            showNotify('Failed to delete check from Google Sheets', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -344,7 +346,7 @@ export default function DocumentsTrackingTab() {
             });
 
             if (response.ok) {
-                showNotify('تم تعديل بيانات الشيك بنجاح');
+                showNotify('Check updated successfully');
                 setEditMode({ isOpen: false, check: null });
                 await fetchChecks();
             } else {
@@ -352,7 +354,7 @@ export default function DocumentsTrackingTab() {
             }
         } catch (error) {
             console.error('Error updating check:', error);
-            showNotify('فشل في تعديل بيانات الشيك', 'error');
+            showNotify('Failed to update check details', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -370,7 +372,7 @@ export default function DocumentsTrackingTab() {
         // Validation for mandatory names when delivering
         if (next === 'delivered') {
             if (!delReceiver.trim() || !delFinal.trim()) {
-                showNotify('يرجى إدخال اسم المستلم والمستلم النهائي', 'error');
+                showNotify('Please enter recipient name and final receiver', 'error');
                 return;
             }
         }
@@ -396,7 +398,7 @@ export default function DocumentsTrackingTab() {
             });
 
             if (response.ok) {
-                showNotify('تم تحديث الحالة في جوجل شيت');
+                showNotify('Status updated successfully');
                 setDelReceiver('');
                 setDelFinal('');
 
@@ -408,7 +410,7 @@ export default function DocumentsTrackingTab() {
             }
         } catch (error) {
             console.error('Error advancing status:', error);
-            showNotify('فشل في تحديث الحالة', 'error');
+            showNotify('Failed to update status', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -417,7 +419,7 @@ export default function DocumentsTrackingTab() {
     const bulkRegister = async () => {
         const receivedChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'received');
         if (receivedChecks.length === 0) {
-            showNotify('لا توجد شيكات "مستلمة" ليتم تسجيلها', 'error');
+            showNotify('No "Received" checks to register', 'error');
             return;
         }
 
@@ -439,13 +441,13 @@ export default function DocumentsTrackingTab() {
             });
 
             if (response.ok) {
-                showNotify(`تم تسجيل ${receivedChecks.length} شيك في السيستم بنجاح`);
+                showNotify(`Successfully registered ${receivedChecks.length} checks in the system`);
                 setSelectedIds([]);
                 await fetchChecks();
             }
         } catch (error) {
             console.error('Error bulk registering checks:', error);
-            showNotify('فشل في تسجيل الشيكات بالجملة', 'error');
+            showNotify('Failed to bulk register checks', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -454,12 +456,12 @@ export default function DocumentsTrackingTab() {
     const bulkDeliver = async () => {
         const registeredChecks = checks.filter(c => selectedIds.includes(c.id) && c.status === 'registered');
         if (registeredChecks.length === 0) {
-            showNotify('لا توجد شيكات "مسجلة" ليتم تسليمها', 'error');
+            showNotify('No "Registered" checks to deliver', 'error');
             return;
         }
 
         if (!bulkDelReceiver.trim() || !bulkDelFinal.trim()) {
-            showNotify('يرجى إدخال اسم المستلم والمستلم النهائي', 'error');
+            showNotify('Please enter recipient name and final receiver', 'error');
             return;
         }
 
@@ -483,7 +485,7 @@ export default function DocumentsTrackingTab() {
             });
 
             if (response.ok) {
-                showNotify(`تم تسليم ${registeredChecks.length} شيك بنجاح`);
+                showNotify(`Successfully delivered ${registeredChecks.length} checks`);
                 setBulkDelReceiver('');
                 setBulkDelFinal('');
                 setIsBulkDeliverModalOpen(false);
@@ -492,7 +494,7 @@ export default function DocumentsTrackingTab() {
             }
         } catch (error) {
             console.error('Error bulk delivering checks:', error);
-            showNotify('فشل في تسليم الشيكات بالجملة', 'error');
+            showNotify('Failed to bulk deliver checks', 'error');
         } finally {
             setIsLoading(false);
         }
@@ -611,13 +613,13 @@ export default function DocumentsTrackingTab() {
             doc.text(`Total Amount: ${totalAmount.toLocaleString('en-US')} AED`, pageWidth - 15, finalY, { align: 'right' });
 
             doc.save(`Cheque_${today.replace(/\//g, '-')}.pdf`);
-            showNotify('تم إصدار التقرير بنجاح');
+            showNotify('Report generated successfully');
             setSelectedIds([]);
             setIsPdfModalOpen(false);
             setPdfPersonName('');
         } catch (error) {
             console.error('PDF Generation failed:', error);
-            showNotify('فشل في إنشاء ملف PDF نوعي', 'error');
+            showNotify('Failed to generate PDF report', 'error');
         } finally {
             setIsLoading(true);
             setTimeout(() => setIsLoading(false), 500);
@@ -1539,16 +1541,6 @@ export default function DocumentsTrackingTab() {
             )}
 
 
-            {/* NOTIFICATION TOAST */}
-            {notification && (
-                <div className={`toast-notification ${notification.type}`}>
-                    <div className="toast-icon">{notification.type === 'success' ? '✓' : '✕'}</div>
-                    <div className="toast-content">
-                        <div className="toast-title">{notification.type === 'success' ? 'تمت العملية' : 'تنبيه'}</div>
-                        <div className="toast-msg">{notification.msg}</div>
-                    </div>
-                </div>
-            )}
 
             {/* PDF OPTIONS MODAL */}
             {isPdfModalOpen && (

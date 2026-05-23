@@ -11,7 +11,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { addArabicFont } from '@/lib/pdf/PdfUtils';
 import Loading from './01-Unified/Loading';
-import { NotificationContainer, NotificationType } from './01-Unified/Notification';
+import { toast } from './01-Unified/Notification';
 
 interface Wh20Item {
     barcode: string;
@@ -72,16 +72,11 @@ export default function InventoryWh20ItemsTab() {
     const [selectedTag, setSelectedTag] = useState<string>('');
     const [editSelectedTag, setEditSelectedTag] = useState<string>('');
 
-    // Notifications
-    const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: NotificationType }>>([]);
-
-    const addNotification = (message: string, type: NotificationType) => {
-        const id = Math.random().toString(36).substring(7);
-        setNotifications((prev) => [...prev, { id, message, type }]);
-    };
-
-    const removeNotification = (id: string) => {
-        setNotifications((prev) => prev.filter((n) => n.id !== id));
+    const addNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info') => {
+        if (type === 'success') toast.success(message);
+        else if (type === 'error') toast.error(message);
+        else if (type === 'warning') toast.warning(message);
+        else toast.info(message);
     };
 
     // Body Data
@@ -1808,7 +1803,7 @@ export default function InventoryWh20ItemsTab() {
                 </div>
             )}
 
-            <NotificationContainer notifications={notifications} onRemove={removeNotification} />
+
         </div>
     );
 }

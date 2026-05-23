@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { X, Loader2, Save, FilePenLine } from 'lucide-react';
 import SignaturePad from '@/components/SignaturePad';
-import SearchSelect from '../../components/DropDownList';
+import SearchSelect from '../../../lpos/components/DropDownList';
 
 interface SignatureModalProps {
   isOpen: boolean;

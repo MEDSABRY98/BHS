@@ -22,7 +22,8 @@ const SYSTEMS = [
     { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'delivery-tracking', label: 'Delivery Tracking' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
-    { id: 'lpo-management', label: 'LPO Management' }
+    { id: 'lpo-management', label: 'LPO Management' },
+    { id: 'database', label: 'Database' }
 ];
 
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
@@ -101,10 +102,13 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'lpo-dashboard', label: 'Dashboard' },
         { id: 'lpo-orders', label: 'Orders' },
         { id: 'lpo-create-orders', label: 'Create Orders' },
-        { id: 'lpo-customers', label: 'Customers DB' },
-        { id: 'lpo-products', label: 'Products DB' },
-        { id: 'lpo-users', label: 'Users DB' },
-        { id: 'lpo-staff', label: 'Staff DB' }
+        { id: 'lpo-reports', label: 'Reports' }
+    ],
+    'database': [
+        { id: 'db-dashboard', label: 'Dashboard' },
+        { id: 'db-customers', label: 'Customers DB' },
+        { id: 'db-products', label: 'Products DB' },
+        { id: 'db-users', label: 'Users DB' }
     ]
 };
 
@@ -121,6 +125,11 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
         { id: 'reship', label: 'Re-shipment Actions', icon: '📦' }
     ],
     'lpo-management': [
+        { id: 'view', label: 'Viewer (Read Only)', icon: '👁️' },
+        { id: 'edit', label: 'Editor (Add/Edit)', icon: '✏️' },
+        { id: 'delete', label: 'Admin (Add/Edit/Delete)', icon: '🗑️' }
+    ],
+    'database': [
         { id: 'view', label: 'Viewer (Read Only)', icon: '👁️' },
         { id: 'edit', label: 'Editor (Add/Edit)', icon: '✏️' },
         { id: 'delete', label: 'Admin (Add/Edit/Delete)', icon: '🗑️' }

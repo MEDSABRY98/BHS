@@ -27,11 +27,11 @@ export function usePermissions() {
 
       try {
         const perms = JSON.parse(mainUser.role || '{}');
-        const lpoActions = perms['lpo-management-actions'] || [];
+        const dbActions = perms['database-actions'] || [];
         
         // delete action implies edit, edit implies view
-        const canDelete = lpoActions.includes('delete');
-        const canEdit = canDelete || lpoActions.includes('edit');
+        const canDelete = dbActions.includes('delete');
+        const canEdit = canDelete || dbActions.includes('edit');
         
         setPermissions({
           canEdit,

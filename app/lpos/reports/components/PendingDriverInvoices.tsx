@@ -2,19 +2,15 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
-import SearchSelect from '../../components/DropDownList';
-import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
+import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/lib/pdf/PendingDriverInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
 
-
 export default function PendingDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);
-  const [selectedDriverId, setSelectedDriverId] = useState('');
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [isDriversLoading, setIsDriversLoading] = useState(true);
-  const [isInvoicesLoading, setIsInvoicesLoading] = useState(false);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [generatingDriverId, setGeneratingDriverId] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [customerSearch, setCustomerSearch] = useState('');
@@ -31,66 +27,46 @@ export default function PendingDriverInvoices() {
     }
   }, []);
 
-
   useEffect(() => {
-    fetchDrivers();
+    fetchInitialData();
   }, []);
 
-  useEffect(() => {
-    if (selectedDriverId) {
-      fetchPendingInvoices();
-    } else {
-      setInvoices([]);
-    }
-  }, [selectedDriverId]);
-
-  async function fetchDrivers() {
-    setIsDriversLoading(true);
+  async function fetchInitialData() {
+    setIsLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      // 1. Fetch drivers
+      const { data: driversData, error: drvErr } = await app_lpos_supabase
         .from('bhs_USERS')
         .select('*')
         .eq('USER_TYPE', 'Driver')
         .order('NAME');
-      if (error) throw error;
-      setDrivers(data || []);
-    } catch (err) {
-      console.error('Error fetching drivers:', err);
-    } finally {
-      setIsDriversLoading(false);
-    }
-  }
+      if (drvErr) throw drvErr;
+      setDrivers(driversData || []);
 
-  async function fetchPendingInvoices() {
-    setIsInvoicesLoading(true);
-    try {
-      // Fetch all invoices assigned to this driver
-      const { data, error } = await app_lpos_supabase
+      // 2. Fetch all pending driver invoices (where handover status !== Confirmed)
+      const { data: ordersData, error: ordErr } = await app_lpos_supabase
         .from('app_lpos_ORDERS')
         .select(`
           *,
           app_lpos_CUSTOMERS ( "CUSTOMER NAME" ),
-          app_lpos_DRIVERS!inner (
+          app_lpos_DRIVERS (
             DRIVERS_NAME,
             STATUS,
             OFFICE_HANDOVER_STATUS
           )
-        `)
-        .eq('app_lpos_DRIVERS.DRIVERS_NAME', selectedDriverId);
-
-      if (error) throw error;
+        `);
+      if (ordErr) throw ordErr;
 
       // Filter in frontend to handle NULLs and non-Confirmed handovers accurately
-      const pendingList = (data || []).filter((order: any) => {
+      const pendingList = (ordersData || []).filter((order: any) => {
         const driverRecord = order.app_lpos_DRIVERS?.[0];
         return driverRecord && driverRecord.OFFICE_HANDOVER_STATUS !== 'Confirmed';
       });
-
       setInvoices(pendingList);
     } catch (err) {
-      console.error('Error fetching pending invoices:', err);
+      console.error('Error fetching initial data:', err);
     } finally {
-      setIsInvoicesLoading(false);
+      setIsLoading(false);
     }
   }
 
@@ -100,55 +76,70 @@ export default function PendingDriverInvoices() {
       // Customer search filter
       if (customerSearch) {
         const custName = inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || '';
-        if (!custName.toLowerCase().includes(customerSearch.toLowerCase())) {
+        if (!custName.toLowerCase().includes(customerSearch.trim().toLowerCase())) {
           return false;
         }
       }
 
       const dateStr = inv.ORDER_DATE || inv.CREATED_AT;
-      if (!dateStr) return true;
-
-      const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
-
-      if (fromDate && datePart < fromDate) return false;
-      if (toDate && datePart > toDate) return false;
+      if (dateStr) {
+        const datePart = dateStr.includes('T') ? dateStr.split('T')[0] : dateStr;
+        if (fromDate && datePart < fromDate) return false;
+        if (toDate && datePart > toDate) return false;
+      }
       return true;
     });
   }, [invoices, fromDate, toDate, customerSearch]);
 
-  // Sorted invoices based on USER request:
-  // 1st: by Date from oldest (من الأقدم)
-  // 2nd: by Invoice ID (حسب رقم الفاتورة)
-  const sortedInvoices = useMemo(() => {
-    return [...filteredInvoices].sort((a, b) => {
-      const dateA = a.ORDER_DATE ? new Date(a.ORDER_DATE).getTime() : (a.CREATED_AT ? new Date(a.CREATED_AT).getTime() : 0);
-      const dateB = b.ORDER_DATE ? new Date(b.ORDER_DATE).getTime() : (b.CREATED_AT ? new Date(b.CREATED_AT).getTime() : 0);
+  // Aggregate metrics per driver
+  const driverMetrics = useMemo(() => {
+    return drivers.map((driver) => {
+      // Find invoices for this driver
+      const driverInvoices = filteredInvoices.filter(
+        (inv) => inv.app_lpos_DRIVERS?.[0]?.DRIVERS_NAME === driver.ID
+      );
 
-      if (dateA !== dateB) {
-        return dateA - dateB;
-      }
+      // Unique customers count
+      const uniqueCustomerIds = new Set(
+        driverInvoices.map((inv) => inv.CUSTOMER_ID).filter(Boolean)
+      );
 
-      const invA = a.INVOICE_ID || a.ORDER_ID || '';
-      const invB = b.INVOICE_ID || b.ORDER_ID || '';
-      return invA.localeCompare(invB);
-    });
-  }, [filteredInvoices]);
+      // Average delay days
+      let totalDelayDays = 0;
+      driverInvoices.forEach((inv) => {
+        const dateStr = inv.ORDER_DATE || inv.CREATED_AT;
+        if (dateStr) {
+          const invoiceDate = new Date(dateStr);
+          const diffTime = Math.max(0, Date.now() - invoiceDate.getTime());
+          const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+          totalDelayDays += diffDays;
+        }
+      });
 
-  const selectedDriverName = useMemo(() => {
-    const drv = drivers.find(d => d.ID === selectedDriverId);
-    return drv ? drv.NAME : '';
-  }, [drivers, selectedDriverId]);
+      const avgDelayDays = driverInvoices.length > 0
+        ? Math.round(totalDelayDays / driverInvoices.length)
+        : 0;
 
-  const handlePdfAction = async (action: 'download' | 'print') => {
-    if (sortedInvoices.length === 0) return;
-    setIsGeneratingPdf(true);
+      return {
+        driver,
+        invoices: driverInvoices,
+        pendingCount: driverInvoices.length,
+        uniqueCustomersCount: uniqueCustomerIds.size,
+        avgDelayDays,
+      };
+    }).sort((a, b) => b.pendingCount - a.pendingCount); // Sort drivers with most pending invoices first
+  }, [drivers, filteredInvoices]);
+
+  const handlePdfAction = async (action: 'download' | 'print', driver: any, driverInvoices: any[]) => {
+    if (driverInvoices.length === 0) return;
+    setGeneratingDriverId(driver.ID);
     try {
       // Fetch driver signature from database
       let driverSignature = '';
       const { data: driverData, error: driverErr } = await app_lpos_supabase
         .from('bhs_USERS')
         .select('SIGNATURE')
-        .eq('ID', selectedDriverId)
+        .eq('ID', driver.ID)
         .single();
       if (!driverErr && driverData?.SIGNATURE) {
         driverSignature = driverData.SIGNATURE;
@@ -167,9 +158,23 @@ export default function PendingDriverInvoices() {
         }
       }
 
+      // Sort driverInvoices by oldest date, then by Invoice/Order ID
+      const sortedDriverInvoices = [...driverInvoices].sort((a, b) => {
+        const dateA = a.ORDER_DATE ? new Date(a.ORDER_DATE).getTime() : (a.CREATED_AT ? new Date(a.CREATED_AT).getTime() : 0);
+        const dateB = b.ORDER_DATE ? new Date(b.ORDER_DATE).getTime() : (b.CREATED_AT ? new Date(b.CREATED_AT).getTime() : 0);
+
+        if (dateA !== dateB) {
+          return dateA - dateB;
+        }
+
+        const invA = a.INVOICE_ID || a.ORDER_ID || '';
+        const invB = b.INVOICE_ID || b.ORDER_ID || '';
+        return invA.localeCompare(invB);
+      });
+
       await generatePendingDriverInvoicesPDF(
-        selectedDriverName, 
-        sortedInvoices, 
+        driver.NAME, 
+        sortedDriverInvoices, 
         action, 
         fromDate, 
         toDate,
@@ -179,33 +184,17 @@ export default function PendingDriverInvoices() {
     } catch (err) {
       console.error('PDF Generation failed:', err);
     } finally {
-      setIsGeneratingPdf(false);
+      setGeneratingDriverId(null);
     }
   };
 
-  const totalAmount = useMemo(() => {
-    return sortedInvoices.reduce((sum, item) => sum + (parseFloat(item.AMOUNT) || 0), 0);
-  }, [sortedInvoices]);
-
   return (
     <div className="space-y-8">
+      {/* Search and Filters */}
       <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-gray-100">
         <div className="flex flex-col lg:flex-row lg:items-end gap-6">
-          <div className="flex-1 min-w-0">
-            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 mb-2 block">
-              Select Driver
-            </label>
-            <SearchSelect
-              label=""
-              placeholder="Pick a logistics driver..."
-              options={drivers.map(d => ({ id: d.ID, label: d.NAME }))}
-              value={selectedDriverId}
-              onChange={setSelectedDriverId}
-              isLoading={isDriversLoading}
-              heightClass="h-[56px]"
-            />
-          </div>
-
+          
+          {/* Customer Search Input */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between ml-1 mb-2">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
@@ -220,15 +209,19 @@ export default function PendingDriverInvoices() {
                 </button>
               )}
             </div>
-            <input
-              type="text"
-              placeholder="Search by customer name..."
-              value={customerSearch}
-              onChange={(e) => setCustomerSearch(e.target.value)}
-              className="w-full px-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 h-[56px] focus:ring-4 focus:ring-black/5 placeholder:text-gray-400 font-sans"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search by customer name..."
+                value={customerSearch}
+                onChange={(e) => setCustomerSearch(e.target.value)}
+                className="w-full pl-12 pr-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 h-[56px] focus:ring-4 focus:ring-black/5 placeholder:text-gray-400 font-sans"
+              />
+              <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+            </div>
           </div>
 
+          {/* Date Filters */}
           <div className="w-full lg:w-48 shrink-0">
             <div className="flex items-center justify-between ml-1 mb-2">
               <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block">
@@ -273,116 +266,92 @@ export default function PendingDriverInvoices() {
             />
           </div>
 
-          <div className="flex gap-4 shrink-0 w-full lg:w-auto justify-end lg:justify-start">
-            {selectedDriverId && sortedInvoices.length > 0 && (
-              <>
-                <button
-                  disabled={isGeneratingPdf}
-                  onClick={() => handlePdfAction('print')}
-                  title="Print Report"
-                  className="w-[56px] h-[56px] bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-2xl transition-all flex items-center justify-center shadow-sm cursor-pointer"
-                >
-                  <Printer className="w-5 h-5" />
-                </button>
-                <button
-                  disabled={isGeneratingPdf}
-                  onClick={() => handlePdfAction('download')}
-                  title="Download PDF"
-                  className="w-[56px] h-[56px] bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/10 hover:bg-gray-900 transition-all flex items-center justify-center cursor-pointer"
-                >
-                  {isGeneratingPdf ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Download className="w-5 h-5" />
-                  )}
-                </button>
-              </>
-            )}
-          </div>
         </div>
       </div>
 
-      {/* Report Results */}
-      {!selectedDriverId ? (
-        <NoData title="Please Pick a Driver" />
-      ) : (
-        <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-gray-100">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 px-2">
-            <div>
-              <h3 className="text-2xl font-black text-black tracking-tight">
-                {selectedDriverName}'s Invoices
-              </h3>
-              <p className="text-xs text-gray-500 mt-1 font-medium">
-                Pending office confirmation
-              </p>
-            </div>
-
-            {sortedInvoices.length > 0 && (
-              <div className="flex items-center gap-6">
-                <div className="text-center md:text-right">
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Value</span>
-                  <p className="text-2xl font-black text-[#D4AF37]">
-                    AED {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                </div>
-                <div className="px-5 py-3 bg-gray-50 text-black border border-gray-100 rounded-2xl text-[10px] font-black uppercase tracking-widest">
-                  {sortedInvoices.length} Pending
-                </div>
-              </div>
-            )}
+      {/* Driver Pending Invoices Overview */}
+      <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-8 px-2">
+          <div>
+            <h3 className="text-2xl font-black text-black tracking-tight">
+              Pending Invoices Overview
+            </h3>
           </div>
-
-          {isInvoicesLoading ? (
-            <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
-              <Loader2 className="w-10 h-10 animate-spin text-[#D4AF37]" />
-              <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Invoices...</p>
-            </div>
-          ) : sortedInvoices.length === 0 ? (
-            <NoData title="NO PENDING INVOICES" />
-          ) : (
-            <div className="overflow-x-auto rounded-[2.5rem] border border-gray-50">
-              <table className="w-full text-center border-collapse">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="py-6 px-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice Date</th>
-                    <th className="py-6 px-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Invoice / Order ID</th>
-                    <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Name</th>
-                    <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Amount</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-50">
-                  {sortedInvoices.map((inv) => {
-                    const formattedDate = inv.ORDER_DATE
-                      ? new Date(inv.ORDER_DATE).toLocaleDateString('en-GB')
-                      : (inv.CREATED_AT ? new Date(inv.CREATED_AT).toLocaleDateString('en-GB') : '-');
-
-                    return (
-                      <tr key={inv.ID} className="group hover:bg-gray-50/50 transition-all duration-200">
-                        <td className="py-6 px-6">
-                          <span className="text-sm font-bold text-gray-600">{formattedDate}</span>
-                        </td>
-                        <td className="py-6 px-6">
-                          <span className="text-sm font-black text-black">{inv.INVOICE_ID || inv.ORDER_ID || '-'}</span>
-                        </td>
-                        <td className="py-6 px-6 text-center">
-                          <span className="text-sm font-black text-black group-hover:text-[#D4AF37] transition-colors">
-                            {inv.app_lpos_CUSTOMERS?.['CUSTOMER NAME'] || 'Unknown Customer'}
-                          </span>
-                        </td>
-                        <td className="py-6 px-6 text-center">
-                          <span className="text-sm font-black text-[#D4AF37]">
-                            AED {(parseFloat(inv.AMOUNT) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
-      )}
+
+        {isLoading ? (
+          <div className="py-20 text-center flex flex-col items-center justify-center gap-4">
+            <Loader2 className="w-10 h-10 animate-spin text-[#D4AF37]" />
+            <p className="text-xs font-black text-gray-400 uppercase tracking-widest">Loading Driver Metrics...</p>
+          </div>
+        ) : driverMetrics.length === 0 ? (
+          <NoData title="NO LOGISTICS DRIVERS FOUND" />
+        ) : (
+          <div className="overflow-x-auto rounded-[2.5rem] border border-gray-50">
+            <table className="w-full text-center border-collapse">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Driver Name</th>
+                  <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Pending Invoices</th>
+                  <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customers</th>
+                  <th className="py-6 px-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Avg. Delay Days</th>
+                  <th className="py-6 px-6 text-right text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] pr-10">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {driverMetrics.map(({ driver, invoices: driverInvoices, pendingCount, uniqueCustomersCount, avgDelayDays }) => (
+                  <tr key={driver.ID} className="group hover:bg-gray-50/50 transition-all duration-200">
+                    <td className="py-6 px-6 text-center">
+                      <span className="text-sm font-black text-black group-hover:text-[#D4AF37] transition-colors">
+                        {driver.NAME}
+                      </span>
+                    </td>
+                    <td className="py-6 px-6 text-center">
+                      <span className={`text-sm font-black ${pendingCount > 0 ? 'text-red-500' : 'text-gray-400'}`}>
+                        {pendingCount}
+                      </span>
+                    </td>
+                    <td className="py-6 px-6 text-center">
+                      <span className="text-sm font-bold text-gray-600">
+                        {uniqueCustomersCount}
+                      </span>
+                    </td>
+                    <td className="py-6 px-6 text-center">
+                      <span className={`text-sm font-black ${avgDelayDays > 5 ? 'text-red-500' : avgDelayDays > 0 ? 'text-orange-500' : 'text-gray-400'}`}>
+                        {avgDelayDays > 0 ? `${avgDelayDays} Days` : '-'}
+                      </span>
+                    </td>
+                    <td className="py-6 px-6 text-right pr-10">
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          disabled={pendingCount === 0 || generatingDriverId !== null}
+                          onClick={() => handlePdfAction('print', driver, driverInvoices)}
+                          title="Print Report"
+                          className="w-10 h-10 bg-white border border-gray-200 text-black hover:border-black hover:bg-gray-50 rounded-xl transition-all flex items-center justify-center shadow-sm disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                        <button
+                          disabled={pendingCount === 0 || generatingDriverId !== null}
+                          onClick={() => handlePdfAction('download', driver, driverInvoices)}
+                          title="Download PDF"
+                          className="w-10 h-10 bg-black text-[#D4AF37] hover:bg-gray-900 rounded-xl shadow-md transition-all flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
+                        >
+                          {generatingDriverId === driver.ID ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Download className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

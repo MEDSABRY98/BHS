@@ -5,17 +5,15 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import {
   LayoutDashboard,
-  ShoppingCart,
   Users,
   Package,
   UserCircle,
   LogOut,
   Menu,
   X,
-  ReceiptText,
+  Database,
   ChevronRight,
-  ChevronLeft,
-  FileText
+  ChevronLeft
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -48,7 +46,7 @@ function NavItem({ href, icon: Icon, label, isActive, onClick, isCollapsed }: Na
   );
 }
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DatabaseLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -57,7 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem('sidebarCollapsed');
+    const stored = localStorage.getItem('dbSidebarCollapsed');
     if (stored === 'true') {
       setIsCollapsed(true);
     }
@@ -66,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const toggleSidebar = () => {
     const nextState = !isCollapsed;
     setIsCollapsed(nextState);
-    localStorage.setItem('sidebarCollapsed', String(nextState));
+    localStorage.setItem('dbSidebarCollapsed', String(nextState));
   };
 
   useEffect(() => {
@@ -77,7 +75,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.push('/');
     } else {
       const userData = JSON.parse(mainUserStr);
-      // Ensure we have a NAME property for display/logic (mapping from main user's name if needed)
       if (!userData.NAME && userData.name) {
         userData.NAME = userData.name;
       }
@@ -86,50 +83,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [router]);
 
   const handleLogout = () => {
-    // Only remove main user if they really want to log out of the whole system, 
-    // but usually in this context "Sign Out" from LPO means going back to main selection.
     router.push('/');
   };
 
   if (!isMounted || !user) return null;
 
-  const ALL_NAV_ITEMS = [
-    { id: 'lpo-dashboard', href: '/lpos', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'lpo-orders', href: '/lpos/orders', icon: ShoppingCart, label: 'Orders' },
-    { id: 'lpo-create-orders', href: '/lpos/create-orders', icon: ReceiptText, label: 'Create Orders' },
-    { id: 'lpo-reports', href: '/lpos/reports', icon: FileText, label: 'Reports' },
+  const NAV_ITEMS = [
+    { id: 'db-dashboard', href: '/DataBase', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'db-customers', href: '/DataBase/customers', icon: UserCircle, label: 'Customers DB' },
+    { id: 'db-products', href: '/DataBase/products', icon: Package, label: 'Products DB' },
+    { id: 'db-users', href: '/DataBase/users', icon: Users, label: 'Users DB' },
   ];
-
-  const getFilteredNavItems = () => {
-    if (!user) return [];
-
-    // Admin Sabry has full access
-    if (user.NAME === 'MED Sabry' || user.name === 'med sabry') return ALL_NAV_ITEMS;
-
-    try {
-      // Check for main system permissions (stored in 'role' as JSON)
-      const mainUserStr = localStorage.getItem('currentUser');
-      if (mainUserStr) {
-        const mainUser = JSON.parse(mainUserStr);
-        const roleStr = mainUser.role || '{}';
-        const perms = JSON.parse(roleStr);
-
-        // If they don't have access to LPO system at all, return empty
-        if (perms.systems && !perms.systems.includes('lpo-management')) return [];
-
-        // Check for sub-tab permissions
-        const allowedTabs = perms['lpo-management'] || [];
-        return ALL_NAV_ITEMS.filter(item => allowedTabs.includes(item.id));
-      }
-    } catch (e) {
-      console.error('Error parsing permissions:', e);
-    }
-
-    // Default to all if no permission system found (legacy or LPO-only login)
-    return ALL_NAV_ITEMS;
-  };
-
-  const navItems = getFilteredNavItems();
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black">
@@ -151,23 +115,23 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className={`px-4 ${isCollapsed ? 'py-4' : 'pt-2 pb-6'} shrink-0 flex flex-col items-center justify-center transition-all duration-300`}>
           <div className="flex flex-col items-center text-center">
             <div className="w-12 h-12 bg-[#D4AF37] rounded-xl flex items-center justify-center mb-3 shadow-lg shadow-[#D4AF37]/20 transition-all duration-300">
-              <ReceiptText className="w-7 h-7 text-black" />
+              <Database className="w-7 h-7 text-black" />
             </div>
             {!isCollapsed && (
               <div className="animate-in fade-in duration-300">
-                <h2 className="text-xl font-bold tracking-tight">BHS LPO'S</h2>
-                <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Admin Panel</p>
+                <h2 className="text-xl font-bold tracking-tight">BHS DATABASE</h2>
+                <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Control Panel</p>
               </div>
             )}
           </div>
         </div>
 
         <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-          {navItems.map((item) => (
+          {NAV_ITEMS.map((item) => (
             <NavItem
               key={item.href}
               {...item}
-              isActive={pathname === item.href || (item.href !== '/lpos' && pathname.startsWith(item.href))}
+              isActive={pathname === item.href || (item.href !== '/DataBase' && pathname.startsWith(item.href))}
               isCollapsed={isCollapsed}
             />
           ))}
@@ -194,64 +158,60 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
           <div className="flex items-center">
             <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center mr-2">
-              <ReceiptText className="w-5 h-5 text-[#D4AF37]" />
+              <Database className="w-5 h-5 text-[#D4AF37]" />
             </div>
-            <h1 className="font-bold">BHS LPO'S</h1>
+            <span className="font-bold text-lg tracking-tight">Database</span>
           </div>
-          <div className="w-10 h-10 bg-black text-[#D4AF37] rounded-full flex items-center justify-center text-sm font-bold">
-            {user.NAME.charAt(0)}
-          </div>
+          <div className="w-10" />
         </header>
 
-        {/* Mobile Sidebar Overlay */}
+        {/* Drawer - Mobile */}
         {isSidebarOpen && (
-          <div
-            className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-            onClick={() => setIsSidebarOpen(false)}
-          />
+          <div className="lg:hidden fixed inset-0 z-50 flex">
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black/50" onClick={() => setIsSidebarOpen(false)} />
+            
+            {/* Menu */}
+            <aside className="relative flex flex-col w-72 max-w-xs bg-black text-white h-full z-10 animate-in slide-in-from-left duration-300">
+              <div className="p-4 flex justify-between items-center border-b border-white/10">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 bg-[#D4AF37] rounded-lg flex items-center justify-center">
+                    <Database className="w-5 h-5 text-black" />
+                  </div>
+                  <span className="font-black text-sm uppercase tracking-wider text-[#D4AF37]">BHS Database</span>
+                </div>
+                <button onClick={() => setIsSidebarOpen(false)} className="text-gray-400 hover:text-white p-1">
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="p-4 border-b border-white/10">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 py-2 text-red-500 hover:text-red-400 transition-colors w-full"
+                >
+                  <LogOut className="w-5 h-5" />
+                  <span className="text-xs font-black uppercase tracking-widest">Back Home</span>
+                </button>
+              </div>
+
+              <nav className="flex-1 mt-4 overflow-y-auto">
+                {NAV_ITEMS.map((item) => (
+                  <NavItem
+                    key={item.href}
+                    {...item}
+                    isActive={pathname === item.href || (item.href !== '/DataBase' && pathname.startsWith(item.href))}
+                    onClick={() => setIsSidebarOpen(false)}
+                  />
+                ))}
+              </nav>
+            </aside>
+          </div>
         )}
 
-        {/* Mobile Sidebar */}
-        <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-black text-white transition-transform duration-300 transform lg:hidden ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
-          <div className="px-8 pt-6 pb-2">
-            <button
-              onClick={handleLogout}
-              className="flex items-center justify-center gap-3 py-2 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] w-full"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              Back Home
-            </button>
-          </div>
-          <div className="px-8 pt-2 pb-6 shrink-0 relative flex flex-col items-center justify-center">
-            <button 
-              onClick={() => setIsSidebarOpen(false)}
-              className="absolute right-4 top-2 p-2 text-gray-400 hover:text-white"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <div className="flex flex-col items-center text-center">
-              <div className="w-10 h-10 bg-[#D4AF37] rounded-lg flex items-center justify-center mb-3">
-                <ReceiptText className="w-6 h-6 text-black" />
-              </div>
-              <h2 className="text-lg font-bold">BHS LPO'S</h2>
-              <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Admin Panel</p>
-            </div>
-          </div>
-          <nav className="flex-1 overflow-y-auto no-scrollbar">
-            {navItems.map((item) => (
-              <NavItem
-                key={item.href}
-                {...item}
-                isActive={pathname === item.href}
-                onClick={() => setIsSidebarOpen(false)}
-              />
-            ))}
-          </nav>
-
-        </aside>
-
-        <main className="flex-1 p-4 md:p-8 lg:p-12">
-          <div className={`${(pathname === '/lpos/orders' || pathname === '/lpos/create-orders' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+        {/* Content Wrapper */}
+        <main className="flex-grow p-6 sm:p-8 lg:p-12 overflow-y-auto">
+          <div className="max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
             {children}
           </div>
         </main>

@@ -16,9 +16,9 @@ import {
   Check,
   FilePenLine
 } from 'lucide-react';
-import { ConfirmModal } from '../components/ConfirmModal';
+import { ConfirmModal } from '../../lpos/components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../hooks/usePermissions';
+import { usePermissions } from '../../lpos/hooks/usePermissions';
 import SignatureModal from './components/SignatureModal';
 
 export default function UsersPage() {

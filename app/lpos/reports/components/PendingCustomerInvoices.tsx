@@ -153,12 +153,12 @@ export default function PendingCustomerInvoices() {
           {/* Customer Search Input */}
           <div className="flex-1 min-w-0">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 mb-2 block">
-              Search Customer Name
+              Search Customer
             </label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Type customer name to search (e.g. Al Nasser)..."
+                placeholder="Search by customer name..."
                 value={customerSearch}
                 onChange={(e) => setCustomerSearch(e.target.value)}
                 className="w-full pl-12 pr-5 py-3.5 bg-gray-50 border border-gray-100 rounded-2xl text-sm font-bold text-black focus:outline-none focus:border-black transition-all hover:bg-gray-100/50 cursor-pointer h-[56px] focus:ring-4 focus:ring-black/5"

@@ -52,7 +52,7 @@ export default function SearchSelect({
   );
 
   return (
-    <div className="flex flex-col gap-2 relative" ref={containerRef}>
+    <div className="flex flex-col gap-2 relative w-full" ref={containerRef}>
       {label && (
         <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">
           {label}
@@ -61,7 +61,7 @@ export default function SearchSelect({
 
       <div
         onClick={() => !isLoading && setIsOpen(!isOpen)}
-        className={`group flex items-center justify-between px-6 ${heightClass} bg-white border-2 ${isOpen ? 'border-black shadow-[0_0_20px_rgba(0,0,0,0.05)]' : 'border-gray-50'
+        className={`group flex items-center justify-between w-full px-6 ${heightClass} bg-white border-2 ${isOpen ? 'border-black shadow-[0_0_20px_rgba(0,0,0,0.05)]' : 'border-gray-50'
           } rounded-[1.5rem] cursor-pointer transition-all hover:bg-gray-50/50 hover:border-gray-200 shadow-sm`}
       >
         <div className="flex flex-col justify-center min-w-0">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X, CheckCircle2, List } from 'lucide-react';
 import { generateWaterDeliveryNotePDF } from '@/lib/pdf/PdfUtils';
-import { NotificationContainer, NotificationType } from '@/components/01-Unified/Notification';
+import { toast } from '@/components/01-Unified/Notification';
 import Loading from '@/components/01-Unified/Loading';
 
 interface WaterDeliveryNoteItem {
@@ -45,16 +45,11 @@ export default function WaterDeliveryNotePage() {
   // Daily output states
   const [dailyData, setDailyData] = useState<any[]>([]);
 
-  // Notifications state
-  const [notifications, setNotifications] = useState<Array<{ id: string; message: string; type: NotificationType }>>([]);
-
-  const showNotification = (message: string, type: NotificationType = 'info') => {
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    setNotifications((prev) => [...prev, { id, message, type }]);
-  };
-
-  const removeNotification = (id: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
+    if (type === 'success') toast.success(message);
+    else if (type === 'error') toast.error(message);
+    else if (type === 'warning') toast.warning(message);
+    else toast.info(message);
   };
 
   useEffect(() => {
@@ -376,7 +371,6 @@ export default function WaterDeliveryNotePage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
-      <NotificationContainer notifications={notifications} onRemove={removeNotification} />
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Modern Integrated Header */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">

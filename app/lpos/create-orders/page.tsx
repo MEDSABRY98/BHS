@@ -456,7 +456,7 @@ export default function CreateOrderPage() {
 
   const downloadUpdateTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { "Invoice ID": "INV-001", "Customer Name": "Example Customer", "Amount": 1500.50 }
+      { "Invoice ID": "INV-001", "LPO ID": "LPO-100", "Customer Name": "Example Customer", "Amount": 1500.50 }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Update Template");
@@ -483,6 +483,7 @@ export default function CreateOrderPage() {
         for (let index = 0; index < data.length; index++) {
           const row = data[index];
           const invoiceId = row["Invoice ID"]?.toString().trim();
+          const lpoId = row["LPO ID"]?.toString().trim();
           const customerName = row["Customer Name"]?.toString().trim();
           const amount = row["Amount"];
 
@@ -515,6 +516,11 @@ export default function CreateOrderPage() {
               errors.push(`Row ${index + 2}: Invalid amount "${amount}"`);
               continue;
             }
+          }
+
+          // LPO ID if provided
+          if (lpoId !== undefined && lpoId !== null) {
+            updatePayload.LPO_ID = lpoId || null;
           }
 
           // Validate and match Customer Name if provided

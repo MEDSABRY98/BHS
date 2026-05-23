@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from './01-Unified/NoDataTab';
+import { toast } from './01-Unified/Notification';
 
 interface DeliveryEntry {
     id: string;
@@ -168,15 +169,14 @@ export default function DeliveryTrackingTab() {
         onConfirm: () => { }
     });
 
-    const [toast, setToast] = useState<{
-        show: boolean;
-        message: string;
-        type: 'success' | 'error' | 'info';
-    }>({ show: false, message: '', type: 'info' });
-
     const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
-        setToast({ show: true, message, type });
-        setTimeout(() => setToast(prev => ({ ...prev, show: false })), 3000);
+        if (type === 'success') {
+            toast.success(message);
+        } else if (type === 'error') {
+            toast.error(message);
+        } else {
+            toast.info(message);
+        }
     };
 
     const triggerConfirm = (title: string, message: string, onConfirm: () => void, type: 'danger' | 'warning' | 'info' | 'success' = 'danger') => {
@@ -3715,22 +3715,6 @@ export default function DeliveryTrackingTab() {
                 )
             }
 
-            {/* PREMIUM TOAST NOTIFICATION */}
-            {
-                toast.show && (
-                    <div className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[2000] animate-in slide-in-from-bottom-5 fade-in duration-300">
-                        <div className={`px-6 py-3 rounded-2xl flex items-center gap-3 shadow-[0_10px_30px_rgba(0,0,0,0.15)] backdrop-blur-md border border-white/20 ${toast.type === 'success' ? 'bg-emerald-500/90 text-white' :
-                            toast.type === 'error' ? 'bg-rose-500/90 text-white' :
-                                'bg-indigo-900/90 text-white'
-                            }`}>
-                            {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-100" />}
-                            {toast.type === 'error' && <XCircle className="w-5 h-5 text-rose-100" />}
-                            {toast.type === 'info' && <Bell className="w-5 h-5 text-indigo-100" />}
-                            <span className="text-[13px] font-[800] tracking-tight">{toast.message}</span>
-                        </div>
-                    </div>
-                )
-            }
 
             {/* FULL PAGE LOADING OVERLAY */}
             {

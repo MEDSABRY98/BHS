@@ -16,6 +16,7 @@ import Loading from '@/components/01-Unified/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { toast } from '@/components/01-Unified/Notification';
 
 // Modern Select Component
 const ModernSelect = ({
@@ -495,7 +496,7 @@ export default function SalesPage() {
       });
 
       handleUploadMapping(mapping);
-      alert('Customer data uploaded successfully!');
+      toast.success('Customer data uploaded successfully!');
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
@@ -528,7 +529,7 @@ export default function SalesPage() {
 
   const downloadTemplateWithData = () => {
     if (uniqueCustomers.length === 0) {
-      alert('No current customer data found to extract.');
+      toast.warning('No current customer data found to extract.');
       return;
     }
     const headers = ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'];

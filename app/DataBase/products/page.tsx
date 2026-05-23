@@ -14,9 +14,9 @@ import {
   Loader2,
   MoreVertical
 } from 'lucide-react';
-import { ConfirmModal } from '../components/ConfirmModal';
+import { ConfirmModal } from '../../lpos/components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../hooks/usePermissions';
+import { usePermissions } from '../../lpos/hooks/usePermissions';
 
 
 export default function ProductsPage() {

@@ -194,11 +194,11 @@ export default function DeliveredDriverInvoices() {
         <div className="flex flex-col lg:flex-row lg:items-end gap-6">
           <div className="flex-1 min-w-0">
             <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1 mb-2 block">
-              Select Driver
+              Filter by Driver
             </label>
             <SearchSelect
               label=""
-              placeholder="Pick a logistics driver..."
+              placeholder="Select a driver..."
               options={drivers.map(d => ({ id: d.ID, label: d.NAME }))}
               value={selectedDriverId}
               onChange={setSelectedDriverId}
