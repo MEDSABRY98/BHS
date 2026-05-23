@@ -220,7 +220,7 @@ export default function CreateOrderPage() {
       const ordersToInsert = pendingOrders.map(({ tempId, customerName, userName, driverId, driverName, DRIVER_ID, ...rest }, index) => {
         const currentPkId = `R-${(baseNum + index).toString().padStart(4, '0')}`;
         const currentOrderId = `ONI-${(baseNum + index).toString().padStart(4, '0')}`;
-        tempIdToOrderId[tempId] = currentPkId;
+        tempIdToOrderId[tempId] = currentOrderId;
 
         const orderDateVal = rest.ORDER_DATE
           ? new Date(rest.ORDER_DATE).toISOString()

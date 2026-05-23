@@ -117,7 +117,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       const { data: ordData } = await app_lpos_supabase
         .from('app_lpos_ORDERS')
         .select('LPO_ID, CUSTOMER_NAME, TOTAL_AMOUNT, CREATED_AT')
-        .eq('ID', orderId)
+        .eq('ORDER_ID', orderId)
         .maybeSingle();
       setOrderDetail(ordData);
     } catch (err) {

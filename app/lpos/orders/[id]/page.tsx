@@ -95,7 +95,7 @@ export default function OrderDetailsPage() {
       // 4. Fetch Logistics & Prep for PDF
       const [prepRes, deliveryRes, staffRes] = await Promise.all([
         app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
-        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ID).maybeSingle(),
+        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ORDER_ID).maybeSingle(),
         app_lpos_supabase.from('bhs_USERS').select('*')
       ]);
 
@@ -576,7 +576,7 @@ export default function OrderDetailsPage() {
           !isTabsEnabled ? (
             <NoData title="ORDER NOT APPROVED" />
           ) : (
-            <OrderDeliveryTab orderId={order.ID} />
+            <OrderDeliveryTab orderId={order.ORDER_ID} />
           )
         )}
 
@@ -584,7 +584,7 @@ export default function OrderDetailsPage() {
           !isTabsEnabled ? (
             <NoData title="ORDER NOT APPROVED" />
           ) : (
-            <InvoicesStatusTab orderId={order.ID} />
+            <InvoicesStatusTab orderId={order.ORDER_ID} />
           )
         )}
       </div>
