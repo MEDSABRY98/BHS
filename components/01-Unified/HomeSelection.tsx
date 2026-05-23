@@ -163,7 +163,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'wh20-items', title: "WarehouseS", icon: Package, path: '/warehouses', color: 'emerald' as const },
     { id: 'water-delivery-note', title: "Waters", icon: FileText, path: '/waters', color: 'violet' as const },
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/suppliers', color: 'emerald' as const },
-    { id: 'lpo-management', title: "LPO Management", icon: ShoppingCart, path: '/lpos', color: 'yellow' as const },
+    { id: 'lpo-management', title: "LPO's", icon: ShoppingCart, path: '/lpos', color: 'yellow' as const },
     { id: 'database', title: "Database", icon: Database, path: '/DataBase', color: 'sky' as const },
   ];
 

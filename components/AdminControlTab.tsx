@@ -22,7 +22,7 @@ const SYSTEMS = [
     { id: 'customers-documents', label: 'Customers Documents' },
     { id: 'delivery-tracking', label: 'Delivery Tracking' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
-    { id: 'lpo-management', label: 'LPO Management' },
+    { id: 'lpo-management', label: "LPO's" },
     { id: 'database', label: 'Database' }
 ];
 
