@@ -706,25 +706,16 @@ function ReceiptDocument({ data, isCopy = false }: { data: any, isCopy?: boolean
           </div>
 
           {/* Signature Section */}
-          <div className="mt-12 pt-8 grid grid-cols-3 gap-8">
+          <div className="mt-12 pt-8 grid grid-cols-2 gap-8">
             {!isCopy ? (
-              <>
-                <div className="text-center">
-                  <div className="mb-2 text-sm text-gray-600 font-semibold">Payer's Signature</div>
-                  <div className="text-2xl font-bold text-gray-900 mb-4">
-                    {data.receivedFrom}
-                  </div>
+              <div className="text-center">
+                <div className="mb-2 text-sm text-gray-600 font-semibold">Payer's Signature</div>
+                <div className="text-2xl font-bold text-gray-900 mb-4">
+                  {data.receivedFrom}
                 </div>
-
-                <div className="text-center">
-                  <div className="mb-2 text-sm text-gray-600 font-semibold">Witness</div>
-                  <div className="text-2xl font-bold text-gray-900 mb-4">
-                    Monai
-                  </div>
-                </div>
-              </>
+              </div>
             ) : (
-              <div className="col-span-2"></div>
+              <div className="col-span-1"></div>
             )}
 
             <div className="text-center">
