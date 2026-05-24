@@ -53,19 +53,31 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         const parsed = JSON.parse(mainUserStr);
         const name = parsed.name || parsed.NAME;
         if (name) {
+          const cleanName = name.trim();
           const { data } = await app_lpos_supabase
             .from('bhs_USERS')
             .select('*')
-            .eq('NAME', name)
+            .ilike('NAME', cleanName)
             .maybeSingle();
           if (data) {
             setCurrentUserProfile(data);
           } else {
-            setCurrentUserProfile({
-              ID: parsed.id || parsed.ID,
-              NAME: name,
-              ROLE: parsed.role || 'user'
-            });
+            // Fallback: fetch all users and match case-insensitively/trimmed
+            const { data: allUsers } = await app_lpos_supabase
+              .from('bhs_USERS')
+              .select('*');
+            const matchedUser = allUsers?.find(
+              (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
+            );
+            if (matchedUser) {
+              setCurrentUserProfile(matchedUser);
+            } else {
+              setCurrentUserProfile({
+                ID: parsed.id || parsed.ID || 'R-0001',
+                NAME: name,
+                ROLE: parsed.role || 'user'
+              });
+            }
           }
         }
       }
@@ -139,6 +151,35 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         OFFICE_HANDOVER_TIME: new Date().toISOString()
       };
 
+      if (newStatus === 'Confirmed') {
+        let userId = currentUserProfile?.ID;
+        if (!userId) {
+          const mainUserStr = localStorage.getItem('currentUser');
+          if (mainUserStr) {
+            const parsed = JSON.parse(mainUserStr);
+            const name = parsed.name || parsed.NAME;
+            if (name) {
+              const cleanName = name.trim();
+              const { data } = await app_lpos_supabase
+                .from('bhs_USERS')
+                .select('*')
+                .ilike('NAME', cleanName)
+                .maybeSingle();
+              if (data?.ID) {
+                userId = data.ID;
+              } else {
+                const { data: allUsers } = await app_lpos_supabase.from('bhs_USERS').select('*');
+                const matched = allUsers?.find(
+                  (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
+                );
+                userId = matched?.ID || parsed.id || parsed.ID;
+              }
+            }
+          }
+        }
+        updatePayload.OFFICE_HANDOVER_ID = userId || 'R-0001';
+      }
+
       if (newStatus === 'Rejected') {
         if (isBypass) {
           updatePayload = {
@@ -200,14 +241,18 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
 
           {/* Step 1: Customer Delivery */}
           <div className="relative flex items-start gap-8 group">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.STATUS === 'Delivered' ? 'bg-black shadow-black/20 scale-110' : deliveryData.STATUS === 'Dispatched' ? 'bg-[#D4AF37] shadow-[#D4AF37]/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
-              <Truck className={`w-7 h-7 ${deliveryData.STATUS === 'Delivered' ? 'text-[#D4AF37]' : deliveryData.STATUS === 'Dispatched' ? 'text-white' : 'text-gray-300'}`} />
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center z-10 transition-all duration-500 shadow-lg ${deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED' ? 'bg-red-500 shadow-red-500/20 scale-110' : deliveryData.STATUS === 'Delivered' ? 'bg-black shadow-black/20 scale-110' : deliveryData.STATUS === 'Dispatched' ? 'bg-[#D4AF37] shadow-[#D4AF37]/20 scale-110' : 'bg-white border-2 border-gray-100 text-gray-300'}`}>
+              {deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED' ? (
+                <XCircle className="w-7 h-7 text-white" />
+              ) : (
+                <Truck className={`w-7 h-7 ${deliveryData.STATUS === 'Delivered' ? 'text-[#D4AF37]' : deliveryData.STATUS === 'Dispatched' ? 'text-white' : 'text-gray-300'}`} />
+              )}
             </div>
             <div className="pt-1 flex-1">
               <div className="flex items-center justify-between mb-1">
                 <h3 className="text-lg font-black text-black">Customer Delivery</h3>
-                <div className={`w-44 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest text-center flex items-center justify-center leading-tight ${deliveryData.STATUS === 'Delivered' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : deliveryData.STATUS === 'Dispatched' ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/20' : 'bg-gray-100 text-gray-400'}`}>
-                  {deliveryData.STATUS === 'Delivered' ? 'Completed' : deliveryData.STATUS === 'Dispatched' ? 'In Transit' : 'Pending'}
+                <div className={`w-44 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest text-center flex items-center justify-center leading-tight ${deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : deliveryData.STATUS === 'Delivered' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : deliveryData.STATUS === 'Dispatched' ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/20' : 'bg-gray-100 text-gray-400'}`}>
+                  {deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED' ? 'Cancelled' : deliveryData.STATUS === 'Delivered' ? 'Completed' : deliveryData.STATUS === 'Dispatched' ? 'In Transit' : 'Pending'}
                 </div>
               </div>
               <div className="flex items-center gap-4 mt-2">
@@ -279,7 +324,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
                     {deliveryData.TRACKING_NOTES === 'SYSTEM_ALREADY_RECEIVED'
                       ? 'Already Received by Office (Target: R-0001)'
                       : deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED'
-                        ? 'Returned & Cancelled at Warehouse (Target: R-0007)'
+                        ? 'Returned & Cancelled at Warehouse (Target: Cancel Authority)'
                         : handoverUser?.NAME || 'Not Yet'}
                   </span>
                 </div>
@@ -324,6 +369,9 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
                   <div className="flex items-center gap-2">
                     <Clock className="w-4 h-4 text-gray-300" />
                     <span className="text-xs font-bold text-gray-500">
+                      {handoverUser?.NAME && (
+                        <span className="text-[#D4AF37] font-black mr-2 uppercase tracking-wider">{handoverUser.NAME}</span>
+                      )}
                       {new Date(deliveryData.OFFICE_HANDOVER_TIME).toLocaleDateString('en-GB')} - {new Date(deliveryData.OFFICE_HANDOVER_TIME).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
@@ -335,7 +383,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       </div>
 
       {/* Admin Action Bar */}
-      {deliveryData.OFFICE_HANDOVER_ID && deliveryData.OFFICE_HANDOVER_STATUS !== 'Confirmed' && deliveryData.OFFICE_HANDOVER_STATUS !== 'Rejected' && (
+      {(deliveryData.OFFICE_HANDOVER_ID || deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED') && deliveryData.OFFICE_HANDOVER_STATUS !== 'Confirmed' && deliveryData.OFFICE_HANDOVER_STATUS !== 'Rejected' && (
         <div className="space-y-6 mt-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
           {deliveryData.TRACKING_NOTES === 'SYSTEM_ALREADY_RECEIVED' && (
             <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl flex items-start gap-4">
@@ -360,51 +408,70 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
             </div>
           )}
 
-          {isUserLoaded && currentUserProfile?.ID !== deliveryData.OFFICE_HANDOVER_ID ? (
-            <div className="bg-amber-50/40 border border-amber-100 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 relative shrink-0">
-                  <Lock className="w-5 h-5 text-white" />
-                  <span className="absolute -inset-1 rounded-3xl bg-amber-500/10 animate-ping opacity-75" />
+          {(() => {
+            const hasCancelAuthority = currentUserProfile?.CANCEL_AUTHORITY === true || currentUserProfile?.CANCEL_AUTHORITY === 'TRUE';
+            const isRestricted = deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED'
+              ? !hasCancelAuthority
+              : currentUserProfile?.ID !== deliveryData.OFFICE_HANDOVER_ID;
+
+            if (isUserLoaded && isRestricted) {
+              return (
+                <div className="bg-amber-50/40 border border-amber-100 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 relative shrink-0">
+                      <Lock className="w-5 h-5 text-white" />
+                      <span className="absolute -inset-1 rounded-3xl bg-amber-500/10 animate-ping opacity-75" />
+                    </div>
+                    <div>
+                      <h4 className="text-black font-black text-base">Office Review (Restricted)</h4>
+                      <p className="text-gray-500 text-xs mt-1 font-medium">
+                        {deliveryData.TRACKING_NOTES === 'SYSTEM_CANCELLED' ? (
+                          <>
+                            Only users with <strong className="text-black">Cancel Authority</strong> are authorized to confirm or reject returned & cancelled orders.
+                          </>
+                        ) : (
+                          <>
+                            This invoice was physically handed over to <strong className="text-black">{handoverUser?.NAME || `User (${deliveryData.OFFICE_HANDOVER_ID})`}</strong>. Only they are authorized to confirm or reject this handover.
+                          </>
+                        )}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="text-black font-black text-base">Office Review (Restricted)</h4>
-                  <p className="text-gray-500 text-xs mt-1 font-medium">
-                    This invoice was physically handed over to <strong className="text-black">{handoverUser?.NAME || `User (${deliveryData.OFFICE_HANDOVER_ID})`}</strong>. Only they are authorized to confirm or reject this handover.
-                  </p>
+              );
+            }
+
+            return (
+              <div className="bg-gray-50 border border-gray-100 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center shadow-lg shadow-black/10">
+                    <CheckCircle2 className="w-6 h-6 text-[#D4AF37]" />
+                  </div>
+                  <div>
+                    <h4 className="text-black font-black text-lg">Office Review</h4>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 w-full md:w-auto">
+                  <button
+                    onClick={() => handleUpdateStatus('Rejected')}
+                    disabled={isSaving}
+                    className="w-full md:w-auto px-10 py-4 bg-white border border-red-100 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-red-50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5" />}
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleUpdateStatus('Confirmed')}
+                    disabled={isSaving}
+                    className="w-full md:w-auto px-10 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                  >
+                    {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                    Confirm
+                  </button>
                 </div>
               </div>
-            </div>
-          ) : (
-            <div className="bg-gray-50 border border-gray-100 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center shadow-lg shadow-black/10">
-                  <CheckCircle2 className="w-6 h-6 text-[#D4AF37]" />
-                </div>
-                <div>
-                  <h4 className="text-black font-black text-lg">Office Review</h4>
-                </div>
-              </div>
-              <div className="flex items-center gap-4 w-full md:w-auto">
-                <button
-                  onClick={() => handleUpdateStatus('Rejected')}
-                  disabled={isSaving}
-                  className="w-full md:w-auto px-10 py-4 bg-white border border-red-100 text-red-500 rounded-2xl font-black text-xs uppercase tracking-widest shadow-sm hover:bg-red-50 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5" />}
-                  Reject
-                </button>
-                <button
-                  onClick={() => handleUpdateStatus('Confirmed')}
-                  disabled={isSaving}
-                  className="w-full md:w-auto px-10 py-4 bg-emerald-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-emerald-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                >
-                  {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
-                  Confirm
-                </button>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
     </div>

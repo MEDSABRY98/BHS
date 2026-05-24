@@ -42,6 +42,7 @@ export default function UsersPage() {
   const [USER_TYPE, setUSER_TYPE] = useState('Creator');
   const [PASSWORD, setPASSWORD] = useState('');
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
+  const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -82,6 +83,7 @@ export default function UsersPage() {
     setUSER_TYPE(user ? user.USER_TYPE : 'Creator');
     setPASSWORD(user ? user.PASSWORD : '');
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
+    setCANCEL_AUTHORITY(user ? (user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') : false);
     setIsModalOpen(true);
   };
 
@@ -96,14 +98,14 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await app_lpos_supabase
           .from('bhs_USERS')
-          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE })
+          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `R-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('bhs_USERS')
-          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE });
+          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -195,6 +197,7 @@ export default function UsersPage() {
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Permissions</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">User Type</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">In Office</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Cancel Auth</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Signature</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Password</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
@@ -238,6 +241,12 @@ export default function UsersPage() {
                       <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${user.IS_IN_OFFICE ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
                         }`}>
                         {user.IS_IN_OFFICE ? 'TRUE' : 'FALSE'}
+                      </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${(user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
+                        }`}>
+                        {(user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') ? 'TRUE' : 'FALSE'}
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
@@ -395,6 +404,35 @@ export default function UsersPage() {
                       }`}
                   >
                     {!IS_IN_OFFICE && <Check className="w-4 h-4" />}
+                    FALSE
+                  </button>
+                </div>
+              </div>
+
+              {/* CANCEL_AUTHORITY Toggle */}
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CANCEL AUTHORITY</label>
+                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => setCANCEL_AUTHORITY(true)}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${CANCEL_AUTHORITY
+                        ? 'bg-emerald-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                  >
+                    {CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
+                    TRUE
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCANCEL_AUTHORITY(false)}
+                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!CANCEL_AUTHORITY
+                        ? 'bg-red-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                      }`}
+                  >
+                    {!CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
                     FALSE
                   </button>
                 </div>
