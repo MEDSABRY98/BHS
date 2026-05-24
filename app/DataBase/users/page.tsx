@@ -187,117 +187,127 @@ export default function UsersPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="border-b border-gray-50">
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">User ID</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Name</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Permissions</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">User Type</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">In Office</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Cancel Auth</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Signature</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Password</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {isLoading ? (
-                Array(5).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={8} className="px-8 py-6">
-                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
-                    </td>
-                  </tr>
-                ))
-              ) : filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-8 py-12 text-center">
-                    <NoData title="NO USERS FOUND" />
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((user) => (
-                  <tr key={user.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{user.ID}</span>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="font-bold text-black">{user.NAME}</span>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'
-                        }`}>
-                        {user.ROLE === 'admin' ? <Shield className="w-3 h-3" /> : <Users className="w-3 h-3" />}
+      {isLoading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {Array(8).fill(0).map((_, i) => (
+            <div key={i} className="animate-pulse bg-white border border-gray-100 rounded-[2.5rem] p-6 h-[220px] flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="w-12 h-12 bg-gray-50 rounded-2xl" />
+                <div className="h-6 bg-gray-50 rounded-xl w-3/4" />
+                <div className="h-4 bg-gray-50 rounded-xl w-1/2" />
+              </div>
+              <div className="h-10 bg-gray-50 rounded-2xl w-full" />
+            </div>
+          ))}
+        </div>
+      ) : filteredUsers.length === 0 ? (
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-12">
+          <NoData title="NO USERS FOUND" />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {filteredUsers.map((user) => {
+            const initials = user.NAME ? user.NAME.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : '?';
+            const isCancelAuth = user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE';
+            
+            return (
+              <div
+                key={user.ID}
+                onClick={() => handleOpenModal(user)}
+                className="group bg-white border border-gray-100 rounded-[2.5rem] p-6 hover:shadow-xl hover:border-black/5 transition-all duration-300 flex flex-col justify-between min-h-[220px] cursor-pointer"
+              >
+                <div>
+                  {/* Top Row with Initials/Avatar and ID */}
+                  <div className="flex items-start justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-black text-[#D4AF37] flex items-center justify-center font-black text-base shadow-lg shadow-black/10">
+                      {initials}
+                    </div>
+                    <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{user.ID}</span>
+                  </div>
+
+                  {/* Name and Role */}
+                  <div className="mt-4">
+                    <h3 className="font-black text-black text-base leading-tight group-hover:text-[#D4AF37] transition-colors">{user.NAME}</h3>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {/* Permission Role Badge */}
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-[9px] font-black uppercase tracking-widest ${user.ROLE === 'admin' ? 'bg-black text-[#D4AF37]' : 'bg-gray-50 text-gray-400'}`}>
+                        {user.ROLE === 'admin' ? <Shield className="w-2.5 h-2.5" /> : <Users className="w-2.5 h-2.5" />}
                         {user.ROLE}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-bold text-gray-500 uppercase tracking-widest">{user.USER_TYPE || 'Creator'}</span>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${user.IS_IN_OFFICE ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                        }`}>
-                        {user.IS_IN_OFFICE ? 'TRUE' : 'FALSE'}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className={`inline-flex items-center justify-center w-16 py-1 rounded-xl text-[10px] font-black uppercase tracking-widest ${(user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'
-                        }`}>
-                        {(user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') ? 'TRUE' : 'FALSE'}
-                      </div>
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      {user.SIGNATURE ? (
+                      </span>
+                      {/* User Type Badge */}
+                      <span className="inline-flex items-center px-3 py-1 bg-gray-50 text-gray-500 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                        {user.USER_TYPE || 'Creator'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Extra Capabilities Tags */}
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {user.IS_IN_OFFICE && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                        <Check className="w-2.5 h-2.5" /> Office
+                      </span>
+                    )}
+                    {isCancelAuth && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 text-red-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                        <Shield className="w-2.5 h-2.5" /> Cancel Auth
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Footer with Signature and Actions */}
+                <div className="mt-6 pt-3 border-t border-gray-50 flex items-center justify-between">
+                  {/* Signature Preview */}
+                  <div>
+                    {user.SIGNATURE ? (
+                      <div className="flex items-center gap-2">
                         <img
                           src={user.SIGNATURE}
                           alt="Signature"
-                          className="h-8 max-w-[80px] object-contain bg-gray-50 border border-gray-100/50 rounded p-0.5 mx-auto"
+                          className="h-8 max-w-[80px] object-contain bg-gray-50 border border-gray-100/50 rounded p-0.5"
                         />
-                      ) : (
-                        <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">-</span>
-                      )}
-                    </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-2 text-gray-400">
-                        <Key className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium font-mono tracking-widest">
-                          {'•'.repeat(user.PASSWORD?.length || 0)}
-                        </span>
                       </div>
-                    </td>
-                    <td className="px-8 py-6">
-                      <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                        {canEdit && (
-                          <>
-                            <button
-                              onClick={() => handleOpenSignatureModal(user.ID)}
-                              className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100"
-                              title="Edit Signature"
-                            >
-                              <FilePenLine className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => handleOpenModal(user)} className="p-2.5 hover:bg-white hover:shadow-sm rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
-                        {canDelete && (
-                          <button onClick={() => handleDelete(user.ID)} className="p-2.5 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100">
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                    ) : (
+                      <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">No Signature</span>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                    {canEdit && (
+                      <>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenSignatureModal(user.ID);
+                          }}
+                          className="p-2 hover:bg-gray-50 rounded-xl text-gray-400 hover:text-black transition-all border border-transparent hover:border-gray-100"
+                          title="Edit Signature"
+                        >
+                          <FilePenLine className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                    {canDelete && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(user.ID);
+                        }}
+                        className="p-2 hover:bg-red-50 rounded-xl text-gray-400 hover:text-red-500 transition-all border border-transparent hover:border-red-100"
+                        title="Delete User"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
 
       {/* User Modal */}
       {isModalOpen && (
