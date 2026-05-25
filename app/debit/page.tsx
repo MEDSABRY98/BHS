@@ -2,15 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-import CustomersTab from '@/components/02-Debit/CustomersTab/CustomersTab';
-import CustomersLandingTab from '@/components/02-Debit/CustomersTab/CustomersSwitchsTab';
-import CustomersGroupTab from '@/components/02-Debit/CustomersGroupTab';
-import OpenTransactionsTab from '@/components/02-Debit/OpenTransactionsTab';
-import AllTransactionsTab from '@/components/02-Debit/AllTransactionsTab';
-import PaymentTrackerTab from '@/components/03-Payment-Tracker/PaymentTrackerTab';
-import SalesRepsTab from '@/components/02-Debit/SalesRepsTab';
-import HistoryTab from '@/components/02-Debit/HistoryTab';
-import AgesTab from '@/components/02-Debit/AgesTab';
+import CustomersTab from '@/components/Debit/CustomersTab/CustomersTab';
+import CustomersLandingTab from '@/components/Debit/CustomersTab/CustomersSwitchsTab';
+import CustomersGroupTab from '@/components/Debit/CustomersGroupTab';
+import OpenTransactionsTab from '@/components/Debit/OpenTransactionsTab';
+import AllTransactionsTab from '@/components/Debit/AllTransactionsTab';
+import PaymentTrackerTab from '@/components/Payment-Tracker/PaymentTrackerTab';
+import SalesRepsTab from '@/components/Debit/SalesRepsTab';
+import HistoryTab from '@/components/Debit/HistoryTab';
+import AgesTab from '@/components/Debit/AgesTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 import { InvoiceRow } from '@/types';

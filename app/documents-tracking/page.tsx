@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import DocumentsTrackingTab from '@/components/DocumentsTrackingTab';
+import DocumentsTrackingTab from '@/components/DocumentsTracking/DocumentsTrackingTab';
 import { ChevronLeft } from 'lucide-react';
 import Loading from '@/components/01-Unified/Loading';
 
@@ -22,7 +22,7 @@ export default function DocumentsTrackingPage() {
 
                     if (savedPassword) {
                         try {
-                            const response = await fetch('/api/users', {
+                            const response = await fetch('/DataBase/users/api', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({

@@ -23,7 +23,7 @@ export default function Home() {
           const userData = JSON.parse(savedUser);
           if (userData && userData.name) {
             // Verify user still exists and password is correct
-            const response = await fetch('/api/users', {
+            const response = await fetch('/DataBase/users/api', {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json',

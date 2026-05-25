@@ -1,5 +1,5 @@
 import React from 'react';
-import InventoryWh20ItemsTab from '@/components/InventoryWarehouseSTab';
+import InventoryWh20ItemsTab from '@/components/Inventory/MainInventory/InventoryWarehouseSTab';
 
 export const metadata = {
     title: 'WarehouseS - Items System',

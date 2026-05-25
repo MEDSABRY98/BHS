@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import PettyCashTab from '@/components/PettyCashTab';
+import PettyCashTab from '@/components/PettyCash/PettyCashTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 
@@ -21,7 +21,7 @@ export default function PettyCashPage() {
             const userData = JSON.parse(savedUser);
             if (userData && userData.name) {
               // Verify user still exists and password is correct
-              const response = await fetch('/api/users', {
+              const response = await fetch('/DataBase/users/api', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { ProductOrder, OrderItem } from './InventoryCategoriesTab';
-import NoData from './01-Unified/NoDataTab';
+import NoData from '@/components/01-Unified/NoDataTab';
 import ProductDetails from './InventoryProductDetails';
 
 interface Props {

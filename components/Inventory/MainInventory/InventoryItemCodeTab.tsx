@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Package, AlertCircle, ChevronDown, Filter, Check } from 'lucide-react';
-import Loading from './01-Unified/Loading';
-import NoData from './01-Unified/NoDataTab';
+import Loading from '@/components/01-Unified/Loading';
+import NoData from '@/components/01-Unified/NoDataTab';
 
 interface ItemCodeEntry {
     tags: string;

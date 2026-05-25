@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import SalesOverviewTab from '@/components/05-Sales/SalesOverviewTab';
-import SalesTop10Tab from '@/components/05-Sales/SalesTop10Tab';
-import SalesCustomersTab from '@/components/05-Sales/SalesCustomersTab';
-import SalesInactiveCustomersTab from '@/components/05-Sales/SalesInactiveCustomersTab';
-import SalesStatisticsTab from '@/components/05-Sales/SalesStatisticsTab';
-import SalesDailySalesTab from '@/components/05-Sales/SalesDailySalesTab';
-import SalesProductsTab from '@/components/05-Sales/SalesProductsTab';
-import SalesCategoriesTab from '@/components/05-Sales/SalesCategoriesTab';
-import SalesStockReportTab from '@/components/05-Sales/SalesStockReportTab';
+import SalesOverviewTab from '@/components/Sales/SalesOverviewTab';
+import SalesTop10Tab from '@/components/Sales/SalesTop10Tab';
+import SalesCustomersTab from '@/components/Sales/SalesCustomersTab';
+import SalesInactiveCustomersTab from '@/components/Sales/SalesInactiveCustomersTab';
+import SalesStatisticsTab from '@/components/Sales/SalesStatisticsTab';
+import SalesDailySalesTab from '@/components/Sales/SalesDailySalesTab';
+import SalesProductsTab from '@/components/Sales/SalesProductsTab';
+import SalesCategoriesTab from '@/components/Sales/SalesCategoriesTab';
+import SalesStockReportTab from '@/components/Sales/SalesStockReportTab';
 
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';

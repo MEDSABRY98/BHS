@@ -33,6 +33,95 @@ const getPaymentAmount = (inv: { credit?: number | null; debit?: number | null }
   return (inv.credit || 0) - (inv.debit || 0);
 };
 
+function convertColorsToRgb(element: HTMLElement) {
+  const properties = [
+    'color',
+    'backgroundColor',
+    'borderColor',
+    'borderTopColor',
+    'borderRightColor',
+    'borderBottomColor',
+    'borderLeftColor',
+    'fill',
+    'stroke'
+  ];
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 1;
+  canvas.height = 1;
+  const ctx = canvas.getContext('2d');
+
+  function toRgb(colorStr: string) {
+    if (!colorStr) return colorStr;
+    const lower = colorStr.toLowerCase();
+    if (
+      lower.includes('lab(') ||
+      lower.includes('oklch(') ||
+      lower.includes('oklab(') ||
+      lower.includes('lch(')
+    ) {
+      if (ctx) {
+        try {
+          ctx.fillStyle = colorStr;
+          return ctx.fillStyle;
+        } catch (e) {
+          return colorStr;
+        }
+      }
+    }
+    return colorStr;
+  }
+
+  function processNode(node: Node) {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      const el = node as HTMLElement;
+      const computed = window.getComputedStyle(el);
+      properties.forEach(prop => {
+        const val = computed[prop as any];
+        if (
+          val &&
+          (val.includes('lab(') ||
+            val.includes('oklch(') ||
+            val.includes('oklab(') ||
+            val.includes('lch('))
+        ) {
+          el.style[prop as any] = toRgb(val);
+        }
+      });
+
+      const bg = computed.background;
+      if (
+        bg &&
+        (bg.includes('lab(') ||
+          bg.includes('oklch(') ||
+          bg.includes('oklab(') ||
+          bg.includes('lch('))
+      ) {
+        const regex = /(?:oklch|oklab|lab|lch)\([^)]+\)/g;
+        el.style.background = bg.replace(regex, (match) => toRgb(match));
+      }
+
+      const shadow = computed.boxShadow;
+      if (
+        shadow &&
+        (shadow.includes('lab(') ||
+          shadow.includes('oklch(') ||
+          shadow.includes('oklab(') ||
+          shadow.includes('lch('))
+      ) {
+        const regex = /(?:oklch|oklab|lab|lch)\([^)]+\)/g;
+        el.style.boxShadow = shadow.replace(regex, (match) => toRgb(match));
+      }
+    }
+
+    for (let i = 0; i < node.childNodes.length; i++) {
+      processNode(node.childNodes[i]);
+    }
+  }
+
+  processNode(element);
+}
+
 export async function generateAnalyticalPDF({
   customerName,
   filteredInvoices,
@@ -463,7 +552,12 @@ export async function generateAnalyticalPDF({
       width: 1122,
       height: 793,
       windowWidth: 1122,
-      windowHeight: 793
+      windowHeight: 793,
+      onclone: (clonedDoc) => {
+        if (clonedDoc.body) {
+          convertColorsToRgb(clonedDoc.body);
+        }
+      }
     });
     const imgData1 = canvas1.toDataURL('image/jpeg', 0.95);
 
@@ -481,7 +575,12 @@ export async function generateAnalyticalPDF({
       width: 1122,
       height: 793,
       windowWidth: 1122,
-      windowHeight: 793
+      windowHeight: 793,
+      onclone: (clonedDoc) => {
+        if (clonedDoc.body) {
+          convertColorsToRgb(clonedDoc.body);
+        }
+      }
     });
     const imgData2 = canvas2.toDataURL('image/jpeg', 0.95);
 

@@ -5,7 +5,7 @@ import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle }
 import * as XLSX from 'xlsx';
 import Loading from '@/components/01-Unified/Loading';
 import Login from '@/components/01-Unified/Login';
-import CustomersDocumentsGrid from '@/components/06-CustomersDocuments/CustomersDocumentsGrid';
+import CustomersDocumentsGrid from '@/components/CustomersDocuments/CustomersDocumentsGrid';
 
 export default function CustomersDocumentsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

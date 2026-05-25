@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
-import { savePettyCash, getPettyCashRecords, deletePettyCash, updatePettyCash } from '@/lib/googleSheets';
+import { savePettyCash, getPettyCashRecords, deletePettyCash, updatePettyCash, getPettyCashHistoryRecords } from '@/lib/googleSheets';
 
 // GET: Fetch all petty cash records
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const tab = searchParams.get('tab');
+
+    if (tab === 'history') {
+      const records = await getPettyCashHistoryRecords();
+      return NextResponse.json({ records });
+    }
+
     const records = await getPettyCashRecords();
     return NextResponse.json({ records });
   } catch (error) {

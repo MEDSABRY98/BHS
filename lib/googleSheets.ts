@@ -2227,6 +2227,60 @@ export async function getPettyCashRecords(): Promise<Array<{
   }
 }
 
+// Get Petty Cash History records from "PC - History" sheet
+export async function getPettyCashHistoryRecords(): Promise<Array<{
+  id: string;
+  rowIndex: number;
+  liquidationDate: string;
+  date: string;
+  type: string;
+  amount: number;
+  name: string;
+  description: string;
+  paid: string;
+}>> {
+  try {
+    const credentials = getServiceAccountCredentials();
+
+    const auth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: SPREADSHEET_ID,
+      range: `'PC - History'!A:G`,
+    });
+
+    const rows = response.data.values || [];
+    if (rows.length <= 1) {
+      return [];
+    }
+
+    // Skip header row (row 1) and parse data
+    // Columns: LIQUIDATION DATE, DATE, TYPE, AMOUNT, NAME, DESCRIPTION, PAID?
+    return rows.slice(1).map((row, index) => {
+      const [liquidationDate, date, type, amount, name, description, paid] = row;
+      return {
+        id: `pc-history-${index + 2}`,
+        rowIndex: index + 2,
+        liquidationDate: liquidationDate?.toString().trim() || '',
+        date: date?.toString().trim() || '',
+        type: type?.toString().trim() || '',
+        amount: parseFloat(amount?.toString().replace(/,/g, '') || '0'),
+        name: name?.toString().trim() || '',
+        description: description?.toString().trim() || '',
+        paid: paid?.toString().trim() || '',
+      };
+    }).filter(record => record.liquidationDate || record.date || record.name); // Filter out empty rows
+  } catch (error) {
+    console.error('Error fetching petty cash history records:', error);
+    throw error;
+  }
+}
+
 // Save Voucher entry to "Voucher Payment" sheet
 // Columns: A (DATE), B (VOUCHER NUMBER), C (RECEIPT NAME), D (AMOUNT), E (DESCRIPTION)
 export async function saveVoucher(data: {

@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { usePermissions } from '../../hooks/usePermissions';
-import { generateLpoPackingListPDF } from '@/lib/pdf/LpoPackingListUtils';
+import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
 import OrderItemsTab from './components/OrderItemsTab';
 import OrderPreparationTab from './components/OrderPreparationTab';
 import OrderDeliveryTab from './components/OrderDeliveryTab';

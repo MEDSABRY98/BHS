@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import SuppliersTab from '@/components/SuppliersTab';
+import SuppliersTab from '@/components/Suppliers/SuppliersTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 import { ArrowLeft, Package, FileText, CheckSquare } from 'lucide-react';
