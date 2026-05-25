@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Calendar, TrendingUp, TrendingDown, Clock, BarChart3, Wallet } from 'lucide-react';
+import { Search, Calendar, TrendingUp, TrendingDown, Clock, BarChart3, Wallet, Eye, EyeOff } from 'lucide-react';
 
 interface Entry {
   id: number;
@@ -42,6 +42,8 @@ interface StatsTabProps {
 
   uniqueRecipients: string[];
   onOpenEditModal: (entry: Entry, type: 'receipt' | 'expense') => void;
+  showBalance: boolean;
+  setShowBalance: (show: boolean) => void;
 }
 
 export default function StatsTab({
@@ -66,7 +68,9 @@ export default function StatsTab({
   toDate,
   setToDate,
   uniqueRecipients,
-  onOpenEditModal
+  onOpenEditModal,
+  showBalance,
+  setShowBalance
 }: StatsTabProps) {
   const [statsSubTab, setStatsSubTab] = useState<'receipts' | 'expenses' | 'pending'>('receipts');
 
@@ -116,17 +120,29 @@ export default function StatsTab({
         </div>
 
         <div className="bg-gradient-to-br from-gray-900 to-black text-white rounded-xl shadow-2xl p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-white text-black p-2 rounded-lg">
-              <BarChart3 className="w-4 h-4" />
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="bg-white text-black p-2 rounded-lg">
+                <BarChart3 className="w-4 h-4" />
+              </div>
+              <h3 className="text-sm font-bold">Current Balance</h3>
             </div>
-            <h3 className="text-sm font-bold">Current Balance</h3>
+            <button
+              type="button"
+              onClick={() => setShowBalance(!showBalance)}
+              className="text-gray-400 hover:text-white transition-colors p-0.5 rounded"
+              title={showBalance ? "Hide Balance" : "Show Balance"}
+            >
+              {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
-          <p className="text-2xl font-bold mb-1">{balance.toFixed(2)}</p>
+          <p className="text-2xl font-bold mb-1 select-none">
+            {showBalance ? balance.toFixed(2) : '••••••'}
+          </p>
           <p className="text-xs text-gray-300 mb-3">AED</p>
           <div className="pt-3 border-t border-gray-700">
             <p className="text-xs text-gray-300">
-              {balance > 0 ? '✓ Positive' : balance < 0 ? '✗ Deficit' : '• Balanced'}
+              {showBalance ? (balance > 0 ? '✓ Positive' : balance < 0 ? '✗ Deficit' : '• Balanced') : '• Hidden'}
             </p>
           </div>
         </div>

@@ -47,7 +47,7 @@ function CustomersSummariesPageContent() {
       if (silent) setIsRefreshing(true);
       else if (data.length === 0) setLoading(true);
 
-      const response = await fetch('/api/sheets');
+      const response = await fetch('/api/Sheets');
       const result = await response.json();
 
       if (!response.ok) {

@@ -32,8 +32,8 @@ export default function InventoryProductOrdersDetailsTab({
     onBack,
     loading,
     onRefresh,
-    orderItems,
-    setOrderItems
+    orderItems: _orderItems,
+    setOrderItems: _setOrderItems
 }: Props) {
     const [searchTerm, setSearchTerm] = useState('');
     const [localProducts, setLocalProducts] = useState(initialProducts);
@@ -100,7 +100,7 @@ export default function InventoryProductOrdersDetailsTab({
         XLSX.writeFile(wb, `${categoryName}_inventory.xlsx`);
     };
 
-    const handleUpdateField = async (product: ProductOrder, field: string, value: string) => {
+    const handleUpdateField = async (product: ProductOrder, field: 'minQ' | 'maxQ' | 'qinc', value: string) => {
         const numValue = Number(value);
         if (isNaN(numValue)) return;
 
@@ -129,7 +129,7 @@ export default function InventoryProductOrdersDetailsTab({
         }
     };
 
-    const EditableCell = ({ product, field, value }: { product: ProductOrder, field: string, value: any }) => {
+    const EditableCell = ({ product, field, value }: { product: ProductOrder, field: 'minQ' | 'maxQ' | 'qinc', value: any }) => {
         const isEditing = editingCell?.id === product.productId && editingCell?.field === field;
         const [tempValue, setTempValue] = useState(value?.toString() || '');
 

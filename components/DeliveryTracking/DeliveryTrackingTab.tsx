@@ -142,7 +142,7 @@ export default function DeliveryTrackingTab() {
     // Fetch from Google Sheets on mount
     useEffect(() => {
         setIsLoading(true);
-        fetch('/api/delivery-tracking')
+        fetch('/api/DeliveryTracking')
             .then(res => res.json())
             .then(data => {
                 if (data.orders) {
@@ -183,7 +183,7 @@ export default function DeliveryTrackingTab() {
     const refreshOrders = async () => {
         setIsLoading(true);
         try {
-            const res = await fetch('/api/delivery-tracking');
+            const res = await fetch('/api/DeliveryTracking');
             const data = await res.json();
             if (data.orders) {
                 const normalized = data.orders
@@ -285,7 +285,7 @@ export default function DeliveryTrackingTab() {
                         return;
                     }
 
-                    const res = await fetch('/api/delivery-tracking', {
+                    const res = await fetch('/api/DeliveryTracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -346,7 +346,7 @@ export default function DeliveryTrackingTab() {
                         return;
                     }
 
-                    const res = await fetch('/api/delivery-tracking', {
+                    const res = await fetch('/api/DeliveryTracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -422,7 +422,7 @@ export default function DeliveryTrackingTab() {
             const rowIndex = (updatedOrder as any)._rowIndex;
             const finalLpoVal = updatedOrder.lpoVal === 0 ? updatedOrder.invoiceVal : updatedOrder.lpoVal;
 
-            await fetch('/api/delivery-tracking', {
+            await fetch('/api/DeliveryTracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -445,7 +445,7 @@ export default function DeliveryTrackingTab() {
 
             if (newMissingItems.length > 0) {
                 await Promise.all(newMissingItems.map(item =>
-                    fetch('/api/delivery-tracking', {
+                    fetch('/api/DeliveryTracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -461,7 +461,7 @@ export default function DeliveryTrackingTab() {
 
             if (!updatedOrder.reship && originalMissing.length > 0) {
                 await Promise.all(originalMissing.map(item =>
-                    fetch('/api/delivery-tracking', {
+                    fetch('/api/DeliveryTracking', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -539,7 +539,7 @@ export default function DeliveryTrackingTab() {
 
         try {
             const rowIndex = (o as any)._rowIndex;
-            await fetch('/api/delivery-tracking', {
+            await fetch('/api/DeliveryTracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -550,7 +550,7 @@ export default function DeliveryTrackingTab() {
                 })
             });
 
-            await fetch('/api/delivery-tracking', {
+            await fetch('/api/DeliveryTracking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -818,7 +818,7 @@ export default function DeliveryTrackingTab() {
             async () => {
                 try {
                     const rowIndex = (target as any)._rowIndex;
-                    await fetch('/api/delivery-tracking', {
+                    await fetch('/api/DeliveryTracking', {
                         method: 'DELETE',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ rowIndex }),

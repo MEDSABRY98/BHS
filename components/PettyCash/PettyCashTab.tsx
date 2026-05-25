@@ -50,6 +50,7 @@ export default function PettyCashTab() {
   const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats' | 'voucher' | 'history'>('receipts');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [showBalance, setShowBalance] = useState(false);
 
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
@@ -88,7 +89,7 @@ export default function PettyCashTab() {
 
   const fetchVoucherHistory = async () => {
     try {
-      const response = await fetch('/api/vouchers');
+      const response = await fetch('/api/Vouchers');
       const data = await response.json();
       if (response.ok && data.vouchers) {
         setVoucherHistory(data.vouchers.reverse()); // Show newest first
@@ -101,7 +102,7 @@ export default function PettyCashTab() {
   const fetchHistoryRecords = async () => {
     try {
       setHistoryLoading(true);
-      const response = await fetch('/api/petty-cash?tab=history');
+      const response = await fetch('/api/PettyCash?tab=history');
       const data = await response.json();
       if (response.ok && data.records) {
         setHistoryRecords(data.records);
@@ -121,7 +122,7 @@ export default function PettyCashTab() {
 
   const fetchNextVoucherNumber = async () => {
     try {
-      const response = await fetch('/api/vouchers');
+      const response = await fetch('/api/Vouchers');
       const data = await response.json();
       if (response.ok && data.vouchers) {
         if (data.vouchers.length === 0) {
@@ -148,7 +149,7 @@ export default function PettyCashTab() {
   const fetchRecords = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/petty-cash');
+      const response = await fetch('/api/PettyCash');
       const data = await response.json();
 
       if (response.ok && data.records) {
@@ -196,7 +197,7 @@ export default function PettyCashTab() {
   }): Promise<boolean> => {
     try {
       setLoading(true);
-      const response = await fetch('/api/petty-cash', {
+      const response = await fetch('/api/PettyCash', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -235,7 +236,7 @@ export default function PettyCashTab() {
       let successCount = 0;
       for (const row of cart) {
         try {
-          const response = await fetch('/api/petty-cash', {
+          const response = await fetch('/api/PettyCash', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -292,7 +293,7 @@ export default function PettyCashTab() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/petty-cash', {
+      const response = await fetch('/api/PettyCash', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -333,7 +334,7 @@ export default function PettyCashTab() {
 
     try {
       setLoading(true);
-      const response = await fetch('/api/petty-cash', {
+      const response = await fetch('/api/PettyCash', {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
@@ -368,7 +369,7 @@ export default function PettyCashTab() {
     try {
       setLoading(true);
       // Save to Google Sheets first
-      const response = await fetch('/api/vouchers', {
+      const response = await fetch('/api/Vouchers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -536,6 +537,8 @@ export default function PettyCashTab() {
         setActiveTab={setActiveTab}
         currentUser={currentUser}
         balance={balance}
+        showBalance={showBalance}
+        setShowBalance={setShowBalance}
       />
 
       {/* Main Content */}
@@ -626,6 +629,8 @@ export default function PettyCashTab() {
               totalPending={totalPending}
               balance={balance}
               pendingCount={pendingCount}
+              showBalance={showBalance}
+              setShowBalance={setShowBalance}
               searchQuery={searchQuery}
               setSearchQuery={setSearchQuery}
               recipientFilter={recipientFilter}

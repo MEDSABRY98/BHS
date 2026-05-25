@@ -201,7 +201,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
   useEffect(() => {
     const fetchClosedCustomers = async () => {
       try {
-        const response = await fetch('/api/closed-customers');
+        const response = await fetch('/api/ClosedCustomers');
         if (response.ok) {
           const data = await response.json();
           const normalizedSet = new Set<string>();

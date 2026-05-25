@@ -22,7 +22,7 @@ export default function MatchingTab({ data }: MatchingTabProps) {
 
     const fetchMatchingData = async () => {
         try {
-            const res = await fetch('/api/suppliers-matching');
+            const res = await fetch('/api/SuppliersMatching');
             const json = await res.json();
             if (json.data) {
                 const map: Record<string, string> = {};
@@ -41,7 +41,7 @@ export default function MatchingTab({ data }: MatchingTabProps) {
         const months = updatedMonths !== undefined ? updatedMonths : getRawMonths(supplierName);
         setIsSaving(true);
         try {
-            await fetch('/api/suppliers-matching', {
+            await fetch('/api/SuppliersMatching', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -59,7 +59,7 @@ export default function SuppliersPage() {
     const fetchData = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/api/suppliers');
+            const res = await fetch('/api/Suppliers');
             const json = await res.json();
             if (json.data) {
                 setTransactions(json.data);

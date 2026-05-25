@@ -25,11 +25,11 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     const fetchDependencies = async () => {
       try {
         const [closedRes, semiRes, spiRes, emailsRes, luluRes] = await Promise.all([
-          fetch('/api/closed-customers'),
-          fetch('/api/semi-closed-customers'),
-          fetch('/api/spi'),
-          fetch('/api/customer-emails-list'),
-          fetch('/api/lulu-emails')
+          fetch('/api/ClosedCustomers'),
+          fetch('/api/SemiClosedCustomers'),
+          fetch('/api/Spi'),
+          fetch('/api/CustomerEmailsList'),
+          fetch('/api/LuluEmails')
         ]);
 
         if (closedRes.ok) {

@@ -74,14 +74,14 @@ export default function WaterDeliveryNotePage() {
         }
 
         // Fetch items
-        const itemsResponse = await fetch('/api/waters');
+        const itemsResponse = await fetch('/api/Waters');
         const itemsData = await itemsResponse.json();
         if (itemsData.data) {
           setItems(itemsData.data);
         }
 
         // Fetch next delivery note number
-        const numberResponse = await fetch('/api/waters?action=next-number');
+        const numberResponse = await fetch('/api/Waters?action=next-number');
         const numberData = await numberResponse.json();
         if (numberData.nextNumber) {
           setDeliveryNoteNumber(numberData.nextNumber);
@@ -91,7 +91,7 @@ export default function WaterDeliveryNotePage() {
         }
 
         // Fetch all delivery notes for daily output
-        const allDataResponse = await fetch('/api/waters?action=all');
+        const allDataResponse = await fetch('/api/Waters?action=all');
         const allDataJson = await allDataResponse.json();
         if (allDataJson.data) {
           setDailyData(allDataJson.data);
@@ -156,7 +156,7 @@ export default function WaterDeliveryNotePage() {
 
   const fetchNextDeliveryNoteNumber = async () => {
     try {
-      const numberResponse = await fetch('/api/waters?action=next-number');
+      const numberResponse = await fetch('/api/Waters?action=next-number');
       const numberData = await numberResponse.json();
       if (numberData.nextNumber) {
         setDeliveryNoteNumber(numberData.nextNumber);
@@ -177,7 +177,7 @@ export default function WaterDeliveryNotePage() {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`/api/waters?number=${encodeURIComponent(searchNumber.trim())}`);
+      const response = await fetch(`/api/Waters?number=${encodeURIComponent(searchNumber.trim())}`);
       if (response.status === 404) {
         showNotification('Delivery note not found', 'error');
         setFoundDeliveryNote(null);
@@ -239,7 +239,7 @@ export default function WaterDeliveryNotePage() {
 
       setSaving(true);
 
-      const updateResponse = await fetch('/api/waters', {
+      const updateResponse = await fetch('/api/Waters', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -311,7 +311,7 @@ export default function WaterDeliveryNotePage() {
 
       // Save to Google Sheets first
       try {
-        const saveResponse = await fetch('/api/waters', {
+        const saveResponse = await fetch('/api/Waters', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

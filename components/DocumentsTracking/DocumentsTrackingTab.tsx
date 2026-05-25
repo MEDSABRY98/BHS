@@ -70,7 +70,7 @@ export default function DocumentsTrackingTab() {
     const fetchChecks = async () => {
         setIsLoading(true);
         try {
-            const response = await fetch('/api/documents-tracking');
+            const response = await fetch('/api/DocumentsTracking');
             const data = await response.json();
             if (data.records) {
                 const mappedChecks: Check[] = data.records.map((r: any) => {
@@ -131,7 +131,7 @@ export default function DocumentsTrackingTab() {
 
         setIsLoading(true);
         try {
-            const response = await fetch('/api/documents-tracking', {
+            const response = await fetch('/api/DocumentsTracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -170,7 +170,7 @@ export default function DocumentsTrackingTab() {
 
         setIsLoading(true);
         try {
-            const response = await fetch('/api/documents-tracking', {
+            const response = await fetch('/api/DocumentsTracking', {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ rowIndex: check.rowIndex })
@@ -224,7 +224,7 @@ export default function DocumentsTrackingTab() {
                 updateFields.whoTakeFromOffice = details.finalReceiverName;
             }
 
-            const response = await fetch('/api/documents-tracking', {
+            const response = await fetch('/api/DocumentsTracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ rowIndex: currentCheck.rowIndex, ...updateFields })
@@ -261,7 +261,7 @@ export default function DocumentsTrackingTab() {
                 }
             }));
 
-            const response = await fetch('/api/documents-tracking', {
+            const response = await fetch('/api/DocumentsTracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bulk: true, updates })
@@ -300,7 +300,7 @@ export default function DocumentsTrackingTab() {
                 }
             }));
 
-            const response = await fetch('/api/documents-tracking', {
+            const response = await fetch('/api/DocumentsTracking', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ bulk: true, updates })

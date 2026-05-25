@@ -19,15 +19,18 @@ import {
   FileText,
   Printer,
   FileSpreadsheet,
-  Edit2
+  Edit2,
+  Info,
+  Copy,
+  Check
 } from 'lucide-react';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { usePermissions } from '../../hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
-import OrderItemsTab from './components/OrderItemsTab';
-import OrderPreparationTab from './components/OrderPreparationTab';
-import OrderDeliveryTab from './components/OrderDeliveryTab';
-import InvoicesStatusTab from './components/InvoicesStatusTab';
+import OrderItemsTab from '../components/OrderItemsTab';
+import OrderPreparationTab from '../components/OrderPreparationTab';
+import OrderDeliveryTab from '../components/OrderDeliveryTab';
+import InvoicesStatusTab from '../components/InvoicesStatusTab';
 import NoData from '@/components/01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
@@ -247,14 +250,14 @@ export default function OrderDetailsPage() {
     }
   };
 
-  const [activeTab, setActiveTab] = useState('ITEMS');
+  const [activeTab, setActiveTab] = useState('INFO');
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
-  // Handle No-Items order tab default
-  useEffect(() => {
-    if (isNoItemsOrder && activeTab === 'ITEMS') {
-      setActiveTab('PREPARATION');
-    }
-  }, [isNoItemsOrder]);
+  const handleCopy = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   if (isLoading) {
     return (
@@ -347,7 +350,9 @@ export default function OrderDetailsPage() {
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-3xl font-normal text-black tracking-tighter">Order Processing</h1>
+          <h1 className="text-3xl font-normal text-black tracking-tighter">
+            Order Processing <span className="text-gray-400 font-light">#{order.ORDER_ID}</span>
+          </h1>
           {canDelete && (
             <button
               onClick={() => setIsDeleteModalOpen(true)}
@@ -422,105 +427,29 @@ export default function OrderDetailsPage() {
         )}
       </div>
 
-      {/* Standalone Customer Name */}
-      <div className="px-2 -mt-2 mb-2 text-center">
-        <h2 className="text-2xl text-gray-800 font-normal truncate">
-          {order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}
-        </h2>
-      </div>
 
-      {/* Customer Info Row - Horizontal */}
-      <div className="bg-black rounded-[2.5rem] p-8 text-white shadow-xl shadow-black/20 overflow-hidden">
-        <div className="flex items-center justify-center gap-8 overflow-hidden w-full">
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-              <Package className="w-5 h-5 text-[#D4AF37]" />
-            </div>
-            <div>
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Order ID</p>
-              <p className="font-black text-lg text-white">{order.ORDER_ID}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5 text-[#D4AF37]" />
-            </div>
-            <div>
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Created At</p>
-              <p className="font-black text-lg text-white">{new Date(order.CREATED_AT).toLocaleDateString('en-GB')}</p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-              <Calendar className="w-5 h-5 text-[#D4AF37]" />
-            </div>
-            <div>
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Order Date</p>
-              <p className="font-black text-lg text-white">
-                {order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
-              </p>
-            </div>
-          </div>
-
-          {order.INVOICE_ID && (
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-                <Hash className="w-5 h-5 text-[#D4AF37]" />
-              </div>
-              <div>
-                <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Invoice ID</p>
-                <p className="font-black text-lg text-white">{order.INVOICE_ID}</p>
-              </div>
-            </div>
-          )}
-
-          {order.LPO_ID && (
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-                <Hash className="w-5 h-5 text-[#D4AF37]" />
-              </div>
-              <div>
-                <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">LPO ID</p>
-                <p className="font-black text-lg text-white">{order.LPO_ID}</p>
-              </div>
-            </div>
-          )}
-
-          {order.AMOUNT > 0 && (
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-                <Banknote className="w-5 h-5 text-[#D4AF37]" />
-              </div>
-              <div>
-                <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Amount</p>
-                <p className="font-black text-lg text-white">{order.AMOUNT.toLocaleString()} AED</p>
-              </div>
-            </div>
-          )}
-
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center shrink-0">
-              <User className="w-5 h-5 text-[#D4AF37]" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] text-[#D4AF37]/60 font-black uppercase tracking-widest">Sales Rep</p>
-              <p className="font-black text-lg text-white truncate">{order.bhs_USERS?.NAME}</p>
-            </div>
-          </div>
-
-
-        </div>
-      </div>
 
       {/* Tab Switcher */}
-      <div className="flex items-center gap-4 bg-gray-50/50 p-2 rounded-[2rem] border border-gray-100 w-full max-w-4xl mx-auto shadow-inner">
+      <div className="flex items-center gap-4 bg-[#D4AF37]/5 backdrop-blur-md p-2 rounded-[2rem] border-2 border-[#D4AF37]/30 w-full max-w-5xl mx-auto shadow-lg shadow-[#D4AF37]/5">
+        <button
+          onClick={() => setActiveTab('INFO')}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
+            activeTab === 'INFO'
+              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+          }`}
+        >
+          <Info className="w-4 h-4" />
+          Order Info
+        </button>
         {!isNoItemsOrder && (
           <button
             onClick={() => setActiveTab('ITEMS')}
-            className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'ITEMS' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
-              }`}
+            className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
+              activeTab === 'ITEMS'
+                ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+                : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+            }`}
           >
             <Package className="w-4 h-4" />
             Order Items
@@ -528,24 +457,33 @@ export default function OrderDetailsPage() {
         )}
         <button
           onClick={() => setActiveTab('PREPARATION')}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'PREPARATION' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
-            }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
+            activeTab === 'PREPARATION'
+              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+          }`}
         >
           <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
           Preparation
         </button>
         <button
           onClick={() => setActiveTab('DELIVERY')}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'DELIVERY' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
-            }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
+            activeTab === 'DELIVERY'
+              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+          }`}
         >
           <Printer className="w-4 h-4" />
           Logistics / Delivery
         </button>
         <button
           onClick={() => setActiveTab('INVOICES')}
-          className={`flex-1 px-8 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 ${activeTab === 'INVOICES' ? 'bg-black text-[#D4AF37] shadow-xl shadow-black/10' : 'text-gray-400 hover:text-black hover:bg-white'
-            }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
+            activeTab === 'INVOICES'
+              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+          }`}
         >
           <FileText className="w-4 h-4" />
           Invoices Status
@@ -554,6 +492,173 @@ export default function OrderDetailsPage() {
 
       {/* Active Tab Content */}
       <div className="min-h-[400px]">
+        {activeTab === 'INFO' && (
+          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Grid of details */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              
+              {/* Card: Customer (Spans 2 columns on larger screens) */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300 md:col-span-2">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Customer</span>
+                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
+                    <User className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-black truncate">{order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || 'None'}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Customer account name</p>
+                </div>
+              </div>
+
+              {/* Card: Status */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Status</span>
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
+                    order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                    order.STATUS === 'Partially Approved' ? 'bg-teal-50 text-teal-600' :
+                    order.STATUS === 'Rejected' ? 'bg-red-50 text-red-600' :
+                    'bg-amber-50 text-amber-600'
+                  }`}>
+                    {order.STATUS === 'Approved' && <CheckCircle2 className="w-4 h-4" />}
+                    {order.STATUS === 'Partially Approved' && <CheckCircle2 className="w-4 h-4" />}
+                    {order.STATUS === 'Rejected' && <XCircle className="w-4 h-4" />}
+                    {order.STATUS === 'Pending' && <Loader2 className="w-4 h-4 animate-spin" />}
+                  </div>
+                </div>
+                <div>
+                  <h4 className={`text-xl font-black ${
+                    order.STATUS === 'Approved' ? 'text-emerald-600' :
+                    order.STATUS === 'Partially Approved' ? 'text-teal-600' :
+                    order.STATUS === 'Rejected' ? 'text-red-600' :
+                    'text-amber-500'
+                  }`}>{order.STATUS}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Current processing stage</p>
+                </div>
+              </div>
+
+              {/* Card: Order ID */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order ID</span>
+                  <button
+                    onClick={() => handleCopy(order.ORDER_ID, 'order_id')}
+                    className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
+                    title="Copy ID"
+                  >
+                    {copiedField === 'order_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-black tracking-tight">{order.ORDER_ID}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">System reference ID</p>
+                </div>
+              </div>
+
+              {/* Card: Invoice ID */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Invoice ID</span>
+                  {order.INVOICE_ID && (
+                    <button
+                      onClick={() => handleCopy(order.INVOICE_ID, 'invoice_id')}
+                      className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
+                      title="Copy Invoice ID"
+                    >
+                      {copiedField === 'invoice_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-black tracking-tight">{order.INVOICE_ID || 'Not Available'}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Invoice tracking code</p>
+                </div>
+              </div>
+
+              {/* Card: LPO ID */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">LPO ID</span>
+                  {order.LPO_ID && (
+                    <button
+                      onClick={() => handleCopy(order.LPO_ID, 'lpo_id')}
+                      className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center hover:bg-gray-100 hover:text-black transition-all"
+                      title="Copy LPO ID"
+                    >
+                      {copiedField === 'lpo_id' ? <Check className="w-4 h-4 text-emerald-500" /> : <Copy className="w-4 h-4" />}
+                    </button>
+                  )}
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-black tracking-tight">{order.LPO_ID || 'Not Available'}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Local Purchase Order ID</p>
+                </div>
+              </div>
+
+              {/* Card: Created At */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Created At</span>
+                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-black">{new Date(order.CREATED_AT).toLocaleString('en-GB')}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">System registration timestamp</p>
+                </div>
+              </div>
+
+              {/* Card: Order Date */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Date</span>
+                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
+                    <Calendar className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-black">
+                    {order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB')}
+                  </h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Requested delivery/order date</p>
+                </div>
+              </div>
+
+              {/* Card: Total Amount */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Total Amount</span>
+                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-[#D4AF37] flex items-center justify-center">
+                    <Banknote className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-xl font-black text-black">
+                    <span className="text-[#D4AF37]">{order.AMOUNT ? order.AMOUNT.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}</span> <span className="text-xs text-gray-500 font-bold">AED</span>
+                  </h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Calculated order value</p>
+                </div>
+              </div>
+
+              {/* Card: Sales Rep */}
+              <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Sales Rep</span>
+                  <div className="w-8 h-8 rounded-xl bg-gray-50 text-gray-400 flex items-center justify-center">
+                    <User className="w-4 h-4" />
+                  </div>
+                </div>
+                <div>
+                  <h4 className="text-lg font-black text-black truncate">{order.bhs_USERS?.NAME || 'None'}</h4>
+                  <p className="text-xs font-semibold text-gray-400 mt-1">Responsible account manager</p>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
         {activeTab === 'ITEMS' && !isNoItemsOrder && (
           <OrderItemsTab
             items={items}

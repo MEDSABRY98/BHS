@@ -1,7 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { 
+    Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2,
+    CreditCard, Wallet, BarChart3, TrendingUp, Package, Warehouse, Droplet, Truck, FileText, FileCheck, MapPin, ClipboardList, ShoppingCart, Database,
+    Lock, Users, ShieldAlert, Sparkles
+} from 'lucide-react';
 import Loading from './01-Unified/Loading';
 
 interface UserPermissions {
@@ -112,7 +116,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ]
 };
 
-// Action-level permissions per system
 const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }[]> = {
     'sales': [
         { id: 'view-costs', label: 'View Cost Columns', icon: '💰' }
@@ -136,6 +139,50 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
     ]
 };
 
+const getSystemIcon = (id: string) => {
+    switch (id) {
+        case 'cash-receipt': return <CreditCard className="w-5 h-5 text-indigo-500" />;
+        case 'petty-cash': return <Wallet className="w-5 h-5 text-emerald-500" />;
+        case 'debit': return <BarChart3 className="w-5 h-5 text-rose-500" />;
+        case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
+        case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
+        case 'wh20-items': return <Warehouse className="w-5 h-5 text-cyan-500" />;
+        case 'water-delivery-note': return <Droplet className="w-5 h-5 text-sky-500" />;
+        case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
+        case 'customers-summaries': return <FileText className="w-5 h-5 text-teal-500" />;
+        case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
+        case 'delivery-tracking': return <MapPin className="w-5 h-5 text-orange-500" />;
+        case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
+        case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;
+        case 'database': return <Database className="w-5 h-5 text-slate-500" />;
+        default: return <Settings className="w-5 h-5 text-slate-500" />;
+    }
+};
+
+const getUserInitials = (name: string) => {
+    if (!name) return 'U';
+    const parts = name.split(' ');
+    if (parts.length >= 2) {
+        return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+};
+
+const getAvatarGradient = (name: string) => {
+    const gradients = [
+        'from-blue-500 to-indigo-600',
+        'from-emerald-500 to-teal-600',
+        'from-rose-500 to-pink-600',
+        'from-amber-500 to-orange-600',
+        'from-purple-500 to-indigo-600',
+        'from-cyan-500 to-sky-600'
+    ];
+    let sum = 0;
+    for (let i = 0; i < name.length; i++) {
+        sum += name.charCodeAt(i);
+    }
+    return gradients[sum % gradients.length];
+};
 
 export default function AdminControlTab() {
     const [users, setUsers] = useState<UserPermissions[]>([]);
@@ -146,6 +193,7 @@ export default function AdminControlTab() {
     const [message, setMessage] = useState({ type: '', text: '' });
     const [modalSystem, setModalSystem] = useState<string | null>(null);
     const [modalInnerTab, setModalInnerTab] = useState<'tabs' | 'actions'>('tabs');
+    const [systemSearch, setSystemSearch] = useState('');
 
     useEffect(() => {
         fetchUsers();
@@ -176,7 +224,6 @@ export default function AdminControlTab() {
                 Object.keys(SYSTEM_SUBTABS).forEach(sysId => {
                     allSubTabs[sysId] = SYSTEM_SUBTABS[sysId].map(t => t.id);
                 });
-                // Also grant all actions for every system that has actions
                 const allActions: Record<string, string[]> = {};
                 Object.keys(SYSTEM_ACTIONS).forEach(sysId => {
                     allActions[`${sysId}-actions`] = SYSTEM_ACTIONS[sysId].map(a => a.id);
@@ -241,6 +288,7 @@ export default function AdminControlTab() {
             if (res.ok) {
                 setMessage({ type: 'success', text: 'Permissions updated successfully!' });
                 setUsers(users.map(u => u.name === selectedUser.name ? selectedUser : u));
+                setTimeout(() => setMessage({ type: '', text: '' }), 4000);
             } else {
                 throw new Error('Failed to update');
             }
@@ -252,6 +300,14 @@ export default function AdminControlTab() {
     };
 
     const filteredUsers = users.filter(u => u.name.toLowerCase().includes(search.toLowerCase()));
+
+    // Filter systems based on system search box
+    const filteredSystems = useMemo(() => {
+        const sorted = [...SYSTEMS].sort((a, b) => a.label.localeCompare(b.label));
+        if (!systemSearch) return sorted;
+        const q = systemSearch.toLowerCase();
+        return sorted.filter(s => s.label.toLowerCase().includes(q));
+    }, [systemSearch]);
 
     if (loading) return <Loading message="Loading Admin Control..." />;
 
@@ -268,24 +324,24 @@ export default function AdminControlTab() {
         const hasActions = systemActions.length > 0;
 
         return (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200 animate-in zoom-in-95 duration-300">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-md animate-in fade-in duration-300">
+                <div className="bg-white/95 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-200/50 animate-in zoom-in-95 duration-300 flex flex-col max-h-[85vh]">
                     {/* Header */}
-                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                    <div className="px-6 py-5 bg-gradient-to-r from-slate-50 to-slate-100/50 border-b border-slate-200/80 flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                            <div className="p-2 bg-blue-600 text-white rounded-xl shadow-md">
-                                <Layers className="w-5 h-5" />
+                            <div className="p-2.5 bg-slate-900 text-white rounded-xl shadow-lg shadow-slate-900/10">
+                                {getSystemIcon(modalSystem)}
                             </div>
                             <div>
-                                <h3 className="text-xl font-bold text-slate-900">{system?.label}</h3>
-                                <p className="text-xs text-slate-500">Configure permissions</p>
+                                <h3 className="text-lg font-bold text-slate-900">{system?.label}</h3>
+                                <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Configuration Panel</p>
                             </div>
                         </div>
                         <button
                             onClick={() => { setModalSystem(null); setModalInnerTab('tabs'); }}
-                            className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-200 rounded-full transition-all"
+                            className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-200/60 rounded-full transition-all"
                         >
-                            <X className="w-6 h-6" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 
@@ -294,85 +350,87 @@ export default function AdminControlTab() {
                         <div className="flex gap-1 p-2 bg-slate-50 border-b border-slate-100">
                             <button
                                 onClick={() => setModalInnerTab('tabs')}
-                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${modalInnerTab === 'tabs'
-                                    ? 'bg-blue-600 text-white shadow'
-                                    : 'text-slate-500 hover:bg-slate-100'
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${modalInnerTab === 'tabs'
+                                    ? 'bg-slate-900 text-white shadow-md'
+                                    : 'text-slate-500 hover:bg-slate-200/60'
                                     }`}
-                            >
-                                Tabs
+                             >
+                                Sub-Tabs ({enabledTabs.length}/{subTabs.length})
                             </button>
                             <button
                                 onClick={() => setModalInnerTab('actions')}
-                                className={`flex-1 py-2 rounded-xl text-sm font-bold transition-all ${modalInnerTab === 'actions'
-                                    ? 'bg-emerald-600 text-white shadow'
-                                    : 'text-slate-500 hover:bg-slate-100'
+                                className={`flex-1 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${modalInnerTab === 'actions'
+                                    ? 'bg-indigo-600 text-white shadow-md'
+                                    : 'text-slate-500 hover:bg-slate-200/60'
                                     }`}
                             >
-                                Actions
+                                Actions ({enabledActions.length}/{systemActions.length})
                             </button>
                         </div>
                     )}
 
                     {/* Content */}
-                    <div className="p-6 max-h-[55vh] overflow-y-auto space-y-2 no-scrollbar">
+                    <div className="p-6 overflow-y-auto flex-1 space-y-3 no-scrollbar">
                         {/* Tabs panel */}
                         {(!hasActions || modalInnerTab === 'tabs') && (
-                            <>
+                            <div className="space-y-2">
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Enable/Disable Specific Tabs</p>
                                 {subTabs.map(tab => {
                                     const isEnabled = enabledTabs.includes(tab.id);
                                     return (
                                         <button
                                             key={tab.id}
                                             onClick={() => handleToggleSubTab(modalSystem, tab.id)}
-                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                                ? 'border-blue-500 bg-blue-50/50 text-blue-900'
-                                                : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
+                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left ${isEnabled
+                                                ? 'border-slate-900 bg-slate-50 text-slate-900 shadow-sm'
+                                                : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200 hover:text-slate-700'
                                                 }`}
                                         >
-                                            <span className="font-bold">{tab.label}</span>
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-blue-500 text-white' : 'bg-slate-200'}`}>
-                                                {isEnabled && <Check className="w-4 h-4" />}
+                                            <span className="font-bold text-sm">{tab.label}</span>
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-slate-900 text-white' : 'bg-slate-100 border border-slate-200'}`}>
+                                                {isEnabled && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                                             </div>
                                         </button>
                                     );
                                 })}
-                            </>
+                            </div>
                         )}
 
                         {/* Actions panel */}
                         {hasActions && modalInnerTab === 'actions' && (
-                            <>
+                            <div className="space-y-2">
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mb-2">Configure Action-Level Access</p>
                                 {systemActions.map(action => {
                                     const isEnabled = enabledActions.includes(action.id);
                                     return (
                                         <button
                                             key={action.id}
                                             onClick={() => handleToggleAction(modalSystem, action.id)}
-                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                                ? 'border-emerald-500 bg-emerald-50/50 text-emerald-900'
-                                                : 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 hover:opacity-100 hover:border-slate-200'
+                                            className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all duration-200 text-left ${isEnabled
+                                                ? 'border-indigo-600 bg-indigo-50/40 text-indigo-900'
+                                                : 'border-slate-100 bg-white text-slate-400 hover:border-slate-200 hover:text-slate-700'
                                                 }`}
                                         >
-                                            <span className="font-bold flex items-center gap-2">
-                                                <span>{action.icon}</span>
+                                            <span className="font-bold text-sm flex items-center gap-2.5">
+                                                <span className="text-lg bg-white p-1 rounded shadow-sm border border-slate-100">{action.icon}</span>
                                                 {action.label}
                                             </span>
-                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-emerald-500 text-white' : 'bg-slate-200'}`}>
-                                                {isEnabled && <Check className="w-4 h-4" />}
+                                            <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all ${isEnabled ? 'bg-indigo-600 text-white' : 'bg-slate-100 border border-slate-200'}`}>
+                                                {isEnabled && <Check className="w-3.5 h-3.5 stroke-[3]" />}
                                             </div>
                                         </button>
                                     );
                                 })}
-                            </>
+                            </div>
                         )}
                     </div>
 
                     <div className="p-6 bg-slate-50 border-t border-slate-100 flex justify-end">
                         <button
                             onClick={() => { setModalSystem(null); setModalInnerTab('tabs'); }}
-                            className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold hover:bg-slate-800 transition-all shadow-lg"
+                            className="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold hover:bg-black transition-all shadow-lg active:scale-95 text-sm uppercase tracking-wider"
                         >
-                            Confirm
+                            Confirm Settings
                         </button>
                     </div>
                 </div>
@@ -381,128 +439,209 @@ export default function AdminControlTab() {
     };
 
     return (
-        <div className="max-w-6xl mx-auto p-6 animate-in fade-in duration-500 pt-2">
+        <div className="max-w-[1400px] mx-auto p-4 md:p-6 animate-in fade-in duration-500 pt-2">
             {renderSubTabModal()}
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* User List */}
-                <div className="lg:col-span-1 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden flex flex-col h-[750px]">
-                    <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                {/* Left Panel: User List */}
+                <div className="lg:col-span-4 bg-white rounded-3xl shadow-xl border border-slate-200/50 overflow-hidden flex flex-col h-[800px] transition-all">
+                    {/* Header */}
+                    <div className="p-5 border-b border-slate-100 bg-slate-50/50 flex flex-col gap-4">
+                        <div className="flex items-center gap-2.5">
+                            <div className="bg-slate-900 text-white p-2 rounded-xl">
+                                <Users className="w-5 h-5" />
+                            </div>
+                            <div>
+                                <h3 className="font-black text-slate-800 text-lg uppercase tracking-wide">Users Management</h3>
+                                <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider">Select user to edit</p>
+                            </div>
+                        </div>
+
+                        {/* Search Box */}
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                             <input
                                 type="text"
                                 placeholder="Search users..."
-                                className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                className="w-full pl-10 pr-4 py-3 bg-white border-2 border-slate-100 focus:border-slate-900 rounded-2xl text-sm font-semibold outline-none transition-all placeholder-slate-400"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                             />
                         </div>
                     </div>
-                    <div className="flex-1 overflow-y-auto p-2 space-y-1">
-                        {filteredUsers.map((user) => (
-                            <button
-                                key={user.name}
-                                onClick={() => {
-                                    setSelectedUser(user);
-                                    setMessage({ type: '', text: '' });
-                                }}
-                                className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${selectedUser?.name === user.name
-                                    ? 'bg-blue-50 text-blue-700 shadow-sm'
-                                    : 'hover:bg-slate-50 text-slate-700'
-                                    }`}
-                            >
-                                <div className={`p-2 rounded-lg ${selectedUser?.name === user.name ? 'bg-blue-100' : 'bg-slate-100'}`}>
-                                    <User className="w-4 h-4" />
-                                </div>
-                                <span className="font-semibold text-sm">{user.name}</span>
-                            </button>
-                        ))}
+
+                    {/* Users List Container */}
+                    <div className="flex-1 overflow-y-auto p-4 space-y-2 no-scrollbar">
+                        {filteredUsers.length === 0 ? (
+                            <div className="py-20 text-center text-slate-400 font-bold italic">No users found</div>
+                        ) : (
+                            filteredUsers.map((user) => {
+                                const isSelected = selectedUser?.name === user.name;
+                                return (
+                                    <button
+                                        key={user.name}
+                                        onClick={() => {
+                                            setSelectedUser(user);
+                                            setMessage({ type: '', text: '' });
+                                        }}
+                                        className={`w-full flex items-center justify-between p-3.5 rounded-2xl border-2 transition-all duration-200 ${
+                                            isSelected
+                                                ? 'border-slate-950 bg-slate-50 text-slate-900 shadow-md shadow-slate-100'
+                                                : 'border-transparent bg-transparent hover:bg-slate-50 text-slate-600 hover:text-slate-900'
+                                        }`}
+                                    >
+                                        <div className="flex items-center gap-3 truncate">
+                                            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarGradient(user.name)} text-white flex items-center justify-center font-bold text-sm shadow-md shrink-0`}>
+                                                {getUserInitials(user.name)}
+                                            </div>
+                                            <div className="text-left truncate">
+                                                <p className="font-bold text-sm truncate">{user.name}</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                                    {user.name === 'MED Sabry' ? 'Super Admin' : 'System User'}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <ChevronRight className={`w-4 h-4 text-slate-400 transition-transform ${isSelected ? 'translate-x-1 text-slate-900' : ''}`} />
+                                    </button>
+                                );
+                            })
+                        )}
                     </div>
                 </div>
 
-                {/* Permissions Panel */}
-                <div className="lg:col-span-2 bg-white rounded-3xl shadow-sm border border-slate-200 p-8 h-[750px] flex flex-col">
+                {/* Right Panel: Permissions Config */}
+                <div className="lg:col-span-8 bg-white rounded-3xl shadow-xl border border-slate-200/50 p-6 md:p-8 h-[800px] flex flex-col transition-all">
                     {selectedUser ? (
                         <>
-                            <div className="flex items-center justify-between mb-8">
-                                <div>
+                            {/* Profile Header */}
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-slate-100 mb-6">
+                                <div className="flex items-center gap-4">
+                                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${getAvatarGradient(selectedUser.name)} text-white flex items-center justify-center font-black text-xl shadow-lg shadow-indigo-100`}>
+                                        {getUserInitials(selectedUser.name)}
+                                    </div>
+                                    <div>
+                                        <h2 className="text-xl font-black text-slate-900 tracking-tight">{selectedUser.name}</h2>
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-slate-100 text-slate-800 border border-slate-200 mt-1">
+                                            <Lock className="w-3 h-3 text-slate-500" /> Custom Permissions
+                                        </span>
+                                    </div>
                                 </div>
+
                                 <button
                                     onClick={handleSave}
                                     disabled={saving}
-                                    className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
+                                    className="flex items-center justify-center gap-2 bg-slate-900 text-white py-3 px-6 rounded-2xl font-black text-xs uppercase tracking-wider hover:bg-black hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 shadow-lg shadow-slate-200 shrink-0 min-w-[160px]"
                                 >
                                     {saving ? (
                                         <>
-                                            <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                                            <span>Saving...</span>
+                                            <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                                            <span>Saving Changes...</span>
                                         </>
                                     ) : (
                                         <>
-                                            <CheckCircle2 className="w-5 h-5" />
-                                            <span>Save</span>
+                                            <Save className="w-4 h-4" />
+                                            <span>Save Changes</span>
                                         </>
                                     )}
                                 </button>
                             </div>
 
+                            {/* Toast Notification */}
                             {message.text && (
-                                <div className={`mb-6 p-4 rounded-xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' : 'bg-rose-50 text-rose-700 border border-rose-100'
+                                <div className={`mb-6 p-4 rounded-2xl flex items-center gap-3 animate-in slide-in-from-top duration-300 ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-100' : 'bg-rose-50 text-rose-800 border border-rose-100'
                                     }`}>
-                                    {message.type === 'success' ? <Check className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
-                                    <span className="font-medium">{message.text}</span>
+                                    {message.type === 'success' ? (
+                                        <div className="bg-emerald-500 text-white p-1 rounded-lg"><Check className="w-4 h-4 stroke-[3]" /></div>
+                                    ) : (
+                                        <div className="bg-rose-500 text-white p-1 rounded-lg"><AlertCircle className="w-4 h-4 stroke-[3]" /></div>
+                                    )}
+                                    <span className="font-bold text-sm">{message.text}</span>
                                 </div>
                             )}
 
-                            <div className="mt-4 flex-1 overflow-y-auto pr-2 space-y-8 no-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {[...SYSTEMS].sort((a, b) => a.label.localeCompare(b.label)).map((system) => {
+                            {/* Section Controls */}
+                            <div className="mb-4 flex flex-col sm:flex-row gap-4 items-center justify-between">
+                                <div className="relative w-full sm:max-w-xs">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                    <input
+                                        type="text"
+                                        placeholder="Search system modules..."
+                                        className="w-full pl-9 pr-4 py-2 border border-slate-200/80 rounded-xl text-xs font-semibold outline-none focus:border-slate-900 transition-all placeholder-slate-400 bg-slate-50/50 focus:bg-white"
+                                        value={systemSearch}
+                                        onChange={(e) => setSystemSearch(e.target.value)}
+                                    />
+                                </div>
+                                <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-widest shrink-0">
+                                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> {filteredSystems.length} modules
+                                </div>
+                            </div>
+
+                            {/* Grid of Systems */}
+                            <div className="flex-1 overflow-y-auto pr-2 space-y-4 no-scrollbar">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-6">
+                                    {filteredSystems.map((system) => {
                                         const permissions = parsePermissions(selectedUser.role);
                                         const isEnabled = permissions.systems !== undefined
                                             ? permissions.systems.includes(system.id)
                                             : true;
                                         const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
+                                        const subTabs = SYSTEM_SUBTABS[system.id] || [];
+                                        const enabledTabsCount = subTabs.length > 0
+                                            ? (permissions[system.id] !== undefined ? permissions[system.id].length : subTabs.length)
+                                            : 0;
 
                                         return (
-                                            <div key={system.id} className="group relative">
-                                                <div className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${isEnabled
-                                                    ? 'border-blue-500 bg-white'
-                                                    : 'border-slate-100 bg-slate-50 opacity-60 hover:opacity-100'
-                                                    }`}>
-                                                    <div className="flex items-center gap-3 flex-1">
-                                                        <button
-                                                            onClick={() => handleToggleSystem(system.id)}
-                                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all shrink-0 ${isEnabled ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-slate-200 text-slate-400'
-                                                                }`}
-                                                        >
-                                                            <Check className={`w-5 h-5 transition-transform ${isEnabled ? 'scale-100' : 'scale-0'}`} />
-                                                        </button>
-
-                                                        <div
-                                                            onClick={() => (hasSubTabs && isEnabled) && setModalSystem(system.id)}
-                                                            className={`flex-1 py-1 transition-all ${(hasSubTabs && isEnabled)
-                                                                ? 'cursor-pointer hover:translate-x-1'
-                                                                : ''
-                                                                }`}
-                                                        >
-                                                            <div className="flex items-center gap-2">
-                                                                <span className={`font-bold transition-colors ${isEnabled ? 'text-slate-900' : 'text-slate-400'
-                                                                    } ${(hasSubTabs && isEnabled) ? 'group-hover:text-blue-600' : ''}`}>
-                                                                    {system.label}
-                                                                </span>
-                                                                {hasSubTabs && isEnabled && (
-                                                                    <Layers className="w-3.5 h-3.5 text-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                                )}
-                                                            </div>
-                                                            {hasSubTabs && isEnabled && (
-                                                                <p className="text-[10px] text-blue-500 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                    Click to manage sub-tabs
-                                                                </p>
-                                                            )}
+                                            <div
+                                                key={system.id}
+                                                className={`group rounded-2xl border-2 p-4 transition-all duration-200 flex flex-col justify-between ${
+                                                    isEnabled
+                                                        ? 'border-slate-200 bg-white hover:border-slate-900 shadow-sm'
+                                                        : 'border-slate-100 bg-slate-50/60 opacity-60 hover:opacity-90'
+                                                }`}
+                                            >
+                                                <div className="flex items-start justify-between gap-3">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 shrink-0">
+                                                            {getSystemIcon(system.id)}
+                                                        </div>
+                                                        <div className="text-left">
+                                                            <h4 className={`font-black text-sm transition-colors ${isEnabled ? 'text-slate-900 group-hover:text-slate-950' : 'text-slate-400'}`}>
+                                                                {system.label}
+                                                            </h4>
+                                                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-0.5">
+                                                                {isEnabled ? 'Access Granted' : 'Access Blocked'}
+                                                            </p>
                                                         </div>
                                                     </div>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleSystem(system.id)}
+                                                        className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                                                            isEnabled
+                                                                ? 'bg-slate-900 text-white shadow-md'
+                                                                : 'bg-white border-2 border-slate-200 text-transparent hover:border-slate-400'
+                                                        }`}
+                                                    >
+                                                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                                    </button>
                                                 </div>
+
+                                                {/* Configure Link */}
+                                                {hasSubTabs && isEnabled && (
+                                                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                                                        <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md uppercase tracking-wider">
+                                                            {enabledTabsCount} / {subTabs.length} Tabs
+                                                        </span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setModalSystem(system.id)}
+                                                            className="text-[11px] text-slate-900 hover:text-black font-black uppercase tracking-wider flex items-center gap-1 transition-all"
+                                                        >
+                                                            Configure <ChevronRight className="w-3 h-3 stroke-[2]" />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         );
                                     })}
@@ -510,9 +649,12 @@ export default function AdminControlTab() {
                             </div>
                         </>
                     ) : (
-                        <div className="h-full flex flex-col items-center justify-center text-slate-300">
-                            <Shield className="w-20 h-20 mb-4 opacity-10" />
-                            <p className="text-xl font-medium">Select a user to modify permissions</p>
+                        <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20 select-none">
+                            <div className="p-6 bg-slate-50 border border-slate-100 rounded-3xl shadow-sm mb-4">
+                                <ShieldAlert className="w-16 h-16 text-slate-400" />
+                            </div>
+                            <h3 className="text-lg font-black text-slate-700 uppercase tracking-wider">Select a user</h3>
+                            <p className="text-sm text-slate-400 font-semibold mt-1">Configure individual access modules and settings</p>
                         </div>
                     )}
                 </div>

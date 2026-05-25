@@ -153,7 +153,7 @@ export default function VoucherTab({
                 ) : (
                   <>
                     <CheckCircle2 className="w-6 h-6" />
-                    <span>SAVE & PRINT VOUCHER</span>
+                    <span>SAVE VOUCHER</span>
                   </>
                 )}
               </button>

@@ -75,8 +75,8 @@ export default function AgesTab({ data }: AgesTabProps) {
     const fetchLists = async () => {
       try {
         const [closedRes, semiRes] = await Promise.all([
-          fetch('/api/closed-customers'),
-          fetch('/api/semi-closed-customers')
+          fetch('/api/ClosedCustomers'),
+          fetch('/api/SemiClosedCustomers')
         ]);
 
         if (closedRes.ok) {

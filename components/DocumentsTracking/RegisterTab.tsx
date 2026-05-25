@@ -99,7 +99,7 @@ export default function RegisterTab({
         setIsLoading(true);
         try {
             // Get current count from sheet first to generate correct DOC IDs
-            const res = await fetch('/api/documents-tracking');
+            const res = await fetch('/api/DocumentsTracking');
             const currentData = await res.json();
             const currentCount = currentData.records ? currentData.records.length : 0;
 
@@ -121,7 +121,7 @@ export default function RegisterTab({
                 whoTakeFromOffice: ''
             }));
 
-            const response = await fetch('/api/documents-tracking', {
+            const response = await fetch('/api/DocumentsTracking', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'add', records: recordsToSave })

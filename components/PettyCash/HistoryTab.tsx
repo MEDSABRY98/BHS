@@ -137,10 +137,21 @@ export default function HistoryTab({ records, loading }: HistoryTabProps) {
   const [currentPage, setCurrentPage] = useState<number>(1);
 
 
-  // 1. Get unique liquidation dates (sorted descending)
+  // 1. Get unique liquidation dates (sorted descending from newest to oldest)
   const uniqueDates = useMemo(() => {
+    const parseLiquidationDate = (dateStr: string) => {
+      if (!dateStr) return 0;
+      const parts = dateStr.split('.');
+      if (parts.length === 3) {
+        const [d, m, y] = parts.map(Number);
+        if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+          return new Date(y, m - 1, d).getTime();
+        }
+      }
+      return Date.parse(dateStr) || 0;
+    };
     const dates = new Set(records.map(r => r.liquidationDate).filter(Boolean));
-    return Array.from(dates).sort((a, b) => b.localeCompare(a));
+    return Array.from(dates).sort((a, b) => parseLiquidationDate(b) - parseLiquidationDate(a));
   }, [records]);
 
   // 1b. Get unique names for the selected liquidation date (sorted alphabetically)

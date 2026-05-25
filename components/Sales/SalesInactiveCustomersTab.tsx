@@ -97,7 +97,7 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
   useEffect(() => {
     const fetchExceptions = async () => {
       try {
-        const response = await fetch('/api/inactive-customer-exceptions');
+        const response = await fetch('/api/InactiveCustomer');
         if (response.ok) {
           const result = await response.json();
           const excludedIds = new Set<string>();
@@ -251,7 +251,7 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
     setExcludingId(customerId);
 
     try {
-      const resp = await fetch('/api/inactive-customer-exceptions', {
+      const resp = await fetch('/api/InactiveCustomer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId, customerName }),
@@ -266,7 +266,7 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
   const handleRestoreCustomer = async (customerId: string) => {
     setRestoringId(customerId);
     try {
-      const resp = await fetch(`/api/inactive-customer-exceptions?customerId=${encodeURIComponent(customerId)}`, { method: 'DELETE' });
+      const resp = await fetch(`/api/InactiveCustomer?customerId=${encodeURIComponent(customerId)}`, { method: 'DELETE' });
       if (resp.ok) {
         setExcludedCustomerIds(prev => { const n = new Set(prev); n.delete(customerId); return n; });
         setExcludedCustomersData(prev => prev.filter(c => c.customerId !== customerId));

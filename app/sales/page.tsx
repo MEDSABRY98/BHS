@@ -253,7 +253,7 @@ export default function SalesPage() {
     try {
       if (silent) setIsRefreshing(true);
       else setLoading(true);
-      const response = await fetch('/api/sales');
+      const response = await fetch('/api/Sales');
       const result = await response.json();
 
       if (!response.ok) {

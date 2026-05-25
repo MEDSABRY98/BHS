@@ -50,7 +50,7 @@ export default function CustomersDocumentsTab({
       setData(newData);
 
       // Save to Google Sheets
-      const res = await fetch('/api/customers-documents', {
+      const res = await fetch('/api/CustomersDocuments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rowIndex, [field]: value })

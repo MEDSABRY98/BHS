@@ -8,6 +8,7 @@ export async function GET() {
         const data = await getSpiData();
         return NextResponse.json({ data });
     } catch (error) {
+        console.error('API Error:', error);
         return NextResponse.json({ error: 'Failed to fetch SPI' }, { status: 500 });
     }
 }

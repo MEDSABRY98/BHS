@@ -50,7 +50,7 @@ export default function CustomersDocumentsPage() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/customers-documents');
+      const res = await fetch('/api/CustomersDocuments');
       const result = await res.json();
       if (result.success) {
         setData(result.data);
@@ -97,7 +97,7 @@ export default function CustomersDocumentsPage() {
       );
       setData(newData);
 
-      await fetch('/api/customers-documents', {
+      await fetch('/api/CustomersDocuments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rowIndex, [field]: value })

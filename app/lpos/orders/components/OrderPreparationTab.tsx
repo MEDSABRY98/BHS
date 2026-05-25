@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { UserPlus, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
-import SearchSelect from '../../../components/DropDownList';
-import { ConfirmModal } from '../../../components/ConfirmModal';
+import SearchSelect from '../../components/DropDownList';
+import { ConfirmModal } from '../../components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 
 interface OrderPreparationTabProps {

@@ -63,7 +63,7 @@ export default function SalesCustomerDetails({
     const fetchInvoices = async () => {
       setLoadingInvoices(true);
       try {
-        const response = await fetch('/api/sheets');
+        const response = await fetch('/api/Sheets');
         if (response.ok) {
           const result = await response.json();
           setInvoicesData(result.data || []);

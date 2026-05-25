@@ -193,7 +193,7 @@ export default function CashReceiptTab() {
 
   const saveToGoogleSheets = async () => {
     try {
-      const response = await fetch('/api/cash-receipt', {
+      const response = await fetch('/api/CashReceipt', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -331,7 +331,7 @@ export default function CashReceiptTab() {
 
   const fetchNextReceiptNumber = async () => {
     try {
-      const response = await fetch('/api/cash-receipt');
+      const response = await fetch('/api/CashReceipt');
       if (response.ok) {
         const data = await response.json();
         if (data.nextId) {
@@ -348,7 +348,7 @@ export default function CashReceiptTab() {
   const fetchSavedReceipts = async () => {
     setIsFetchingSaved(true);
     try {
-      const response = await fetch('/api/cash-receipt?all=true');
+      const response = await fetch('/api/CashReceipt?all=true');
       if (response.ok) {
         const data = await response.json();
         setSavedReceipts(data.receipts || []);

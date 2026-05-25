@@ -239,7 +239,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   useEffect(() => {
     const fetchEmail = async () => {
       try {
-        const res = await fetch(`/api/customer-email?customerName=${encodeURIComponent(customerName)}`);
+        const res = await fetch(`/api/CustomerEmail?customerName=${encodeURIComponent(customerName)}`);
         const data = await res.json();
         const emails = Array.isArray(data?.emails) ? data.emails.filter(Boolean) : (data?.email ? [data.email] : []);
         const customers = Array.isArray(data?.customers) ? data.customers.filter(Boolean) : [];
@@ -257,7 +257,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
   useEffect(() => {
     const fetchClosedCustomers = async () => {
       try {
-        const response = await fetch('/api/closed-customers');
+        const response = await fetch('/api/ClosedCustomers');
         if (response.ok) {
           const data = await response.json();
           const normalizedSet = new Set<string>();
@@ -296,7 +296,7 @@ export default function CustomerDetails({ customerName, invoices, onBack, initia
       if (uniqueTargets.length <= 1) {
         invoicesByCustomer.set(customerName, invoices);
       } else {
-        const res = await fetch('/api/sheets');
+        const res = await fetch('/api/Sheets');
         const payload = await res.json();
         const allRows: InvoiceRow[] = Array.isArray(payload?.data) ? payload.data : [];
 
@@ -435,7 +435,7 @@ ${debtSectionHtml}
   const fetchNotes = async () => {
     setLoadingNotes(true);
     try {
-      const response = await fetch(`/api/notes?customerName=${encodeURIComponent(customerName)}`);
+      const response = await fetch(`/api/Notes?customerName=${encodeURIComponent(customerName)}`);
       const data = await response.json();
       if (data.notes) {
         setNotes(data.notes);
@@ -458,7 +458,7 @@ ${debtSectionHtml}
     const user = currentUser.name || 'Unknown';
 
     try {
-      const response = await fetch('/api/notes', {
+      const response = await fetch('/api/Notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -487,7 +487,7 @@ ${debtSectionHtml}
     if (!content.trim()) return;
 
     try {
-      const response = await fetch('/api/notes', {
+      const response = await fetch('/api/Notes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -514,7 +514,7 @@ ${debtSectionHtml}
 
   const handleDeleteNote = async (rowIndex: number) => {
     try {
-      const response = await fetch('/api/notes', {
+      const response = await fetch('/api/Notes', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ rowIndex }),
@@ -537,7 +537,7 @@ ${debtSectionHtml}
   useEffect(() => {
     const fetchSpi = async () => {
       try {
-        const res = await fetch('/api/spi');
+        const res = await fetch('/api/Spi');
         const json = await res.json();
         if (json.data) setSpiData(json.data);
       } catch (e) { console.error('Failed to fetch SPI', e); }

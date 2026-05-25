@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingDown, TrendingUp, BarChart3, FileText, Wallet, History } from 'lucide-react';
+import { TrendingDown, TrendingUp, BarChart3, FileText, Wallet, History, Eye, EyeOff } from 'lucide-react';
 
 interface SidebarProps {
   sidebarOpen: boolean;
@@ -7,6 +7,8 @@ interface SidebarProps {
   setActiveTab: (tab: 'receipts' | 'expenses' | 'stats' | 'voucher' | 'history') => void;
   currentUser: any;
   balance: number;
+  showBalance: boolean;
+  setShowBalance: (show: boolean) => void;
 }
 
 export const tabs = [
@@ -22,7 +24,9 @@ export default function Sidebar({
   activeTab,
   setActiveTab,
   currentUser,
-  balance
+  balance,
+  showBalance,
+  setShowBalance
 }: SidebarProps) {
   return (
     <div className={`${sidebarOpen ? 'w-72' : 'w-0'} bg-white text-gray-900 transition-all duration-300 overflow-hidden shadow-2xl border-r border-gray-200 no-print`}>
@@ -65,11 +69,23 @@ export default function Sidebar({
         </nav>
 
         <div className="bg-gradient-to-br from-gray-50 to-white p-5 rounded-xl border-2 border-gray-200">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <div className="text-xs text-gray-600 font-semibold">Current Balance</div>
+          <div className="flex items-center justify-between gap-2 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <div className="text-xs text-gray-600 font-semibold">Current Balance</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBalance(!showBalance)}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-0.5 rounded"
+              title={showBalance ? "Hide Balance" : "Show Balance"}
+            >
+              {showBalance ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
           </div>
-          <div className="text-3xl font-bold mb-1 text-gray-900">{balance.toFixed(2)} AED</div>
+          <div className="text-3xl font-bold mb-1 text-gray-900 select-none">
+            {showBalance ? `${balance.toFixed(2)} AED` : '•••••• AED'}
+          </div>
           <div className="text-sm text-gray-600">UAE Dirham</div>
         </div>
       </div>
