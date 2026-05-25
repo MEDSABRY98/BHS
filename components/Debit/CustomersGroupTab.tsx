@@ -11,7 +11,7 @@ import {
   createColumnHelper,
   SortingState,
 } from '@tanstack/react-table';
-import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Plus, X, FileText, Printer, FileSpreadsheet, AlertCircle, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import NoData from '../01-Unified/NoDataTab';
 import FilterBar from './CustomerDetailsTab/FilterBar';
@@ -38,9 +38,11 @@ const columnHelper = createColumnHelper<GroupOverdueRow>();
 
 export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
   const [groupCustomers, setGroupCustomers] = useState<string[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: 'date', desc: false }
+  ]);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 50 });
   
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -92,20 +94,18 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     return Array.from(reps).sort();
   }, [data]);
 
-  // Autocomplete suggestions filtered
-  const suggestions = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const q = searchQuery.toLowerCase().trim();
-    return allCustomers.filter(c => 
-      c.toLowerCase().includes(q) && !groupCustomers.includes(c)
-    ).slice(0, 10);
-  }, [allCustomers, searchQuery, groupCustomers]);
+  // Filtered dropdown customers for multi-select
+  const filteredDropdownCustomers = useMemo(() => {
+    const q = customerSearchQuery.toLowerCase().trim();
+    if (!q) return allCustomers;
+    return allCustomers.filter(c => c.toLowerCase().includes(q));
+  }, [allCustomers, customerSearchQuery]);
 
-  // Close suggestions dropdown on click outside
+  // Close suggestions and customer dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowSuggestions(false);
+        setIsCustomerDropdownOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -114,18 +114,28 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     };
   }, []);
 
-  const handleAddCustomer = (name: string) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    const match = allCustomers.find(c => c.toLowerCase() === trimmed.toLowerCase());
-    if (match) {
-      if (!groupCustomers.includes(match)) {
-        setGroupCustomers(prev => [...prev, match]);
-      }
-      setSearchQuery('');
-      setShowSuggestions(false);
+  const toggleCustomer = (cust: string) => {
+    setGroupCustomers(prev =>
+      prev.includes(cust) ? prev.filter(c => c !== cust) : [...prev, cust]
+    );
+  };
+
+  const handleSelectAll = (filteredCusts: string[]) => {
+    const allSelected = filteredCusts.every(c => groupCustomers.includes(c));
+    if (allSelected) {
+      // Deselect all filtered
+      setGroupCustomers(prev => prev.filter(c => !filteredCusts.includes(c)));
     } else {
-      alert('Customer not found');
+      // Select all filtered
+      setGroupCustomers(prev => {
+        const newSelected = [...prev];
+        filteredCusts.forEach(c => {
+          if (!newSelected.includes(c)) {
+            newSelected.push(c);
+          }
+        });
+        return newSelected;
+      });
     }
   };
 
@@ -402,7 +412,11 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       });
     }
 
-    return filtered;
+    return filtered.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      return dateA - dateB;
+    });
   }, [
     groupOverdueInvoices,
     selectedYearFilter,
@@ -780,6 +794,11 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       }),
       columnHelper.accessor('date', {
         header: 'Date',
+        sortingFn: (rowA, rowB, columnId) => {
+          const a = rowA.getValue(columnId) ? new Date(rowA.getValue(columnId) as string).getTime() : 0;
+          const b = rowB.getValue(columnId) ? new Date(rowB.getValue(columnId) as string).getTime() : 0;
+          return a - b;
+        },
         cell: (info) => {
           const dateStr = info.getValue();
           if (!dateStr) return '';
@@ -898,44 +917,99 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center">
         {/* Search Input and Add Button */}
         <div className="relative w-full max-w-2xl mx-auto" ref={dropdownRef}>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-3 w-5 h-5 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search customer to add..."
-                value={searchQuery}
-                onFocus={() => setShowSuggestions(true)}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setShowSuggestions(true);
-                }}
-                className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium shadow-sm transition-all"
-              />
-            </div>
-            <button
-              onClick={() => handleAddCustomer(searchQuery)}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-2.5 rounded-xl shadow-sm transition-all hover:shadow shadow-blue-200 flex items-center justify-center shrink-0"
-              title="Add Customer"
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center">
+            Select Customers Group
+          </label>
+          <div className="relative">
+            <div
+              onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
+              className="w-full pl-4 pr-10 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-semibold text-slate-700 shadow-sm flex items-center justify-between min-h-[46px] text-left hover:border-slate-400 transition-colors cursor-pointer"
             >
-              <Plus className="w-5 h-5" />
-            </button>
-          </div>
-
-          {/* Autocomplete Dropdown */}
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto divide-y divide-slate-100">
-              {suggestions.map((cust) => (
-                <button
-                  key={cust}
-                  onClick={() => handleAddCustomer(cust)}
-                  className="w-full text-left px-4 py-3 hover:bg-slate-50 transition-colors text-sm text-slate-700 font-medium"
-                >
-                  {cust}
-                </button>
-              ))}
+              <span className="truncate">
+                {groupCustomers.length === 0
+                  ? 'Select customers...'
+                  : `${groupCustomers.length} customer${groupCustomers.length > 1 ? 's' : ''} selected`}
+              </span>
+              <div className="flex items-center gap-1.5 text-slate-400">
+                {groupCustomers.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setGroupCustomers([]);
+                    }}
+                    className="hover:text-red-500 p-0.5 rounded-full hover:bg-slate-100 transition-colors"
+                    title="Clear all"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+                <div className="w-[1px] h-4 bg-slate-200" />
+                <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isCustomerDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
             </div>
-          )}
+
+            {isCustomerDropdownOpen && (
+              <div className="absolute left-0 right-0 top-full mt-2 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden flex flex-col max-h-80 animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Search input in dropdown */}
+                <div className="p-3 border-b border-slate-100 sticky top-0 bg-white z-10 flex-shrink-0">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      placeholder="Search customers..."
+                      value={customerSearchQuery}
+                      onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-lg focus:outline-none bg-slate-50/50 font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {/* Select All / Clear All helper */}
+                  <div className="flex items-center justify-between mt-2 px-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">
+                      Showing {filteredDropdownCustomers.length} of {allCustomers.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAll(filteredDropdownCustomers)}
+                      className="text-[10px] font-bold text-blue-600 hover:text-blue-800 transition-colors uppercase tracking-wider"
+                    >
+                      {filteredDropdownCustomers.every(c => groupCustomers.includes(c)) ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Customer list with checkboxes */}
+                <div className="overflow-y-auto flex-1 max-h-56 divide-y divide-slate-50">
+                  {filteredDropdownCustomers.length === 0 ? (
+                    <div className="px-4 py-6 text-sm text-slate-400 font-semibold italic text-center">
+                      No matching customers
+                    </div>
+                  ) : (
+                    filteredDropdownCustomers.map((cust) => {
+                      const isSelected = groupCustomers.includes(cust);
+                      return (
+                        <label
+                          key={cust}
+                          className={`flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors cursor-pointer text-sm font-medium ${
+                            isSelected ? 'bg-blue-50/30 text-blue-700' : 'text-slate-600'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleCustomer(cust)}
+                            className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4 cursor-pointer"
+                          />
+                          <span className="truncate">{cust}</span>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Selected Customer Tags Row */}
