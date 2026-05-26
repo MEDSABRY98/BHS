@@ -70,7 +70,7 @@ export default function CustomersTab({
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
-  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
+  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_SPI' | null>(null);
   const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -117,7 +117,6 @@ export default function CustomersTab({
     semiClosedCustomers,
     spiData,
     customersWithEmails,
-    luluEmails,
     yearlyPivotData,
     allSalesReps
   } = useCustomerData(data, filters, mode, yearlySorting);
@@ -351,14 +350,14 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkLuluEmail = async (overrideDate?: string) => {
+  const handleBulkSpiEmail = async (overrideDate?: string) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
     }
 
-    if (!overrideDate && statementModalAction !== 'EMAIL_LULU') {
-      setStatementModalAction('EMAIL_LULU');
+    if (!overrideDate && statementModalAction !== 'EMAIL_SPI') {
+      setStatementModalAction('EMAIL_SPI');
       return;
     }
 
@@ -371,16 +370,21 @@ export default function CustomersTab({
       let count = 0;
 
       for (const customerName of selectedCustomersForDownload) {
-        // Find Lulu data with robust matching
         const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const luluData = luluEmails.find(l => normalize(l.customerName) === normalize(customerName));
+        const hasSpi = spiData.some(s => normalize(s.customerName) === normalize(customerName));
         
-        if (!luluData) {
-          console.warn(`No Lulu data found for: ${customerName}`);
+        if (!hasSpi) {
+          console.warn(`No SPI data found for: ${customerName}`);
           continue;
         }
 
-        console.log(`Processing Lulu email for: ${customerName}`, luluData);
+        const email = customersWithEmails.get(normalize(customerName));
+        if (!email) {
+          console.warn(`No email found for customer: ${customerName}`);
+          continue;
+        }
+
+        console.log(`Processing SPI email for: ${customerName}`, email);
 
         const customerInvoices = data.filter(row => row.customerName === customerName);
         if (customerInvoices.length === 0) continue;
@@ -437,8 +441,8 @@ export default function CustomersTab({
         `.trim();
 
         const cleanEmails = (str: string) => str.replace(/;/g, ',').split(',').map(e => e.trim()).filter(Boolean).join(', ');
-        const toEmail = cleanEmails(luluData.to || '');
-        const ccEmail = cleanEmails(luluData.cc || '');
+        const toEmail = cleanEmails(email || '');
+        const ccEmail = '';
 
         let emlHeaders = [
           `Date: ${new Date().toUTCString()}`,
@@ -483,13 +487,13 @@ export default function CustomersTab({
 
       if (count > 0) {
         const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `Lulu_Emails_${new Date().toISOString().split('T')[0]}.zip`);
+        saveAs(content, `SPI_Emails_${new Date().toISOString().split('T')[0]}.zip`);
         setStatementModalAction(null);
       } else {
-        alert('No matching Lulu customers found in selection.');
+        alert('No matching SPI customers found in selection.');
       }
     } catch (error) {
-      console.error('Error in Lulu email generation:', error);
+      console.error('Error in SPI email generation:', error);
       alert('Error generating emails.');
     } finally {
       setIsDownloading(false);
@@ -783,8 +787,8 @@ export default function CustomersTab({
               <button onClick={() => handleBulkEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Email">
                 E
               </button>
-              <button onClick={() => handleBulkLuluEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for Lulu (PDF+XL)">
-                EL
+              <button onClick={() => handleBulkSpiEmail()} className="w-9 h-9 flex items-center justify-center hover:bg-white/20 rounded-lg text-white transition-colors font-black text-sm" title="Generate ZIP for SPI (PDF+XL)">
+                ES
               </button>
               <div className="w-px h-6 bg-white/20 mx-1"></div>
               <button onClick={() => setSelectedCustomersForDownload(new Set())} className="p-2 hover:bg-white/20 rounded-lg text-white transition-colors" title="Clear selection">
@@ -887,7 +891,7 @@ export default function CustomersTab({
           setStatementModalAction(null);
           if (action === 'EMAIL') handleBulkEmail(date);
           else if (action === 'ZIP') handleBulkZIPDownload(date);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date);
+          else if (action === 'EMAIL_SPI') handleBulkSpiEmail(date);
         }}
         isProcessing={isDownloading}
       />

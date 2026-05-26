@@ -13,7 +13,6 @@ const nextConfig: NextConfig = {
       { source: '/api/documents-tracking', destination: '/api/DocumentsTracking' },
       { source: '/api/inactive-customer', destination: '/api/InactiveCustomer' },
       { source: '/api/inactive-customer-exceptions', destination: '/api/InactiveCustomer' },
-      { source: '/api/lulu-emails', destination: '/api/LuluEmails' },
       { source: '/api/notes', destination: '/api/Notes' },
       { source: '/api/petty-cash', destination: '/api/PettyCash' },
       { source: '/api/sales', destination: '/api/Sales' },
