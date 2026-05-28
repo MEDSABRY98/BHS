@@ -1,6 +1,6 @@
 'use client';
 
-import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database } from 'lucide-react';
+import { DollarSign, TrendingUp, ArrowRight, FileText, Package, Clock, Receipt, Wallet, FileSpreadsheet, LogOut, Layers, Truck, Users, LayoutGrid, Shield, ChevronLeft, ShoppingCart, Database, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import AdminControlTab from '../AdminControlTab';
 
@@ -160,6 +160,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'sales', title: "Sales Analysis", icon: LayoutGrid, path: '/Sales', color: 'green' as const },
     { id: 'delivery-tracking', title: "Delivery Tracking", icon: Truck, path: '/DeliveryTracking', color: 'blue' as const },
     { id: 'inventory', title: "Inventory", icon: Package, path: '/Inventory', color: 'indigo' as const },
+    { id: 'inventory-scrap', title: "Inventory Scrap", icon: Trash2, path: '/InventoryScrap', color: 'orange' as const },
     { id: 'wh20-items', title: "WarehouseS", icon: Package, path: '/Warehouses', color: 'emerald' as const },
     { id: 'water-delivery-note', title: "Waters", icon: FileText, path: '/Waters', color: 'violet' as const },
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/Suppliers', color: 'emerald' as const },

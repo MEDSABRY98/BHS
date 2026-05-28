@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { 
     Shield, User, Check, X, Search, Settings, Save, AlertCircle, ChevronRight, Layers, CheckCircle2,
     CreditCard, Wallet, BarChart3, TrendingUp, Package, Warehouse, Droplet, Truck, FileText, FileCheck, MapPin, ClipboardList, ShoppingCart, Database,
-    Lock, Users, ShieldAlert, Sparkles
+    Lock, Users, ShieldAlert, Sparkles, Trash2
 } from 'lucide-react';
 import Loading from './01-Unified/Loading';
 
@@ -19,6 +19,7 @@ const SYSTEMS = [
     { id: 'debit', label: 'Debit Analysis' },
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
+    { id: 'inventory-scrap', label: 'Inventory Scrap' },
     { id: 'wh20-items', label: 'WarehouseS' },
     { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
@@ -146,6 +147,7 @@ const getSystemIcon = (id: string) => {
         case 'debit': return <BarChart3 className="w-5 h-5 text-rose-500" />;
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
+        case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
         case 'wh20-items': return <Warehouse className="w-5 h-5 text-cyan-500" />;
         case 'water-delivery-note': return <Droplet className="w-5 h-5 text-sky-500" />;
         case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
