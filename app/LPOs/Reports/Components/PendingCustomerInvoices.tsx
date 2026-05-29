@@ -5,7 +5,7 @@ import { app_lpos_supabase } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, Search } from 'lucide-react';
 import { generatePendingCustomerInvoicesPDF } from '@/lib/pdf/PendingCustomerInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
-import SearchSelect from '../../components/DropDownList';
+import SearchSelect from '../../Components/DropDownList';
 
 export default function PendingCustomerInvoices() {
   const [customerSearch, setCustomerSearch] = useState('');

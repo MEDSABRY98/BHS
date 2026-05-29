@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
-import SearchSelect from '../../components/DropDownList';
+import SearchSelect from '../../Components/DropDownList';
 
 interface OrderDeliveryTabProps {
   orderId: string;

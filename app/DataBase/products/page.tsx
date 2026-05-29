@@ -16,9 +16,9 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { ConfirmModal } from '../../lpos/components/ConfirmModal';
+import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../../lpos/hooks/usePermissions';
+import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 
 
 export default function ProductsPage() {

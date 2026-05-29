@@ -12,9 +12,9 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../hooks/usePermissions';
-import OrdersFilterMenu, { FilterCriteria } from './components/OrdersFilterMenu';
-import { ConfirmModal } from '../components/ConfirmModal';
+import { usePermissions } from '../Hooks/usePermissions';
+import OrdersFilterMenu, { FilterCriteria } from './Components/OrdersFilterMenu';
+import { ConfirmModal } from '../Components/ConfirmModal';
 
 
 export default function OrdersPage() {
@@ -532,7 +532,7 @@ export default function OrdersPage() {
                     <td className="px-6 py-6 whitespace-nowrap">
                       <div className="flex justify-center">
                         <Link
-                          href={`/lpos/orders/${order.ORDER_ID || order.ID}`}
+                          href={`/LPOs/Orders/${order.ORDER_ID || order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"
                         >

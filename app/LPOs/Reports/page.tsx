@@ -2,10 +2,10 @@
 
 import { useState } from 'react';
 import { ClipboardList, CheckCircle2, User, ClipboardCheck } from 'lucide-react';
-import PendingDriverInvoices from './components/PendingDriverInvoices';
-import DeliveredDriverInvoices from './components/DeliveredDriverInvoices';
-import PendingCustomerInvoices from './components/PendingCustomerInvoices';
-import HandoverReports from './components/DailyHandover';
+import PendingDriverInvoices from './Components/PendingDriverInvoices';
+import DeliveredDriverInvoices from './Components/DeliveredDriverInvoices';
+import PendingCustomerInvoices from './Components/PendingCustomerInvoices';
+import HandoverReports from './Components/DailyHandover';
 
 type ReportTab = 'pending' | 'pending-customer' | 'delivered' | 'handover';
 

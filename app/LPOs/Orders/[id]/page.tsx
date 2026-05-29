@@ -24,13 +24,13 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { ConfirmModal } from '../../components/ConfirmModal';
-import { usePermissions } from '../../hooks/usePermissions';
+import { ConfirmModal } from '../../Components/ConfirmModal';
+import { usePermissions } from '../../Hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
-import OrderItemsTab from '../components/OrderItemsTab';
-import OrderPreparationTab from '../components/OrderPreparationTab';
-import OrderDeliveryTab from '../components/OrderDeliveryTab';
-import InvoicesStatusTab from '../components/InvoicesStatusTab';
+import OrderItemsTab from '../Components/OrderItemsTab';
+import OrderPreparationTab from '../Components/OrderPreparationTab';
+import OrderDeliveryTab from '../Components/OrderDeliveryTab';
+import InvoicesStatusTab from '../Components/InvoicesStatusTab';
 import NoData from '@/components/01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
@@ -111,7 +111,7 @@ export default function OrderDetailsPage() {
       setAdminNotes(orderData.NOTES || '');
     } catch (err) {
       console.error(err);
-      router.push('/lpos/orders');
+      router.push('/LPOs/Orders');
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +167,7 @@ export default function OrderDetailsPage() {
 
       if (orderError) throw orderError;
 
-      router.push('/lpos/orders');
+      router.push('/LPOs/Orders');
     } catch (err) {
       alert('Error deleting order: ' + (err as any).message);
     } finally {

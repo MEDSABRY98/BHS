@@ -265,7 +265,7 @@ export default function DashboardPage() {
             <Activity className="w-6 h-6 text-[#D4AF37]" />
             Recent Activity
           </h3>
-          <Link href="/lpos/orders" className="bg-black text-white px-5 py-2.5 rounded-2xl text-xs font-black hover:bg-gray-800 transition-all flex items-center gap-2">
+          <Link href="/LPOs/Orders" className="bg-black text-white px-5 py-2.5 rounded-2xl text-xs font-black hover:bg-gray-800 transition-all flex items-center gap-2">
             VIEW ALL ORDERS <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
           </Link>
         </div>
@@ -343,7 +343,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-6">
                       <div className="flex justify-center">
                         <Link
-                          href={`/lpos/orders/${order.ORDER_ID || order.ID}`}
+                          href={`/LPOs/Orders/${order.ORDER_ID || order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"
                         >
