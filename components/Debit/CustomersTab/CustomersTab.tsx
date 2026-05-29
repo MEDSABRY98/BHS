@@ -678,13 +678,13 @@ export default function CustomersTab({
 
   const headerCount = useMemo(() => {
     if (viewMode === 'YEARLY') return yearlyPivotData.rows.length;
-    return table.getRowModel().rows.length;
-  }, [viewMode, table.getRowModel().rows, yearlyPivotData.rows]);
+    return filteredData.length;
+  }, [viewMode, filteredData, yearlyPivotData.rows]);
 
   const headerTotal = useMemo(() => {
     if (viewMode === 'YEARLY') return yearlyPivotData.rows.reduce((sum, r) => sum + r.totalNetDebt, 0);
-    return table.getRowModel().rows.reduce((sum, r) => sum + r.original.netDebt, 0);
-  }, [viewMode, table.getRowModel().rows, yearlyPivotData.rows]);
+    return filteredData.reduce((sum, c) => sum + c.netDebt, 0);
+  }, [viewMode, filteredData, yearlyPivotData.rows]);
 
   // --- Render logic ---
   if (selectedCustomer) {

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { X, Loader2, Save, FilePenLine } from 'lucide-react';
 import SignaturePad from '@/app/DataBase/users/components/SignaturePad';
-import SearchSelect from '../../../lpos/components/DropDownList';
+import SearchSelect from '../../../LPOs/Components/DropDownList';
 
 interface SignatureModalProps {
   isOpen: boolean;
@@ -14,12 +14,12 @@ interface SignatureModalProps {
   initialUserId?: string;
 }
 
-export default function SignatureModal({ 
-  isOpen, 
-  onClose, 
-  currentAdminId, 
+export default function SignatureModal({
+  isOpen,
+  onClose,
+  currentAdminId,
   currentAdminName,
-  initialUserId 
+  initialUserId
 }: SignatureModalProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [selectedUserId, setSelectedUserId] = useState('');
@@ -59,7 +59,7 @@ export default function SignatureModal({
         .order('NAME');
 
       if (error) throw error;
-      
+
       const sortedUsers = (data || []).sort((a, b) => {
         if (a.ID === currentAdminId) return -1;
         if (b.ID === currentAdminId) return 1;
@@ -83,7 +83,7 @@ export default function SignatureModal({
         .select('SIGNATURE')
         .eq('ID', userId)
         .single();
-      
+
       if (error) throw error;
       setSelectedUserSignature(data?.SIGNATURE || null);
       setNewSignatureBase64('');
@@ -119,7 +119,7 @@ export default function SignatureModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-white rounded-[3rem] p-8 md:p-10 w-full max-w-3xl shadow-2xl border border-gray-100 flex flex-col relative animate-in zoom-in-95 duration-200">
-        
+
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -146,7 +146,7 @@ export default function SignatureModal({
           </div>
         ) : (
           <div className="space-y-6">
-            
+
             {/* User Selector */}
             <SearchSelect
               label="Select Profile"

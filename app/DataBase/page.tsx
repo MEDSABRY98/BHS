@@ -18,7 +18,7 @@ const MenuCard = ({ title, description, icon: Icon, count, isLoading, onClick, c
   return (
     <button
       onClick={onClick}
-      className="group relative w-full text-left bg-white rounded-[2.5rem] p-8 sm:p-10 border border-gray-100 transition-all duration-300 hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1 hover:border-black/5 flex flex-col justify-between h-[280px]"
+      className="group relative w-full text-left bg-white rounded-[2.5rem] p-8 sm:p-10 border border-gray-100 transition-all duration-300 hover:shadow-2xl hover:shadow-black/5 hover:-translate-y-1 hover:border-black/5 flex flex-col justify-between h-[220px]"
     >
       <div className="flex justify-between items-start w-full">
         <div className={`w-14 h-14 bg-black rounded-2xl flex items-center justify-center text-[#D4AF37] shadow-lg shadow-black/10 group-hover:scale-110 transition-transform duration-300`}>
@@ -39,9 +39,6 @@ const MenuCard = ({ title, description, icon: Icon, count, isLoading, onClick, c
         <h3 className="text-xl font-black text-black group-hover:text-[#D4AF37] transition-colors">
           {title}
         </h3>
-        <p className="text-xs text-gray-400 font-bold uppercase tracking-wider leading-relaxed">
-          {description}
-        </p>
       </div>
 
       <div className="mt-4 flex items-center gap-2 text-xs font-black uppercase tracking-widest text-black group-hover:gap-3 transition-all self-end">
@@ -112,7 +109,7 @@ export default function DatabaseDashboard() {
           icon={UserCircle}
           count={counts.customers}
           isLoading={isLoading}
-          onClick={() => router.push('/DataBase/customers')}
+          onClick={() => router.push('/DataBase/Customers')}
           color="teal"
         />
         <MenuCard
@@ -121,7 +118,7 @@ export default function DatabaseDashboard() {
           icon={Package}
           count={counts.products}
           isLoading={isLoading}
-          onClick={() => router.push('/DataBase/products')}
+          onClick={() => router.push('/DataBase/Products')}
           color="emerald"
         />
         <MenuCard

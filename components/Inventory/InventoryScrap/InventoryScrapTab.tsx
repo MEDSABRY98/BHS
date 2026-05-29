@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import RecordScrapTab from './RecordScrapTab';
-import SessionsHistoryTab from './SessionsHistoryTab';
+import SessionsHistoryTab from './SessionsHistoryScrapTab';
 
 interface ScrapEntry {
   ID: string;

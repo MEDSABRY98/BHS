@@ -24,8 +24,8 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { ConfirmModal } from '../../components/ConfirmModal';
-import { usePermissions } from '../../hooks/usePermissions';
+import { ConfirmModal } from '../../Components/ConfirmModal';
+import { usePermissions } from '../../Hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
 import OrderItemsTab from '../components/OrderItemsTab';
 import OrderPreparationTab from '../components/OrderPreparationTab';
@@ -111,7 +111,7 @@ export default function OrderDetailsPage() {
       setAdminNotes(orderData.NOTES || '');
     } catch (err) {
       console.error(err);
-      router.push('/lpos/orders');
+      router.push('/LPOs/Orders');
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +167,7 @@ export default function OrderDetailsPage() {
 
       if (orderError) throw orderError;
 
-      router.push('/lpos/orders');
+      router.push('/LPOs/Orders');
     } catch (err) {
       alert('Error deleting order: ' + (err as any).message);
     } finally {
@@ -433,11 +433,10 @@ export default function OrderDetailsPage() {
       <div className="flex items-center gap-4 bg-[#D4AF37]/5 backdrop-blur-md p-2 rounded-[2rem] border-2 border-[#D4AF37]/30 w-full max-w-5xl mx-auto shadow-lg shadow-[#D4AF37]/5">
         <button
           onClick={() => setActiveTab('INFO')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
-            activeTab === 'INFO'
-              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-          }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'INFO'
+            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+            }`}
         >
           <Info className="w-4 h-4" />
           Order Info
@@ -445,11 +444,10 @@ export default function OrderDetailsPage() {
         {!isNoItemsOrder && (
           <button
             onClick={() => setActiveTab('ITEMS')}
-            className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
-              activeTab === 'ITEMS'
-                ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-                : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-            }`}
+            className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'ITEMS'
+              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+              }`}
           >
             <Package className="w-4 h-4" />
             Order Items
@@ -457,33 +455,30 @@ export default function OrderDetailsPage() {
         )}
         <button
           onClick={() => setActiveTab('PREPARATION')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
-            activeTab === 'PREPARATION'
-              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-          }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'PREPARATION'
+            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+            }`}
         >
           <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
           Preparation
         </button>
         <button
           onClick={() => setActiveTab('DELIVERY')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
-            activeTab === 'DELIVERY'
-              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-          }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'DELIVERY'
+            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+            }`}
         >
           <Printer className="w-4 h-4" />
           Logistics / Delivery
         </button>
         <button
           onClick={() => setActiveTab('INVOICES')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${
-            activeTab === 'INVOICES'
-              ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-              : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-          }`}
+          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'INVOICES'
+            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
+            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
+            }`}
         >
           <FileText className="w-4 h-4" />
           Invoices Status
@@ -496,7 +491,7 @@ export default function OrderDetailsPage() {
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             {/* Grid of details */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              
+
               {/* Card: Customer (Spans 2 columns on larger screens) */}
               <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300 md:col-span-2">
                 <div className="flex items-center justify-between mb-4">
@@ -515,12 +510,11 @@ export default function OrderDetailsPage() {
               <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm flex flex-col justify-between hover:border-black transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
                   <span className="text-[10px] font-black text-gray-400 uppercase tracking-wider">Order Status</span>
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${
-                    order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
                     order.STATUS === 'Partially Approved' ? 'bg-teal-50 text-teal-600' :
-                    order.STATUS === 'Rejected' ? 'bg-red-50 text-red-600' :
-                    'bg-amber-50 text-amber-600'
-                  }`}>
+                      order.STATUS === 'Rejected' ? 'bg-red-50 text-red-600' :
+                        'bg-amber-50 text-amber-600'
+                    }`}>
                     {order.STATUS === 'Approved' && <CheckCircle2 className="w-4 h-4" />}
                     {order.STATUS === 'Partially Approved' && <CheckCircle2 className="w-4 h-4" />}
                     {order.STATUS === 'Rejected' && <XCircle className="w-4 h-4" />}
@@ -528,12 +522,11 @@ export default function OrderDetailsPage() {
                   </div>
                 </div>
                 <div>
-                  <h4 className={`text-xl font-black ${
-                    order.STATUS === 'Approved' ? 'text-emerald-600' :
+                  <h4 className={`text-xl font-black ${order.STATUS === 'Approved' ? 'text-emerald-600' :
                     order.STATUS === 'Partially Approved' ? 'text-teal-600' :
-                    order.STATUS === 'Rejected' ? 'text-red-600' :
-                    'text-amber-500'
-                  }`}>{order.STATUS}</h4>
+                      order.STATUS === 'Rejected' ? 'text-red-600' :
+                        'text-amber-500'
+                    }`}>{order.STATUS}</h4>
                   <p className="text-xs font-semibold text-gray-400 mt-1">Current processing stage</p>
                 </div>
               </div>

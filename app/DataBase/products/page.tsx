@@ -12,11 +12,13 @@ import {
   Save,
   Barcode,
   Loader2,
-  MoreVertical
+  MoreVertical,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
-import { ConfirmModal } from '../../lpos/components/ConfirmModal';
+import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../../lpos/hooks/usePermissions';
+import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 
 
 export default function ProductsPage() {
@@ -30,11 +32,18 @@ export default function ProductsPage() {
   const [confirmAction, setConfirmAction] = useState<'save' | 'delete'>('save');
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Form states
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState('');
   const [productId, setProductId] = useState('');
+  const [itemCode, setItemCode] = useState<string>('');
 
   useEffect(() => {
     fetchProducts();
@@ -60,6 +69,7 @@ export default function ProductsPage() {
     setName(product ? product["PRODUCT NAME"] : '');
     setBarcode(product ? product["PRODUCT BARCODE"] : '');
     setProductId(product ? product["PRODUCT ID"] : '');
+    setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
     setIsModalOpen(true);
   };
 
@@ -71,13 +81,15 @@ export default function ProductsPage() {
   const executeSave = async () => {
     setIsSaving(true);
     try {
+      const itemCodeValue = itemCode !== '' ? Number(itemCode) : null;
       if (editingProduct) {
         const { error } = await app_lpos_supabase
           .from('bhs_PRODUCTS')
           .update({
             "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
-            "PRODUCT ID": productId
+            "PRODUCT ID": productId,
+            "ITEM CODE": itemCodeValue
           })
           .eq('ID', editingProduct.ID);
         if (error) throw error;
@@ -90,7 +102,8 @@ export default function ProductsPage() {
             ID: nextId,
             "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
-            "PRODUCT ID": productId
+            "PRODUCT ID": productId,
+            "ITEM CODE": itemCodeValue
           });
         if (error) throw error;
       }
@@ -132,8 +145,13 @@ export default function ProductsPage() {
   const filteredProducts = products.filter(p =>
     p["PRODUCT NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p["PRODUCT BARCODE"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p["PRODUCT ID"]?.toLowerCase().includes(searchTerm.toLowerCase())
+    p["PRODUCT ID"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    String(p["ITEM CODE"] ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
 
   return (
     <div className="space-y-8">
@@ -162,7 +180,7 @@ export default function ProductsPage() {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
             type="text"
-            placeholder="Search by product name or barcode..."
+            placeholder="Search by name, barcode, ID, or item code..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-12 pr-4 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all"
@@ -178,7 +196,7 @@ export default function ProductsPage() {
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Product Name</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Barcode</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Status</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Item Code</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
               </tr>
             </thead>
@@ -191,14 +209,14 @@ export default function ProductsPage() {
                     </td>
                   </tr>
                 ))
-              ) : filteredProducts.length === 0 ? (
+              ) : paginatedProducts.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-8 py-12 text-center">
                     <NoData title="NO PRODUCTS FOUND" />
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map((product) => (
+                paginatedProducts.map((product) => (
                   <tr key={product.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{product.ID}</span>
@@ -218,9 +236,13 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
-                      <div className="inline-flex items-center px-3 py-1 bg-black text-[#D4AF37] text-[10px] font-black uppercase tracking-widest rounded-lg">
-                        Active
-                      </div>
+                      {product["ITEM CODE"] != null ? (
+                        <span className="inline-flex items-center px-3 py-1 bg-[#D4AF37]/10 text-[#B8960C] text-xs font-black font-mono rounded-lg tracking-widest">
+                          {product["ITEM CODE"]}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
@@ -243,6 +265,62 @@ export default function ProductsPage() {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="bg-white px-8 py-6 rounded-3xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm mt-6">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            Showing <span className="text-black font-black">{startIndex + 1}</span> to{" "}
+            <span className="text-black font-black">
+              {Math.min(startIndex + itemsPerPage, filteredProducts.length)}
+            </span>{" "}
+            of <span className="text-black font-black">{filteredProducts.length}</span> products
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev && p - prev > 1;
+
+                return (
+                  <div key={p} className="flex items-center gap-2">
+                    {showEllipsis && <span className="text-xs text-gray-400 font-bold px-1">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(p)}
+                      className={`w-10 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                        currentPage === p
+                          ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+                          : 'bg-gray-50 text-gray-400 hover:text-black border border-gray-100 hover:border-black'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  </div>
+                );
+              })}
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all"
+              title="Next Page"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Product Modal */}
       {isModalOpen && (
@@ -279,9 +357,7 @@ export default function ProductsPage() {
                     required
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
-                </div>
-
-                <div className="space-y-2">
+                </div>                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">BARCODE</label>
                   <div className="relative">
                     <Barcode className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -294,6 +370,17 @@ export default function ProductsPage() {
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">ITEM CODE</label>
+                  <input
+                    type="number"
+                    value={itemCode}
+                    onChange={(e) => setItemCode(e.target.value)}
+                    placeholder="e.g. 1001"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
+                  />
                 </div>
               </div>
 

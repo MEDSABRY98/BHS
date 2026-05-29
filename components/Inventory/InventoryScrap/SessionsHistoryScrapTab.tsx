@@ -12,10 +12,10 @@ import {
   X,
   Box,
   Trash2,
-  CheckCircle2,
-  XCircle
+  CheckCircle2
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { toast } from '@/components/01-Unified/Notification';
 
 interface ScrapEntry {
   ID: string;
@@ -42,7 +42,6 @@ export default function SessionsHistoryTab({
   currentSession
 }: SessionsHistoryTabProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Deletion Confirm States
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
@@ -91,7 +90,7 @@ export default function SessionsHistoryTab({
 
       if (error) throw error;
       
-      showToast('success', `Session ${sessionToDelete} and all its logs deleted successfully`);
+      toast.success(`Session ${sessionToDelete} and all its logs deleted successfully`);
       
       // Close detail view if currently open on deleted session
       if (selectedSessionId === sessionToDelete) {
@@ -102,7 +101,7 @@ export default function SessionsHistoryTab({
       setSessionToDelete(null);
     } catch (err: any) {
       console.error('Delete session error:', err);
-      showToast('error', err.message || 'Failed to delete session');
+      toast.error(err.message || 'Failed to delete session');
     } finally {
       setIsDeletingSession(false);
     }
@@ -120,12 +119,12 @@ export default function SessionsHistoryTab({
 
       if (error) throw error;
       
-      showToast('success', 'Entry deleted successfully');
+      toast.success('Entry deleted successfully');
       await fetchScrapEntries();
       setEntryToDelete(null);
     } catch (err: any) {
       console.error('Delete entry error:', err);
-      showToast('error', err.message || 'Failed to delete entry');
+      toast.error(err.message || 'Failed to delete entry');
     } finally {
       setIsDeletingEntry(false);
     }
@@ -151,13 +150,7 @@ export default function SessionsHistoryTab({
     XLSX.writeFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
   };
 
-  // Toast Helper
-  const showToast = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => {
-      setMessage(null);
-    }, 4000);
-  };
+
 
   // Selected session entries (for detail modal)
   const selectedSessionEntries = useMemo(() => {
@@ -167,23 +160,6 @@ export default function SessionsHistoryTab({
 
   return (
     <div className="space-y-6">
-      {/* Toast Alert */}
-      {message && (
-        <div className="fixed top-24 right-8 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl ${
-            message.type === 'success' 
-              ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
-              : 'bg-red-500 text-white shadow-red-500/20'
-          }`}>
-            {message.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 shrink-0" />
-            ) : (
-              <XCircle className="w-5 h-5 shrink-0" />
-            )}
-            <span className="font-bold text-sm">{message.text}</span>
-          </div>
-        </div>
-      )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div>

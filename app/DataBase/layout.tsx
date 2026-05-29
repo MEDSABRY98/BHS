@@ -90,8 +90,8 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
 
   const NAV_ITEMS = [
     { id: 'db-dashboard', href: '/DataBase', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'db-customers', href: '/DataBase/customers', icon: UserCircle, label: 'Customers DB' },
-    { id: 'db-products', href: '/DataBase/products', icon: Package, label: 'Products DB' },
+    { id: 'db-customers', href: '/DataBase/Customers', icon: UserCircle, label: 'Customers DB' },
+    { id: 'db-products', href: '/DataBase/Products', icon: Package, label: 'Products DB' },
     { id: 'db-users', href: '/DataBase/users', icon: Users, label: 'Users DB' },
   ];
 

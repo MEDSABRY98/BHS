@@ -10,7 +10,6 @@ import {
   Calendar,
   Sparkles,
   TrendingDown,
-  XCircle,
   CheckCircle2,
   Box,
   X,
@@ -19,12 +18,14 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { toast } from '@/components/01-Unified/Notification';
 
 interface Product {
   ID: string;
   'PRODUCT ID': string;
   'PRODUCT NAME': string;
   'PRODUCT BARCODE': string;
+  'ITEM CODE'?: number | null;
 }
 
 interface ScrapEntry {
@@ -64,7 +65,6 @@ export default function RecordScrapTab({
   const [qty, setQty] = useState<string>('');
   const [reason, setReason] = useState<'EXPIRED' | 'DAMAGED'>('EXPIRED');
   const [showDropdown, setShowDropdown] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Confirm States
   const [entryToDelete, setEntryToDelete] = useState<string | null>(null);
@@ -146,7 +146,7 @@ export default function RecordScrapTab({
     localStorage.setItem('active_scrap_session', nextSession);
     setCurrentSession(nextSession);
     setSessionToSaveConfirm(false);
-    showToast('success', `Session saved! New session started: ${nextSession}`);
+    toast.success(`Session saved! New session started: ${nextSession}`);
   };
 
   // Local autocomplete filter
@@ -157,7 +157,8 @@ export default function RecordScrapTab({
       const name = p['PRODUCT NAME']?.toLowerCase() || '';
       const barcode = p['PRODUCT BARCODE']?.toLowerCase() || '';
       const id = p['PRODUCT ID']?.toLowerCase() || '';
-      return name.includes(query) || barcode.includes(query) || id.includes(query);
+      const itemCode = p['ITEM CODE'] != null ? String(p['ITEM CODE']).toLowerCase() : '';
+      return name.includes(query) || barcode.includes(query) || id.includes(query) || itemCode.includes(query);
     }).slice(0, 10);
   }, [searchQuery, products]);
 
@@ -165,12 +166,12 @@ export default function RecordScrapTab({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProduct) {
-      showToast('error', 'Please select a product first');
+      toast.error('Please select a product first');
       return;
     }
     const numQty = parseFloat(qty);
     if (isNaN(numQty) || numQty <= 0) {
-      showToast('error', 'Please enter a valid quantity greater than 0');
+      toast.error('Please enter a valid quantity greater than 0');
       return;
     }
 
@@ -191,7 +192,7 @@ export default function RecordScrapTab({
 
       if (error) throw error;
 
-      showToast('success', 'Entry added to current session!');
+      toast.success('Entry added to current session!');
       
       // Reset form fields
       setSelectedProduct(null);
@@ -202,7 +203,7 @@ export default function RecordScrapTab({
       await fetchScrapEntries();
     } catch (err: any) {
       console.error('Error saving scrap entry:', err);
-      showToast('error', err.message || 'Failed to save scrap entry');
+      toast.error(err.message || 'Failed to save scrap entry');
     } finally {
       setIsSubmitting(false);
     }
@@ -219,12 +220,12 @@ export default function RecordScrapTab({
         .eq('ID', entryToDelete);
 
       if (error) throw error;
-      showToast('success', 'Entry deleted successfully');
+      toast.success('Entry deleted successfully');
       await fetchScrapEntries();
       setEntryToDelete(null);
     } catch (err: any) {
       console.error('Delete error:', err);
-      showToast('error', err.message || 'Failed to delete entry');
+      toast.error(err.message || 'Failed to delete entry');
     } finally {
       setIsDeleting(false);
     }
@@ -250,13 +251,7 @@ export default function RecordScrapTab({
     XLSX.writeFile(wb, `BHS_Scrap_Session_${sessionId}.xlsx`);
   };
 
-  // Toast Helper
-  const showToast = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => {
-      setMessage(null);
-    }, 4000);
-  };
+
 
   // Filter for current active session
   const currentSessionEntries = useMemo(() => {
@@ -281,23 +276,6 @@ export default function RecordScrapTab({
 
   return (
     <div className="space-y-8">
-      {/* Toast Alert */}
-      {message && (
-        <div className="fixed top-24 right-8 z-[100] animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className={`flex items-center gap-3 px-6 py-4 rounded-2xl shadow-xl ${
-            message.type === 'success' 
-              ? 'bg-emerald-500 text-white shadow-emerald-500/20' 
-              : 'bg-red-500 text-white shadow-red-500/20'
-          }`}>
-            {message.type === 'success' ? (
-              <CheckCircle2 className="w-5 h-5 shrink-0" />
-            ) : (
-              <XCircle className="w-5 h-5 shrink-0" />
-            )}
-            <span className="font-bold text-sm">{message.text}</span>
-          </div>
-        </div>
-      )}
 
       {/* Active Session Code Card */}
       <div className="bg-black text-white rounded-[2rem] p-6 border border-gray-900 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -417,8 +395,11 @@ export default function RecordScrapTab({
                             <span className="text-sm font-black text-black leading-snug line-clamp-1">
                               {p['PRODUCT NAME']}
                             </span>
-                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">
-                              Barcode: {p['PRODUCT BARCODE'] || 'N/A'}
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider flex justify-between">
+                              <span>Barcode: {p['PRODUCT BARCODE'] || 'N/A'}</span>
+                              {p['ITEM CODE'] != null && (
+                                <span className="text-[#B8960C]">Code: {p['ITEM CODE']}</span>
+                              )}
                             </span>
                           </button>
                         ))
@@ -437,6 +418,11 @@ export default function RecordScrapTab({
                   </h4>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {selectedProduct['ITEM CODE'] != null && (
+                    <span className="px-2 py-1 bg-[#D4AF37]/10 border border-[#D4AF37]/20 rounded-lg text-[9px] font-bold text-[#B8960C] font-mono">
+                      Code: {selectedProduct['ITEM CODE']}
+                    </span>
+                  )}
                   <span className="px-2 py-1 bg-white border border-gray-100 rounded-lg text-[9px] font-bold text-gray-500">
                     BC: {selectedProduct['PRODUCT BARCODE'] || 'N/A'}
                   </span>

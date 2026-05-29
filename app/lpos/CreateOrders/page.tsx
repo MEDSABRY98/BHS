@@ -19,9 +19,10 @@ import {
   X,
   Calendar
 } from 'lucide-react';
-import SearchSelect from '../components/DropDownList';
+import SearchSelect from '../Components/DropDownList';
 import { useRouter } from 'next/navigation';
 import * as XLSX from 'xlsx';
+import { toast } from '@/components/01-Unified/Notification';
 
 export default function CreateOrderPage() {
   const router = useRouter();
@@ -32,7 +33,6 @@ export default function CreateOrderPage() {
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [excelActionType, setExcelActionType] = useState<'import' | 'update'>('import');
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   // Form State
   const [pendingOrders, setPendingOrders] = useState<any[]>([]);
@@ -90,17 +90,17 @@ export default function CreateOrderPage() {
 
   const addOrderToList = async () => {
     if (!formData.CUSTOMER_ID) {
-      setMessage({ type: 'error', text: 'Please select a customer first' });
+      toast.error('Please select a customer first');
       return;
     }
 
     if (!formData.AMOUNT || parseFloat(formData.AMOUNT) <= 0) {
-      setMessage({ type: 'error', text: 'Please enter a valid order amount' });
+      toast.error('Please enter a valid order amount');
       return;
     }
 
     if (!formData.LPO_ID && !formData.INVOICE_ID) {
-      setMessage({ type: 'error', text: 'Please enter either LPO ID or Invoice ID' });
+      toast.error('Please enter either LPO ID or Invoice ID');
       return;
     }
 
@@ -114,7 +114,7 @@ export default function CreateOrderPage() {
         o => o.INVOICE_ID && o.INVOICE_ID.trim().toLowerCase() === invoiceLower
       );
       if (isDuplicateInPending) {
-        setMessage({ type: 'error', text: `Invoice ID "${trimmedInvoice}" is already in the pending list` });
+        toast.error(`Invoice ID "${trimmedInvoice}" is already in the pending list`);
         return;
       }
 
@@ -126,7 +126,7 @@ export default function CreateOrderPage() {
         .limit(1);
 
       if (data && data.length > 0) {
-        setMessage({ type: 'error', text: `Invoice ID "${trimmedInvoice}" already exists in Order ${data[0].ORDER_ID}` });
+        toast.error(`Invoice ID "${trimmedInvoice}" already exists in Order ${data[0].ORDER_ID}`);
         return;
       }
     }
@@ -155,7 +155,6 @@ export default function CreateOrderPage() {
       DRIVER_ID: '',
       ORDER_DATE: ''
     }));
-    setMessage(null);
   };
 
   const removeOrderFromList = (tempId: string) => {
@@ -204,12 +203,11 @@ export default function CreateOrderPage() {
 
   const handleSaveAll = async () => {
     if (pendingOrders.length === 0) {
-      setMessage({ type: 'error', text: 'Add at least one order to the list' });
+      toast.error('Add at least one order to the list');
       return;
     }
 
     setIsSubmitting(true);
-    setMessage(null);
 
     try {
       // Generate sequential IDs for each order
@@ -266,11 +264,11 @@ export default function CreateOrderPage() {
         if (driverError) throw driverError;
       }
 
-      setMessage({ type: 'success', text: `${pendingOrders.length} Orders created successfully!` });
+      toast.success(`${pendingOrders.length} Orders created successfully!`);
       setPendingOrders([]);
     } catch (err: any) {
       console.error('Submit Error:', err);
-      setMessage({ type: 'error', text: err.message || 'Failed to create orders' });
+      toast.error(err.message || 'Failed to create orders');
     } finally {
       setIsSubmitting(false);
     }
@@ -278,13 +276,13 @@ export default function CreateOrderPage() {
 
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { 
-        "Order Date": "2026-05-18", 
-        "LPO ID": "LPO-001", 
-        "Invoice ID": "INV-001", 
-        "Driver": "Driver Name", 
-        "Customer Name": "Example Customer", 
-        "Amount": 1500.50 
+      {
+        "Order Date": "2026-05-18",
+        "LPO ID": "LPO-001",
+        "Invoice ID": "INV-001",
+        "Driver": "Driver Name",
+        "Customer Name": "Example Customer",
+        "Amount": 1500.50
       }
     ]);
     const wb = XLSX.utils.book_new();
@@ -435,18 +433,19 @@ export default function CreateOrderPage() {
 
         if (newPendingOrders.length > 0) {
           setPendingOrders(prev => [...prev, ...newPendingOrders]);
-          setMessage({
-            type: errors.length > 0 ? 'error' : 'success',
-            text: `Imported ${newPendingOrders.length} orders. ${errors.length > 0 ? `${errors.length} failed.` : ''}`
-          });
+          if (errors.length > 0) {
+            toast.warning(`Imported ${newPendingOrders.length} orders. ${errors.length} failed.`);
+          } else {
+            toast.success(`Imported ${newPendingOrders.length} orders successfully.`);
+          }
         } else if (errors.length > 0) {
-          setMessage({ type: 'error', text: `Import failed: ${errors[0]}` });
+          toast.error(`Import failed: ${errors[0]}`);
         }
 
         setIsExcelModalOpen(false);
       } catch (err) {
         console.error('Import Error:', err);
-        setMessage({ type: 'error', text: 'Failed to parse Excel file' });
+        toast.error('Failed to parse Excel file');
       } finally {
         setIsUploading(false);
         if (e.target) e.target.value = '';
@@ -555,18 +554,19 @@ export default function CreateOrderPage() {
         }
 
         if (updatedCount > 0) {
-          setMessage({
-            type: errors.length > 0 ? 'error' : 'success',
-            text: `Successfully updated ${updatedCount} orders. ${errors.length > 0 ? `${errors.length} failed.` : ''}`
-          });
+          if (errors.length > 0) {
+            toast.warning(`Successfully updated ${updatedCount} orders. ${errors.length} failed.`);
+          } else {
+            toast.success(`Successfully updated ${updatedCount} orders.`);
+          }
         } else if (errors.length > 0) {
-          setMessage({ type: 'error', text: `Update failed: ${errors[0]}` });
+          toast.error(`Update failed: ${errors[0]}`);
         }
 
         setIsExcelModalOpen(false);
       } catch (err) {
         console.error('Update Error:', err);
-        setMessage({ type: 'error', text: 'Failed to update via Excel' });
+        toast.error('Failed to update via Excel');
       } finally {
         setIsUploading(false);
         if (e.target) e.target.value = '';
@@ -574,16 +574,6 @@ export default function CreateOrderPage() {
     };
     reader.readAsBinaryString(file);
   };
-
-  // Auto-hide messages
-  useEffect(() => {
-    if (message) {
-      const timer = setTimeout(() => {
-        setMessage(null);
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [message]);
 
   if (isLoading) {
     return (
@@ -809,8 +799,8 @@ export default function CreateOrderPage() {
                 type="button"
                 onClick={() => setExcelActionType('import')}
                 className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${excelActionType === 'import'
-                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50'
-                    : 'text-gray-400 hover:text-black'
+                  ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50'
+                  : 'text-gray-400 hover:text-black'
                   }`}
               >
                 Import New Orders
@@ -819,8 +809,8 @@ export default function CreateOrderPage() {
                 type="button"
                 onClick={() => setExcelActionType('update')}
                 className={`flex-1 text-center py-3.5 text-[10px] font-black uppercase tracking-[0.2em] transition-all rounded-[1.25rem] ${excelActionType === 'update'
-                    ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50'
-                    : 'text-gray-400 hover:text-black'
+                  ? 'bg-white text-black shadow-lg shadow-black/5 border border-gray-100/50'
+                  : 'text-gray-400 hover:text-black'
                   }`}
               >
                 Update Details
@@ -895,15 +885,14 @@ export default function CreateOrderPage() {
       )}
 
       {/* Global Message Notification */}
-      {message && (
-        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${message.type === 'success' ? 'bg-black text-white border-[#D4AF37]' : 'bg-red-600 text-white border-red-800'
-          }`}>
-          {message.type === 'success' ? (
+      {false && (
+        <div className="fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 bg-black text-white border-[#D4AF37]">
+          {true ? (
             <CheckCircle2 className="w-5 h-5 text-[#D4AF37]" />
           ) : (
             <AlertCircle className="w-5 h-5" />
           )}
-          <p className="text-[11px] font-black uppercase tracking-widest leading-none">{message.text}</p>
+          <p className="text-[11px] font-black uppercase tracking-widest leading-none"></p>
         </div>
       )}
     </div>

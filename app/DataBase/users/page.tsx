@@ -16,9 +16,9 @@ import {
   Check,
   FilePenLine
 } from 'lucide-react';
-import { ConfirmModal } from '../../lpos/components/ConfirmModal';
+import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../../lpos/hooks/usePermissions';
+import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import SignatureModal from './components/SignatureModal';
 
 export default function UsersPage() {
@@ -209,7 +209,7 @@ export default function UsersPage() {
           {filteredUsers.map((user) => {
             const initials = user.NAME ? user.NAME.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : '?';
             const isCancelAuth = user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE';
-            
+
             return (
               <div
                 key={user.ID}
@@ -342,8 +342,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setROLE('user')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'user'
-                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     {ROLE === 'user' && <Check className="w-4 h-4" />}
@@ -353,8 +353,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setROLE('admin')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'admin'
-                        ? 'bg-black text-[#D4AF37] shadow-xl'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-black text-[#D4AF37] shadow-xl'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     {ROLE === 'admin' && <Check className="w-4 h-4" />}
@@ -371,8 +371,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setUSER_TYPE('Creator')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Creator'
-                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     Creator
@@ -381,8 +381,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setUSER_TYPE('Driver')}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Driver'
-                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     Driver
@@ -398,8 +398,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setIS_IN_OFFICE(true)}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${IS_IN_OFFICE
-                        ? 'bg-emerald-500 text-white shadow-xl'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-emerald-500 text-white shadow-xl'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     {IS_IN_OFFICE && <Check className="w-4 h-4" />}
@@ -409,8 +409,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setIS_IN_OFFICE(false)}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!IS_IN_OFFICE
-                        ? 'bg-red-500 text-white shadow-xl'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-red-500 text-white shadow-xl'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     {!IS_IN_OFFICE && <Check className="w-4 h-4" />}
@@ -427,8 +427,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setCANCEL_AUTHORITY(true)}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${CANCEL_AUTHORITY
-                        ? 'bg-emerald-500 text-white shadow-xl'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-emerald-500 text-white shadow-xl'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     {CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
@@ -438,8 +438,8 @@ export default function UsersPage() {
                     type="button"
                     onClick={() => setCANCEL_AUTHORITY(false)}
                     className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!CANCEL_AUTHORITY
-                        ? 'bg-red-500 text-white shadow-xl'
-                        : 'text-gray-400 hover:text-gray-600'
+                      ? 'bg-red-500 text-white shadow-xl'
+                      : 'text-gray-400 hover:text-gray-600'
                       }`}
                   >
                     {!CANCEL_AUTHORITY && <Check className="w-4 h-4" />}

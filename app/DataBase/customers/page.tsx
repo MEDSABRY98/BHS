@@ -18,12 +18,14 @@ import {
   Download,
   Upload,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ConfirmModal } from '../../lpos/components/ConfirmModal';
+import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../../lpos/hooks/usePermissions';
+import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 
 
 export default function CustomersPage() {
@@ -40,6 +42,12 @@ export default function CustomersPage() {
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 100;
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   // Form states - Matching DB columns
   const [CUSTOMER_NAME, setCUSTOMER_NAME] = useState('');
@@ -273,6 +281,10 @@ export default function CustomersPage() {
     c["CUSTOMER CITY"]?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + itemsPerPage);
+
   return (
     <div className="space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -335,14 +347,14 @@ export default function CustomersPage() {
                     </td>
                   </tr>
                 ))
-              ) : filteredCustomers.length === 0 ? (
+              ) : paginatedCustomers.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-8 py-12 text-center">
                     <NoData title="NO CUSTOMERS FOUND" />
                   </td>
                 </tr>
               ) : (
-                filteredCustomers.map((customer) => (
+                paginatedCustomers.map((customer) => (
                   <tr key={customer.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
@@ -385,6 +397,62 @@ export default function CustomersPage() {
           </table>
         </div>
       </div>
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="bg-white px-8 py-6 rounded-3xl border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-sm mt-6">
+          <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
+            Showing <span className="text-black font-black">{startIndex + 1}</span> to{" "}
+            <span className="text-black font-black">
+              {Math.min(startIndex + itemsPerPage, filteredCustomers.length)}
+            </span>{" "}
+            of <span className="text-black font-black">{filteredCustomers.length}</span> customers
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all"
+              title="Previous Page"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1)
+              .map((p, idx, arr) => {
+                const prev = arr[idx - 1];
+                const showEllipsis = prev && p - prev > 1;
+
+                return (
+                  <div key={p} className="flex items-center gap-2">
+                    {showEllipsis && <span className="text-xs text-gray-400 font-bold px-1">...</span>}
+                    <button
+                      onClick={() => setCurrentPage(p)}
+                      className={`w-10 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
+                        currentPage === p
+                          ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+                          : 'bg-gray-50 text-gray-400 hover:text-black border border-gray-100 hover:border-black'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  </div>
+                );
+              })}
+
+            <button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="w-10 h-10 bg-gray-50 border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:border-gray-100 transition-all"
+              title="Next Page"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Customer Modal */}
       {isModalOpen && (

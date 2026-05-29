@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { Filter, X, ChevronDown, User, Truck, ClipboardList, RotateCcw } from 'lucide-react';
-import SearchSelect from '../../components/DropDownList';
+import SearchSelect from '../../Components/DropDownList';
 
 interface OrdersFilterMenuProps {
   onFilterChange: (filters: FilterCriteria) => void;
@@ -58,8 +58,8 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
       <button
         onClick={() => setIsOpen(true)}
         className={`p-3 rounded-2xl border transition-all flex items-center justify-center relative ${hasActiveFilters
-            ? 'bg-black text-[#D4AF37] border-black shadow-lg shadow-black/10'
-            : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'
+          ? 'bg-black text-[#D4AF37] border-black shadow-lg shadow-black/10'
+          : 'bg-white border-gray-100 text-gray-400 hover:bg-gray-50'
           }`}
         title="Advanced Filters"
       >
