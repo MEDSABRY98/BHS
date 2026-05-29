@@ -24,8 +24,8 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { ConfirmModal } from '../../Components/ConfirmModal';
-import { usePermissions } from '../../Hooks/usePermissions';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { usePermissions } from '../../hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
 import OrderItemsTab from '../components/OrderItemsTab';
 import OrderPreparationTab from '../components/OrderPreparationTab';
@@ -111,7 +111,7 @@ export default function OrderDetailsPage() {
       setAdminNotes(orderData.NOTES || '');
     } catch (err) {
       console.error(err);
-      router.push('/LPOs/Orders');
+      router.push('/lpos/orders');
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +167,7 @@ export default function OrderDetailsPage() {
 
       if (orderError) throw orderError;
 
-      router.push('/LPOs/Orders');
+      router.push('/lpos/orders');
     } catch (err) {
       alert('Error deleting order: ' + (err as any).message);
     } finally {

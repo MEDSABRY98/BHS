@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { Filter, X, ChevronDown, User, Truck, ClipboardList, RotateCcw } from 'lucide-react';
-import SearchSelect from '../../Components/DropDownList';
+import SearchSelect from '../../components/DropDownList';
 
 interface OrdersFilterMenuProps {
   onFilterChange: (filters: FilterCriteria) => void;

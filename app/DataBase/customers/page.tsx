@@ -23,9 +23,9 @@ import {
   ChevronRight
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
+import { ConfirmModal } from '../../lpos/components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
-import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { usePermissions } from '../../lpos/hooks/usePermissions';
 
 
 export default function CustomersPage() {

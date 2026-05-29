@@ -94,10 +94,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!isMounted || !user) return null;
 
   const ALL_NAV_ITEMS = [
-    { id: 'lpo-dashboard', href: '/LPOs', icon: LayoutDashboard, label: 'Dashboard' },
-    { id: 'lpo-orders', href: '/LPOs/Orders', icon: ShoppingCart, label: 'Orders' },
-    { id: 'lpo-create-orders', href: '/LPOs/CreateOrders', icon: ReceiptText, label: 'Create Orders' },
-    { id: 'lpo-reports', href: '/LPOs/Reports', icon: FileText, label: 'Reports' },
+    { id: 'lpo-dashboard', href: '/lpos', icon: LayoutDashboard, label: 'Dashboard' },
+    { id: 'lpo-orders', href: '/lpos/orders', icon: ShoppingCart, label: 'Orders' },
+    { id: 'lpo-create-orders', href: '/lpos/CreateOrders', icon: ReceiptText, label: 'Create Orders' },
+    { id: 'lpo-reports', href: '/lpos/reports', icon: FileText, label: 'Reports' },
   ];
 
   const getFilteredNavItems = () => {
@@ -167,7 +167,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <NavItem
               key={item.href}
               {...item}
-              isActive={pathname === item.href || (item.href !== '/LPOs' && pathname.startsWith(item.href))}
+              isActive={pathname === item.href || (item.href !== '/lpos' && pathname.startsWith(item.href))}
               isCollapsed={isCollapsed}
             />
           ))}
@@ -251,7 +251,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </aside>
 
         <main className="flex-1 p-4 md:p-8 lg:p-12">
-          <div className={`${(pathname === '/LPOs/Orders' || pathname === '/LPOs/CreateOrders' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
+          <div className={`${(pathname === '/lpos/orders' || pathname === '/lpos/CreateOrders' || pathname.startsWith('/DataBase')) ? 'max-w-[1600px]' : 'max-w-7xl'} mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500`}>
             {children}
           </div>
         </main>
