@@ -43,7 +43,7 @@ const calculateNextSessionId = (entries: { SESSION_ID: string }[], currentSessio
   });
 
   const nextNum = maxNum + 1;
-  return `S-${String(nextNum).padStart(5, '0')}`;
+  return `S-${String(nextNum).padStart(4, '0')}`;
 };
 
 export default function InventoryScrapTab({ activeSubTab = 'record' }: InventoryScrapTabProps) {
@@ -57,7 +57,7 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
 
   const initializeSession = (loadedEntries: ScrapEntry[]) => {
     let session = localStorage.getItem('active_scrap_session');
-    const isValidFormat = session && /^S-\d{5,}$/.test(session);
+    const isValidFormat = session && /^S-\d{4,}$/.test(session);
     
     if (!isValidFormat) {
       session = calculateNextSessionId(loadedEntries);

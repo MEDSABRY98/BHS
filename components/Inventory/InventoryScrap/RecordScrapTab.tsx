@@ -115,7 +115,7 @@ export default function RecordScrapTab({
     });
 
     const nextNum = maxNum + 1;
-    return `S-${String(nextNum).padStart(5, '0')}`;
+    return `S-${String(nextNum).padStart(4, '0')}`;
   };
 
   const calculateNextRecordId = (entries: ScrapEntry[]) => {
