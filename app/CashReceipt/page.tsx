@@ -20,7 +20,7 @@ export default function CashReceiptPage() {
             const userData = JSON.parse(savedUser);
             if (userData && userData.name) {
               // Verify user still exists and password is correct
-              const response = await fetch('/DataBase/users/api', {
+              const response = await fetch('/DataBase/Users/api', {
                 method: 'POST',
                 headers: {
                   'Content-Type': 'application/json',

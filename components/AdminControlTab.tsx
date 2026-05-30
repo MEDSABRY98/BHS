@@ -204,7 +204,7 @@ export default function AdminControlTab() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const res = await fetch('/DataBase/users/api');
+            const res = await fetch('/DataBase/Users/api');
             const data = await res.json();
             const sortedUsers = (data.users || []).sort((a: any, b: any) => a.name.localeCompare(b.name));
             setUsers(sortedUsers);
@@ -282,7 +282,7 @@ export default function AdminControlTab() {
         setSaving(true);
         setMessage({ type: '', text: '' });
         try {
-            const res = await fetch('/DataBase/users/api', {
+            const res = await fetch('/DataBase/Users/api', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ name: selectedUser.name, role: selectedUser.role })

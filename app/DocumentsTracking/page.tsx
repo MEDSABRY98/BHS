@@ -22,7 +22,7 @@ export default function DocumentsTrackingPage() {
 
                     if (savedPassword) {
                         try {
-                            const response = await fetch('/DataBase/users/api', {
+                            const response = await fetch('/DataBase/Users/api', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({

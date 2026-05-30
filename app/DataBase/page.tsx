@@ -127,7 +127,7 @@ export default function DatabaseDashboard() {
           icon={Users}
           count={counts.users}
           isLoading={isLoading}
-          onClick={() => router.push('/DataBase/users')}
+          onClick={() => router.push('/DataBase/Users')}
           color="indigo"
         />
       </div>

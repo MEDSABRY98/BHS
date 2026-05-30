@@ -39,7 +39,7 @@ export default function Login({ onLogin }: LoginProps) {
       if (savedUser && savedPassword) {
         const userData = JSON.parse(savedUser);
         if (userData?.name) {
-          const response = await fetch('/DataBase/users/api', {
+          const response = await fetch('/DataBase/Users/api', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name: userData.name, password: savedPassword }),
@@ -64,7 +64,7 @@ export default function Login({ onLogin }: LoginProps) {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('/DataBase/users/api');
+      const response = await fetch('/DataBase/Users/api');
       const data = await response.json();
       if (data.users) setUsers(data.users);
     } catch (err) {
@@ -84,7 +84,7 @@ export default function Login({ onLogin }: LoginProps) {
     }
     setLoading(true);
     try {
-      const response = await fetch('/DataBase/users/api', {
+      const response = await fetch('/DataBase/Users/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: selectedUser, password: password }),
