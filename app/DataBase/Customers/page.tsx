@@ -107,6 +107,25 @@ export default function CustomersPage() {
   const executeSave = async () => {
     setIsSaving(true);
     try {
+      // Validate Customer ID is unique
+      if (CUSTOMER_ID.trim()) {
+        const { data: existing, error: checkError } = await app_lpos_supabase
+          .from('bhs_CUSTOMERS')
+          .select('ID')
+          .eq('CUSTOMER ID', CUSTOMER_ID.trim())
+          .maybeSingle();
+
+        if (checkError) throw checkError;
+
+        if (existing) {
+          if (!editingCustomer || existing.ID !== editingCustomer.ID) {
+            alert(`The Customer ID "${CUSTOMER_ID}" is already in use by another customer!`);
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+
       if (editingCustomer) {
         const { error } = await app_lpos_supabase
           .from('bhs_CUSTOMERS')
@@ -238,15 +257,20 @@ export default function CustomersPage() {
           return;
         }
 
-        // Fetch latest customers from DB to ensure sequential IDs are unique and correct
+        // Fetch latest customers from DB to ensure sequential IDs are unique and correct, and check for duplicate CUSTOMER IDs
         const { data: latestCustomers, error: fetchErr } = await app_lpos_supabase
           .from('bhs_CUSTOMERS')
-          .select('ID');
+          .select('ID, "CUSTOMER ID"');
 
         if (fetchErr) throw fetchErr;
 
+        // Build mapping of CUSTOMER ID -> ID from DB
+        const dbIdMap = new Map<string, string>();
         let highestNum = 0;
         (latestCustomers || []).forEach(c => {
+          if (c["CUSTOMER ID"]) {
+            dbIdMap.set(c["CUSTOMER ID"].trim(), c.ID);
+          }
           if (c.ID && c.ID.startsWith('R-')) {
             const num = parseInt(c.ID.split('-')[1]);
             if (!isNaN(num) && num > highestNum) {
@@ -254,6 +278,9 @@ export default function CustomersPage() {
             }
           }
         });
+
+        // Also track duplicate CUSTOMER IDs within the uploaded Excel file itself
+        const excelIdSet = new Set<string>();
 
         const recordsToUpsert = [];
         for (let i = 0; i < data.length; i++) {
@@ -267,6 +294,22 @@ export default function CustomersPage() {
             triggerMessage('error', `Row ${i + 2}: 'Customer Name' is required`);
             setIsUploading(false);
             return;
+          }
+
+          if (customerId) {
+            if (excelIdSet.has(customerId)) {
+              triggerMessage('error', `Row ${i + 2}: Duplicate 'Customer ID' "${customerId}" found within the Excel file.`);
+              setIsUploading(false);
+              return;
+            }
+            excelIdSet.add(customerId);
+
+            const existingDbId = dbIdMap.get(customerId);
+            if (existingDbId && existingDbId !== id) {
+              triggerMessage('error', `Row ${i + 2}: Customer ID "${customerId}" is already in use in the database (by customer record "${existingDbId}").`);
+              setIsUploading(false);
+              return;
+            }
           }
 
           if (!id) {

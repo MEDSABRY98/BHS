@@ -99,6 +99,25 @@ export default function ProductsPage() {
   const executeSave = async () => {
     setIsSaving(true);
     try {
+      // Validate Product ID is unique
+      if (productId.trim()) {
+        const { data: existing, error: checkError } = await app_lpos_supabase
+          .from('bhs_PRODUCTS')
+          .select('ID')
+          .eq('PRODUCT ID', productId.trim())
+          .maybeSingle();
+
+        if (checkError) throw checkError;
+
+        if (existing) {
+          if (!editingProduct || existing.ID !== editingProduct.ID) {
+            alert(`The Product ID "${productId}" is already in use by another product!`);
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+
       const itemCodeValue = itemCode !== '' ? Number(itemCode) : null;
       if (editingProduct) {
         const { error } = await app_lpos_supabase
