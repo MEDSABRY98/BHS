@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/components/01-Unified/Notification';
+import NoData from '@/components/01-Unified/NoDataTab';
 
 interface ScrapEntry {
   ID: string;
@@ -291,11 +292,8 @@ export default function SessionsHistoryTab({
               </tr>
             ) : groupedSessions.length === 0 ? (
               <tr>
-                <td colSpan={5} className="py-20 text-center">
-                  <div className="flex flex-col items-center justify-center gap-4 text-gray-300">
-                    <Layers className="w-14 h-14" />
-                    <p className="text-sm font-black text-gray-400 uppercase tracking-wider">No saved sessions found</p>
-                  </div>
+                <td colSpan={5} className="py-12">
+                  <NoData title="No Sessions Found" />
                 </td>
               </tr>
             ) : (

@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import RecordScrapTab from './RecordScrapTab';
 import SessionsHistoryTab from './SessionsHistoryScrapTab';
+import InventoryScrapReportTab from './InventoryScrapReportTab';
+import SavedReportsTab from './SavedReportsTab';
 
 interface ScrapEntry {
   ID: string;
@@ -17,7 +19,7 @@ interface ScrapEntry {
 }
 
 interface InventoryScrapTabProps {
-  activeSubTab?: 'record' | 'sessions';
+  activeSubTab?: 'record' | 'sessions' | 'report' | 'history';
 }
 
 const calculateNextSessionId = (entries: { SESSION_ID: string }[], currentSessionId?: string) => {
@@ -59,21 +61,21 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
     try {
       // Query active session globally from database settings table
       const { data: settingsData, error: settingsError } = await app_lpos_supabase
-        .from('web_system_settings')
-        .select('value')
-        .eq('key', 'active_scrap_session');
+        .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
+        .select('VALUE')
+        .eq('KEY', 'active_scrap_session');
 
       if (settingsError) throw settingsError;
 
-      let session = settingsData && settingsData.length > 0 ? settingsData[0].value : null;
+      let session = settingsData && settingsData.length > 0 ? ((settingsData[0] as any).VALUE || (settingsData[0] as any).value) : null;
       const isValidFormat = session && /^S-\d{4}$/.test(session);
 
       if (!isValidFormat) {
         session = calculateNextSessionId(loadedEntries);
         // Save back to DB to establish global session
         await app_lpos_supabase
-          .from('web_system_settings')
-          .upsert({ key: 'active_scrap_session', value: session });
+          .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
+          .upsert({ KEY: 'active_scrap_session', VALUE: session });
       }
 
       setCurrentSession(session || '');
@@ -133,13 +135,17 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
           currentSession={currentSession}
           setCurrentSession={setCurrentSession}
         />
-      ) : (
+      ) : activeSubTab === 'sessions' ? (
         <SessionsHistoryTab
           scrapEntries={scrapEntries}
           isEntriesLoading={isEntriesLoading}
           fetchScrapEntries={fetchScrapEntries}
           currentSession={currentSession}
         />
+      ) : activeSubTab === 'report' ? (
+        <InventoryScrapReportTab />
+      ) : (
+        <SavedReportsTab />
       )}
     </div>
   );

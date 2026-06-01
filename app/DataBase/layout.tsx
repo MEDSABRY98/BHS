@@ -13,7 +13,8 @@ import {
   X,
   Database,
   ChevronRight,
-  ChevronLeft
+  ChevronLeft,
+  ArrowLeft
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -102,9 +103,9 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
         <div className={`px-4 ${isCollapsed ? 'lg:px-4' : 'lg:px-8'} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
           <button
             onClick={handleLogout}
-            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full`}
+            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full cursor-pointer`}
           >
-            <LogOut className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
             {!isCollapsed && (
               <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
                 Back Home
@@ -188,9 +189,9 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
               <div className="p-4 border-b border-white/10">
                 <button
                   onClick={handleLogout}
-                  className="flex items-center gap-3 py-2 text-red-500 hover:text-red-400 transition-colors w-full"
+                  className="flex items-center gap-3 py-2 text-red-500 hover:text-red-400 transition-colors w-full cursor-pointer"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
                   <span className="text-xs font-black uppercase tracking-widest">Back Home</span>
                 </button>
               </div>

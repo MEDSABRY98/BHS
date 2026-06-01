@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/components/01-Unified/Notification';
+import NoData from '@/components/01-Unified/NoDataTab';
 
 interface Product {
   ID: string;
@@ -167,8 +168,8 @@ export default function RecordScrapTab({
     try {
       const nextSession = calculateNextSessionId(scrapEntries, currentSession);
       const { error } = await app_lpos_supabase
-        .from('web_system_settings')
-        .upsert({ key: 'active_scrap_session', value: nextSession });
+        .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
+        .upsert({ KEY: 'active_scrap_session', VALUE: nextSession });
 
       if (error) throw error;
 
@@ -582,11 +583,8 @@ export default function RecordScrapTab({
                 </tr>
               ) : currentSessionEntries.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="py-20 text-center">
-                    <div className="flex flex-col items-center justify-center gap-4 text-gray-300">
-                      <Box className="w-14 h-14" />
-                      <p className="text-sm font-black text-gray-400 uppercase tracking-wider">No logs in this session yet</p>
-                    </div>
+                  <td colSpan={5} className="py-12">
+                    <NoData title="No Session Logs" />
                   </td>
                 </tr>
               ) : (

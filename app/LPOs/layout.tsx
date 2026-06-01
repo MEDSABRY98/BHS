@@ -15,7 +15,8 @@ import {
   ReceiptText,
   ChevronRight,
   ChevronLeft,
-  FileText
+  FileText,
+  ArrowLeft
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -138,9 +139,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className={`px-4 ${isCollapsed ? 'lg:px-4' : 'lg:px-8'} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
           <button
             onClick={handleLogout}
-            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full`}
+            className={`flex items-center justify-center ${isCollapsed ? 'gap-0' : 'gap-3'} py-2.5 text-red-500 hover:text-red-400 transition-all duration-200 group w-full cursor-pointer`}
           >
-            <LogOut className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
+            <ArrowLeft className="w-5 h-5 shrink-0 group-hover:-translate-x-1 transition-transform" />
             {!isCollapsed && (
               <span className="text-xs font-black uppercase tracking-[0.2em] whitespace-nowrap overflow-hidden transition-all duration-300">
                 Back Home
@@ -216,9 +217,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="px-8 pt-6 pb-2">
             <button
               onClick={handleLogout}
-              className="flex items-center justify-center gap-3 py-2 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] w-full"
+              className="flex items-center justify-center gap-3 py-2 text-red-500 rounded-xl text-[10px] font-black uppercase tracking-[0.2em] w-full cursor-pointer"
             >
-              <LogOut className="w-3.5 h-3.5" />
+              <ArrowLeft className="w-3.5 h-3.5 shrink-0 group-hover:-translate-x-1 transition-transform" />
               Back Home
             </button>
           </div>

@@ -13,7 +13,9 @@ import {
   ChevronRight,
   Menu,
   X,
-  Lock
+  Lock,
+  FileText,
+  History
 } from 'lucide-react';
 
 export default function InventoryScrapPage() {
@@ -21,7 +23,7 @@ export default function InventoryScrapPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [isAllowed, setIsAllowed] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [activeSubTab, setActiveSubTab] = useState<'record' | 'sessions'>('record');
+  const [activeSubTab, setActiveSubTab] = useState<'record' | 'sessions' | 'report' | 'history'>('record');
   
   // Sidebar Collapse states
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -214,6 +216,38 @@ export default function InventoryScrapPage() {
             {!isCollapsed && activeSubTab === 'sessions' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
           </button>
 
+          <button
+            onClick={() => setActiveSubTab('report')}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${
+              activeSubTab === 'report'
+                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+            title={isCollapsed ? "Scrap Report" : undefined}
+          >
+            <FileText className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'report' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+            {!isCollapsed && (
+              <span className="text-sm tracking-wide whitespace-nowrap">Scrap Report</span>
+            )}
+            {!isCollapsed && activeSubTab === 'report' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab('history')}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${
+              activeSubTab === 'history'
+                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+            }`}
+            title={isCollapsed ? "Saved Reports" : undefined}
+          >
+            <History className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'history' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+            {!isCollapsed && (
+              <span className="text-sm tracking-wide whitespace-nowrap">Saved Reports</span>
+            )}
+            {!isCollapsed && activeSubTab === 'history' && <ChevronRight className="w-4 h-4 ml-auto text-[#D4AF37]" />}
+          </button>
+
         </nav>
 
         {/* Expand/Collapse Trigger */}
@@ -311,6 +345,36 @@ export default function InventoryScrapPage() {
             >
               <Layers className={`w-5 h-5 mr-4 ${activeSubTab === 'sessions' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
               <span className="text-sm tracking-wide">View Sessions</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSubTab('report');
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${
+                activeSubTab === 'report'
+                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <FileText className={`w-5 h-5 mr-4 ${activeSubTab === 'report' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+              <span className="text-sm tracking-wide">Scrap Report</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setActiveSubTab('history');
+                setIsSidebarOpen(false);
+              }}
+              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${
+                activeSubTab === 'history'
+                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                  : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <History className={`w-5 h-5 mr-4 ${activeSubTab === 'history' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
+              <span className="text-sm tracking-wide">Saved Reports</span>
             </button>
           </nav>
         </aside>
