@@ -94,8 +94,16 @@ export default function ProductsPage() {
           .eq('ID', editingProduct.ID);
         if (error) throw error;
       } else {
-        // Simple ID generation for new products
-        const nextId = `R-${(products.length + 1).toString().padStart(4, '0')}`;
+        // Robust ID generation for new products to avoid duplicate key conflicts
+        const numericIds = products
+          .map(p => {
+            const match = p.ID?.match(/^R-(\d+)$/i);
+            return match ? parseInt(match[1], 10) : null;
+          })
+          .filter((n): n is number => n !== null);
+        const maxNum = numericIds.length > 0 ? Math.max(...numericIds) : 0;
+        const nextId = `R-${String(maxNum + 1).padStart(4, '0')}`;
+
         const { error } = await app_lpos_supabase
           .from('bhs_PRODUCTS')
           .insert({
