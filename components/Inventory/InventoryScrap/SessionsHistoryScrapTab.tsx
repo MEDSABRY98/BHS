@@ -12,7 +12,8 @@ import {
   X,
   Box,
   Trash2,
-  CheckCircle2
+  CheckCircle2,
+  Calendar
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/components/01-Unified/Notification';
@@ -42,6 +43,84 @@ export default function SessionsHistoryTab({
   currentSession
 }: SessionsHistoryTabProps) {
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  // Export Date Range Modal States
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+
+  const handleExportRangeExcel = () => {
+    if (!startDate || !endDate) {
+      toast.error('Please select both start and end dates');
+      return;
+    }
+
+    const start = new Date(startDate);
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date(endDate);
+    end.setHours(23, 59, 59, 999);
+
+    if (start > end) {
+      toast.error('Start date cannot be after end date');
+      return;
+    }
+
+    const filtered = scrapEntries.filter((e) => {
+      const date = new Date(e.CREATED_AT);
+      return date >= start && date <= end;
+    });
+
+    if (filtered.length === 0) {
+      toast.error('No scrap logs found in the selected date range');
+      return;
+    }
+
+    // Group and aggregate data by Product ID & Reason
+    const aggregatedMap: Record<string, { barcode: string; name: string; qty: number; reason: string }> = {};
+
+    filtered.forEach((e) => {
+      const prodId = e['PRODUCT ID'] || '';
+      const reason = e.REASON || '-';
+      const key = `${prodId}_${reason}`;
+
+      if (!aggregatedMap[key]) {
+        aggregatedMap[key] = {
+          barcode: e['PRODUCT BARCODE'] || '-',
+          name: e['PRODUCT NAME'] || 'Unknown Product',
+          qty: 0,
+          reason
+        };
+      }
+      aggregatedMap[key].qty += Number(e.QTY) || 0;
+    });
+
+    const aggregatedList = Object.values(aggregatedMap);
+
+    // Sort by Quantity (descending), then by Product Name (ascending)
+    aggregatedList.sort((a, b) => {
+      if (b.qty !== a.qty) {
+        return b.qty - a.qty;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    // Create Excel worksheet with exactly: Barcode, Product Name, Quantity, Reason
+    const ws = XLSX.utils.json_to_sheet(
+      aggregatedList.map((item) => ({
+        'Barcode': item.barcode,
+        'Product Name': item.name,
+        'Quantity': item.qty,
+        'Reason': item.reason
+      }))
+    );
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Scrap Summary');
+    XLSX.writeFile(wb, `BHS_Scrap_Summary_${startDate}_to_${endDate}.xlsx`);
+    setIsExportModalOpen(false);
+    toast.success(`Exported ${aggregatedList.length} aggregated products successfully!`);
+  };
 
   // Deletion Confirm States
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
@@ -169,14 +248,24 @@ export default function SessionsHistoryTab({
           </h3>
         </div>
         
-        <button
-          onClick={fetchScrapEntries}
-          disabled={isEntriesLoading}
-          className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-black hover:border-black rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 disabled:opacity-50"
-          title="Reload History"
-        >
-          <RefreshCw className={`w-5 h-5 ${isEntriesLoading ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="p-3 bg-white border border-gray-100 text-emerald-600 hover:text-emerald-700 hover:border-emerald-200 rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer hover:bg-emerald-50/50"
+            title="Export Date Range Excel"
+          >
+            <FileSpreadsheet className="w-5 h-5" />
+          </button>
+          
+          <button
+            onClick={fetchScrapEntries}
+            disabled={isEntriesLoading}
+            className="p-3 bg-white border border-gray-100 text-gray-400 hover:text-black hover:border-black rounded-2xl shadow-sm transition-all flex items-center justify-center cursor-pointer bg-slate-50 hover:bg-slate-100 disabled:opacity-50"
+            title="Reload History"
+          >
+            <RefreshCw className={`w-5 h-5 ${isEntriesLoading ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
@@ -455,6 +544,71 @@ export default function SessionsHistoryTab({
                 className="px-6 py-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer"
               >
                 Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Date Range Export Modal */}
+      {isExportModalOpen && (
+        <div className="fixed inset-0 z-[600] flex items-center justify-center p-6 animate-in fade-in duration-200">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsExportModalOpen(false)} />
+          <div className="bg-white rounded-[2.5rem] p-8 border border-gray-100 shadow-2xl relative w-full max-w-md z-10 animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center text-[#D4AF37] mb-4">
+              <FileSpreadsheet className="w-6 h-6" />
+            </div>
+            <h4 className="text-xl font-black text-black">Export Scrap Records</h4>
+            <p className="text-sm text-gray-500 font-bold mt-1 mb-6">
+              Choose a date range to filter and export scrap logs to an Excel sheet.
+            </p>
+            
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">
+                  Start Date (From)
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-bold text-black"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-1">
+                  End Date (To)
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-4 focus:ring-black/5 focus:bg-white focus:border-black transition-all text-sm font-bold text-black"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex gap-4 mt-8">
+              <button
+                type="button"
+                onClick={() => setIsExportModalOpen(false)}
+                className="flex-1 py-3 bg-gray-50 text-gray-400 hover:bg-gray-100 rounded-2xl font-black text-xs uppercase tracking-widest transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExportRangeExcel}
+                className="flex-1 py-3 bg-black text-[#D4AF37] hover:bg-gray-900 rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-black/10 transition-all flex items-center justify-center gap-2 cursor-pointer"
+              >
+                Export
               </button>
             </div>
           </div>

@@ -120,7 +120,7 @@ export default function RecordScrapTab({
 
   const calculateNextRecordId = (entries: ScrapEntry[]) => {
     if (!entries || entries.length === 0) {
-      return 'R-00001';
+      return 'R-0001';
     }
 
     let maxNum = 0;
@@ -137,7 +137,7 @@ export default function RecordScrapTab({
     });
 
     const nextNum = maxNum + 1;
-    return `R-${String(nextNum).padStart(5, '0')}`;
+    return `R-${String(nextNum).padStart(4, '0')}`;
   };
 
   // Roll over to a new session
@@ -183,8 +183,6 @@ export default function RecordScrapTab({
         .insert({
           ID: nextRecordId,
           'PRODUCT ID': selectedProduct['PRODUCT ID'],
-          'PRODUCT BARCODE': selectedProduct['PRODUCT BARCODE'] || '',
-          'PRODUCT NAME': selectedProduct['PRODUCT NAME'] || '',
           QTY: numQty,
           REASON: reason,
           SESSION_ID: currentSession

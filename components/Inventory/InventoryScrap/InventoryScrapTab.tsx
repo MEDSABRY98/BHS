@@ -57,7 +57,7 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
 
   const initializeSession = (loadedEntries: ScrapEntry[]) => {
     let session = localStorage.getItem('active_scrap_session');
-    const isValidFormat = session && /^S-\d{4,}$/.test(session);
+    const isValidFormat = session && /^S-\d{4}$/.test(session);
     
     if (!isValidFormat) {
       session = calculateNextSessionId(loadedEntries);
@@ -71,11 +71,33 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
       setIsEntriesLoading(true);
       const { data, error } = await app_lpos_supabase
         .from('web_INVENTORY_SCRAB')
-        .select('*')
+        .select(`
+          ID,
+          "PRODUCT ID",
+          QTY,
+          REASON,
+          CREATED_AT,
+          SESSION_ID,
+          bhs_PRODUCTS (
+            "PRODUCT NAME",
+            "PRODUCT BARCODE"
+          )
+        `)
         .order('CREATED_AT', { ascending: false });
 
       if (error) throw error;
-      const entries = data || [];
+      
+      const entries = (data || []).map((item: any) => ({
+        ID: item.ID,
+        'PRODUCT ID': item['PRODUCT ID'],
+        'PRODUCT BARCODE': item.bhs_PRODUCTS?.['PRODUCT BARCODE'] || '',
+        'PRODUCT NAME': item.bhs_PRODUCTS?.['PRODUCT NAME'] || 'Unknown Product',
+        QTY: item.QTY,
+        REASON: item.REASON,
+        CREATED_AT: item.CREATED_AT,
+        SESSION_ID: item.SESSION_ID
+      }));
+
       setScrapEntries(entries);
       initializeSession(entries);
     } catch (err) {
