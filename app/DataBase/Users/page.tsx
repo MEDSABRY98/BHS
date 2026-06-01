@@ -47,7 +47,6 @@ export default function UsersPage() {
   const [CITY, setCITY] = useState('');
 
   useEffect(() => {
-    fetchUsers();
     const mainUserStr = localStorage.getItem('currentUser');
     if (mainUserStr) {
       const u = JSON.parse(mainUserStr);
@@ -58,17 +57,31 @@ export default function UsersPage() {
     }
   }, []);
 
+  // Fetch users when search term changes (debounced)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchUsers(searchTerm);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm]);
+
   const handleOpenSignatureModal = (userId?: string) => {
     setSelectedSignatureUserId(userId);
     setIsSignatureModalOpen(true);
   };
 
-  async function fetchUsers() {
+  async function fetchUsers(search: string = '') {
     try {
-      const { data, error } = await app_lpos_supabase
+      let query = app_lpos_supabase
         .from('bhs_USERS')
-        .select('*')
-        .order('NAME');
+        .select('*');
+
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        query = query.or(`NAME.ilike.${term},ID.ilike.${term}`);
+      }
+
+      const { data, error } = await query.order('NAME');
       if (error) throw error;
       setUsers(data || []);
     } catch (err) {
@@ -105,7 +118,24 @@ export default function UsersPage() {
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
-        const nextId = `R-${(users.length + 1).toString().padStart(4, '0')}`;
+        const { data: maxIdData, error: maxIdError } = await app_lpos_supabase
+          .from('bhs_USERS_MAX_ID')
+          .select('ID')
+          .single();
+
+        if (maxIdError && maxIdError.code !== 'PGRST116') {
+          throw maxIdError;
+        }
+
+        let nextNum = 1;
+        if (maxIdData && maxIdData.ID) {
+          const match = maxIdData.ID.match(/^R-(\d+)$/i);
+          if (match) {
+            nextNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        const nextId = `R-${String(nextNum).padStart(4, '0')}`;
+
         const { error } = await app_lpos_supabase
           .from('bhs_USERS')
           .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY });
@@ -113,7 +143,7 @@ export default function UsersPage() {
       }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
-      fetchUsers();
+      fetchUsers(searchTerm);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -136,7 +166,7 @@ export default function UsersPage() {
         .delete()
         .eq('ID', itemToDelete);
       if (error) throw error;
-      fetchUsers();
+      fetchUsers(searchTerm);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -146,10 +176,7 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(u =>
-    u.NAME?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.ID?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredUsers = users;
 
   return (
     <div className="space-y-8">

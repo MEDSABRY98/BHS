@@ -34,6 +34,7 @@ export default function ProductsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -45,18 +46,35 @@ export default function ProductsPage() {
   const [productId, setProductId] = useState('');
   const [itemCode, setItemCode] = useState<string>('');
 
+  // Fetch products when page or search term changes (debounced)
   useEffect(() => {
-    fetchProducts();
-  }, []);
+    const handler = setTimeout(() => {
+      fetchProducts(searchTerm, currentPage);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm, currentPage]);
 
-  async function fetchProducts() {
+  async function fetchProducts(search: string = '', page: number = 1) {
     try {
-      const { data, error } = await app_lpos_supabase
+      const start = (page - 1) * itemsPerPage;
+      const end = start + itemsPerPage - 1;
+
+      let query = app_lpos_supabase
         .from('bhs_PRODUCTS')
-        .select('*')
-        .order('PRODUCT NAME');
+        .select('*', { count: 'exact' });
+
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        query = query.or(`"PRODUCT NAME".ilike.${term},"PRODUCT BARCODE".ilike.${term},"PRODUCT ID".ilike.${term}`);
+      }
+
+      const { data, error, count } = await query
+        .order('PRODUCT NAME')
+        .range(start, end);
+
       if (error) throw error;
       setProducts(data || []);
+      setTotalCount(count || 0);
     } catch (err) {
       console.error(err);
     } finally {
@@ -126,7 +144,7 @@ export default function ProductsPage() {
       }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
-      fetchProducts();
+      fetchProducts(searchTerm, currentPage);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -149,7 +167,7 @@ export default function ProductsPage() {
         .delete()
         .eq('ID', itemToDelete);
       if (error) throw error;
-      fetchProducts();
+      fetchProducts(searchTerm, currentPage);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -159,16 +177,9 @@ export default function ProductsPage() {
     }
   };
 
-  const filteredProducts = products.filter(p =>
-    p["PRODUCT NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p["PRODUCT BARCODE"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p["PRODUCT ID"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    String(p["ITEM CODE"] ?? '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredProducts.length / itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedProducts = filteredProducts.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedProducts = products;
 
   return (
     <div className="space-y-8">
@@ -289,9 +300,9 @@ export default function ProductsPage() {
           <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
             Showing <span className="text-black font-black">{startIndex + 1}</span> to{" "}
             <span className="text-black font-black">
-              {Math.min(startIndex + itemsPerPage, filteredProducts.length)}
+              {Math.min(startIndex + itemsPerPage, totalCount)}
             </span>{" "}
-            of <span className="text-black font-black">{filteredProducts.length}</span> products
+            of <span className="text-black font-black">{totalCount}</span> products
           </div>
           
           <div className="flex items-center gap-2">

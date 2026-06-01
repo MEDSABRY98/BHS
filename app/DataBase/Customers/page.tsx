@@ -44,6 +44,7 @@ export default function CustomersPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
+  const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -54,18 +55,35 @@ export default function CustomersPage() {
   const [CUSTOMER_CITY, setCUSTOMER_CITY] = useState('');
   const [CUSTOMER_ID, setCUSTOMER_ID] = useState('');
 
+  // Fetch customers when page or search term changes (debounced)
   useEffect(() => {
-    fetchCustomers();
-  }, []);
+    const handler = setTimeout(() => {
+      fetchCustomers(searchTerm, currentPage);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchTerm, currentPage]);
 
-  async function fetchCustomers() {
+  async function fetchCustomers(search: string = '', page: number = 1) {
     try {
-      const { data, error } = await app_lpos_supabase
+      const start = (page - 1) * itemsPerPage;
+      const end = start + itemsPerPage - 1;
+
+      let query = app_lpos_supabase
         .from('bhs_CUSTOMERS')
-        .select('*')
-        .order('CUSTOMER NAME');
+        .select('*', { count: 'exact' });
+
+      if (search.trim()) {
+        const term = `%${search.trim()}%`;
+        query = query.or(`"CUSTOMER NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term}`);
+      }
+
+      const { data, error, count } = await query
+        .order('CUSTOMER NAME')
+        .range(start, end);
+
       if (error) throw error;
       setCustomers(data || []);
+      setTotalCount(count || 0);
     } catch (err) {
       console.error(err);
     } finally {
@@ -100,7 +118,24 @@ export default function CustomersPage() {
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
       } else {
-        const nextId = `R-${(customers.length + 1).toString().padStart(4, '0')}`;
+        const { data: maxIdData, error: maxIdError } = await app_lpos_supabase
+          .from('bhs_CUSTOMERS_MAX_ID')
+          .select('ID')
+          .single();
+
+        if (maxIdError && maxIdError.code !== 'PGRST116') {
+          throw maxIdError;
+        }
+
+        let nextNum = 1;
+        if (maxIdData && maxIdData.ID) {
+          const match = maxIdData.ID.match(/^R-(\d+)$/i);
+          if (match) {
+            nextNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        const nextId = `R-${String(nextNum).padStart(4, '0')}`;
+
         const { error } = await app_lpos_supabase
           .from('bhs_CUSTOMERS')
           .insert({
@@ -113,7 +148,7 @@ export default function CustomersPage() {
       }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
-      fetchCustomers();
+      fetchCustomers(searchTerm, currentPage);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -136,7 +171,7 @@ export default function CustomersPage() {
         .delete()
         .eq('ID', itemToDelete);
       if (error) throw error;
-      fetchCustomers();
+      fetchCustomers(searchTerm, currentPage);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -256,7 +291,7 @@ export default function CustomersPage() {
 
         triggerMessage('success', `${recordsToUpsert.length} customers processed successfully!`);
         setIsExcelModalOpen(false);
-        fetchCustomers();
+        fetchCustomers(searchTerm, currentPage);
       } catch (err: any) {
         console.error(err);
         triggerMessage('error', err.message || 'Failed to process Excel file');
@@ -275,15 +310,9 @@ export default function CustomersPage() {
     reader.readAsBinaryString(file);
   };
 
-  const filteredCustomers = customers.filter(c =>
-    c["CUSTOMER NAME"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c["CUSTOMER ID"]?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    c["CUSTOMER CITY"]?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedCustomers = filteredCustomers.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedCustomers = customers;
 
   return (
     <div className="space-y-8">
@@ -404,9 +433,9 @@ export default function CustomersPage() {
           <div className="text-xs font-bold text-gray-400 uppercase tracking-widest">
             Showing <span className="text-black font-black">{startIndex + 1}</span> to{" "}
             <span className="text-black font-black">
-              {Math.min(startIndex + itemsPerPage, filteredCustomers.length)}
+              {Math.min(startIndex + itemsPerPage, totalCount)}
             </span>{" "}
-            of <span className="text-black font-black">{filteredCustomers.length}</span> customers
+            of <span className="text-black font-black">{totalCount}</span> customers
           </div>
           
           <div className="flex items-center gap-2">
