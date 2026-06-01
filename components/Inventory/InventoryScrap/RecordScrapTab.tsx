@@ -74,17 +74,39 @@ export default function RecordScrapTab({
     fetchProducts();
   }, []);
 
-  // Fetch all products from database for local search filter
+  // Fetch all products from database for local search filter (using recursive pagination to load all products bypass API limit)
   const fetchProducts = async () => {
     try {
       setIsProductsLoading(true);
-      const { data, error } = await app_lpos_supabase
-        .from('bhs_PRODUCTS')
-        .select('*')
-        .order('PRODUCT NAME');
+      let allProducts: any[] = [];
+      let page = 0;
+      const pageSize = 1000;
+      let hasMore = true;
 
-      if (error) throw error;
-      setProducts(data || []);
+      while (hasMore) {
+        const start = page * pageSize;
+        const end = start + pageSize - 1;
+        const { data, error } = await app_lpos_supabase
+          .from('bhs_PRODUCTS')
+          .select('*')
+          .order('PRODUCT NAME')
+          .range(start, end);
+
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          allProducts = [...allProducts, ...data];
+          if (data.length < pageSize) {
+            hasMore = false;
+          } else {
+            page++;
+          }
+        } else {
+          hasMore = false;
+        }
+      }
+
+      setProducts(allProducts);
     } catch (err) {
       console.error('Error fetching products:', err);
     } finally {
