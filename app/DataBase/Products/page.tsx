@@ -94,15 +94,24 @@ export default function ProductsPage() {
           .eq('ID', editingProduct.ID);
         if (error) throw error;
       } else {
-        // Robust ID generation for new products to avoid duplicate key conflicts
-        const numericIds = products
-          .map(p => {
-            const match = p.ID?.match(/^R-(\d+)$/i);
-            return match ? parseInt(match[1], 10) : null;
-          })
-          .filter((n): n is number => n !== null);
-        const maxNum = numericIds.length > 0 ? Math.max(...numericIds) : 0;
-        const nextId = `R-${String(maxNum + 1).padStart(4, '0')}`;
+        // Query the database view directly to get the absolute maximum ID stored, bypass client-side limits
+        const { data: maxIdData, error: maxIdError } = await app_lpos_supabase
+          .from('bhs_PRODUCTS_MAX_ID')
+          .select('ID')
+          .single();
+
+        if (maxIdError && maxIdError.code !== 'PGRST116') { // PGRST116 is code for no rows returned, which is fine
+          throw maxIdError;
+        }
+
+        let nextNum = 1;
+        if (maxIdData && maxIdData.ID) {
+          const match = maxIdData.ID.match(/^R-(\d+)$/i);
+          if (match) {
+            nextNum = parseInt(match[1], 10) + 1;
+          }
+        }
+        const nextId = `R-${String(nextNum).padStart(4, '0')}`;
 
         const { error } = await app_lpos_supabase
           .from('bhs_PRODUCTS')
