@@ -14,7 +14,8 @@ import {
   Key,
   Loader2,
   Check,
-  FilePenLine
+  FilePenLine,
+  MapPin
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -43,6 +44,7 @@ export default function UsersPage() {
   const [PASSWORD, setPASSWORD] = useState('');
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
   const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
+  const [CITY, setCITY] = useState('');
 
   useEffect(() => {
     fetchUsers();
@@ -84,6 +86,7 @@ export default function UsersPage() {
     setPASSWORD(user ? user.PASSWORD : '');
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
     setCANCEL_AUTHORITY(user ? (user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') : false);
+    setCITY(user ? user.CITY || '' : '');
     setIsModalOpen(true);
   };
 
@@ -98,14 +101,14 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await app_lpos_supabase
           .from('bhs_USERS')
-          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY })
+          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
         const nextId = `R-${(users.length + 1).toString().padStart(4, '0')}`;
         const { error } = await app_lpos_supabase
           .from('bhs_USERS')
-          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY });
+          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -253,6 +256,11 @@ export default function UsersPage() {
                         <Shield className="w-2.5 h-2.5" /> Cancel Auth
                       </span>
                     )}
+                    {user.CITY && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
+                        <MapPin className="w-2.5 h-2.5" /> {user.CITY}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -312,156 +320,175 @@ export default function UsersPage() {
       {/* User Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/20 animate-in fade-in duration-300">
-          <div className="bg-white w-full max-w-md rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
-            <div className="p-8 flex items-center justify-between">
+          <div className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
+            <div className="p-8 pb-4 flex items-center justify-between">
               <h2 className="text-2xl font-bold">{editingUser ? 'Edit User' : 'New User'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
                 <X className="w-6 h-6" />
               </button>
             </div>
 
-            <form onSubmit={handleSave} className="p-8 space-y-8">
-              {/* NAME Field */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">NAME</label>
-                <input
-                  type="text"
-                  value={NAME}
-                  onChange={(e) => setNAME(e.target.value)}
-                  placeholder="Full Name"
-                  required
-                  className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
-                />
-              </div>
-
-              {/* ROLE Toggle (admin/user) */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PERMISSIONS</label>
-                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setROLE('user')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'user'
-                      ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    {ROLE === 'user' && <Check className="w-4 h-4" />}
-                    user
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setROLE('admin')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'admin'
-                      ? 'bg-black text-[#D4AF37] shadow-xl'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    {ROLE === 'admin' && <Check className="w-4 h-4" />}
-                    admin
-                  </button>
-                </div>
-              </div>
-
-              {/* USER_TYPE Selection */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER TYPE</label>
-                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setUSER_TYPE('Creator')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Creator'
-                      ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    Creator
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUSER_TYPE('Driver')}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Driver'
-                      ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    Driver
-                  </button>
-                </div>
-              </div>
-
-              {/* IS_IN_OFFICE Toggle */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">OFFICE STATUS</label>
-                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setIS_IN_OFFICE(true)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${IS_IN_OFFICE
-                      ? 'bg-emerald-500 text-white shadow-xl'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    {IS_IN_OFFICE && <Check className="w-4 h-4" />}
-                    TRUE
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setIS_IN_OFFICE(false)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!IS_IN_OFFICE
-                      ? 'bg-red-500 text-white shadow-xl'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    {!IS_IN_OFFICE && <Check className="w-4 h-4" />}
-                    FALSE
-                  </button>
-                </div>
-              </div>
-
-              {/* CANCEL_AUTHORITY Toggle */}
-              <div className="space-y-3">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CANCEL AUTHORITY</label>
-                <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <button
-                    type="button"
-                    onClick={() => setCANCEL_AUTHORITY(true)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${CANCEL_AUTHORITY
-                      ? 'bg-emerald-500 text-white shadow-xl'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    {CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
-                    TRUE
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCANCEL_AUTHORITY(false)}
-                    className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!CANCEL_AUTHORITY
-                      ? 'bg-red-500 text-white shadow-xl'
-                      : 'text-gray-400 hover:text-gray-600'
-                      }`}
-                  >
-                    {!CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
-                    FALSE
-                  </button>
-                </div>
-              </div>
-
-              {/* PASSWORD Field */}
-              <div className="space-y-2">
-                <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PASSWORD</label>
-                <div className="relative">
-                  <Key className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <form onSubmit={handleSave} className="p-8 pt-4 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                
+                {/* NAME Field (Full Width) */}
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">NAME</label>
                   <input
                     type="text"
-                    value={PASSWORD}
-                    onChange={(e) => setPASSWORD(e.target.value)}
-                    placeholder="Access Code"
+                    value={NAME}
+                    onChange={(e) => setNAME(e.target.value)}
+                    placeholder="Full Name"
                     required
-                    className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />
                 </div>
+
+                {/* ROLE Toggle (admin/user) */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PERMISSIONS</label>
+                  <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setROLE('user')}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'user'
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {ROLE === 'user' && <Check className="w-4 h-4" />}
+                      user
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setROLE('admin')}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${ROLE === 'admin'
+                        ? 'bg-black text-[#D4AF37] shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {ROLE === 'admin' && <Check className="w-4 h-4" />}
+                      admin
+                    </button>
+                  </div>
+                </div>
+
+                {/* USER_TYPE Selection */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">USER TYPE</label>
+                  <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setUSER_TYPE('Creator')}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Creator'
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      Creator
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUSER_TYPE('Driver')}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${USER_TYPE === 'Driver'
+                        ? 'bg-white text-black shadow-sm ring-1 ring-gray-100'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      Driver
+                    </button>
+                  </div>
+                </div>
+
+                {/* IS_IN_OFFICE Toggle */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">OFFICE STATUS</label>
+                  <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setIS_IN_OFFICE(true)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${IS_IN_OFFICE
+                        ? 'bg-emerald-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {IS_IN_OFFICE && <Check className="w-4 h-4" />}
+                      TRUE
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIS_IN_OFFICE(false)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!IS_IN_OFFICE
+                        ? 'bg-red-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {!IS_IN_OFFICE && <Check className="w-4 h-4" />}
+                      FALSE
+                    </button>
+                  </div>
+                </div>
+
+                {/* CANCEL_AUTHORITY Toggle */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CANCEL AUTHORITY</label>
+                  <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setCANCEL_AUTHORITY(true)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${CANCEL_AUTHORITY
+                        ? 'bg-emerald-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
+                      TRUE
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCANCEL_AUTHORITY(false)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!CANCEL_AUTHORITY
+                        ? 'bg-red-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {!CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
+                      FALSE
+                    </button>
+                  </div>
+                </div>
+
+                {/* CITY Field */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CITY</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={CITY}
+                      onChange={(e) => setCITY(e.target.value)}
+                      placeholder="City Name"
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
+                {/* PASSWORD Field */}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PASSWORD</label>
+                  <div className="relative">
+                    <Key className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={PASSWORD}
+                      onChange={(e) => setPASSWORD(e.target.value)}
+                      placeholder="Access Code"
+                      required
+                      className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                    />
+                  </div>
+                </div>
+
               </div>
 
               <div className="pt-4 flex gap-4">
