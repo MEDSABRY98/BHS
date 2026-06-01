@@ -55,15 +55,31 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
     fetchScrapEntries();
   }, []);
 
-  const initializeSession = (loadedEntries: ScrapEntry[]) => {
-    let session = localStorage.getItem('active_scrap_session');
-    const isValidFormat = session && /^S-\d{4}$/.test(session);
-    
-    if (!isValidFormat) {
-      session = calculateNextSessionId(loadedEntries);
-      localStorage.setItem('active_scrap_session', session);
+  const initializeSession = async (loadedEntries: ScrapEntry[]) => {
+    try {
+      // Query active session globally from database settings table
+      const { data: settingsData, error: settingsError } = await app_lpos_supabase
+        .from('web_system_settings')
+        .select('value')
+        .eq('key', 'active_scrap_session');
+
+      if (settingsError) throw settingsError;
+
+      let session = settingsData && settingsData.length > 0 ? settingsData[0].value : null;
+      const isValidFormat = session && /^S-\d{4}$/.test(session);
+
+      if (!isValidFormat) {
+        session = calculateNextSessionId(loadedEntries);
+        // Save back to DB to establish global session
+        await app_lpos_supabase
+          .from('web_system_settings')
+          .upsert({ key: 'active_scrap_session', value: session });
+      }
+
+      setCurrentSession(session || '');
+    } catch (err) {
+      console.error('Error initializing global session:', err);
     }
-    setCurrentSession(session || '');
   };
 
   const fetchScrapEntries = async () => {
@@ -99,7 +115,7 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
       }));
 
       setScrapEntries(entries);
-      initializeSession(entries);
+      await initializeSession(entries);
     } catch (err) {
       console.error('Error fetching scrap entries:', err);
     } finally {

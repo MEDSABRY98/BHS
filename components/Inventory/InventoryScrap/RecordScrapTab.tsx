@@ -163,12 +163,23 @@ export default function RecordScrapTab({
   };
 
   // Roll over to a new session
-  const handleSaveAndNewSession = () => {
-    const nextSession = calculateNextSessionId(scrapEntries, currentSession);
-    localStorage.setItem('active_scrap_session', nextSession);
-    setCurrentSession(nextSession);
-    setSessionToSaveConfirm(false);
-    toast.success(`Session saved! New session started: ${nextSession}`);
+  const handleSaveAndNewSession = async () => {
+    try {
+      const nextSession = calculateNextSessionId(scrapEntries, currentSession);
+      const { error } = await app_lpos_supabase
+        .from('web_system_settings')
+        .upsert({ key: 'active_scrap_session', value: nextSession });
+
+      if (error) throw error;
+
+      setCurrentSession(nextSession);
+      setSessionToSaveConfirm(false);
+      toast.success(`Session saved! New session started: ${nextSession}`);
+      await fetchScrapEntries();
+    } catch (err: any) {
+      console.error('Error saving session:', err);
+      toast.error(err.message || 'Failed to roll over session');
+    }
   };
 
   // Local autocomplete filter
