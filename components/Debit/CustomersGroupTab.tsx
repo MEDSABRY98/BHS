@@ -16,6 +16,7 @@ import { InvoiceRow } from '@/types';
 import NoData from '../01-Unified/NoDataTab';
 import FilterBar from './CustomerDetailsTab/FilterBar';
 import { isPaymentTxn } from './CustomerDetailsTab/Utils';
+import { getInvoiceType } from '@/lib/InvoiceType';
 
 interface CustomersGroupTabProps {
   data: InvoiceRow[];
@@ -38,6 +39,7 @@ const columnHelper = createColumnHelper<GroupOverdueRow>();
 
 export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
   const [groupCustomers, setGroupCustomers] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<'overdue' | 'all'>('overdue');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [sorting, setSorting] = useState<SortingState>([
@@ -143,7 +145,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     setGroupCustomers(prev => prev.filter(c => c !== name));
   };
 
-  // Compile overdue invoices for added customers
+  // Compile overdue or all invoices for added customers
   const groupOverdueInvoices = useMemo(() => {
     const list: GroupOverdueRow[] = [];
     if (groupCustomers.length === 0) return list;
@@ -168,18 +170,26 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         };
       });
 
-      const overdue = invoicesWithNet.filter(inv => {
-        if (!inv.matching) return true;
-        return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
-      }).map(inv => {
+      const targetInvoices = viewMode === 'overdue'
+        ? invoicesWithNet.filter(inv => {
+            if (!inv.matching) return true;
+            return inv.residual !== undefined && Math.abs(inv.residual) > 0.01;
+          })
+        : invoicesWithNet;
+
+      const processed = targetInvoices.map(inv => {
         let difference = inv.netDebt;
-        if (inv.matching && inv.residual !== undefined) {
-          difference = inv.residual;
+        if (inv.matching) {
+          if (inv.residual !== undefined) {
+            difference = inv.residual;
+          } else {
+            difference = 0;
+          }
         }
 
         let daysOverdue = 0;
         let targetDate = inv.dueDate ? new Date(inv.dueDate) : (inv.parsedDate || null);
-        if (targetDate && !isNaN(targetDate.getTime())) {
+        if (targetDate && !isNaN(targetDate.getTime()) && Math.abs(difference) > 0.01) {
           const today = new Date();
           today.setHours(0, 0, 0, 0);
           targetDate.setHours(0, 0, 0, 0);
@@ -187,7 +197,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
           daysOverdue = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         }
 
-        const adjustedCredit = inv.debit - difference;
+        const adjustedCredit = viewMode === 'overdue' ? (inv.debit - difference) : inv.credit;
 
         return {
           customerName: custName,
@@ -199,14 +209,14 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
           netDebt: difference,
           difference,
           matching: inv.matching || '',
-          daysOverdue
+          daysOverdue: Math.max(0, daysOverdue)
         };
       });
-      list.push(...overdue);
+      list.push(...processed);
     });
 
     return list;
-  }, [data, groupCustomers]);
+  }, [data, groupCustomers, viewMode]);
 
   // Get matchings with residual for filtering
   const availableMatchingsWithResidual = useMemo(() => {
@@ -586,7 +596,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     const autoTable = autoTableModule.default || autoTableModule;
 
     const doc = new jsPDF('l', 'mm', 'a4');
-    doc.setProperties({ title: 'Group Overdue Statement' });
+    const statementTitle = viewMode === 'overdue' ? 'Group Overdue Statement' : 'Group Account Statement';
+    doc.setProperties({ title: statementTitle });
 
     try {
       const { addArabicFont } = await import('@/lib/pdf/shared');
@@ -602,7 +613,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     // Title
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('Group Overdue Statement', pageWidth / 2, yPosition, { align: 'center' });
+    doc.text(statementTitle, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 7;
 
     // Company Name
@@ -644,7 +655,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
           dateStr = `${date.getDate()}-${date.toLocaleDateString('en-US', { month: 'short' })}-${date.getFullYear()}`;
         }
       }
-      const type = inv.number?.toUpperCase().startsWith('OB') ? 'OB' : 'Sales';
+      const type = getInvoiceType({ number: inv.number, debit: inv.debit, credit: inv.credit } as any);
       
       return [
         inv.customerName || '',
@@ -729,7 +740,8 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       const url = URL.createObjectURL(pdfBlob);
       window.open(url, '_blank');
     } else {
-      doc.save(`Group_Overdue_Statement_${currentDate}.pdf`);
+      const fileName = viewMode === 'overdue' ? 'Group_Overdue_Statement' : 'Group_Account_Statement';
+      doc.save(`${fileName}_${currentDate}.pdf`);
     }
   };
 
@@ -756,7 +768,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
           dateStr = `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`;
         }
       }
-      const type = inv.number?.toUpperCase().startsWith('OB') ? 'OB' : 'Sales';
+      const type = getInvoiceType({ number: inv.number, debit: inv.debit, credit: inv.credit } as any);
       return [
         inv.customerName || '',
         dateStr,
@@ -772,13 +784,15 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
 
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Group Overdue Statement');
+    const sheetName = viewMode === 'overdue' ? 'Group Overdue Statement' : 'Group Account Statement';
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
 
     const colWidths = [30, 15, 12, 20, 12, 12, 12, 15, 15];
     worksheet['!cols'] = colWidths.map(w => ({ wch: w }));
 
     const currentDate = new Date().toISOString().split('T')[0];
-    XLSX.writeFile(workbook, `Group_Overdue_Statement_${currentDate}.xlsx`);
+    const fileName = viewMode === 'overdue' ? 'Group_Overdue_Statement' : 'Group_Account_Statement';
+    XLSX.writeFile(workbook, `${fileName}_${currentDate}.xlsx`);
   };
 
   // Table Configuration using Tanstack React Table
@@ -812,8 +826,15 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         header: 'Type',
         cell: (info) => {
           const inv = info.row.original;
-          const type = inv.number?.toUpperCase().startsWith('OB') ? 'OB' : 'Sales';
-          const color = type === 'OB' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700';
+          const type = getInvoiceType({ number: inv.number, debit: inv.debit, credit: inv.credit } as any);
+          const color =
+            type === 'Sales' ? 'bg-blue-100 text-blue-700' :
+              type === 'Return' ? 'bg-orange-100 text-orange-700' :
+                type === 'Payment' ? 'bg-green-100 text-green-700' :
+                  type === 'Discount' ? 'bg-yellow-100 text-yellow-700' :
+                    type === 'Our-Paid' ? 'bg-emerald-100 text-emerald-800' :
+                      type === 'OB' ? 'bg-purple-100 text-purple-700' :
+                        'bg-gray-100 text-gray-700';
           return (
             <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${color}`}>
               {type}
@@ -852,8 +873,9 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
         header: 'Days Overdue',
         cell: (info) => {
           const value = info.getValue();
+          if (value <= 0) return <span className="text-slate-400">-</span>;
           return (
-            <span className={`font-bold ${value > 0 ? 'text-red-600' : 'text-slate-500'}`}>
+            <span className="font-bold text-red-600">
               {value}
             </span>
           );
@@ -914,13 +936,15 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
     <div className="p-6 space-y-6">
       
       {/* Top Header Card */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 shadow-sm flex flex-col items-center justify-center">
-        {/* Search Input and Add Button */}
-        <div className="relative w-full max-w-2xl mx-auto" ref={dropdownRef}>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center">
-            Select Customers Group
-          </label>
-          <div className="relative">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl p-6 shadow-sm flex flex-col">
+        {/* Search Input, Add Button, and Statement Type Toggle */}
+        <div className="w-full max-w-4xl mx-auto flex flex-col md:flex-row items-end justify-center gap-6" ref={dropdownRef}>
+          {/* Left: Customer Selection */}
+          <div className="relative flex-1 w-full">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center md:text-left">
+              Select Customers Group
+            </label>
+            <div className="relative">
             <div
               onClick={() => setIsCustomerDropdownOpen(!isCustomerDropdownOpen)}
               className="w-full pl-4 pr-10 py-3 bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-semibold text-slate-700 shadow-sm flex items-center justify-between min-h-[46px] text-left hover:border-slate-400 transition-colors cursor-pointer"
@@ -1012,6 +1036,38 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
           </div>
         </div>
 
+          {/* Right: Statement Type Toggle */}
+          <div className="flex flex-col shrink-0 w-full md:w-auto">
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 text-center md:text-left">
+              Statement Type
+            </label>
+            <div className="flex bg-slate-200/50 p-1 rounded-xl border border-slate-300 shadow-inner h-[46px] items-center">
+              <button
+                type="button"
+                onClick={() => setViewMode('overdue')}
+                className={`h-full px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'overdue'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                Overdue Only
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('all')}
+                className={`h-full px-4 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  viewMode === 'all'
+                    ? 'bg-white text-blue-700 shadow-sm'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                All Invoices
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Selected Customer Tags Row */}
         {groupCustomers.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-2 items-center justify-center">
@@ -1036,14 +1092,16 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
 
       {/* Control Toolbar */}
       {groupCustomers.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
           {/* Quick Stats */}
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-6">
             <div>
-              <h3 className="text-lg font-bold text-slate-800">Group Overdue Statement</h3>
+              <h3 className="text-lg font-bold text-slate-800">
+                {viewMode === 'overdue' ? 'Group Overdue Statement' : 'Group Account Statement'}
+              </h3>
               <p className="text-xs text-slate-400 font-medium">Combined statements for added customers</p>
             </div>
-            <div className="w-[1px] h-8 bg-slate-200" />
+            <div className="w-[1px] h-8 bg-slate-200 hidden sm:block" />
             <div className="flex flex-col">
               <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Group Total Net Due</span>
               <span className={`text-xl font-extrabold ${totalNetDebt > 0 ? 'text-red-600' : 'text-green-600'}`}>
