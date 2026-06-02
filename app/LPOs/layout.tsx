@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -55,13 +57,28 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem('sidebarCollapsed');
     if (stored === 'true') {
       setIsCollapsed(true);
     }
+
+    const mainUserStr = localStorage.getItem('currentUser');
+    if (mainUserStr) {
+      try {
+        const userData = JSON.parse(mainUserStr);
+        // Ensure we have a NAME property for display/logic (mapping from main user's name if needed)
+        if (!userData.NAME && userData.name) {
+          userData.NAME = userData.name;
+        }
+        setUser(userData);
+      } catch (e) {
+        localStorage.removeItem('currentUser');
+      }
+    }
+    setIsChecking(false);
   }, []);
 
   const toggleSidebar = () => {
@@ -70,21 +87,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     localStorage.setItem('sidebarCollapsed', String(nextState));
   };
 
-  useEffect(() => {
-    setIsMounted(true);
-    const mainUserStr = localStorage.getItem('currentUser');
-
-    if (!mainUserStr) {
-      router.push('/');
-    } else {
-      const userData = JSON.parse(mainUserStr);
-      // Ensure we have a NAME property for display/logic (mapping from main user's name if needed)
-      if (!userData.NAME && userData.name) {
-        userData.NAME = userData.name;
-      }
-      setUser(userData);
+  const handleLogin = (loggedInUser: any) => {
+    if (!loggedInUser.NAME && loggedInUser.name) {
+      loggedInUser.NAME = loggedInUser.name;
     }
-  }, [router]);
+    setUser(loggedInUser);
+    localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
+  };
 
   const handleLogout = () => {
     // Only remove main user if they really want to log out of the whole system, 
@@ -92,7 +101,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/');
   };
 
-  if (!isMounted || !user) return null;
+  if (isChecking) {
+    return <Loading />;
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   const ALL_NAV_ITEMS = [
     { id: 'lpo-dashboard', href: '/LPOs', icon: LayoutDashboard, label: 'Dashboard' },

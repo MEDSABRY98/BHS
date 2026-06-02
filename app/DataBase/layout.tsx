@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import Login from '@/components/01-Unified/Login';
+import Loading from '@/components/01-Unified/Loading';
 import {
   LayoutDashboard,
   Users,
@@ -53,13 +55,27 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [isMounted, setIsMounted] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
 
   useEffect(() => {
     const stored = localStorage.getItem('dbSidebarCollapsed');
     if (stored === 'true') {
       setIsCollapsed(true);
     }
+
+    const mainUserStr = localStorage.getItem('currentUser');
+    if (mainUserStr) {
+      try {
+        const userData = JSON.parse(mainUserStr);
+        if (!userData.NAME && userData.name) {
+          userData.NAME = userData.name;
+        }
+        setUser(userData);
+      } catch (e) {
+        localStorage.removeItem('currentUser');
+      }
+    }
+    setIsChecking(false);
   }, []);
 
   const toggleSidebar = () => {
@@ -68,26 +84,25 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     localStorage.setItem('dbSidebarCollapsed', String(nextState));
   };
 
-  useEffect(() => {
-    setIsMounted(true);
-    const mainUserStr = localStorage.getItem('currentUser');
-
-    if (!mainUserStr) {
-      router.push('/');
-    } else {
-      const userData = JSON.parse(mainUserStr);
-      if (!userData.NAME && userData.name) {
-        userData.NAME = userData.name;
-      }
-      setUser(userData);
+  const handleLogin = (loggedInUser: any) => {
+    if (!loggedInUser.NAME && loggedInUser.name) {
+      loggedInUser.NAME = loggedInUser.name;
     }
-  }, [router]);
+    setUser(loggedInUser);
+    localStorage.setItem('currentUser', JSON.stringify(loggedInUser));
+  };
 
   const handleLogout = () => {
     router.push('/');
   };
 
-  if (!isMounted || !user) return null;
+  if (isChecking) {
+    return <Loading />;
+  }
+
+  if (!user) {
+    return <Login onLogin={handleLogin} />;
+  }
 
   const NAV_ITEMS = [
     { id: 'db-dashboard', href: '/DataBase', icon: LayoutDashboard, label: 'Dashboard' },

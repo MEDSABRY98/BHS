@@ -10,12 +10,19 @@ interface LoginProps {
 export default function Login({ onLogin }: LoginProps) {
   const [users, setUsers] = useState<{ name: string }[]>([]);
   const [selectedUser, setSelectedUser] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [fetchingUsers, setFetchingUsers] = useState(true);
   const [openUserDropdown, setOpenUserDropdown] = useState(false);
   const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  const filteredUsers = searchQuery.trim() === ''
+    ? []
+    : users.filter(user =>
+        user.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -78,8 +85,17 @@ export default function Login({ onLogin }: LoginProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!selectedUser) {
-      setError('Please select a user account');
+    
+    let userToLogin = selectedUser;
+    if (!userToLogin && searchQuery) {
+      const exactMatch = users.find(u => u.name.toLowerCase() === searchQuery.trim().toLowerCase());
+      if (exactMatch) {
+        userToLogin = exactMatch.name;
+      }
+    }
+
+    if (!userToLogin) {
+      setError('Please select a valid user account');
       return;
     }
     setLoading(true);
@@ -87,7 +103,7 @@ export default function Login({ onLogin }: LoginProps) {
       const response = await fetch('/DataBase/Users/api', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: selectedUser, password: password }),
+        body: JSON.stringify({ name: userToLogin, password: password }),
       });
       const result = await response.json();
       if (response.ok && result.success) {
@@ -209,25 +225,59 @@ export default function Login({ onLogin }: LoginProps) {
               <div ref={userDropdownRef} className="space-y-1.5">
                 <label className="text-sm font-semibold text-slate-700 ml-1">Account</label>
                 <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setOpenUserDropdown(!openUserDropdown)}
-                    className={`w-full h-14 px-4 bg-slate-50 border-2 rounded-xl flex items-center justify-between transition-all duration-200 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 ${openUserDropdown ? 'border-indigo-600 ring-4 ring-indigo-500/10' : 'border-slate-100'}`}
-                  >
-                    <span className={`text-base font-medium ${selectedUser ? 'text-slate-900' : 'text-slate-400'}`}>
-                      {selectedUser || 'Select your account'}
-                    </span>
-                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-transform duration-200 ${openUserDropdown ? 'rotate-180 text-indigo-600' : ''}`} />
-                  </button>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSearchQuery(val);
+                      setOpenUserDropdown(val.trim() !== '');
+                      const match = users.find(u => u.name.toLowerCase() === val.trim().toLowerCase());
+                      if (match) {
+                        setSelectedUser(match.name);
+                      } else {
+                        setSelectedUser('');
+                      }
+                    }}
+                    onFocus={() => {
+                      if (searchQuery.trim() !== '') {
+                        setOpenUserDropdown(true);
+                      }
+                    }}
+                    placeholder="Type to search your account..."
+                    className={`w-full h-14 pl-4 pr-12 bg-slate-50 border-2 rounded-xl text-base font-medium text-slate-900 placeholder-slate-400 transition-all duration-200 outline-none hover:border-slate-300 focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/10 ${openUserDropdown && filteredUsers.length > 0 ? 'border-indigo-600 ring-4 ring-indigo-500/10' : 'border-slate-100'}`}
+                  />
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSearchQuery('');
+                          setSelectedUser('');
+                          setOpenUserDropdown(false);
+                        }}
+                        className="p-1 hover:bg-slate-200 rounded-full transition-colors"
+                      >
+                        <svg className="w-4 h-4 text-slate-400 hover:text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                    <User className="w-5 h-5 text-slate-400" />
+                  </div>
 
-                  {openUserDropdown && (
+                  {openUserDropdown && filteredUsers.length > 0 && (
                     <div className="absolute z-50 w-full mt-2 bg-white border border-slate-100 rounded-xl shadow-2xl max-h-80 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
                       <div className="p-2 space-y-1">
-                        {users.map((user) => (
+                        {filteredUsers.map((user) => (
                           <button
                             key={user.name}
                             type="button"
-                            onClick={() => { setSelectedUser(user.name); setOpenUserDropdown(false); }}
+                            onClick={() => {
+                              setSelectedUser(user.name);
+                              setSearchQuery(user.name);
+                              setOpenUserDropdown(false);
+                            }}
                             className={`w-full px-4 py-3.5 rounded-lg flex items-center justify-between text-base transition-colors ${selectedUser === user.name ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}
                           >
                             <div className="flex items-center gap-3">
