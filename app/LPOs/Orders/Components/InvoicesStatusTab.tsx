@@ -4,12 +4,14 @@ import { useState, useEffect } from 'react';
 import { app_lpos_supabase } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck } from 'lucide-react';
 import NoData from '@/components/01-Unified/NoDataTab';
+import { usePermissions } from '../../Hooks/usePermissions';
 
 interface InvoicesStatusTabProps {
   orderId: string;
 }
 
 export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
+  const { canEdit } = usePermissions();
   const [deliveryData, setDeliveryData] = useState<any>(null);
   const [handoverUser, setHandoverUser] = useState<any>(null);
   const [driverStaff, setDriverStaff] = useState<any>(null);
@@ -212,6 +214,49 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       await fetchData();
     } catch (err) {
       alert('Failed to update status');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDirectOfficeReceipt = async () => {
+    setIsSaving(true);
+    try {
+      let userId = currentUserProfile?.ID;
+      if (!userId) {
+        const mainUserStr = localStorage.getItem('currentUser');
+        if (mainUserStr) {
+          const parsed = JSON.parse(mainUserStr);
+          const name = parsed.name || parsed.NAME;
+          if (name) {
+            const cleanName = name.trim();
+            const { data } = await app_lpos_supabase
+              .from('bhs_USERS')
+              .select('*')
+              .ilike('NAME', cleanName)
+              .maybeSingle();
+            userId = data?.ID || parsed.id || parsed.ID;
+          }
+        }
+      }
+
+      const { error } = await app_lpos_supabase
+        .from('app_lpos_DRIVERS')
+        .update({
+          STATUS: 'Delivered',
+          DELIVERY_TIME: new Date().toISOString(),
+          IS_CUSTOMER_SIGNED: true,
+          OFFICE_HANDOVER_ID: userId || 'R-0001',
+          OFFICE_HANDOVER_STATUS: 'Confirmed',
+          OFFICE_HANDOVER_TIME: new Date().toISOString(),
+          TRACKING_NOTES: 'DIRECT_OFFICE_RECEIPT'
+        })
+        .eq('ID', deliveryData.ID);
+
+      if (error) throw error;
+      await fetchData();
+    } catch (err) {
+      alert('Failed to update status directly');
     } finally {
       setIsSaving(false);
     }
@@ -472,6 +517,30 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
               </div>
             );
           })()}
+        </div>
+      )}
+      {/* Direct Bypass Action for Admins */}
+      {canEdit && deliveryData.OFFICE_HANDOVER_STATUS !== 'Confirmed' && !deliveryData.OFFICE_HANDOVER_ID && deliveryData.TRACKING_NOTES !== 'SYSTEM_CANCELLED' && (
+        <div className="mt-6 bg-amber-50 border border-amber-200 p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm animate-in fade-in slide-in-from-bottom-4 duration-700">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 shrink-0">
+              <Truck className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h4 className="text-black font-black text-base">Direct Office Receipt</h4>
+              <p className="text-gray-500 text-xs mt-1 font-medium">
+                Bypass driver workflow and instantly mark this invoice as fully received and confirmed by the office.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={handleDirectOfficeReceipt}
+            disabled={isSaving}
+            className="w-full md:w-auto px-8 py-4 bg-black text-[#D4AF37] rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-gray-900 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+          >
+            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+            Direct Confirm
+          </button>
         </div>
       )}
     </div>

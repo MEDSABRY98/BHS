@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { app_lpos_supabase } from '@/lib/supabase';
 import {
   ArrowLeft,
@@ -24,19 +24,20 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { ConfirmModal } from '../../Components/ConfirmModal';
-import { usePermissions } from '../../Hooks/usePermissions';
+import { ConfirmModal } from '../Components/ConfirmModal';
+import { usePermissions } from '../Hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
-import OrderItemsTab from '../Components/OrderItemsTab';
-import OrderPreparationTab from '../Components/OrderPreparationTab';
-import OrderDeliveryTab from '../Components/OrderDeliveryTab';
-import InvoicesStatusTab from '../Components/InvoicesStatusTab';
+import OrderItemsTab from '../Orders/Components/OrderItemsTab';
+import OrderPreparationTab from '../Orders/Components/OrderPreparationTab';
+import OrderDeliveryTab from '../Orders/Components/OrderDeliveryTab';
+import InvoicesStatusTab from '../Orders/Components/InvoicesStatusTab';
 import NoData from '@/components/01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
-export default function OrderDetailsPage() {
+function OrderDetailsPageContent() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
-  const { id } = useParams();
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id');
   const router = useRouter();
   const [order, setOrder] = useState<any>(null);
   const [items, setItems] = useState<any[]>([]);
@@ -717,5 +718,17 @@ export default function OrderDetailsPage() {
         />
       </div>
     </div>
+  );
+}
+
+export default function OrderDetailsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-black"></div>
+      </div>
+    }>
+      <OrderDetailsPageContent />
+    </Suspense>
   );
 }

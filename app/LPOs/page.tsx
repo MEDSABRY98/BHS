@@ -343,7 +343,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-6">
                       <div className="flex justify-center">
                         <Link
-                          href={`/LPOs/Orders/${order.ORDER_ID || order.ID}`}
+                          href={`/LPOs/OrderDetails?id=${order.ORDER_ID || order.ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"
                         >
