@@ -39,9 +39,9 @@ import {
   buildInvoicesWithNetDebtForExport,
   exportToExcel,
   exportToPDF,
-  parseDate,
-  generateSingleCustomerExcelBlob
+  parseDate
 } from './CstomersUtils';
+import { generateSingleCustomerExcelBlob } from './ExcelEmails';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
@@ -420,7 +420,7 @@ export default function CustomersTab({
         });
 
         // Generate Excel
-        const excelBlob = generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
+        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
         const excelBase64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
@@ -571,7 +571,7 @@ export default function CustomersTab({
         });
 
         // Generate Excel
-        const excelBlob = generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
+        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
         const excelBase64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
