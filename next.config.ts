@@ -9,6 +9,7 @@ const nextConfig: NextConfig = {
       { source: '/api/customer-email', destination: '/api/CustomerEmail' },
       { source: '/api/customer-emails-list', destination: '/api/CustomerEmailsList' },
       { source: '/api/customers-documents', destination: '/api/CustomersDocuments' },
+      { source: '/api/lulu-emails', destination: '/api/LuluEmails' },
       { source: '/api/delivery-tracking', destination: '/api/DeliveryTracking' },
       { source: '/api/documents-tracking', destination: '/api/DocumentsTracking' },
       { source: '/api/inactive-customer', destination: '/api/InactiveCustomer' },
@@ -21,6 +22,7 @@ const nextConfig: NextConfig = {
       { source: '/api/suppliers-matching', destination: '/api/SuppliersMatching' },
       { source: '/api/vouchers', destination: '/api/Vouchers' },
       { source: '/api/waters', destination: '/api/Waters' },
+      { source: '/api/spi', destination: '/api/Spi' },
       
       // Page rewrites
       { source: '/cash-receipt', destination: '/CashReceipt' },

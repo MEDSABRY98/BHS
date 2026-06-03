@@ -18,15 +18,17 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
   const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
   const [spiData, setSpiData] = useState<any[]>([]);
+  const [luluEmails, setLuluEmails] = useState<any[]>([]);
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const [closedRes, semiRes, spiRes, emailsRes] = await Promise.all([
+        const [closedRes, semiRes, spiRes, emailsRes, luluRes] = await Promise.all([
           fetch('/api/ClosedCustomers'),
           fetch('/api/SemiClosedCustomers'),
           fetch('/api/Spi'),
-          fetch('/api/CustomerEmailsList')
+          fetch('/api/CustomerEmailsList'),
+          fetch('/api/lulu-emails')
         ]);
 
         if (closedRes.ok) {
@@ -40,6 +42,10 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         if (spiRes.ok) {
           const d = await spiRes.json();
           setSpiData(d.data || []);
+        }
+        if (luluRes.ok) {
+          const d = await luluRes.json();
+          setLuluEmails(d.customers || []);
         }
         if (emailsRes.ok) {
           const d = await emailsRes.json();
@@ -400,12 +406,15 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     if (matchingFilter !== 'ALL') {
       const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
       const spiNames = new Set(spiData.map(s => normalize(s.customerName)).filter(Boolean));
+      const luluNames = new Set(luluEmails.map(l => normalize(l.customerName)).filter(Boolean));
 
       if (matchingFilter === 'WITH_EMAIL') {
         result = result.filter(c => customersWithEmails.has(normalize(c.customerName)));
       } else if (matchingFilter === 'EMAIL_NORMAL') {
-        // Normal customers with email are those in customersWithEmails but NOT in spiData list
-        result = result.filter(c => customersWithEmails.has(normalize(c.customerName)) && !spiNames.has(normalize(c.customerName)));
+        // Normal customers with email are those in customersWithEmails but NOT specifically in luluEmails list
+        result = result.filter(c => customersWithEmails.has(normalize(c.customerName)) && !luluNames.has(normalize(c.customerName)));
+      } else if (matchingFilter === 'EMAIL_LULU') {
+        result = result.filter(c => luluNames.has(normalize(c.customerName)));
       } else if (matchingFilter === 'EMAIL_SPI') {
         result = result.filter(c => spiNames.has(normalize(c.customerName)));
       } else if (matchingFilter === 'RATING_GOOD') {
@@ -418,7 +427,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     }
 
     return result;
-  }, [customerAnalysis, filters, closedCustomers, semiClosedCustomers, mode, customersWithEmails, spiData]);
+  }, [customerAnalysis, filters, closedCustomers, semiClosedCustomers, mode, customersWithEmails, spiData, luluEmails]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
@@ -508,6 +517,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     semiClosedCustomers,
     spiData,
     customersWithEmails,
+    luluEmails,
     yearlyPivotData,
     allSalesReps
   };
