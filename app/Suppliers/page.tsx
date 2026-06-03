@@ -4,7 +4,8 @@ import { useState, useEffect } from 'react';
 import SuppliersTab from '@/components/Suppliers/SuppliersTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
-import { ArrowLeft, Package, FileText, CheckSquare } from 'lucide-react';
+import SuppliersSidebar from '@/components/Suppliers/SuppliersSidebar';
+import { Menu } from 'lucide-react';
 
 interface SupplierTransaction {
     date: string;
@@ -21,6 +22,23 @@ export default function SuppliersPage() {
     const [transactions, setTransactions] = useState<SupplierTransaction[]>([]);
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<'statements' | 'matching'>('statements');
+
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+    // Load sidebar collapsed state on mount
+    useEffect(() => {
+        const stored = localStorage.getItem('suppliersSidebarCollapsed');
+        if (stored === 'false') {
+            setIsSidebarCollapsed(false);
+        }
+    }, []);
+
+    const toggleSidebar = () => {
+        const nextState = !isSidebarCollapsed;
+        setIsSidebarCollapsed(nextState);
+        localStorage.setItem('suppliersSidebarCollapsed', String(nextState));
+    };
 
     useEffect(() => {
         const savedUser = localStorage.getItem('currentUser');
@@ -86,63 +104,72 @@ export default function SuppliersPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-100 selection:text-blue-900 pb-12">
-            <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-                <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => window.location.href = '/'}
-                            className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
-                        >
-                            <ArrowLeft className="w-6 h-6" />
-                        </button>
-                        <div className="flex items-center gap-3">
-                            <div className="bg-gradient-to-br from-teal-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-teal-200">
-                                <Package className="w-6 h-6" />
-                            </div>
-                            <h1 className="text-xl font-black text-slate-800 tracking-tight hidden md:block">Suppliers</h1>
-                        </div>
-                    </div>
+        <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+            {/* Sidebar - Desktop */}
+            <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a1215] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+                <SuppliersSidebar
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    currentUser={currentUser}
+                    isCollapsed={isSidebarCollapsed}
+                    onToggleCollapse={toggleSidebar}
+                />
+            </aside>
 
-                    <div className="flex-1 flex justify-center">
-                        <div className="flex p-1 bg-slate-100/50 rounded-2xl border border-slate-200">
-                            {[
-                                { id: 'statements', label: 'Statements', icon: <FileText className="w-4 h-4" /> },
-                                { id: 'matching', label: 'Matching', icon: <CheckSquare className="w-4 h-4" /> }
-                            ].filter(tab => {
-                                if (!currentUser || currentUser.name === 'MED Sabry') return true;
-                                try {
-                                    const perms = JSON.parse(currentUser.role || '{}');
-                                    if (perms['suppliers']) {
-                                        return perms['suppliers'].includes(tab.id);
-                                    }
-                                } catch (e) { }
-                                return true;
-                            }).map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id as any)}
-                                    className={`flex items-center gap-2 px-6 py-2 rounded-xl text-sm font-bold transition-all ${activeTab === tab.id
-                                        ? 'bg-white text-teal-600 shadow-sm'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                >
-                                    {tab.icon}
-                                    {tab.label}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
+            {/* Mobile Sidebar Overlay */}
+            {isMobileSidebarOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+                    onClick={() => setIsMobileSidebarOpen(false)}
+                />
+            )}
 
-                    <div className="flex items-center gap-4">
+            {/* Mobile Sidebar */}
+            <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a1215] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+                <SuppliersSidebar
+                    activeTab={activeTab}
+                    onTabChange={setActiveTab}
+                    currentUser={currentUser}
+                    isCollapsed={false}
+                    onToggleCollapse={() => {}}
+                    onCloseMobile={() => setIsMobileSidebarOpen(false)}
+                />
+            </aside>
+
+            {/* Main Content Area */}
+            <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+                {/* Header */}
+                <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
+                    <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
+                        {/* Left section: Hamburger for Mobile */}
+                        <div className="flex items-center gap-4">
+                            <button 
+                                onClick={() => setIsMobileSidebarOpen(true)} 
+                                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
+                                title="Open Navigation Menu"
+                            >
+                                <Menu className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        {/* Middle Section: Display Active Tab Label */}
+                        <div className="hidden md:flex items-center gap-2">
+                            <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                                {activeTab === 'statements' ? 'Statements' : 'Matching'}
+                            </span>
+                        </div>
+
+                        {/* Right Section: Spacer */}
+                        <div className="w-10 h-10" />
                     </div>
+                </header>
+
+                {/* Main Content */}
+                <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+                    <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
+                        <SuppliersTab data={transactions} activeTab={activeTab} />
+                    </main>
                 </div>
-            </div>
-
-            <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-                <main className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
-                    <SuppliersTab data={transactions} activeTab={activeTab} />
-                </main>
             </div>
         </div>
     );

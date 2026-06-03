@@ -14,7 +14,8 @@ import AgesTab from '@/components/Debit/AgesTab';
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 import { InvoiceRow } from '@/types';
-import { ArrowLeft, Wallet, LogOut, User, RefreshCcw } from 'lucide-react';
+import { ArrowLeft, Wallet, LogOut, User, RefreshCcw, Menu } from 'lucide-react';
+import DebitSidebar from '@/components/Debit/DebitSidebar';
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -32,7 +33,22 @@ function DebitPageContent() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Load sidebar collapsed state on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('debitSidebarCollapsed');
+    if (stored === 'false') {
+      setIsSidebarCollapsed(false);
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('debitSidebarCollapsed', String(nextState));
+  };
   const mainContentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -227,27 +243,61 @@ function DebitPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans selection:bg-blue-100 selection:text-blue-900 pb-12">
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-        <div className="max-w-[98%] mx-auto px-4 py-3 flex flex-col xl:flex-row items-center justify-between gap-4 min-h-[5rem] relative">
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      {/* Sidebar - Desktop */}
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <DebitSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          currentUser={currentUser}
+          lastUpdated={lastUpdated}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
 
-          {/* Logo & Back */}
-          <div className="flex items-center gap-4 shrink-0 w-full xl:w-auto justify-between xl:justify-start">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <DebitSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          currentUser={currentUser}
+          lastUpdated={lastUpdated}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+        {/* Header */}
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
+          <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
+            {/* Left section: Hamburger for Mobile, Logo/Refresh/Upload for Desktop */}
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
+              <button 
+                onClick={() => setIsMobileSidebarOpen(true)} 
+                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
+                title="Open Navigation Menu"
               >
-                <ArrowLeft className="w-6 h-6" />
+                <Menu className="w-6 h-6" />
               </button>
+
               <div className="flex items-center gap-3">
-                <div className="bg-gradient-to-br from-blue-600 to-indigo-600 text-white p-2.5 rounded-xl shadow-lg shadow-blue-200">
-                  <Wallet className="w-6 h-6" />
-                </div>
+                {/* Refresh Data Button */}
                 <button
                   onClick={() => fetchData(true)}
                   disabled={loading || isRefreshing}
-                  className={`p-2 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
+                  className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
                   title="Refresh Data"
                 >
                   <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
@@ -255,55 +305,24 @@ function DebitPageContent() {
               </div>
             </div>
 
-            {/* Mobile: User/Logout visible here? No, keep layout simple. */}
-          </div>
-
-          {/* Wrapped Tabs - Center */}
-          <div className="w-full xl:absolute xl:left-1/2 xl:-translate-x-1/2 flex justify-center xl:w-auto">
-            <div className="flex items-center justify-center gap-2 h-[42px] overflow-x-auto no-scrollbar">
-              {allTabs.map((tab) => {
-                // Check for dynamic JSON permission structure
-                try {
-                  const perms = JSON.parse(currentUser?.role || '{}');
-                  const allowedTabs = perms.debit || perms.debit_tabs;
-                  if (allowedTabs && Array.isArray(allowedTabs) && currentUser?.name !== 'MED Sabry') {
-                    if (!allowedTabs.includes(tab.id)) {
-                      return null;
-                    }
-                  }
-                } catch (e) {
-                  // Default to full access
-                }
-
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-44 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap text-center ${activeTab === tab.id
-                      ? 'bg-blue-600 text-white shadow-md shadow-blue-200'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
+            {/* Middle Section: Display Active Tab Label */}
+            <div className="hidden md:flex items-center gap-2">
+              <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                {allTabs.find(tab => tab.id === activeTab)?.label || 'Debit Analysis'}
+              </span>
             </div>
-          </div>
 
-          {/* Right Spacer / User (User removed previously, just spacer or empty) */}
-          <div className="hidden xl:block w-auto shrink-0">
-            {/* Placeholder to balance the flex justify-between if needed, or keeping it empty is fine */}
+            {/* Right Section */}
+            <div className="flex items-center gap-3 w-10 h-10" />
           </div>
+        </header>
 
+        {/* Main Content */}
+        <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
+            {renderTabContent()}
+          </main>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-[95%] 2xl:max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)]">
-          {renderTabContent()}
-        </main>
       </div>
     </div>
   );

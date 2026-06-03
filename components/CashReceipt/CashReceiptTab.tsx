@@ -99,7 +99,19 @@ function convertColorsToRgb(element: HTMLElement) {
   processNode(element);
 }
 
-export default function CashReceiptTab() {
+interface CashReceiptTabProps {
+  activeTab: 'new' | 'saved';
+  setActiveTab: (tab: 'new' | 'saved') => void;
+  searchQuery: string;
+  setSearchQuery: (query: string) => void;
+}
+
+export default function CashReceiptTab({
+  activeTab,
+  setActiveTab,
+  searchQuery,
+  setSearchQuery
+}: CashReceiptTabProps) {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [medSabrySignature, setMedSabrySignature] = useState<string>('');
 
@@ -141,11 +153,13 @@ export default function CashReceiptTab() {
     receiptNumber: ''
   });
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
   const [savedReceipts, setSavedReceipts] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [isFetchingSaved, setIsFetchingSaved] = useState(false);
+
+  useEffect(() => {
+    setSelectedReceipt(null);
+  }, [activeTab]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -403,17 +417,7 @@ export default function CashReceiptTab() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        availableTabs={availableTabs}
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        handleBack={handleBack}
-        setSelectedReceipt={setSelectedReceipt}
-      />
-
+    <>
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-4 md:p-8 no-print custom-scrollbar">
         <div className="max-w-7xl mx-auto pb-20">
@@ -468,6 +472,6 @@ export default function CashReceiptTab() {
           @page { size: auto; margin: 0mm; }
         }
       `}</style>
-    </div>
+    </>
   );
 }

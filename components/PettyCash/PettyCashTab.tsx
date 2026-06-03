@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
-import Sidebar, { tabs } from './Sidebar';
+import Sidebar, { tabs } from './PettyCashSidebar';
 import ReceiptsForm from './ReceiptsForm';
 import ExpensesForm from './ExpensesForm';
 import VoucherTab from './VoucherTab';
@@ -48,7 +48,22 @@ export default function PettyCashTab() {
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [activeTab, setActiveTab] = useState<'receipts' | 'expenses' | 'stats' | 'voucher' | 'history'>('receipts');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+
+  // Load sidebar collapsed state on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('pettyCashSidebarCollapsed');
+    if (stored === 'false') {
+      setIsSidebarCollapsed(false);
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('pettyCashSidebarCollapsed', String(nextState));
+  };
   const [loading, setLoading] = useState(false);
   const [showBalance, setShowBalance] = useState(false);
 
@@ -529,86 +544,119 @@ export default function PettyCashTab() {
   const balance = receipts.reduce((sum, r) => sum + r.amount, 0) - expenses.filter(e => e.paid === 'Yes').reduce((sum, e) => sum + e.amount, 0);
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Sidebar */}
-      <Sidebar
-        sidebarOpen={sidebarOpen}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        currentUser={currentUser}
-        balance={balance}
-        showBalance={showBalance}
-        setShowBalance={setShowBalance}
-      />
+    <div className="flex min-h-screen w-full bg-[#F8F9FA] text-black">
+      {/* Sidebar - Desktop */}
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0a0f1d] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          currentUser={currentUser}
+          balance={balance}
+          showBalance={showBalance}
+          setShowBalance={setShowBalance}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
 
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto no-print">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0a0f1d] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <Sidebar
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          currentUser={currentUser}
+          balance={balance}
+          showBalance={showBalance}
+          setShowBalance={setShowBalance}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300 min-h-screen`}>
         {/* Top Bar */}
-        <div className="bg-white shadow-md p-5 flex items-center gap-4 sticky top-0 z-10 no-print">
-          <button
-            onClick={handleBack}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors no-print"
-            title="Back to Home"
-          >
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <button
-            onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            {sidebarOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-          </button>
-          <h2 className="text-2xl font-bold text-gray-800">
-            {tabs.find(t => t.id === activeTab)?.name}
-          </h2>
-
-          <button
-            onClick={() => {
-              fetchRecords();
-              fetchNextVoucherNumber();
-              fetchVoucherHistory();
-              if (activeTab === 'history') {
-                fetchHistoryRecords();
-              }
-            }}
-            disabled={loading}
-            className={`p-2 rounded-lg hover:bg-gray-100 transition-all ${loading ? 'opacity-50' : 'hover:scale-110 active:scale-95'}`}
-            title="Refresh Data"
-          >
-            <RefreshCcw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-
-          {activeTab === 'voucher' && (
-            <div className="flex gap-2 bg-gray-100 p-1.5 rounded-2xl ml-4 border border-gray-100">
-              <button
-                onClick={() => setVoucherSubTab('add')}
-                className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${voucherSubTab === 'add' ? 'bg-white text-cyan-600 shadow-xl shadow-cyan-50' : 'text-gray-500 hover:text-gray-700'}`}
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300 no-print">
+          <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
+            {/* Left section: Hamburger for Mobile & Refresh */}
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setIsMobileSidebarOpen(true)} 
+                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
+                title="Open Navigation Menu"
               >
-                Add New
+                <Menu className="w-6 h-6" />
               </button>
+
               <button
                 onClick={() => {
-                  setVoucherSubTab('reprint');
+                  fetchRecords();
+                  fetchNextVoucherNumber();
                   fetchVoucherHistory();
+                  if (activeTab === 'history') {
+                    fetchHistoryRecords();
+                  }
                 }}
-                className={`px-6 py-2 rounded-xl text-sm font-black transition-all ${voucherSubTab === 'reprint' ? 'bg-white text-cyan-600 shadow-xl shadow-cyan-50' : 'text-gray-500 hover:text-gray-700'}`}
+                disabled={loading}
+                className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-cyan-600 hover:border-cyan-200 hover:bg-cyan-50 transition-all ${loading ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
+                title="Refresh Data"
               >
-                Reprint
+                <RefreshCcw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
               </button>
             </div>
-          )}
-          {activeTab === 'stats' && (
-            <button
-              onClick={exportToExcel}
-              className="flex items-center justify-center h-10 w-10 bg-emerald-600 text-white rounded-xl shadow-sm hover:bg-emerald-700 transition-colors"
-              title="Export to Excel"
-            >
-              <FileSpreadsheet className="w-5 h-5" />
-            </button>
-          )}
-        </div>
 
-        <div className="p-6">
+            {/* Middle Section: Display Active Tab Label */}
+            <div className="hidden md:flex items-center gap-2">
+              <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                {tabs.find(t => t.id === activeTab)?.name || 'Petty Cash'}
+              </span>
+            </div>
+
+            {/* Right Section: Export or Voucher actions */}
+            <div className="flex items-center gap-3">
+              {activeTab === 'voucher' && (
+                <div className="flex gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
+                  <button
+                    onClick={() => setVoucherSubTab('add')}
+                    className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${voucherSubTab === 'add' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Add New
+                  </button>
+                  <button
+                    onClick={() => {
+                      setVoucherSubTab('reprint');
+                      fetchVoucherHistory();
+                    }}
+                    className={`px-5 py-2 rounded-xl text-xs font-black transition-all ${voucherSubTab === 'reprint' ? 'bg-white text-cyan-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Reprint
+                  </button>
+                </div>
+              )}
+              {activeTab === 'stats' && (
+                <button
+                  onClick={exportToExcel}
+                  className="flex items-center justify-center h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
+                  title="Export to Excel"
+                >
+                  <FileSpreadsheet className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+          </div>
+        </header>
+
+        {/* Content Body */}
+        <div className="p-6 max-w-[98%] mx-auto w-full flex-1">
           {activeTab === 'receipts' && (
             <ReceiptsForm loading={loading} onSubmit={handleAddReceipt} />
           )}

@@ -44,7 +44,7 @@ export default function DocumentsTrackingTab() {
     const [headerDate, setHeaderDate] = useState('');
     const [activeSubTab, setActiveSubTab] = useState<'register' | 'list' | 'receivers'>('register');
     const [selectedIds, setSelectedIds] = useState<string[]>([]);
-    
+
     // Tracking and Edit check references
     const [trackingCheck, setTrackingCheck] = useState<Check | null>(null);
     const [activeActionModalCheck, setActiveActionModalCheck] = useState<Check | null>(null);
@@ -748,7 +748,7 @@ export default function DocumentsTrackingTab() {
                         const formattedSelectedDate = toDisplayDate(selectedDate);
                         filteredItems = exportReceiverModalData.items.filter((c: Check) => {
                             const receiptTime = c.timeline?.find(t => t.event === 'مسلّمة للمكتب الرئيسي')?.time || c.date;
-                            
+
                             const getCleanDate = (str: string) => {
                                 if (!str) return '—';
                                 let part = str.replace('،', ',').split(',')[0].trim();

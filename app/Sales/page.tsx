@@ -11,11 +11,12 @@ import SalesDailySalesTab from '@/components/Sales/SalesDailySalesTab';
 import SalesProductsTab from '@/components/Sales/SalesProductsTab';
 import SalesCategoriesTab from '@/components/Sales/SalesCategoriesTab';
 import SalesStockReportTab from '@/components/Sales/SalesStockReportTab';
+import SalesSidebar from '@/components/Sales/SalesSidebar';
 
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
-import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronUp, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search } from 'lucide-react';
+import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/components/01-Unified/Notification';
 
@@ -137,30 +138,23 @@ export default function SalesPage() {
   const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});
   const mainContentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const tabsRef = useRef<HTMLDivElement>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [showArrows, setShowArrows] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Check for tab overflow
+  // Load sidebar collapsed state on mount
   useEffect(() => {
-    const checkOverflow = () => {
-      if (tabsRef.current) {
-        const hasOverflow = tabsRef.current.scrollHeight > tabsRef.current.clientHeight;
-        setShowArrows(hasOverflow);
-      }
-    };
+    const stored = localStorage.getItem('salesSidebarCollapsed');
+    if (stored === 'false') {
+      setIsSidebarCollapsed(false);
+    }
+  }, []);
 
-    checkOverflow();
-    window.addEventListener('resize', checkOverflow);
-    
-    // Also check after a short delay to ensure rendering is complete
-    const timer = setTimeout(checkOverflow, 100);
-    
-    return () => {
-      window.removeEventListener('resize', checkOverflow);
-      clearTimeout(timer);
-    };
-  }, [data, currentUser, isAuthenticated]);
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('salesSidebarCollapsed', String(nextState));
+  };
 
   // Load mapping from localStorage on mount
   useEffect(() => {
@@ -663,20 +657,57 @@ export default function SalesPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 font-sans selection:bg-green-100 selection:text-green-900 pb-12">
-      <div className="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
-        <div className="max-w-[98%] mx-auto px-4 py-3 flex flex-col xl:flex-row items-center justify-between gap-4 min-h-[5rem]">
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      {/* Sidebar - Desktop */}
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d1e16] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <SalesSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          currentUser={currentUser}
+          lastUpdated={lastUpdated}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
 
-          {/* Logo & Back */}
-          <div className="flex items-center gap-4 shrink-0 w-full xl:w-auto justify-between xl:justify-start">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1e16] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <SalesSidebar
+          activeTab={activeTab}
+          onTabChange={setActiveTab}
+          currentUser={currentUser}
+          lastUpdated={lastUpdated}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+        {/* Header */}
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
+          <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
+            {/* Left section: Hamburger for Mobile, Upload/Refresh for Desktop */}
             <div className="flex items-center gap-4">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="p-2 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
+              <button 
+                onClick={() => setIsMobileSidebarOpen(true)} 
+                className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
+                title="Open Navigation Menu"
               >
-                <ArrowLeft className="w-6 h-6" />
+                <Menu className="w-6 h-6" />
               </button>
-              <div className="flex items-center gap-3 group relative">
+
+              <div className="flex items-center gap-3">
+                {/* Upload Modal Trigger */}
                 <div
                   onClick={() => setIsUploadModalOpen(true)}
                   className="bg-gradient-to-br from-green-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-green-200 cursor-pointer active:scale-95 transition-transform hover:rotate-3"
@@ -684,85 +715,36 @@ export default function SalesPage() {
                 >
                   <BarChart3 className="w-6 h-6" />
                 </div>
-                <div className="flex flex-col">
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => fetchData(true)}
-                      disabled={loading || isRefreshing}
-                      className={`p-2 rounded-xl border border-slate-200 text-slate-400 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-110 active:scale-95'}`}
-                      title="Refresh Data"
-                    >
-                      <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    </button>
-                  </div>
-                </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept=".xlsx, .xls"
-                  className="hidden"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="w-full xl:flex-1 flex items-center justify-center gap-2">
-            <div
-              ref={tabsRef}
-              className="grid grid-cols-4 md:grid-cols-8 gap-2 w-fit h-[42px] overflow-y-auto no-scrollbar scroll-smooth"
-            >
-              {allTabs.map((tab) => {
-                // Check for dynamic JSON permission structure
-                try {
-                  const perms = JSON.parse(currentUser?.role || '{}');
-                  if (perms.sales && currentUser?.name !== 'MED Sabry') {
-                    if (!perms.sales.includes(tab.id)) {
-                      return null;
-                    }
-                  }
-                } catch (e) {
-                  // Default to full access
-                }
-
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`w-36 py-2 rounded-lg text-sm font-bold transition-all whitespace-nowrap text-center ${activeTab === tab.id
-                      ? 'bg-green-600 text-white shadow-md shadow-green-200'
-                      : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                      }`}
-                  >
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
-
-            {showArrows && (
-              <div className="flex flex-col gap-1 shrink-0">
+                
+                {/* Refresh Data Button */}
                 <button
-                  onClick={() => tabsRef.current?.scrollBy({ top: -42, behavior: 'smooth' })}
-                  className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
-                  title="Scroll Up"
+                  onClick={() => fetchData(true)}
+                  disabled={loading || isRefreshing}
+                  className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
+                  title="Refresh Data"
                 >
-                  <ChevronUp className="w-4 h-4" />
-                </button>
-                <button
-                  onClick={() => tabsRef.current?.scrollBy({ top: 42, behavior: 'smooth' })}
-                  className="p-1 bg-white border border-slate-200 rounded-md text-slate-400 hover:text-green-600 hover:border-green-200 transition-all shadow-sm"
-                  title="Scroll Down"
-                >
-                  <ChevronDown className="w-4 h-4" />
+                  <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
                 </button>
               </div>
-            )}
-          </div>
 
-          {/* Right Spacer / User */}
-          <div className="w-full xl:w-auto shrink-0 flex items-center justify-end">
-            <div className="relative">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".xlsx, .xls"
+                className="hidden"
+              />
+            </div>
+
+            {/* Middle Section: Display Active Tab Label */}
+            <div className="hidden md:flex items-center gap-2">
+              <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                {allTabs.find(tab => tab.id === activeTab)?.label || 'Sales Analysis'}
+              </span>
+            </div>
+
+            {/* Right Section: Filter */}
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsFilterOpen(true)}
                 className={`group relative p-3 rounded-xl transition-all duration-300 border shadow-sm ${!hasAnyFilter
@@ -780,15 +762,14 @@ export default function SalesPage() {
               </button>
             </div>
           </div>
+        </header>
 
+        {/* Main Content */}
+        <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
+          <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)] p-8">
+            {renderTabContent()}
+          </main>
         </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="max-w-[98%] mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <main ref={mainContentRef} className="bg-white rounded-2xl shadow-sm border border-slate-200 min-h-[calc(100vh-8rem)] p-8">
-          {renderTabContent()}
-        </main>
       </div>
 
       {/* UPLOAD/DOWNLOAD MODAL */}
