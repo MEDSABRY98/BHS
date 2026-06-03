@@ -40,124 +40,168 @@ export async function generateDailyHandoverPDF(
     ];
   });
 
-  // Header Background - Premium Slim Black Bar
-  doc.setFillColor(10, 10, 10);
-  doc.rect(0, 0, pageWidth, 20, 'F');
+  const renderReportPage = (isCopy: boolean) => {
+    // Watermark for COPY
+    if (isCopy) {
+      doc.setFontSize(80);
+      doc.setTextColor(245, 245, 245);
+      doc.setFont('helvetica', 'bold');
+      doc.text('COPY', pageWidth / 2, pageHeight / 2 - 20, { align: 'center', angle: 45 });
+    }
 
-  // Title - Centered Gold
-  doc.setFontSize(14);
-  doc.setTextColor(212, 175, 55); // Gold
-  doc.setFont('helvetica', 'bold');
-  doc.text('DAILY DRIVER HANDOVER REPORT', pageWidth / 2, 13, { align: 'center' });
+    // Header Background - Premium Slim Black Bar
+    doc.setFillColor(10, 10, 10);
+    doc.rect(0, 0, pageWidth, 20, 'F');
 
-  let y = 24;
+    // Title - Centered Gold
+    doc.setFontSize(14);
+    doc.setTextColor(212, 175, 55); // Gold
+    doc.setFont('helvetica', 'bold');
+    const titleText = isCopy 
+      ? 'DAILY DRIVER HANDOVER REPORT - COPY'
+      : 'DAILY DRIVER HANDOVER REPORT';
+    doc.text(titleText, pageWidth / 2, 13, { align: 'center' });
 
-  // Metadata Box
-  doc.setFillColor(250, 250, 250);
-  doc.setDrawColor(230, 230, 230);
-  doc.roundedRect(margin, y, pageWidth - 2 * margin, 22, 3, 3, 'FD');
+    let y = 24;
 
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Driver Name:', margin + 8, y + 8);
-  doc.text('Handover Date:', margin + 8, y + 15);
+    // Metadata Box
+    doc.setFillColor(250, 250, 250);
+    doc.setDrawColor(230, 230, 230);
+    doc.roundedRect(margin, y, pageWidth - 2 * margin, 22, 3, 3, 'FD');
 
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text(driverName, margin + 35, y + 8);
-  doc.text(formattedHandoverDate, margin + 35, y + 15);
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Driver Name:', margin + 8, y + 8);
+    doc.text('Handover Date:', margin + 8, y + 15);
 
-  // Total Summary stats in metadata box
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text('Total Invoices:', pageWidth - margin - 60, y + 8);
-  doc.text('Total Value:', pageWidth - margin - 60, y + 15);
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(driverName, margin + 35, y + 8);
+    doc.text(formattedHandoverDate, margin + 35, y + 15);
 
-  doc.setFontSize(10);
-  doc.setTextColor(0, 0, 0);
-  doc.setFont('helvetica', 'bold');
-  doc.text(totalCount.toString(), pageWidth - margin - 35, y + 8);
-  doc.setTextColor(212, 175, 55); // Gold for final amount
-  doc.text(`AED ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 35, y + 15);
+    // Total Summary stats in metadata box
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Total Invoices:', pageWidth - margin - 60, y + 8);
+    doc.text('Total Value:', pageWidth - margin - 60, y + 15);
 
-  y += 28;
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.text(totalCount.toString(), pageWidth - margin - 35, y + 8);
+    doc.setTextColor(212, 175, 55); // Gold for final amount
+    doc.text(`AED ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, pageWidth - margin - 35, y + 15);
 
-  const tableOptions: any = {
-    startY: y,
-    head: [['Invoice Date', 'Invoice ID', 'Customer Name', 'Amount (AED)']],
-    body: tableData,
-    theme: 'grid',
-    headStyles: {
-      fillColor: [10, 10, 10],
-      textColor: [212, 175, 55],
-      fontStyle: 'bold',
-      halign: 'center',
-      valign: 'middle',
-      fontSize: 9,
-      cellPadding: 4
-    },
-    bodyStyles: {
-      halign: 'center',
-      valign: 'middle',
-      fontSize: 9,
-      cellPadding: 4.5
-    },
-    columnStyles: {
-      0: { cellWidth: 26, halign: 'center' },
-      1: { cellWidth: 32, halign: 'center' },
-      2: { cellWidth: 'auto', halign: 'center' },
-      3: { cellWidth: 35, fontStyle: 'bold', halign: 'center' }
-    },
-    margin: { left: margin, right: margin }
+    y += 28;
+
+    const tableOptions: any = {
+      startY: y,
+      head: [['Invoice Date', 'Invoice ID', 'Customer Name', 'Amount (AED)']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: {
+        fillColor: [10, 10, 10],
+        textColor: [212, 175, 55],
+        fontStyle: 'bold',
+        halign: 'center',
+        valign: 'middle',
+        fontSize: 9,
+        cellPadding: 4
+      },
+      bodyStyles: {
+        halign: 'center',
+        valign: 'middle',
+        fontSize: 9,
+        cellPadding: 4.5
+      },
+      columnStyles: {
+        0: { cellWidth: 26, halign: 'center' },
+        1: { cellWidth: 32, halign: 'center' },
+        2: { cellWidth: 'auto', halign: 'center' },
+        3: { cellWidth: 35, fontStyle: 'bold', halign: 'center' }
+      },
+      margin: { left: margin, right: margin },
+      didParseCell: (data: any) => {
+        if (data.row.section === 'body' && data.column.index === 1) {
+          const text = data.cell.raw ? data.cell.raw.toString() : '';
+          if (text && text !== '-') {
+            data.cell.styles.overflow = 'visible';
+            const doc = data.doc;
+            const scaleFactor = doc.internal.scaleFactor || 2.834645669291339;
+            const colWidthPt = 32 * scaleFactor;
+            const padding = (data.cell.styles.cellPadding?.left || 4.5) + (data.cell.styles.cellPadding?.right || 4.5);
+            const availableWidth = colWidthPt - padding - 1.5;
+            
+            let currentFontSize = data.cell.styles.fontSize || 9;
+            let textWidth = doc.getStringUnitWidth(text) * currentFontSize;
+            
+            while (textWidth > availableWidth && currentFontSize > 5) {
+              currentFontSize -= 0.5;
+              textWidth = doc.getStringUnitWidth(text) * currentFontSize;
+            }
+            data.cell.styles.fontSize = currentFontSize;
+          }
+        }
+      }
+    };
+
+    if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
+    else if (typeof autoTable === 'function') autoTable(doc, tableOptions);
+
+    const finalY = (doc as any).lastAutoTable.finalY || y;
+
+    // Draw signatures
+    let sigY = finalY + 15;
+    if (sigY + 25 > pageHeight - 15) {
+      doc.addPage();
+      sigY = 20; // top of new page
+    }
+
+    doc.setDrawColor(200, 200, 200);
+    doc.setLineWidth(0.3);
+
+    // Receiver Signature (Left)
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    doc.setFont('helvetica', 'normal');
+    doc.text("Receiver's Signature:", margin + 10, sigY);
+    if (adminSignature) {
+      try {
+        doc.addImage(adminSignature, 'PNG', margin + 15, sigY + 2, 55, 16);
+      } catch (e) {
+        console.error('Error adding admin signature image to PDF:', e);
+      }
+    }
+    doc.line(margin + 10, sigY + 19, margin + 80, sigY + 19);
+
+    // Driver Signature (Right)
+    if (!isCopy) {
+      doc.text("Driver's Signature:", pageWidth - margin - 80, sigY);
+      if (driverSignature) {
+        try {
+          doc.addImage(driverSignature, 'PNG', pageWidth - margin - 75, sigY + 2, 55, 16);
+        } catch (e) {
+          console.error('Error adding driver signature image to PDF:', e);
+        }
+      }
+      doc.line(pageWidth - margin - 80, sigY + 19, pageWidth - margin - 10, sigY + 19);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Name: ${driverName}`, pageWidth - margin - 80, sigY + 23);
+    }
   };
 
-  if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);
-  else if (typeof autoTable === 'function') autoTable(doc, tableOptions);
+  // Draw original report
+  renderReportPage(false);
 
-  const finalY = (doc as any).lastAutoTable.finalY || y;
-
-  // Draw signatures
-  let sigY = finalY + 15;
-  if (sigY + 25 > pageHeight - 15) {
-    doc.addPage();
-    sigY = 20; // top of new page
-  }
-
-  doc.setDrawColor(200, 200, 200);
-  doc.setLineWidth(0.3);
-
-  // Receiver Signature (Left)
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  doc.setFont('helvetica', 'normal');
-  doc.text("Receiver's Signature:", margin + 10, sigY);
-  if (adminSignature) {
-    try {
-      doc.addImage(adminSignature, 'PNG', margin + 15, sigY + 2, 55, 16);
-    } catch (e) {
-      console.error('Error adding admin signature image to PDF:', e);
-    }
-  }
-  doc.line(margin + 10, sigY + 19, margin + 80, sigY + 19);
-
-  // Driver Signature (Right)
-  doc.text("Driver's Signature:", pageWidth - margin - 80, sigY);
-  if (driverSignature) {
-    try {
-      doc.addImage(driverSignature, 'PNG', pageWidth - margin - 75, sigY + 2, 55, 16);
-    } catch (e) {
-      console.error('Error adding driver signature image to PDF:', e);
-    }
-  }
-  doc.line(pageWidth - margin - 80, sigY + 19, pageWidth - margin - 10, sigY + 19);
-  
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7.5);
-  doc.setTextColor(120, 120, 120);
-  doc.text(`Name: ${driverName}`, pageWidth - margin - 80, sigY + 23);
+  // Add page break and draw copy report
+  doc.addPage();
+  renderReportPage(true);
 
   // Footer page numbers
   const totalPages = (doc as any).internal.getNumberOfPages();

@@ -124,7 +124,29 @@ export async function generatePendingDriverInvoicesPDF(
       3: { cellWidth: 'auto', halign: 'center' },
       4: { cellWidth: 35, fontStyle: 'bold', halign: 'center' }
     },
-    margin: { left: margin, right: margin }
+    margin: { left: margin, right: margin },
+    didParseCell: (data: any) => {
+      if (data.row.section === 'body' && (data.column.index === 1 || data.column.index === 2)) {
+        const text = data.cell.raw ? data.cell.raw.toString() : '';
+        if (text && text !== '-') {
+          data.cell.styles.overflow = 'visible';
+          const doc = data.doc;
+          const scaleFactor = doc.internal.scaleFactor || 2.834645669291339;
+          const colWidthPt = 32 * scaleFactor;
+          const padding = (data.cell.styles.cellPadding?.left || 4.5) + (data.cell.styles.cellPadding?.right || 4.5);
+          const availableWidth = colWidthPt - padding - 1.5;
+          
+          let currentFontSize = data.cell.styles.fontSize || 9;
+          let textWidth = doc.getStringUnitWidth(text) * currentFontSize;
+          
+          while (textWidth > availableWidth && currentFontSize > 5) {
+            currentFontSize -= 0.5;
+            textWidth = doc.getStringUnitWidth(text) * currentFontSize;
+          }
+          data.cell.styles.fontSize = currentFontSize;
+        }
+      }
+    }
   };
 
   if (typeof (doc as any).autoTable === 'function') (doc as any).autoTable(tableOptions);

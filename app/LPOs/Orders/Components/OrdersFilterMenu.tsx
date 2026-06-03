@@ -12,7 +12,7 @@ interface OrdersFilterMenuProps {
 }
 
 export interface FilterCriteria {
-  invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending' | 'Returned';
+  invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending' | 'Returned' | 'ReturnedUnconfirmed';
   driverId: string;
   prepStaffName: string;
 }
@@ -105,7 +105,8 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                     { id: 'Pending', label: 'Pending Handover' },
                     { id: 'Handed Over', label: 'Handed Over' },
                     { id: 'Confirmed', label: 'Confirmed' },
-                    { id: 'Returned', label: 'Returned & Cancelled' }
+                    { id: 'Returned', label: 'Returned & Cancelled' },
+                    { id: 'ReturnedUnconfirmed', label: 'Cancelled (Unconfirmed)' }
                   ]}
                   value={activeFilters.invoiceStatus}
                   onChange={(val) => onFilterChange({ ...activeFilters, invoiceStatus: (val as any) || 'All' })}

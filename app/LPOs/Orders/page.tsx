@@ -293,6 +293,8 @@ export default function OrdersPage() {
             notes !== 'SYSTEM_CANCELLED';
         } else if (advancedFilters.invoiceStatus === 'Returned') {
           matchesAdvanced = notes === 'SYSTEM_CANCELLED';
+        } else if (advancedFilters.invoiceStatus === 'ReturnedUnconfirmed') {
+          matchesAdvanced = notes === 'SYSTEM_CANCELLED' && status !== 'Confirmed';
         }
       }
 
