@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import SalesOverviewTab from '@/components/Sales/SalesOverviewTab';
 import SalesTop10Tab from '@/components/Sales/SalesTop10Tab';
 import SalesCustomersTab from '@/components/Sales/SalesCustomersTab';
+import SalesCustomersComparisonTab from '@/components/Sales/SalesCustomersComparisonTab';
 import SalesInactiveCustomersTab from '@/components/Sales/SalesInactiveCustomersTab';
 import SalesStatisticsTab from '@/components/Sales/SalesStatisticsTab';
 import SalesDailySalesTab from '@/components/Sales/SalesDailySalesTab';
@@ -546,6 +547,7 @@ export default function SalesPage() {
     { id: 'sales-top10', label: 'Top 10' },
 
     { id: 'sales-customers', label: 'Customers' },
+    { id: 'sales-customers-comparison', label: 'Comparison' },
     { id: 'sales-inactive-customers', label: 'Inactive' },
     { id: 'sales-statistics', label: 'Statistics' },
     { id: 'sales-daily-sales', label: 'Daily Sales' },
@@ -607,6 +609,14 @@ export default function SalesPage() {
             loading={loading} 
             onUploadMapping={handleUploadMapping} 
             showCosts={showCosts}
+          />
+        );
+
+      case 'sales-customers-comparison':
+        return (
+          <SalesCustomersComparisonTab
+            data={geographyFilteredData}
+            loading={loading}
           />
         );
 

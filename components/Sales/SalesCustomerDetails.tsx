@@ -22,6 +22,7 @@ import {
 
 interface SalesCustomerDetailsProps {
   customerName: string;
+  customerId?: string;
   customerType?: 'main' | 'sub';
   data: SalesInvoice[];
   allData?: SalesInvoice[]; // Full dataset (not date filtered)
@@ -32,6 +33,7 @@ interface SalesCustomerDetailsProps {
 
 export default function SalesCustomerDetails({
   customerName,
+  customerId,
   customerType = 'sub',
   data,
   allData = [],
@@ -83,15 +85,13 @@ export default function SalesCustomerDetails({
       return data.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
     }
 
-    // First, find the customerId for this customerName (use first match)
-    const firstMatch = data.find(item => item.customerName === customerName);
-    const customerId = firstMatch?.customerId;
-
-    // Filter by customerId if available, otherwise by customerName
-    return customerId
-      ? data.filter(item => item.customerId === customerId)
-      : data.filter(item => item.customerName === customerName);
-  }, [data, customerName, customerType]);
+    // Use the passed customerId directly if available, otherwise fall back to name lookup
+    if (customerId) {
+      return data.filter(item => item.customerId === customerId);
+    }
+    // Fallback: find by name (single customer, no ambiguity)
+    return data.filter(item => item.customerName === customerName);
+  }, [data, customerName, customerId, customerType]);
 
   // Filter data for this customer with search and date filters
   // Note: customerName is used for display, but we need to find by customerId if available
@@ -624,12 +624,11 @@ export default function SalesCustomerDetails({
     if (customerType === 'main') {
       return source.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
     }
-    const firstMatch = source.find(item => item.customerName === customerName);
-    const customerId = firstMatch?.customerId;
-    return customerId
-      ? source.filter(item => item.customerId === customerId)
-      : source.filter(item => item.customerName === customerName);
-  }, [allData, data, customerName, customerType]);
+    if (customerId) {
+      return source.filter(item => item.customerId === customerId);
+    }
+    return source.filter(item => item.customerName === customerName);
+  }, [allData, data, customerName, customerId, customerType]);
 
   // Chart data for monthly sales - Jan-Dec comparison
   const chartData = useMemo(() => {
@@ -1220,8 +1219,8 @@ export default function SalesCustomerDetails({
 
         {/* Categories Tab */}
         {activeTab === 'categories' && (
-          <SalesCustomerCategoriesTab 
-            data={customerData} 
+          <SalesCustomerCategoriesTab
+            data={customerData}
             customerName={customerName}
             searchQuery={debouncedSearchQuery}
           />
@@ -1471,7 +1470,7 @@ export default function SalesCustomerDetails({
                           </td>
                         )}
                         <td className="py-3 px-4 text-base text-green-600 font-semibold text-center">
-                          <button 
+                          <button
                             onClick={() => setSelectedInvoice({
                               ...item,
                               customerName: customerType === 'main' ? (item.subCustomerNames || customerName) : customerName
@@ -1706,7 +1705,7 @@ export default function SalesCustomerDetails({
                   >
                     <FileSpreadsheet className="w-5 h-5 transition-transform group-hover:scale-110" />
                   </button>
-                  <button 
+                  <button
                     onClick={() => setSelectedInvoice(null)}
                     className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500"
                   >

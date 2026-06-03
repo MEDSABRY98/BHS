@@ -18,13 +18,13 @@ interface SalesCustomersTabProps {
 const ITEMS_PER_PAGE = 50;
 
 // Memoized row component for better performance
-const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (customer: string) => void }) => {
+const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { customerId: string; customer: string; totalAmount: number; totalQty: number; averageAmount: number; averageQty: number; productsCount: number; transactions: number }; rowNumber: number; onCustomerClick: (id: string, name: string) => void }) => {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 group text-center">
       <td className="py-3 px-4 text-sm text-gray-600 font-medium">{rowNumber}</td>
       <td
         className="py-3 px-4 text-sm text-gray-800 font-medium cursor-pointer hover:text-green-600 hover:underline w-56 truncate"
-        onClick={() => onCustomerClick(item.customer)}
+        onClick={() => onCustomerClick(item.customerId, item.customer)}
         title={item.customer}
       >
         {item.customer}
@@ -49,7 +49,7 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const [selectedCustomer, setSelectedCustomer] = useState<string | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<{ id: string; name: string } | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'main' | 'sub'>('main');
   const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
@@ -148,6 +148,7 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
       }
 
       result[index++] = {
+        customerId: item.customerId,
         customer: item.customer,
         totalAmount: item.totalAmount,
         totalQty: item.totalQty,
@@ -278,12 +279,13 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
   );
 
   if (selectedCustomer) return (
-    <SalesCustomerDetails 
-      customerName={selectedCustomer} 
-      customerType={activeTab} 
-      data={data} 
+    <SalesCustomerDetails
+      customerName={selectedCustomer.name}
+      customerId={selectedCustomer.id}
+      customerType={activeTab}
+      data={data}
       allData={allData}
-      onBack={() => setSelectedCustomer(null)} 
+      onBack={() => setSelectedCustomer(null)}
       showCosts={showCosts}
     />
   );
@@ -362,7 +364,7 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
             </thead>
             <tbody className="divide-y divide-slate-50">
               {paginatedCustomers.map((item, idx) => (
-                <CustomerRow key={item.customer} item={item} rowNumber={startIndex + idx + 1} onCustomerClick={setSelectedCustomer} />
+                <CustomerRow key={item.customerId} item={item} rowNumber={startIndex + idx + 1} onCustomerClick={(id, name) => setSelectedCustomer({ id, name })} />
               ))}
               {filteredCustomers.length === 0 && (
                 <tr>
