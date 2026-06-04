@@ -56,7 +56,7 @@ export default function CreateOrderPage() {
     try {
       const [usersRes, customersRes] = await Promise.all([
         app_lpos_supabase.from('bhs_USERS').select('*').order('NAME'),
-        app_lpos_supabase.from('bhs_CUSTOMERS').select('*').order('CUSTOMER NAME')
+        app_lpos_supabase.from('bhs_CUSTOMERS').select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"').order('CUSTOMER SUB NAME')
       ]);
 
       const fetchedUsers = usersRes.data || [];

@@ -51,7 +51,8 @@ export default function CustomersPage() {
   }, [searchTerm]);
 
   // Form states - Matching DB columns
-  const [CUSTOMER_NAME, setCUSTOMER_NAME] = useState('');
+  const [CUSTOMER_SUB_NAME, setCUSTOMER_SUB_NAME] = useState('');
+  const [CUSTOMER_MAIN_NAME, setCUSTOMER_MAIN_NAME] = useState('');
   const [CUSTOMER_CITY, setCUSTOMER_CITY] = useState('');
   const [CUSTOMER_ID, setCUSTOMER_ID] = useState('');
 
@@ -74,11 +75,11 @@ export default function CustomersPage() {
 
       if (search.trim()) {
         const term = `%${search.trim()}%`;
-        query = query.or(`"CUSTOMER NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term}`);
+        query = query.or(`"CUSTOMER SUB NAME".ilike.${term},"CUSTOMER MAIN NAME".ilike.${term},"CUSTOMER ID".ilike.${term},"CUSTOMER CITY".ilike.${term}`);
       }
 
       const { data, error, count } = await query
-        .order('CUSTOMER NAME')
+        .order('CUSTOMER SUB NAME')
         .range(start, end);
 
       if (error) throw error;
@@ -93,7 +94,8 @@ export default function CustomersPage() {
 
   const handleOpenModal = (customer: any = null) => {
     setEditingCustomer(customer);
-    setCUSTOMER_NAME(customer ? customer["CUSTOMER NAME"] : '');
+    setCUSTOMER_SUB_NAME(customer ? customer["CUSTOMER SUB NAME"] : '');
+    setCUSTOMER_MAIN_NAME(customer ? customer["CUSTOMER MAIN NAME"] : '');
     setCUSTOMER_CITY(customer ? customer["CUSTOMER CITY"] : '');
     setCUSTOMER_ID(customer ? customer["CUSTOMER ID"] : '');
     setIsModalOpen(true);
@@ -130,7 +132,8 @@ export default function CustomersPage() {
         const { error } = await app_lpos_supabase
           .from('bhs_CUSTOMERS')
           .update({
-            "CUSTOMER NAME": CUSTOMER_NAME,
+            "CUSTOMER SUB NAME": CUSTOMER_SUB_NAME,
+            "CUSTOMER MAIN NAME": CUSTOMER_MAIN_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID
           })
@@ -159,7 +162,8 @@ export default function CustomersPage() {
           .from('bhs_CUSTOMERS')
           .insert({
             ID: nextId,
-            "CUSTOMER NAME": CUSTOMER_NAME,
+            "CUSTOMER SUB NAME": CUSTOMER_SUB_NAME,
+            "CUSTOMER MAIN NAME": CUSTOMER_MAIN_NAME,
             "CUSTOMER CITY": CUSTOMER_CITY,
             "CUSTOMER ID": CUSTOMER_ID
           });
@@ -210,7 +214,8 @@ export default function CustomersPage() {
       const exportData = customers.map(c => ({
         "ID": c.ID,
         "Customer ID": c["CUSTOMER ID"] || '',
-        "Customer Name": c["CUSTOMER NAME"] || '',
+        "Customer Main Name": c["CUSTOMER MAIN NAME"] || '',
+        "Customer Sub Name": c["CUSTOMER SUB NAME"] || '',
         "Customer City": c["CUSTOMER CITY"] || ''
       }));
 
@@ -219,7 +224,8 @@ export default function CustomersPage() {
         exportData.push({
           "ID": "R-0001",
           "Customer ID": "CUST-1001",
-          "Customer Name": "Lulu Hypermarket",
+          "Customer Main Name": "Lulu Group",
+          "Customer Sub Name": "Lulu Hypermarket",
           "Customer City": "Dubai"
         });
       }
@@ -287,11 +293,12 @@ export default function CustomersPage() {
           const row = data[i];
           let id = row["ID"]?.toString().trim();
           const customerId = row["Customer ID"]?.toString().trim() || '';
-          const customerName = row["Customer Name"]?.toString().trim();
+          const customerMainName = row["Customer Main Name"]?.toString().trim() || '';
+          const customerSubName = row["Customer Sub Name"]?.toString().trim() || row["Customer Name"]?.toString().trim() || '';
           const customerCity = row["Customer City"]?.toString().trim() || '';
 
-          if (!customerName) {
-            triggerMessage('error', `Row ${i + 2}: 'Customer Name' is required`);
+          if (!customerSubName) {
+            triggerMessage('error', `Row ${i + 2}: 'Customer Sub Name' or 'Customer Name' is required`);
             setIsUploading(false);
             return;
           }
@@ -320,7 +327,8 @@ export default function CustomersPage() {
           recordsToUpsert.push({
             ID: id,
             "CUSTOMER ID": customerId,
-            "CUSTOMER NAME": customerName,
+            "CUSTOMER MAIN NAME": customerMainName,
+            "CUSTOMER SUB NAME": customerSubName,
             "CUSTOMER CITY": customerCity
           });
         }
@@ -404,9 +412,10 @@ export default function CustomersPage() {
             <thead>
               <tr className="border-b border-gray-50">
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Customer ID</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Name</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">City</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Customer ID</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Main Name</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Sub Name</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">City</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
               </tr>
             </thead>
@@ -414,14 +423,14 @@ export default function CustomersPage() {
               {isLoading ? (
                 Array(6).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={5} className="px-8 py-6">
+                    <td colSpan={6} className="px-8 py-6">
                       <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : paginatedCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-12 text-center">
+                  <td colSpan={6} className="px-8 py-12 text-center">
                     <NoData title="NO CUSTOMERS FOUND" />
                   </td>
                 </tr>
@@ -439,8 +448,11 @@ export default function CustomersPage() {
                         <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5">
                           <Building2 className="w-5 h-5 text-[#D4AF37]" />
                         </div>
-                        <span className="font-bold text-black">{customer["CUSTOMER NAME"]}</span>
+                        <span className="font-bold text-black">{customer["CUSTOMER MAIN NAME"] || '-'}</span>
                       </div>
+                    </td>
+                    <td className="px-8 py-6 text-left">
+                      <span className="font-bold text-black">{customer["CUSTOMER SUB NAME"]}</span>
                     </td>
                     <td className="px-8 py-6 text-center">
                       <div className="flex items-center justify-center gap-2 text-gray-500">
@@ -540,12 +552,23 @@ export default function CustomersPage() {
             <form onSubmit={handleSave} className="p-8 space-y-8">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                 <div className="md:col-span-2 space-y-2">
-                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER NAME</label>
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER MAIN NAME</label>
                   <input
                     type="text"
-                    value={CUSTOMER_NAME}
-                    onChange={(e) => setCUSTOMER_NAME(e.target.value)}
-                    placeholder="Full Company Name"
+                    value={CUSTOMER_MAIN_NAME}
+                    onChange={(e) => setCUSTOMER_MAIN_NAME(e.target.value)}
+                    placeholder="Main Company Name"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
+                </div>
+
+                <div className="md:col-span-2 space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">CUSTOMER SUB NAME</label>
+                  <input
+                    type="text"
+                    value={CUSTOMER_SUB_NAME}
+                    onChange={(e) => setCUSTOMER_SUB_NAME(e.target.value)}
+                    placeholder="Full Company Sub Name"
                     required
                     className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
                   />

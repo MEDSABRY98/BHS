@@ -14,7 +14,7 @@ export async function GET() {
                 .order('CREATED_AT', { ascending: false }),
             (app_lpos_supabase
                 .from('bhs_CUSTOMERS')
-                .select('ID, "CUSTOMER NAME", "CUSTOMER CITY"') as any)
+                .select('ID, "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY"') as any)
         ]);
 
         if (ordersRes.error) throw ordersRes.error;

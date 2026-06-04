@@ -68,7 +68,7 @@ export default function DashboardPage() {
         app_lpos_supabase.from('app_lpos_ORDERS')
           .select(`
             *,
-            bhs_CUSTOMERS ( "CUSTOMER NAME" ),
+            bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
             bhs_USERS ( "NAME" )
           `)
           .order('ORDER_ID', { ascending: false }),

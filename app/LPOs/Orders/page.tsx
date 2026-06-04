@@ -107,7 +107,7 @@ export default function OrdersPage() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME", "CUSTOMER CITY" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY" ),
           bhs_USERS ( "NAME" ),
           app_lpos_DRIVERS ( 
             ID,

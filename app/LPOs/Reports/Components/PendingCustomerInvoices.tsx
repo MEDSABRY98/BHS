@@ -43,7 +43,7 @@ export default function PendingCustomerInvoices() {
         .from('app_lpos_ORDERS')
         .select(`
           *,
-          bhs_CUSTOMERS ( "CUSTOMER NAME" ),
+          bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
           app_lpos_DRIVERS!inner (
             DRIVERS_NAME,
             STATUS,
