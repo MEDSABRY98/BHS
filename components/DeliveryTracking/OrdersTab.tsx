@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileSpreadsheet, Clock, Edit2, X, Activity } from 'lucide-react';
+import { FileSpreadsheet, Calendar, ChevronDown, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 import { DeliveryEntry, STATUS_CONFIG } from './types';
 import NoData from '../01-Unified/NoDataTab';
 
@@ -18,7 +18,9 @@ interface OrdersTabProps {
     filterDateTo: string;
     setFilterDateTo: (d: string) => void;
     canEdit: boolean;
-    openEditModal: (o: DeliveryEntry) => void;
+    onUpdateStatus: (orderId: string, status: string, postponedDate?: string) => Promise<void>;
+    onDeleteOrder: (id: string) => void;
+    onEditOrder: (order: DeliveryEntry) => void;
 }
 
 export default function OrdersTab({
@@ -36,39 +38,79 @@ export default function OrdersTab({
     filterDateTo,
     setFilterDateTo,
     canEdit,
-    openEditModal
+    onUpdateStatus,
+    onDeleteOrder,
+    onEditOrder
 }: OrdersTabProps) {
-    const [showMissingPopup, setShowMissingPopup] = useState(false);
-    const [popupItems, setPopupItems] = useState<{ name: string, type: 'missing' | 'shipped' | 'canceled' }[]>([]);
+    const [updatingId, setUpdatingId] = useState<string | null>(null);
+    const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+
+    const handleStatusChange = async (order: DeliveryEntry, newStatus: string) => {
+        if (!canEdit) return;
+        setUpdatingId(order.id);
+        try {
+            // Default postponed date to existing deliveryDate or today if not set yet
+            const defaultDate = order.deliveryDate || new Date().toISOString().split('T')[0];
+            await onUpdateStatus(
+                order.id,
+                newStatus,
+                newStatus === 'postponed' ? defaultDate : undefined
+            );
+        } finally {
+            setUpdatingId(null);
+        }
+    };
+
+    const handleDateChange = async (order: DeliveryEntry, newDate: string) => {
+        if (!canEdit) return;
+        setUpdatingId(order.id);
+        try {
+            await onUpdateStatus(order.id, order.status, newDate);
+        } finally {
+            setUpdatingId(null);
+        }
+    };
+
     return (
-        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-            <div className="flex items-center justify-between mb-[14px]">
-                <div className="flex items-center gap-2 text-[15px] font-[700] text-[#0F1A14]">
-                    <div className="w-[3px] h-[16px] bg-[#4F46E5] rounded-[3px]"></div>
-                    All Orders Register
+        <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 font-sans">
+            {/* Top Bar with Title & Status Tabs */}
+            <div className="flex flex-col md:flex-row items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-3">
+                    <div className="w-1.5 h-8 bg-indigo-600 rounded-full"></div>
+                    <div>
+                        <h2 className="text-xl font-black text-slate-800 tracking-tight">Delivery Tracking Register</h2>
+                        <p className="text-xs text-slate-500 font-medium font-sans">Track and update the status of your orders</p>
+                    </div>
                 </div>
-                <div className="flex items-center gap-[6px]">
-                    {['all', 'delivered', 'partial', 'pending', 'canceled'].map((s) => (
+
+                <div className="flex flex-wrap items-center gap-2">
+                    {[
+                        { id: 'all', label: 'All' },
+                        { id: 'delivered', label: 'Delivered' },
+                        { id: 'pending', label: 'Pending' },
+                        { id: 'postponed', label: 'Postponed' },
+                        { id: 'canceled', label: 'Canceled' }
+                    ].map((tab) => (
                         <button
-                            key={s}
-                            onClick={() => setFilterStatus(s)}
+                            key={tab.id}
+                            onClick={() => setFilterStatus(tab.id)}
                             className={`
-                px-[12px] py-[4px] rounded-[20px] text-[11px] font-[600] capitalize border-[1.5px] transition-all
-                ${filterStatus === s
-                                    ? 'bg-[#EEF2FF] text-[#4F46E5] border-[#4F46E5]'
-                                    : 'bg-white text-[#64748B] border-[#E2E8F0] hover:border-[#4F46E5]'
+                                px-5 py-2 rounded-xl text-xs font-bold transition-all border shadow-sm
+                                ${filterStatus === tab.id
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-indigo-600/10'
+                                    : 'bg-white text-slate-600 border-slate-200 hover:border-indigo-400 hover:text-indigo-600'
                                 }
-              `}
+                            `}
                         >
-                            {s === 'all' ? 'All' : (STATUS_CONFIG[s as keyof typeof STATUS_CONFIG]?.label || s)}
+                            {tab.label}
                         </button>
                     ))}
-                    <div className="w-px h-4 bg-[#B2C4BB] mx-1"></div>
+                    <div className="w-px h-6 bg-slate-200 mx-2"></div>
                     {canDownload && (
                         <button
                             onClick={exportOrdersCSV}
-                            title="Export Excel"
-                            className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-sm flex items-center justify-center transition-colors"
+                            title="Export to CSV"
+                            className="h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md shadow-emerald-600/10 flex items-center justify-center transition-all hover:scale-105"
                         >
                             <FileSpreadsheet className="w-5 h-5" />
                         </button>
@@ -76,205 +118,248 @@ export default function OrdersTab({
                 </div>
             </div>
 
-            {/* DATE FILTER BAR */}
-            <div className="flex flex-wrap items-center justify-center gap-3 mb-[14px] bg-white border-[1.5px] border-[#E4EDE8] rounded-[12px] px-4 py-3 shadow-[0_1px_4px_rgba(0,0,0,0.04)] font-bold">
-                <span className="text-[11px] font-[800] text-[#5A7266] uppercase tracking-widest whitespace-nowrap">📅 Filter by Date</span>
-                <div className="w-px h-4 bg-[#E4EDE8]" />
+            {/* Date Filters Bar */}
+            <div className="flex flex-wrap items-center gap-4 mb-6 bg-white border border-slate-200/80 rounded-2xl px-5 py-4 shadow-sm font-sans font-bold">
+                <span className="text-xs font-extrabold text-slate-500 flex items-center gap-1.5 whitespace-nowrap">
+                    <Calendar className="w-4 h-4 text-indigo-500" /> Filter by Date:
+                </span>
+                <div className="w-px h-5 bg-slate-200 hidden lg:block" />
 
                 {/* Year */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-[700] text-[#5A7266]">Year</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500">Year</span>
                     <input
                         type="text"
-                        placeholder="e.g. 2025"
+                        placeholder="YYYY"
                         value={filterYear}
                         onChange={e => setFilterYear(e.target.value)}
                         maxLength={4}
-                        className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 text-[12px] font-[600] text-[#0F1A14] outline-none focus:border-[#4F46E5] transition-all w-[90px]"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all w-24 text-center"
                     />
                 </div>
 
                 {/* Month */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-[700] text-[#5A7266]">Month</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500">Month</span>
                     <input
                         type="text"
-                        placeholder="e.g. 02"
+                        placeholder="MM"
                         value={filterMonth}
                         onChange={e => setFilterMonth(e.target.value)}
                         maxLength={2}
-                        className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 text-[12px] font-[600] text-[#0F1A14] outline-none focus:border-[#4F46E5] transition-all w-[90px]"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all w-20 text-center"
                     />
                 </div>
 
-                <div className="w-px h-4 bg-[#E4EDE8]" />
+                <div className="w-px h-5 bg-slate-200" />
 
                 {/* From */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-[700] text-[#5A7266]">From</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500">From</span>
                     <input
                         type="date"
                         value={filterDateFrom}
                         onChange={e => setFilterDateFrom(e.target.value)}
-                        className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 text-[12px] font-[600] text-[#0F1A14] outline-none focus:border-[#4F46E5] transition-all appearance-none"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all"
                     />
                 </div>
 
                 {/* To */}
-                <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-[700] text-[#5A7266]">To</span>
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500">To</span>
                     <input
                         type="date"
                         value={filterDateTo}
                         onChange={e => setFilterDateTo(e.target.value)}
-                        className="bg-[#F6F9F7] border-[1.5px] border-[#E4EDE8] rounded-[8px] px-3 py-1.5 text-[12px] font-[600] text-[#0F1A14] outline-none focus:border-[#4F46E5] transition-all appearance-none"
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all"
                     />
                 </div>
 
                 {/* Clear */}
                 {(filterYear || filterMonth || filterDateFrom || filterDateTo) && (
                     <>
-                        <div className="w-px h-4 bg-[#E4EDE8]" />
+                        <div className="w-px h-5 bg-slate-200" />
                         <button
                             onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDateFrom(''); setFilterDateTo(''); }}
-                            className="text-[11px] font-[700] text-[#E74C3C] hover:text-[#A93226] flex items-center gap-1 transition-colors"
+                            className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 transition-colors"
                         >
-                            <X className="w-3 h-3" /> Clear
+                            <X className="w-4 h-4" /> Clear Filters
                         </button>
                     </>
                 )}
             </div>
 
-            <div className="bg-white rounded-[14px] border-[1.5px] border-[#E4EDE8] shadow-[0_1px_4px_rgba(0,0,0,0.06)] overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-center">
+            {/* Table Container */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-visible">
+                <div className="overflow-visible">
+                    <table className="w-full table-fixed border-collapse">
+                        <colgroup>
+                            <col className="w-[11%]" />
+                            <col className="w-[11%]" />
+                            <col className="w-[12%]" />
+                            <col className="w-[22%]" />
+                            <col className="w-[9%]" />
+                            <col className="w-[13%]" />
+                            <col className="w-[12%]" />
+                            <col className="w-[10%]" />
+                        </colgroup>
                         <thead>
-                            <tr className="bg-[#4F46E5]">
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[110px]">LPO ID</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Number</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[130px]">LPO Date</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center min-w-[130px]">Delivery Date</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Customer Name</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">LPO Value</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Invoice DATE</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Invoice Number</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Invoice Value</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Difference</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Status</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Missing Items</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Re-ship?</th>
-                                <th className="p-[12px_16px] text-[10.5px] font-[600] text-white/80 uppercase tracking-[0.6px] text-center">Actions</th>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">LPO Date</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Delivery Date</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">LPO Number</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Customer Name</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Value</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Status</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Postponed Date</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Actions</th>
                             </tr>
                         </thead>
-                        <tbody className="divide-y divide-[#E0E7FF] font-bold">
+                        <tbody className="divide-y divide-slate-100 font-sans font-bold">
                             {filteredOrders.length === 0 ? (
                                 <tr>
-                                    <td colSpan={14} className="py-24">
+                                    <td colSpan={8} className="py-20 text-center">
                                         <NoData
                                             title="No Orders Found"
-                                            message="Try adjusting your filters or search query to find the LPOs you're looking for."
+                                            message="Try adjusting your search query or filters to find what you are looking for."
                                         />
                                     </td>
                                 </tr>
                             ) : (
-                                filteredOrders.map((o, index) => {
-                                    const diff = o.invoiceVal > 0 ? o.invoiceVal - o.lpoVal : 0;
-                                    const showHeader = index === 0 || o.date !== filteredOrders[index - 1].date;
+                                filteredOrders.map((o) => {
+                                    const currentStatus = o.status || 'pending';
+                                    const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
+
                                     return (
-                                        <React.Fragment key={o.id}>
-                                            {showHeader && (
-                                                <tr className="bg-[#F8FAFC]">
-                                                    <td colSpan={14} className="p-[10px_16px] text-left">
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="w-8 h-8 bg-indigo-50 border border-indigo-100 rounded-lg flex items-center justify-center">
-                                                                <Clock className="w-4 h-4 text-[#4F46E5]" />
-                                                            </div>
-                                                            <div>
-                                                                <span className="text-[14px] font-[900] text-[#1e1b4b] tracking-tight">{o.date}</span>
-                                                                <span className="ml-3 text-[10px] font-black text-slate-400 uppercase tracking-widest border-l border-slate-200 pl-3">
-                                                                    {filteredOrders.filter(ord => ord.date === o.date).length} Orders
-                                                                </span>
-                                                            </div>
+                                        <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            {/* LPO Date */}
+                                            <td className="p-4 text-sm text-slate-700 font-mono text-center">
+                                                {o.date || '—'}
+                                            </td>
+
+                                            {/* Delivery Date */}
+                                            <td className="p-4 text-sm text-indigo-600 font-mono text-center font-bold">
+                                                {o.deliveryDate || '—'}
+                                            </td>
+
+                                            {/* LPO Number */}
+                                            <td className="p-4 text-center">
+                                                <span className="font-mono text-xs font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100/50 px-2.5 py-1 rounded-lg">
+                                                    {o.lpo || '—'}
+                                                </span>
+                                            </td>
+
+                                            {/* Customer Name */}
+                                            <td className="p-4 text-sm text-slate-800 font-extrabold text-center truncate" title={o.customer || '—'}>
+                                                {o.customer || '—'}
+                                            </td>
+
+                                            {/* Value */}
+                                            <td className="p-4 text-center text-sm font-semibold text-slate-600 font-mono">
+                                                {(o.lpoVal || 0).toLocaleString()}
+                                            </td>
+
+                                            {/* Status Dropdown */}
+                                            <td className="p-4 text-center relative">
+                                                <div className="inline-flex items-center justify-center gap-2">
+                                                    {updatingId === o.id ? (
+                                                        <div className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-slate-100 text-slate-500 rounded-xl border border-slate-200">
+                                                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                            <span>Saving...</span>
                                                         </div>
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            <tr className="hover:bg-[#F0FAF4] transition-colors group">
-                                                <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#5A7266] bg-[#F6F9F7] px-[9px] py-[3px] rounded-[5px] border border-[#E4EDE8]">{o.lpoId || '—'}</span></td>
-                                                <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#4F46E5] bg-[#EEF2FF] px-[9px] py-[3px] rounded-[5px] border border-[#4F46E5]/12">{o.lpo || '—'}</span></td>
-                                                <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.date || '—'}</td>
-                                                <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2980B9]">
-                                                    {o.deliveryDate
-                                                        ? <span className="bg-[#EBF8FF] text-[#2980B9] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12 text-[12px] font-[600]">{o.deliveryDate}</span>
-                                                        : <span className="text-[#B2C4BB]">&mdash;</span>
-                                                    }
-                                                </td>
-                                                <td className="p-[12px_16px] text-center font-[600] text-[12.5px] text-[#0F1A14]">{o.customer || '—'}</td>
-                                                <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{(o.lpoVal || 0).toLocaleString()}</td>
-                                                <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#2C3E35]">{o.invoiceDate || '—'}</td>
-                                                <td className="p-[12px_16px] text-center"><span className="font-mono-dm text-[12px] font-[500] text-[#2980B9] bg-[#EBF5FB] px-[9px] py-[3px] rounded-[5px] border border-[#2980B9]/12">{o.invoiceNumber || '—'}</span></td>
-                                                <td className="p-[12px_16px] text-center font-mono-dm text-[12.5px] text-[#5A7266]">{o.invoiceVal && o.invoiceVal > 0 ? o.invoiceVal.toLocaleString() : '—'}</td>
-                                                <td className="p-[12px_16px] text-center">
-                                                    {!o.invoiceVal || o.invoiceVal === 0 ? '—' :
-                                                        <span className={`text-[12px] font-[700] font-mono-dm ${diff < 0 ? 'text-[#E74C3C]' : diff > 0 ? 'text-[#1A8A47]' : 'text-[#B2C4BB]'}`}>
-                                                            {diff === 0 ? '0' : (diff > 0 ? `+${diff.toLocaleString()}` : `-${Math.abs(diff).toLocaleString()}`)}
-                                                        </span>
-                                                    }
-                                                </td>
-                                                <td className="p-[12px_16px] text-center">
-                                                    {(() => {
-                                                        const normalizedStatus = (o.status || 'pending').toLowerCase();
-                                                        const statusConf = STATUS_CONFIG[normalizedStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
-                                                        return (
-                                                            <div className={`inline-flex items-center gap-[5px] px-[10px] py-[3px] rounded-[20px] text-[11px] font-[600] border border-transparent ${statusConf.color}`}>
-                                                                <div className={`w-[5px] h-[5px] rounded-full ${statusConf.dot}`}></div>
-                                                                {statusConf.label}
-                                                            </div>
-                                                        );
-                                                    })()}
-                                                </td>
-                                                <td className="p-[12px_16px] text-center">
-                                                    {(() => {
-                                                        const mCount = o.missing?.length || 0;
-                                                        const sCount = (o.shippedItems || []).length;
-                                                        const cCount = (o.canceledItems || []).length;
-                                                        const total = mCount + sCount + cCount;
-
-                                                        if (total === 0) return '—';
-
-                                                        const allItems = [
-                                                            ...(o.missing || []).map(m => ({ name: m, type: 'missing' as const })),
-                                                            ...(o.shippedItems || []).map(m => ({ name: m, type: 'shipped' as const })),
-                                                            ...(o.canceledItems || []).map(m => ({ name: m, type: 'canceled' as const })),
-                                                        ];
-
-                                                        return (
+                                                    ) : (
+                                                        <div className="relative inline-block text-left">
                                                             <button
-                                                                onClick={() => { setPopupItems(allItems); setShowMissingPopup(true); }}
-                                                                className="bg-[#FDEDEC] text-[#A93226] text-[11px] font-bold px-3 py-1 rounded-full hover:bg-[#FADBD8] transition-colors shadow-sm"
+                                                                type="button"
+                                                                disabled={!canEdit}
+                                                                onClick={() => setOpenDropdownId(openDropdownId === o.id ? null : o.id)}
+                                                                className={`
+                                                                    inline-flex items-center justify-center gap-2 pl-7 pr-7 py-1.5 rounded-xl text-xs font-black border transition-all outline-none text-center shadow-sm select-none relative w-[110px]
+                                                                    ${statusConfig.color}
+                                                                    ${!canEdit ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.03] active:scale-95'}
+                                                                `}
                                                             >
-                                                                {total} Items
+                                                                <span className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-2 h-2 rounded-full ${statusConfig.dot}`} />
+                                                                <span>{statusConfig.label}</span>
+                                                                <ChevronDown className="w-3.5 h-3.5 opacity-60 absolute right-2.5 top-1/2 -translate-y-1/2" />
                                                             </button>
-                                                        );
-                                                    })()}
-                                                </td>
-                                                <td className="p-[12px_16px] text-center">
-                                                    {o.reship ? <span className="bg-[#EBF5FB] text-[#2980B9] text-[10px] font-bold px-2 py-0.5 rounded-full">YES</span> : (o.missing && o.missing.length > 0) ? <span className="text-[#A93226] font-bold text-[10px]">NO</span> : '—'}
-                                                </td>
-                                                <td className="p-[12px_16px] text-center">
-                                                    {canEdit && o.status === 'pending' && (
-                                                        <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <button
-                                                                onClick={() => openEditModal(o)}
-                                                                className="w-7 h-7 bg-[#EBF5FB] text-[#2980B9] rounded-md flex items-center justify-center hover:scale-110 transition-transform shadow-sm"
-                                                            >
-                                                                <Edit2 className="w-3.5 h-3.5" />
-                                                            </button>
+
+                                                            {openDropdownId === o.id && (
+                                                                <>
+                                                                    {/* Click outside backdrop */}
+                                                                    <div
+                                                                        className="fixed inset-0 z-30"
+                                                                        onClick={() => setOpenDropdownId(null)}
+                                                                    />
+
+                                                                    {/* Dropdown Menu */}
+                                                                    <div className="absolute right-1/2 translate-x-1/2 mt-1.5 w-36 bg-white border border-slate-100 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.12)] py-1.5 z-40 animate-in fade-in zoom-in-95 duration-100 origin-top">
+                                                                        {Object.entries(STATUS_CONFIG).map(([key, cfg]) => (
+                                                                            <button
+                                                                                key={key}
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    handleStatusChange(o, key);
+                                                                                    setOpenDropdownId(null);
+                                                                                }}
+                                                                                className={`
+                                                                                    w-full px-3 py-2 flex items-center gap-2 text-left text-xs font-extrabold hover:bg-slate-50 transition-colors first:rounded-t-xl last:rounded-b-xl
+                                                                                    ${currentStatus === key ? 'text-indigo-600 bg-indigo-50/50' : 'text-slate-700'}
+                                                                                `}
+                                                                            >
+                                                                                <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+                                                                                <span>{cfg.label}</span>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </>
+                                                            )}
                                                         </div>
                                                     )}
-                                                </td>
-                                            </tr>
-                                        </React.Fragment>
+                                                </div>
+                                            </td>
+
+                                            {/* Postponed Date input */}
+                                            <td className="p-4 text-center">
+                                                {currentStatus === 'postponed' ? (
+                                                    <div className="inline-flex items-center gap-2">
+                                                        <input
+                                                            type="date"
+                                                            value={o.deliveryDate || ''}
+                                                            disabled={!canEdit || updatingId === o.id}
+                                                            onChange={(e) => handleDateChange(o, e.target.value)}
+                                                            className="bg-purple-50/50 border border-purple-200 text-purple-800 rounded-xl px-3 py-1 text-xs font-bold outline-none focus:border-purple-500 focus:bg-white transition-all font-mono"
+                                                        />
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-slate-300">—</span>
+                                                )}
+                                            </td>
+
+                                            {/* Actions */}
+                                            <td className="p-4 text-center">
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onEditOrder(o)}
+                                                        disabled={!canEdit}
+                                                        title="Edit LPO"
+                                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                                                    >
+                                                        <Pencil className="w-4 h-4" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onDeleteOrder(o.id)}
+                                                        disabled={!canEdit}
+                                                        title="Delete LPO"
+                                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-50 disabled:hover:bg-transparent"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
                                     );
                                 })
                             )}
@@ -282,46 +367,6 @@ export default function OrdersTab({
                     </table>
                 </div>
             </div>
-
-            {/* PARTIAL DELIVERY AUDIT POPUP */}
-            {showMissingPopup && (
-                <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-[#0F1A14]/40 backdrop-blur-[2px] animate-in fade-in duration-300" onClick={() => setShowMissingPopup(false)}></div>
-                    <div className="bg-white rounded-[18px] w-full max-w-[400px] shadow-[0_24px_64px_rgba(0,0,0,0.2)] relative z-10 animate-in zoom-in-95 duration-200 overflow-hidden border border-[#E4EDE8]">
-                        <div className="p-5 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                                <Activity className="w-5 h-5 text-indigo-600" />
-                                <h3 className="text-indigo-900 text-[15px] font-[800]">Partial Delivery Audit</h3>
-                            </div>
-                            <button onClick={() => setShowMissingPopup(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <div className="p-6 space-y-2 max-h-[400px] overflow-y-auto">
-                            {popupItems.map((item, idx) => (
-                                <div key={idx} className="flex items-center justify-between gap-3 bg-[#F9FBFA] border border-[#E4EDE8] p-3 rounded-xl">
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-1.5 h-1.5 rounded-full ${item.type === 'missing' ? 'bg-[#E67E22]' : item.type === 'shipped' ? 'bg-[#10B981]' : 'bg-slate-400'}`}></div>
-                                        <span className="text-[13px] font-[700] text-[#0F1A14]">{item.name}</span>
-                                    </div>
-                                    <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
-                                        item.type === 'shipped' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                        item.type === 'canceled' ? 'bg-slate-100 text-slate-500 border-slate-200' :
-                                        'bg-orange-50 text-orange-600 border-orange-100'
-                                    }`}>
-                                        {item.type}
-                                    </span>
-                                </div>
-                            ))}
-                        </div>
-                        <div className="p-4 bg-[#F6F9F7] flex justify-end px-6">
-                            <button onClick={() => setShowMissingPopup(false)} className="bg-[#A93226] text-white px-6 py-2 rounded-lg text-[12px] font-bold shadow-md hover:bg-[#922B21] transition-all">
-                                Close
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }

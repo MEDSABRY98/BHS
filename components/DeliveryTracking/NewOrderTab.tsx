@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Plus, Search, Trash2, FileSpreadsheet, CheckCircle2 } from 'lucide-react';
+import { Plus, Search, Trash2, CheckCircle2 } from 'lucide-react';
 import { Customer, LpoRow } from './types';
 
 interface NewOrderTabProps {
@@ -12,7 +12,6 @@ interface NewOrderTabProps {
     refreshOrders: () => Promise<void>;
     setActiveTab: (tab: string) => void;
     showToast: (msg: string, type?: 'success' | 'error' | 'info') => void;
-    setIsLpoExcelModalOpen: (open: boolean) => void;
 }
 
 export default function NewOrderTab({
@@ -24,8 +23,7 @@ export default function NewOrderTab({
     setIsSaving,
     refreshOrders,
     setActiveTab,
-    showToast,
-    setIsLpoExcelModalOpen
+    showToast
 }: NewOrderTabProps) {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -79,7 +77,7 @@ export default function NewOrderTab({
                 customerSearch: '',
                 showDropdown: false
             }]);
-            setActiveTab('stats');
+            setActiveTab('orders');
             showToast(`${rowCount} LPO(s) recorded successfully`, 'success');
         } catch (error: any) {
             console.error('Save error:', error);
@@ -279,17 +277,7 @@ export default function NewOrderTab({
                     </div>
                 </div>
 
-                <div className="p-8 bg-slate-50 border-t border-slate-200 flex items-center justify-between rounded-b-[22px]">
-                    <div className="flex items-center gap-4">
-                        <button
-                            onClick={() => setIsLpoExcelModalOpen(true)}
-                            disabled={isSaving}
-                            className="w-[52px] h-[52px] bg-white text-indigo-900 border border-slate-200 rounded-xl flex items-center justify-center transition-all hover:bg-indigo-50 hover:border-indigo-200 shadow-sm hover:shadow-md disabled:opacity-50 group"
-                            title="LPO Excel Actions (Upload/Download)"
-                        >
-                            <FileSpreadsheet className="w-6 h-6 text-indigo-600 group-hover:scale-110 transition-transform" />
-                        </button>
-                    </div>
+                <div className="p-8 bg-slate-50 border-t border-slate-200 flex items-center justify-end rounded-b-[22px]">
                     <div className="flex items-center gap-4">
                         <button
                             onClick={handleSaveRecords}

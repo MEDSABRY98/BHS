@@ -91,12 +91,7 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     ],
     'delivery-tracking': [
         { id: 'new_order', label: 'New LPO' },
-        { id: 'stats', label: 'Statistics' },
-        { id: 'checking', label: 'Checking' },
-        { id: 'orders', label: 'All Orders' },
-        { id: 'duplicates', label: 'Duplicate LPOs' },
-        { id: 'reship', label: 'Re-Shipments' },
-        { id: 'missing_items', label: 'Missing Items' }
+        { id: 'orders', label: 'All Orders' }
     ],
     'documents-tracking': [
         { id: 'register', label: 'Register' },
@@ -125,8 +120,7 @@ const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }
         { id: 'add', label: 'Add (New LPO)', icon: '➕' },
         { id: 'edit', label: 'Edit Orders', icon: '✏️' },
         { id: 'delete', label: 'Delete Orders', icon: '🗑️' },
-        { id: 'download', label: 'Download / Export', icon: '⬇️' },
-        { id: 'reship', label: 'Re-shipment Actions', icon: '📦' }
+        { id: 'download', label: 'Download / Export', icon: '⬇️' }
     ],
     'lpo-management': [
         { id: 'view', label: 'Viewer (Read Only)', icon: '👁️' },
@@ -319,10 +313,16 @@ export default function AdminControlTab() {
         const subTabs = [...(SYSTEM_SUBTABS[modalSystem] || [])].sort((a, b) => a.label.localeCompare(b.label));
         const perms = parsePermissions(selectedUser.role);
         const key = modalSystem;
-        const enabledTabs = perms[key] !== undefined ? perms[key] : subTabs.map(t => t.id);
+        const subTabIds = subTabs.map(t => t.id);
+        const enabledTabs = perms[key] !== undefined 
+            ? perms[key].filter((id: string) => subTabIds.includes(id)) 
+            : subTabIds;
         const systemActions = SYSTEM_ACTIONS[modalSystem] || [];
+        const actionIds = systemActions.map(a => a.id);
         const actionsKey = `${modalSystem}-actions`;
-        const enabledActions = perms[actionsKey] !== undefined ? perms[actionsKey] : systemActions.map(a => a.id);
+        const enabledActions = perms[actionsKey] !== undefined 
+            ? perms[actionsKey].filter((id: string) => actionIds.includes(id)) 
+            : actionIds;
         const hasActions = systemActions.length > 0;
 
         return (
@@ -588,8 +588,11 @@ export default function AdminControlTab() {
                                             : true;
                                         const hasSubTabs = !!SYSTEM_SUBTABS[system.id];
                                         const subTabs = SYSTEM_SUBTABS[system.id] || [];
+                                        const subTabIds = subTabs.map(t => t.id);
                                         const enabledTabsCount = subTabs.length > 0
-                                            ? (permissions[system.id] !== undefined ? permissions[system.id].length : subTabs.length)
+                                            ? (permissions[system.id] !== undefined 
+                                                ? permissions[system.id].filter((id: string) => subTabIds.includes(id)).length 
+                                                : subTabs.length)
                                             : 0;
 
                                         return (

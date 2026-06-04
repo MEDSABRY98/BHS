@@ -2696,7 +2696,7 @@ export async function updateProductColumn(rowIndex: number, columnName: string, 
       }
       return letter;
     };
-    
+
     const colLetter = getColLetter(colIndex);
 
     await sheets.spreadsheets.values.update({
@@ -3796,34 +3796,6 @@ export async function getLpoRecords(): Promise<LpoRecord[]> {
   }
 }
 
-// READ: Get all Items Logs
-export async function getLpoItemsLog(): Promise<LpoItemLog[]> {
-  try {
-    const sheets = await getSheetsClient();
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_ITEMS_SHEET}'!A:F`,
-    });
-    const rows = res.data.values;
-    if (!rows || rows.length < 2) return [];
-
-    return rows.slice(1)
-      .filter(row => row[0])
-      .map((row, i) => ({
-        rowIndex: i + 2,
-        rowId: row[0]?.toString() || '',
-        lpoId: row[1]?.toString() || '',
-        itemName: row[2]?.toString() || '',
-        status: (row[3]?.toString() || 'missing') as LpoItemLog['status'],
-        shipmentValue: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-        actionDate: row[5]?.toString() || '',
-      }));
-  } catch (error) {
-    console.error('Error fetching LPO Items Log:', error);
-    throw error;
-  }
-}
-
 // READ: Get all LPO Customers
 export async function getLpoCustomers(): Promise<LpoCustomer[]> {
   try {
@@ -3988,103 +3960,6 @@ export async function deleteLpoRecord(rowIndex: number): Promise<{ success: bool
     throw error;
   }
 }
-
-// WRITE: Add item log entry (ship or cancel)
-export async function addLpoItemLog(data: {
-  rowId: string;
-  lpoId: string;
-  itemName: string;
-  status: 'missing' | 'shipped' | 'canceled';
-  shipmentValue: number;
-}): Promise<{ success: boolean }> {
-  try {
-    const sheets = await getSheetsClient();
-    const now = nowTimestamp();
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_ITEMS_SHEET}'!A:F`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[
-          data.rowId,         // A: Row ID
-          data.lpoId,         // B: LPO ID
-          data.itemName,      // C: Item Name
-          data.status,        // D: Status
-          data.shipmentValue, // E: Shipment Value
-          now,                // F: Action Date
-        ]],
-      },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error adding LPO Item Log:', error);
-    throw error;
-  }
-}
-
-// UPDATE: Update an existing item log row in-place (change status from 'missing' → 'shipped'/'canceled')
-// Searches for the first row where lpoId + itemName match and status is 'missing', then updates it.
-export async function updateLpoItemLog(data: {
-  lpoId: string;
-  itemName: string;
-  newStatus: 'shipped' | 'canceled';
-  shipmentValue: number;
-}): Promise<{ success: boolean; rowIndex?: number }> {
-  try {
-    const sheets = await getSheetsClient();
-
-    // Read all rows from the items log sheet
-    const res = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_ITEMS_SHEET}'!A:F`,
-    });
-    const rows = res.data.values;
-    if (!rows || rows.length < 2) {
-      throw new Error('LPO Items Logs sheet is empty or has no data rows');
-    }
-
-    // Find the first row where col B = lpoId, col C = itemName, col D = 'missing'
-    // Row index in sheet = array index + 1 (for 1-based) + 1 (for header row) = i + 2
-    const dataRows = rows.slice(1); // skip header
-    const matchIndex = dataRows.findIndex(
-      row =>
-        row[1]?.toString().trim() === data.lpoId.trim() &&
-        row[2]?.toString().trim() === data.itemName.trim() &&
-        row[3]?.toString().trim() === 'missing'
-    );
-
-    if (matchIndex === -1) {
-      throw new Error(
-        `No 'missing' row found for lpoId="${data.lpoId}" itemName="${data.itemName}"`
-      );
-    }
-
-    const sheetRowIndex = matchIndex + 2; // 1-based + header offset
-    const now = nowTimestamp();
-
-    // Update columns D (Status), E (Shipment Value), F (Action Date)
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'${LPO_ITEMS_SHEET}'!D${sheetRowIndex}:F${sheetRowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[
-          data.newStatus,       // D: Status  (missing → shipped / canceled)
-          data.shipmentValue,   // E: Shipment Value
-          now,                  // F: Action Date
-        ]],
-      },
-    });
-
-    return { success: true, rowIndex: sheetRowIndex };
-  } catch (error) {
-    console.error('Error updating LPO Item Log:', error);
-    throw error;
-  }
-}
-
 // ============================================================
 // DOCUMENTS TRACKING — Checks & Timeline Logs
 // ============================================================

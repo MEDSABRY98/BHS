@@ -1,225 +1,211 @@
 import { NextResponse } from 'next/server';
-import {
-    getLpoRecords,
-    getLpoItemsLog,
-    addLpoRecord,
-    updateLpoRecord,
-    deleteLpoRecord,
-    addLpoItemLog,
-    updateLpoItemLog,
-    getLpoCustomers,
-} from '@/lib/googleSheets';
+import { app_lpos_supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
-// ── GET /api/delivery-tracking ──────────────────────────────────
-// Returns all LPO records merged with their items (missing, shipped, canceled)
+// ── GET /api/DeliveryTracking ──────────────────────────────────
+// Returns all delivery records from web_DELIVERYTRACKING and customers from bhs_CUSTOMERS
 export async function GET() {
     try {
-        const [records, itemsLog, customers] = await Promise.all([
-            getLpoRecords(),
-            getLpoItemsLog(),
-            getLpoCustomers(),
+        const [ordersRes, customersRes] = await Promise.all([
+            app_lpos_supabase
+                .from('web_DELIVERYTRACKING')
+                .select('*')
+                .order('CREATED_AT', { ascending: false }),
+            (app_lpos_supabase
+                .from('bhs_CUSTOMERS')
+                .select('ID, "CUSTOMER NAME", "CUSTOMER CITY"') as any)
         ]);
 
-        // Build a map: customerId → customerName for fast lookup
-        const customerIdToName = new Map<string, string>();
-        customers.forEach(c => {
-            if (c.customerId) customerIdToName.set(c.customerId, c.customerName);
+        if (ordersRes.error) throw ordersRes.error;
+        if (customersRes.error) throw customersRes.error;
+
+        // Build a map: customer ID → customer Name for fast resolution
+        const customerMap = new Map<string, string>();
+        customersRes.data?.forEach((c: any) => {
+            if (c.ID) {
+                customerMap.set(c.ID.toString().trim().toLowerCase(), c['CUSTOMER NAME']);
+            }
         });
 
-        // Merge items into each LPO record
-        const merged = records.map(record => {
-            const items = itemsLog.filter(item => item.lpoId === record.lpoId);
-            const missing = items.filter(i => i.status === 'missing').map(i => i.itemName);
-            const shippedItems = items.filter(i => i.status === 'shipped').map(i => i.itemName);
-            const canceledItems = items.filter(i => i.status === 'canceled').map(i => i.itemName);
-
-            // Resolve customer: if stored value is a customerId, look up the name; otherwise use as-is
-            const resolvedCustomer = customerIdToName.get(record.customerName) || record.customerName;
+        const merged = ordersRes.data?.map(o => {
+            const customerIdKey = (o.CUSTOMER_ID || '').toString().trim().toLowerCase();
+            const resolvedCustomerName = customerMap.get(customerIdKey) || o.CUSTOMER_ID || 'Unknown Customer';
 
             return {
-                id: record.lpoId,
-                lpoId: record.lpoId,
-                lpo: record.lpoNumber,
-                date: record.lpoDate,
-                deliveryDate: record.lpoDeliveryDate,
-                customer: resolvedCustomer,
-                lpoVal: record.lpoValue,
-                invoiceVal: record.invoiceValue,
-                invoiceDate: record.invoiceDate,
-                invoiceNumber: record.invoiceNumber,
-                status: record.status,
-                reship: record.reship,
-                notes: record.notes,
-                missing,
-                shippedItems,
-                canceledItems,
-                createdAt: record.createdAt,
-                updatedAt: record.updatedAt,
-                _rowIndex: record.rowIndex, // for updates/deletes
+                id: o.ID,
+                lpoId: o.ID,
+                lpo: o.LPO_NUMBER || '',
+                date: o.LPO_DATE || '',
+                deliveryDate: o.DELIVERY_DATE || '',
+                customer: resolvedCustomerName, // Name for display
+                customerId: o.CUSTOMER_ID || '', // Keep original ID/name for editing
+                lpoVal: Number(o.LPO_AMOUNT) || 0,
+                invoiceVal: 0,
+                invoiceDate: '',
+                invoiceNumber: '',
+                status: (o.STATUS || 'pending').toLowerCase(),
+                reship: false,
+                notes: '',
+                missing: [],
+                shippedItems: [],
+                canceledItems: [],
+                createdAt: o.CREATED_AT,
+                updatedAt: o.UPDATED_AT
             };
         });
 
-        return NextResponse.json({ orders: merged, customers });
-    } catch (error) {
-        console.error('GET /api/delivery-tracking error:', error);
-        return NextResponse.json({ error: 'Failed to fetch delivery data' }, { status: 500 });
+        const mappedCustomers = customersRes.data?.map((c: any) => ({
+            customerId: c.ID,
+            customerName: c['CUSTOMER NAME'],
+            customerCity: c['CUSTOMER CITY'] || 'Unknown'
+        })) || [];
+
+        mappedCustomers.sort((a: any, b: any) => 
+            (a.customerName || '').localeCompare(b.customerName || '', undefined, { sensitivity: 'base' })
+        );
+
+        return NextResponse.json({ orders: merged || [], customers: mappedCustomers });
+    } catch (error: any) {
+        console.error('GET /api/DeliveryTracking error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to fetch delivery data' }, { status: 500 });
     }
 }
 
-// ── POST /api/delivery-tracking ─────────────────────────────────
-// Add new LPO record  OR  Add/Update item log entry
-// body: { action: 'add_lpo' | 'add_item' | 'ship_item' | 'cancel_item', ...data }
+// ── POST /api/DeliveryTracking ─────────────────────────────────
+// Add new record(s) to web_DELIVERYTRACKING
 export async function POST(request: Request) {
     try {
         const body = await request.json();
         const { action } = body;
 
         if (action === 'add_lpo') {
-            const { lpoNumber, lpoDate, lpoDeliveryDate, customerName, lpoValue, lpos } = body;
-
-            const existingRecords = await getLpoRecords();
-            let currentCount = existingRecords.length;
-
-            const customers = await getLpoCustomers();
-            const customerIdToName = new Map<string, string>();
-            customers.forEach(c => {
-                if (c.customerId) customerIdToName.set(c.customerId, c.customerName);
-            });
-
-            const normalizeStr = (s: any) => (s || '').toString().trim().toLowerCase();
-            const resolveCustomer = (val: any) => {
-                const s = normalizeStr(val);
-                for (const [id, name] of customerIdToName.entries()) {
-                    if (normalizeStr(id) === s || normalizeStr(name) === s) {
-                        return normalizeStr(id); // Use ID as the definitive key
-                    }
-                }
-                return s; // Fallback
-            };
-
-            const existingKeys = new Set(existingRecords.map(r => `${normalizeStr(r.lpoNumber)}|${resolveCustomer(r.customerName)}`));
+            const { lpos } = body;
 
             if (lpos && Array.isArray(lpos)) {
-                // Check within the incoming list for duplicates (excluding "no number")
-                const incomingKeys = new Set();
-                for (const lpo of lpos) {
-                    const num = normalizeStr(lpo.lpoNumber);
-                    const cust = resolveCustomer(lpo.customerName);
-                    const key = `${num}|${cust}`;
+                const rowsToInsert = lpos.map(lpo => ({
+                    LPO_NUMBER: lpo.lpoNumber || '',
+                    LPO_DATE: lpo.lpoDate || '',
+                    DELIVERY_DATE: lpo.lpoDeliveryDate || '',
+                    CUSTOMER_ID: lpo.customerName || '', // customerName parameter holds customerId or customerName
+                    LPO_AMOUNT: Number(lpo.lpoValue) || 0,
+                    STATUS: (lpo.status || 'pending').toLowerCase(),
+                    POSTPONED_DATE: lpo.postponedDate || ''
+                }));
 
-                    if (num !== 'no number' && (existingKeys.has(key) || incomingKeys.has(key))) {
-                        return NextResponse.json({ error: `Duplicate LPO "${lpo.lpoNumber}" already exists for customer "${lpo.customerName}"` }, { status: 409 });
-                    }
-                    incomingKeys.add(key);
-                }
+                const { data, error } = await app_lpos_supabase
+                    .from('web_DELIVERYTRACKING')
+                    .insert(rowsToInsert)
+                    .select();
 
-                const recordsToAdd = lpos.map((lpo: any) => {
-                    currentCount++;
-                    return {
-                        ...lpo,
-                        lpoId: `L-${currentCount.toString().padStart(3, '0')}`
-                    };
-                });
-                await addLpoRecord(recordsToAdd);
-                return NextResponse.json({ success: true, count: recordsToAdd.length });
+                if (error) throw error;
+                return NextResponse.json({ success: true, count: rowsToInsert.length, data });
             } else {
+                const { lpoNumber, lpoDate, lpoDeliveryDate, customerName, lpoValue, status, postponedDate } = body;
+
                 if (!lpoNumber || !lpoDate || !customerName || !lpoValue) {
                     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
                 }
 
-                const num = normalizeStr(lpoNumber);
-                const cust = resolveCustomer(customerName);
-                const key = `${num}|${cust}`;
+                const rowToInsert = {
+                    LPO_NUMBER: lpoNumber,
+                    LPO_DATE: lpoDate,
+                    DELIVERY_DATE: lpoDeliveryDate || '',
+                    CUSTOMER_ID: customerName,
+                    LPO_AMOUNT: Number(lpoValue) || 0,
+                    STATUS: (status || 'pending').toLowerCase(),
+                    POSTPONED_DATE: postponedDate || ''
+                };
 
-                if (num !== 'no number' && existingKeys.has(key)) {
-                    return NextResponse.json({ error: `Duplicate LPO "${lpoNumber}" already exists for customer "${customerName}"` }, { status: 409 });
-                }
+                const { data, error } = await app_lpos_supabase
+                    .from('web_DELIVERYTRACKING')
+                    .insert(rowToInsert)
+                    .select();
 
-                const lpoId = `L-${(currentCount + 1).toString().padStart(3, '0')}`;
-                await addLpoRecord({ lpoId, lpoNumber, lpoDate, lpoDeliveryDate, customerName, lpoValue });
-                return NextResponse.json({ success: true, lpoId });
+                if (error) throw error;
+                return NextResponse.json({ success: true, data });
             }
-        }
-
-        if (action === 'add_item') {
-            const { lpoId, itemName, status, shipmentValue } = body;
-            if (!lpoId || !itemName || !status) {
-                return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
-            }
-            // Auto-generate Row ID: read current count and create R-XXX
-            const existingItems = await getLpoItemsLog();
-            const nextNum = (existingItems.length + 1).toString().padStart(3, '0');
-            const rowId = `R-${nextNum}`;
-            await addLpoItemLog({ rowId, lpoId, itemName, status, shipmentValue: shipmentValue || 0 });
-            return NextResponse.json({ success: true, rowId });
-        }
-
-        // ship_item / cancel_item: update the existing 'missing' row in LPO Items Logs
-        if (action === 'ship_item' || action === 'cancel_item') {
-            const { lpoId, itemName, shipmentValue } = body;
-            if (!lpoId || !itemName) {
-                return NextResponse.json({ error: 'Missing required fields: lpoId, itemName' }, { status: 400 });
-            }
-            const newStatus = action === 'ship_item' ? 'shipped' : 'canceled';
-            const result = await updateLpoItemLog({
-                lpoId,
-                itemName,
-                newStatus,
-                shipmentValue: shipmentValue || 0,
-            });
-            return NextResponse.json({ success: true, rowIndex: result.rowIndex });
         }
 
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
-    } catch (error) {
-        console.error('POST /api/delivery-tracking error:', error);
-        return NextResponse.json({ error: 'Failed to save data' }, { status: 500 });
+    } catch (error: any) {
+        console.error('POST /api/DeliveryTracking error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to save data' }, { status: 500 });
     }
 }
 
-// ── PUT /api/delivery-tracking ──────────────────────────────────
-// Update LPO record fields (invoice info, status, reship, notes)
-// body: { rowIndex, ...fields }
+// ── PUT /api/DeliveryTracking ──────────────────────────────────
+// Update record fields by ID
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
-        const { rowIndex, ...fields } = body;
+        const { id, rowIndex, status, deliveryDate, postponedDate, lpoNumber, lpoDate, customerId, lpoValue } = body;
 
-        if (!rowIndex) {
-            return NextResponse.json({ error: 'rowIndex is required' }, { status: 400 });
+        const rowId = id || rowIndex;
+        if (!rowId) {
+            return NextResponse.json({ error: 'ID is required for update' }, { status: 400 });
         }
 
-        // Ensure reship is always a proper boolean (not string)
-        if (fields.reship !== undefined) {
-            fields.reship = fields.reship === true || fields.reship === 'true' || fields.reship === 'YES';
+        const updateFields: any = {};
+        if (status !== undefined) {
+            updateFields.STATUS = status.toLowerCase();
+        }
+        if (deliveryDate !== undefined) {
+            updateFields.DELIVERY_DATE = deliveryDate;
+        }
+        if (postponedDate !== undefined) {
+            updateFields.POSTPONED_DATE = postponedDate;
+            updateFields.DELIVERY_DATE = postponedDate; // update DELIVERY_DATE when postponed
+        }
+        if (lpoNumber !== undefined) {
+            updateFields.LPO_NUMBER = lpoNumber;
+        }
+        if (lpoDate !== undefined) {
+            updateFields.LPO_DATE = lpoDate;
+        }
+        if (customerId !== undefined) {
+            updateFields.CUSTOMER_ID = customerId;
+        }
+        if (lpoValue !== undefined) {
+            updateFields.LPO_AMOUNT = Number(lpoValue) || 0;
         }
 
-        await updateLpoRecord(rowIndex, fields);
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('PUT /api/delivery-tracking error:', error);
-        return NextResponse.json({ error: 'Failed to update record' }, { status: 500 });
+        const { data, error } = await app_lpos_supabase
+            .from('web_DELIVERYTRACKING')
+            .update(updateFields)
+            .eq('ID', rowId)
+            .select();
+
+        if (error) throw error;
+        return NextResponse.json({ success: true, data });
+    } catch (error: any) {
+        console.error('PUT /api/DeliveryTracking error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to update record' }, { status: 500 });
     }
 }
 
-// ── DELETE /api/delivery-tracking ───────────────────────────────
-// Delete LPO record by rowIndex
-// body: { rowIndex }
+// ── DELETE /api/DeliveryTracking ───────────────────────────────
+// Delete record by ID
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
-        const { rowIndex } = body;
+        const { id, rowIndex } = body;
+        const rowId = id || rowIndex;
 
-        if (!rowIndex) {
-            return NextResponse.json({ error: 'rowIndex is required' }, { status: 400 });
+        if (!rowId) {
+            return NextResponse.json({ error: 'ID is required for delete' }, { status: 400 });
         }
 
-        await deleteLpoRecord(rowIndex);
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        console.error('DELETE /api/delivery-tracking error:', error);
-        return NextResponse.json({ error: 'Failed to delete record' }, { status: 500 });
+        const { data, error } = await app_lpos_supabase
+            .from('web_DELIVERYTRACKING')
+            .delete()
+            .eq('ID', rowId)
+            .select();
+
+        if (error) throw error;
+        return NextResponse.json({ success: true, data });
+    } catch (error: any) {
+        console.error('DELETE /api/DeliveryTracking error:', error);
+        return NextResponse.json({ error: error.message || 'Failed to delete record' }, { status: 500 });
     }
 }
