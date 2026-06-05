@@ -161,6 +161,7 @@ export default function ProductsPage() {
             "ITEM CODE": itemCodeValue
           });
         if (error) throw error;
+      }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
       fetchProducts(searchTerm, currentPage);
