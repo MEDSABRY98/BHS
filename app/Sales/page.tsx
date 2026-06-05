@@ -283,9 +283,28 @@ export default function SalesPage() {
     }
   };
 
-  const handleUploadMapping = (mapping: Record<string, any>) => {
+  const handleUploadMapping = async (mapping: Record<string, any>) => {
+    // Save locally for immediate UI update
     setCustomerMapping(mapping);
     localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
+
+    const currentUser = localStorage.getItem('currentUser') || 'ADMIN';
+
+    try {
+      const response = await fetch('/api/Sales/Mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: currentUser, mapping }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to sync mapping with database');
+      }
+      console.log('Mapping synced successfully to DB');
+    } catch (error) {
+      console.error('Failed to sync mapping:', error);
+      toast.error('Local mapping saved, but failed to sync to database.');
+    }
   };
 
   // Centralized Filters
@@ -468,7 +487,7 @@ export default function SalesPage() {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       const bstr = event.target?.result;
       const wb = XLSX.read(bstr, { type: 'binary' });
       const wsname = wb.SheetNames[0];
@@ -490,8 +509,10 @@ export default function SalesPage() {
         }
       });
 
-      handleUploadMapping(mapping);
-      toast.success('Customer data uploaded successfully!');
+      toast.loading('Saving and syncing mapping to database...', { id: 'mapping_upload' });
+      await handleUploadMapping(mapping);
+      toast.dismiss('mapping_upload');
+      toast.success('Customer data uploaded and synced successfully!');
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
