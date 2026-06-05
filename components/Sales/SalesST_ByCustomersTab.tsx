@@ -14,29 +14,14 @@ import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
 
 interface SalesST_ByCustomersProps {
-  data: SalesInvoice[];
+  refreshTrigger?: number;
+  customersData: any[];
   loading: boolean;
 }
 
 const ITEMS_PER_PAGE = 50;
 
-const calculateMode = (numbers: number[]): number => {
-  if (!numbers || numbers.length === 0) return 0;
-  const counts: Record<number, number> = {};
-  let maxCount = 0;
-  let mode = numbers[0];
-  for (const n of numbers) {
-    const val = parseFloat(n.toFixed(2));
-    counts[val] = (counts[val] || 0) + 1;
-    if (counts[val] > maxCount) {
-      maxCount = counts[val];
-      mode = val;
-    }
-  }
-  return mode;
-};
-
-export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustomersProps) {
+export default function SalesST_ByCustomers({ customersData, loading, refreshTrigger }: SalesST_ByCustomersProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -53,91 +38,13 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  const customersData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    // Sort data by date descending to ensure we pick the latest names for display
-    const sortedData = [...data].sort((a, b) => {
-      const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
-      const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    const customerMap = new Map<string, {
-      customerId: string;
-      latestName: string;
-      allNames: Set<string>;
-      products: Map<string, { 
-        barcode: string; 
-        product: string; 
-        prices: number[]; 
-        cost: number;
-        allNames: Set<string>;
-        allBarcodes: Set<string>;
-      }>;
-    }>();
-
-    sortedData.forEach(item => {
-      // Prioritize customerId as the unique key
-      const custId = item.customerId || item.customerMainName || item.customerName || 'Unknown';
-      if (!customerMap.has(custId)) {
-        customerMap.set(custId, {
-          customerId: item.customerId || '',
-          latestName: item.customerMainName || item.customerName || 'Unknown',
-          allNames: new Set(),
-          products: new Map()
-        });
-      }
-      const custEntry = customerMap.get(custId)!;
-      
-      // Store all historical names for searching
-      if (item.customerMainName) custEntry.allNames.add(item.customerMainName.toLowerCase());
-      if (item.customerName) custEntry.allNames.add(item.customerName.toLowerCase());
-
-      const productsMap = custEntry.products;
-      // Prioritize productId as the unique key for products too
-      const productKey = item.productId || item.barcode || item.product;
-
-      const itemAny = item as any;
-      let price = itemAny.price || itemAny.unitPrice || 0;
-      if (!price && itemAny.amount && itemAny.qty) price = itemAny.amount / itemAny.qty;
-      const pNum = parseFloat(price);
-
-      if (!productsMap.has(productKey)) {
-        productsMap.set(productKey, {
-          barcode: item.barcode || '-',
-          product: item.product || '-',
-          prices: [],
-          cost: item.productCost || 0,
-          allNames: new Set(),
-          allBarcodes: new Set()
-        });
-      }
-      const prod = productsMap.get(productKey)!;
-      
-      // Store historical product metadata
-      if (item.product) prod.allNames.add(item.product.toLowerCase());
-      if (item.barcode) prod.allBarcodes.add(item.barcode.toLowerCase());
-
-      if (!isNaN(pNum) && pNum > 0) prod.prices.push(pNum);
-      if (item.productCost > 0) prod.cost = item.productCost;
-    });
-
-    return Array.from(customerMap.values()).map(entry => ({
-      customerId: entry.customerId,
-      customer: entry.latestName,
-      allNames: entry.allNames,
-      products: Array.from(entry.products.values()).sort((a, b) => a.product.localeCompare(b.product))
-    })).sort((a, b) => a.customer.localeCompare(b.customer));
-  }, [data]);
-
   const filteredCustomers = useMemo(() => {
     if (!debouncedSearchQuery.trim()) return customersData;
     const query = debouncedSearchQuery.toLowerCase().trim();
     return customersData.filter(c => 
       c.customer.toLowerCase().includes(query) || 
       c.customerId.toLowerCase().includes(query) ||
-      Array.from(c.allNames).some(name => name.includes(query))
+      (c.allNames && c.allNames.some((name: string) => name.includes(query)))
     );
   }, [customersData, debouncedSearchQuery]);
 
@@ -154,13 +61,13 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
       setIsGenerating(true);
       setSelectedCustomerForPriceList(null);
       setSelectedCustomerForAnalysis(null);
-      const productsToPrint = customer.products.map(p => ({
+      const productsToPrint = customer.products.map((p: any) => ({
         barcode: p.barcode,
         product: p.product,
         price: mode === 'pricelist' || mode === 'analysis'
-          ? (strategy === 'last' ? (p.prices[0] || 0) : calculateMode(p.prices))
+          ? (strategy === 'last' ? p.lastPrice : p.mostPrice)
           : undefined,
-        avgPrice: mode === 'analysis' ? (p.prices[0] || 0) : undefined,
+        avgPrice: mode === 'analysis' ? p.lastPrice : undefined,
         costPrice: mode === 'analysis' ? p.cost : undefined
       }));
       if (mode === 'pricelist') {
@@ -177,9 +84,9 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
 
-    const exportData = customer.products.map((p, index) => {
-      const frequent = calculateMode(p.prices);
-      const recent = p.prices[0] || 0;
+    const exportData = customer.products.map((p: any, index: number) => {
+      const frequent = p.mostPrice;
+      const recent = p.lastPrice;
       const cost = p.cost;
       const diff = frequent - cost;
       const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
@@ -213,13 +120,13 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
       for (let i = 0; i < filteredCustomers.length; i++) {
         const customer = filteredCustomers[i];
         setGenerationProgress({ current: i + 1, total: filteredCustomers.length });
-        const productsToPrint = customer.products.map(p => ({
+        const productsToPrint = customer.products.map((p: any) => ({
           barcode: p.barcode,
           product: p.product,
           price: mode === 'pricelist' || mode === 'analysis'
-            ? (strategy === 'last' ? (p.prices[0] || 0) : calculateMode(p.prices))
+            ? (strategy === 'last' ? p.lastPrice : p.mostPrice)
             : undefined,
-          avgPrice: mode === 'analysis' ? (p.prices[0] || 0) : undefined,
+          avgPrice: mode === 'analysis' ? p.lastPrice : undefined,
           costPrice: mode === 'analysis' ? p.cost : undefined
         }));
         let blob: Blob;
@@ -481,3 +388,4 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
     </div>
   );
 }
+

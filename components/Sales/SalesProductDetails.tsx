@@ -21,18 +21,45 @@ import {
 
 interface SalesProductDetailsProps {
   productId: string;
-  data: SalesInvoice[];
-  allData: SalesInvoice[]; // Geography filtered but not date filtered
+  filters?: any;
+  userId?: string;
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products';
   filterYear?: string;
 }
 
-export default function SalesProductDetails({ productId, data, allData, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
+export default function SalesProductDetails({ productId, filters, userId, onBack, initialTab = 'dashboard', filterYear }: SalesProductDetailsProps) {
+  const [data, setData] = useState<SalesInvoice[]>([]);
+  const [allData, setAllData] = useState<SalesInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'products'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [customerTypeView, setCustomerTypeView] = useState<'main' | 'sub'>('sub');
+
+  // Fetch product details from API
+  useEffect(() => {
+    const fetchProductDetails = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/ProductDetails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, filters, productId })
+        });
+        if (!response.ok) throw new Error('Failed to fetch product details');
+        const result = await response.json();
+        setData(result.data || []);
+        setAllData(result.allData || []);
+      } catch (err) {
+        console.error('Error fetching Product Details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProductDetails();
+  }, [userId, filters, productId]);
 
   // Debounce search query
   useEffect(() => {
@@ -445,6 +472,14 @@ export default function SalesProductDetails({ productId, data, allData, onBack, 
     const filename = `sales_product_customers_${safeId}_${new Date().toISOString().split('T')[0]}.xlsx`;
     XLSX.writeFile(workbook, filename);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">

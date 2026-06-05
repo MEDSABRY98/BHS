@@ -1,23 +1,18 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
+import { getSalesDataServer } from '@/lib/SalesCache';
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { userId, filters } = body;
 
-    // 1. Fetch cached sales data (Super fast)
-    const { data: cacheRow, error: cacheErr } = await bhs_supabas
-      .from('web_Sales_Cache')
-      .select('DATA')
-      .eq('KEY', 'sales_data')
-      .single();
+    // 1. Fetch cached sales data from Vercel Memory (Super fast)
+    const rawData = await getSalesDataServer();
 
-    if (cacheErr || !cacheRow?.DATA) {
-      return NextResponse.json({ error: 'Sales cache not found or DB error' }, { status: 500 });
+    if (!rawData || rawData.length === 0) {
+      return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
     }
-
-    let rawData = cacheRow.DATA as any[];
 
     // 2. Fetch User Mapping from the new table
     let mappingMap = new Map<string, any>();
@@ -122,7 +117,7 @@ export async function POST(request: Request) {
     const totalQty = globallyFilteredData.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
     const totalCustomers = new Set(globallyFilteredData.map(item => item.customerId || item.customerName)).size;
     const totalProducts = new Set(globallyFilteredData.map(item => item.productId || item.product)).size;
-    
+
     // Monthly Averages
     const monthsSet = new Set<string>();
     const monthlyDataMap = new Map<string, { amount: number; qty: number }>();
@@ -244,7 +239,7 @@ export async function POST(request: Request) {
       const mn = date.getMonth();
       const mKey = `${yr}-${String(mn + 1).padStart(2, '0')}`;
       const mLabel = `${monthNames[mn]} ${String(yr).slice(-2)}`;
-      
+
       const ex = monthMapTable.get(mKey) || { month: mLabel, monthKey: mKey, amount: 0, qty: 0, customerCount: new Set(), invoiceNumbers: new Set(), grvNumbers: new Set(), grossSales: 0, grvAmount: 0 };
       const amt = Number(item.amount) || 0;
       ex.amount += amt;

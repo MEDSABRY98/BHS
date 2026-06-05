@@ -7,17 +7,23 @@ import * as XLSX from 'xlsx';
 import NoData from '../01-Unified/NoDataTab';
 
 interface SalesDailySalesTabProps {
-  data: SalesInvoice[];
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  invoiceTypeFilter: string;
+  userId: string;
   showCosts?: boolean;
 }
 
-export default function SalesDailySalesTab({ data, loading, showCosts = true }: SalesDailySalesTabProps) {
+export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId, showCosts = true, refreshTrigger }: SalesDailySalesTabProps) {
+  const [loading, setLoading] = useState(true);
+  const [dailySalesData, setDailySalesData] = useState<any[]>([]);
+  const [salesByDayData, setSalesByDayData] = useState<any[]>([]);
+  const [avgSalesByDayData, setAvgSalesByDayData] = useState<any[]>([]);
+
   const [searchQuery1, setSearchQuery1] = useState('');
   const [searchQuery2, setSearchQuery2] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeSubTab, setActiveSubTab] = useState<'all-invoices' | 'sales-by-day' | 'avg-sales-by-day'>('all-invoices');
-  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const itemsPerPage = 50;
 
@@ -36,103 +42,29 @@ export default function SalesDailySalesTab({ data, loading, showCosts = true }: 
     }
   };
 
-  // Group invoices by invoiceNumber
-  const dailySalesData = useMemo(() => {
-    const invoiceMap = new Map<string, {
-      invoiceDate: string;
-      invoiceNumber: string;
-      customerName: string;
-      amount: number;
-      qty: number;
-      products: Set<string>;
-      searchTerms: Set<string>;
-      totalCost: number;
-      totalPrice: number;
-      costCount: number;
-      priceCount: number;
-      items: SalesInvoice[];
-    }>();
-
-    data.forEach(item => {
-      if (!item.invoiceNumber) return;
-
-      const existing = invoiceMap.get(item.invoiceNumber) || {
-        invoiceDate: item.invoiceDate || '',
-        invoiceNumber: item.invoiceNumber,
-        customerName: item.customerName || '',
-        amount: 0,
-        qty: 0,
-        products: new Set<string>(),
-        searchTerms: new Set<string>(),
-        totalCost: 0,
-        totalPrice: 0,
-        costCount: 0,
-        priceCount: 0,
-        items: [] as SalesInvoice[]
-      };
-
-      existing.items.push(item);
-
-      existing.amount += item.amount || 0;
-      existing.qty += item.qty || 0;
-
-      // Add product info to search terms
-      if (item.product) existing.searchTerms.add(item.product.toLowerCase());
-      if (item.barcode) existing.searchTerms.add(item.barcode.toLowerCase());
-      if (item.productId) existing.searchTerms.add(item.productId.toLowerCase());
-
-      // Add product to set for count
-      const productKey = item.productId || item.barcode || item.product;
-      if (productKey) {
-        existing.products.add(productKey);
+  // Fetch data
+  useEffect(() => {
+    const fetchDailySales = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/DailySales', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, invoiceTypeFilter, userId })
+        });
+        if (!response.ok) throw new Error('Failed to fetch daily sales data');
+        const result = await response.json();
+        setDailySalesData(result.dailySalesData || []);
+        setSalesByDayData(result.salesByDayData || []);
+        setAvgSalesByDayData(result.avgSalesByDayData || []);
+      } catch (err) {
+        console.error('Error fetching Daily Sales Data:', err);
+      } finally {
+        setLoading(false);
       }
-
-      // Add cost and price
-      if (item.productCost) {
-        existing.totalCost += item.productCost;
-        existing.costCount += 1;
-      }
-      if (item.productPrice) {
-        existing.totalPrice += item.productPrice;
-        existing.priceCount += 1;
-      }
-
-      invoiceMap.set(item.invoiceNumber, existing);
-    });
-
-    // Convert to array and calculate averages
-    const allInvoices = Array.from(invoiceMap.values()).map(invoice => {
-      const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
-      const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
-
-      return {
-        invoiceDate: invoice.invoiceDate,
-        invoiceNumber: invoice.invoiceNumber,
-        customerName: invoice.customerName,
-        amount: invoice.amount,
-        qty: invoice.qty,
-        productsCount: invoice.products.size,
-        searchTerms: Array.from(invoice.searchTerms),
-        avgCost,
-        avgPrice,
-        items: invoice.items
-      };
-    }).sort((a, b) => {
-      const dateA = new Date(a.invoiceDate).getTime();
-      const dateB = new Date(b.invoiceDate).getTime();
-      if (dateA !== dateB) return dateB - dateA;
-      return b.invoiceNumber.localeCompare(a.invoiceNumber);
-    });
-
-    // Apply type filter
-    if (invoiceTypeFilter === 'all') return allInvoices;
-    return allInvoices.filter(inv => {
-      const num = inv.invoiceNumber.trim().toUpperCase();
-      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
-      return true;
-    });
-  }, [data, invoiceTypeFilter]);
+    };
+    fetchDailySales();
+  }, [filters, invoiceTypeFilter, userId, refreshTrigger]);
 
   // Calculate statistics for All Invoices tab
   const allInvoicesStats = useMemo(() => {
@@ -152,153 +84,6 @@ export default function SalesDailySalesTab({ data, loading, showCosts = true }: 
       returnsCount: returnInvoices.length
     };
   }, [dailySalesData]);
-
-  // Sales by Day - group by date
-  const salesByDayData = useMemo(() => {
-    const dateMap = new Map<string, {
-      date: string;
-      amount: number;
-      qty: number;
-      invoiceNumbers: Set<string>;
-      products: Set<string>;
-      customers: Set<string>;
-      salInvoiceNumbers: Set<string>; // Only invoices starting with SAL
-      salProducts: Set<string>; // Only products from SAL invoices
-      salCustomers: Set<string>; // Only customers from SAL invoices
-    }>();
-
-    data.forEach(item => {
-      if (!item.invoiceDate) return;
-
-      const dateKey = formatDate(item.invoiceDate);
-      if (!dateKey) return;
-
-      const existing = dateMap.get(dateKey) || {
-        date: dateKey,
-        amount: 0,
-        qty: 0,
-        invoiceNumbers: new Set<string>(),
-        products: new Set<string>(),
-        customers: new Set<string>(),
-        salInvoiceNumbers: new Set<string>(),
-        salProducts: new Set<string>(),
-        salCustomers: new Set<string>()
-      };
-
-      existing.amount += item.amount || 0;
-      existing.qty += item.qty || 0;
-
-      if (item.invoiceNumber) {
-        existing.invoiceNumbers.add(item.invoiceNumber);
-
-        // Only count SAL invoices for specific metrics
-        if (item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
-          existing.salInvoiceNumbers.add(item.invoiceNumber);
-
-          const productKey = item.productId || item.barcode || item.product;
-          if (productKey) {
-            existing.salProducts.add(productKey);
-          }
-
-          const customerKey = item.customerId || item.customerName;
-          if (customerKey) {
-            existing.salCustomers.add(customerKey);
-          }
-        }
-      }
-
-      const productKey = item.productId || item.barcode || item.product;
-      if (productKey) {
-        existing.products.add(productKey);
-      }
-
-      // Add customer (use customerId if available, otherwise customerName)
-      const customerKey = item.customerId || item.customerName;
-      if (customerKey) {
-        existing.customers.add(customerKey);
-      }
-
-      dateMap.set(dateKey, existing);
-    });
-
-    return Array.from(dateMap.values()).map(item => ({
-      date: item.date,
-      amount: item.amount,
-      qty: item.qty,
-      invoicesCount: item.invoiceNumbers.size,
-      productsCount: item.products.size,
-      customersCount: item.customers.size,
-      salInvoicesCount: item.salInvoiceNumbers.size,
-      salProductsCount: item.salProducts.size,
-      salCustomersCount: item.salCustomers.size
-    })).sort((a, b) => {
-      // Sort by date descending (newest first)
-      const dateA = new Date(a.date.split('/').reverse().join('-')).getTime();
-      const dateB = new Date(b.date.split('/').reverse().join('-')).getTime();
-      return dateB - dateA;
-    });
-  }, [data]);
-
-  // AVG Sales BY Day - group by month and calculate daily averages
-  const avgSalesByDayData = useMemo(() => {
-    const monthMap = new Map<string, {
-      monthKey: string;
-      monthYear: string;
-      totalAmount: number;
-      totalQty: number;
-      totalInvoices: number;
-      totalCustomers: number;
-      totalProducts: number;
-      daysCount: number;
-    }>();
-
-    // Use salesByDayData to calculate monthly averages
-    salesByDayData.forEach(item => {
-      if (!item.date) return;
-
-      // Parse date from DD/MM/YYYY format
-      const [day, month, year] = item.date.split('/');
-      if (!day || !month || !year) return;
-
-      const monthKey = `${year}-${month.padStart(2, '0')}`;
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthName = monthNames[parseInt(month) - 1] || month;
-      const monthYear = `${monthName.toUpperCase()} ${year}`;
-
-      const existing = monthMap.get(monthKey) || {
-        monthKey,
-        monthYear,
-        totalAmount: 0,
-        totalQty: 0,
-        totalInvoices: 0,
-        totalCustomers: 0,
-        totalProducts: 0,
-        daysCount: 0
-      };
-
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-      existing.totalInvoices += item.salInvoicesCount; // Only SAL invoices
-      existing.totalCustomers += item.salCustomersCount; // Only SAL customers
-      existing.totalProducts += item.salProductsCount; // Only SAL products
-      existing.daysCount += 1;
-
-      monthMap.set(monthKey, existing);
-    });
-
-    return Array.from(monthMap.values()).map(item => ({
-      monthKey: item.monthKey,
-      monthYear: item.monthYear,
-      avgAmount: item.daysCount > 0 ? item.totalAmount / item.daysCount : 0,
-      avgQty: item.daysCount > 0 ? item.totalQty / item.daysCount : 0,
-      avgInvoices: item.daysCount > 0 ? item.totalInvoices / item.daysCount : 0,
-      avgCustomers: item.daysCount > 0 ? item.totalCustomers / item.daysCount : 0,
-      avgProducts: item.daysCount > 0 ? item.totalProducts / item.daysCount : 0
-    })).sort((a, b) => {
-      // Sort by month key descending (newest first)
-      return b.monthKey.localeCompare(a.monthKey);
-    });
-  }, [salesByDayData]);
 
   // Get bounds for heat map in AVG Sales BY Day
   const avgSalesByDayBounds = useMemo(() => {
@@ -518,11 +303,8 @@ export default function SalesDailySalesTab({ data, loading, showCosts = true }: 
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading daily sales data...</p>
-        </div>
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
@@ -969,4 +751,5 @@ export default function SalesDailySalesTab({ data, loading, showCosts = true }: 
     </div>
   );
 }
+
 

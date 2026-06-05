@@ -8,9 +8,9 @@ import NoData from '../01-Unified/NoDataTab';
 import SalesProductDetails from './SalesProductDetails';
 
 interface SalesProductsTabProps {
-  data: SalesInvoice[];
-  allData: SalesInvoice[]; // Geography filtered but not date filtered
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -40,7 +40,9 @@ const ProductRow = memo(({ item, rowNumber, onProductClick }: { item: { productI
 
 ProductRow.displayName = 'ProductRow';
 
-export default function SalesProductsTab({ data, allData, loading }: SalesProductsTabProps) {
+export default function SalesProductsTab({ filters, userId, refreshTrigger }: SalesProductsTabProps) {
+  const [loading, setLoading] = useState(true);
+  const [productsData, setProductsData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -52,74 +54,30 @@ export default function SalesProductsTab({ data, allData, loading }: SalesProduc
       setDebouncedSearchQuery(searchQuery);
       setCurrentPage(1); // Reset to first page when search changes
     }, 300);
-
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Aggregate products data from transactions
-  const productsData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    // Sort data by date descending to ensure we pick the latest name/barcode for display
-    const sortedData = [...data].sort((a, b) => {
-      const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
-      const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    const productMap = new Map<string, {
-      productId: string;
-      barcode: string;
-      product: string;
-      totalAmount: number;
-      totalQty: number;
-      invoiceNumbers: Set<string>;
-      allNames: Set<string>;
-      allBarcodes: Set<string>;
-    }>();
-
-    sortedData.forEach(item => {
-      const key = item.productId || item.barcode || item.product;
-      let existing = productMap.get(key);
-
-      if (!existing) {
-        existing = {
-          productId: item.productId || '',
-          barcode: item.barcode || '-',
-          product: item.product || '-',
-          totalAmount: 0,
-          totalQty: 0,
-          invoiceNumbers: new Set<string>(),
-          allNames: new Set(),
-          allBarcodes: new Set()
-        };
-        productMap.set(key, existing);
+  // Fetch data
+  useEffect(() => {
+    const fetchProducts = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/Products', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, userId })
+        });
+        if (!response.ok) throw new Error('Failed to fetch products data');
+        const result = await response.json();
+        setProductsData(result.productsData || []);
+      } catch (err) {
+        console.error('Error fetching Products Data:', err);
+      } finally {
+        setLoading(false);
       }
-
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-      
-      // Store historical names and barcodes for searching
-      if (item.product) existing.allNames.add(item.product.toLowerCase());
-      if (item.barcode) existing.allBarcodes.add(item.barcode.toLowerCase());
-
-      // Add invoice number for transaction count (only invoices starting with "SAL")
-      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
-        existing.invoiceNumbers.add(item.invoiceNumber);
-      }
-    });
-
-    return Array.from(productMap.values()).map(item => ({
-      productId: item.productId,
-      barcode: item.barcode,
-      product: item.product,
-      amount: item.totalAmount,
-      qty: item.totalQty,
-      transactions: item.invoiceNumbers.size,
-      allNames: item.allNames,
-      allBarcodes: item.allBarcodes
-    }));
-  }, [data]);
+    };
+    fetchProducts();
+  }, [filters, userId, refreshTrigger]);
 
   // Filter and sort products
   const filteredProducts = useMemo(() => {
@@ -196,11 +154,8 @@ export default function SalesProductsTab({ data, allData, loading }: SalesProduc
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading products data...</p>
-        </div>
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
@@ -209,8 +164,8 @@ export default function SalesProductsTab({ data, allData, loading }: SalesProduc
     return (
       <SalesProductDetails
         productId={selectedProductId}
-        data={data}
-        allData={allData}
+        filters={filters}
+        userId={userId}
         onBack={() => setSelectedProductId(null)}
       />
     );
@@ -348,3 +303,4 @@ export default function SalesProductsTab({ data, allData, loading }: SalesProduc
     </div>
   );
 }
+

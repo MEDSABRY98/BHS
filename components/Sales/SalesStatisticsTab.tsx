@@ -1,368 +1,72 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
 
 interface SalesStatisticsTabProps {
-  data: SalesInvoice[];
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
 }
 
-export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTabProps) {
+export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: SalesStatisticsTabProps) {
+  const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
+  
+  const [areaStats, setAreaStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
+  const [marketStats, setMarketStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
+  const [merchandiserStats, setMerchandiserStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
+  const [salesRepStats, setSalesRepStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
 
-  // Calculate statistics for Area
-  const areaStats = useMemo(() => {
-    const areaMap = new Map<string, { amount: number; qty: number; count: number }>();
+  // Fetch data
+  useEffect(() => {
+    const fetchStatistics = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/Statistics', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, userId })
+        });
+        if (!response.ok) throw new Error('Failed to fetch statistics data');
+        const result = await response.json();
+        
+        // Helper to convert plain object back to Map for monthlyData
+        const convertMonthlyDataToMap = (monthlyDataObj: any) => {
+          if (!monthlyDataObj) return new Map();
+          const map = new Map();
+          for (const [dim, monthsMapObj] of Object.entries(monthlyDataObj)) {
+            map.set(dim, new Map(Object.entries(monthsMapObj as object)));
+          }
+          return map;
+        };
 
-    data.forEach(item => {
-      if (!item.area) return;
-      const existing = areaMap.get(item.area) || { amount: 0, qty: 0, count: 0 };
-      areaMap.set(item.area, {
-        amount: existing.amount + (item.amount || 0),
-        qty: existing.qty + (item.qty || 0),
-        count: existing.count + 1
-      });
-    });
+        setAreaStats({
+          stats: result.areaStats?.stats || [],
+          monthlyData: convertMonthlyDataToMap(result.areaStats?.monthlyData)
+        });
+        setMarketStats({
+          stats: result.marketStats?.stats || [],
+          monthlyData: convertMonthlyDataToMap(result.marketStats?.monthlyData)
+        });
+        setMerchandiserStats({
+          stats: result.merchandiserStats?.stats || [],
+          monthlyData: convertMonthlyDataToMap(result.merchandiserStats?.monthlyData)
+        });
+        setSalesRepStats({
+          stats: result.salesRepStats?.stats || [],
+          monthlyData: convertMonthlyDataToMap(result.salesRepStats?.monthlyData)
+        });
 
-    // Calculate unique months for each area
-    const areaMonthsMap = new Map<string, Set<string>>();
-    data.forEach(item => {
-      if (!item.area || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!areaMonthsMap.has(item.area)) {
-        areaMonthsMap.set(item.area, new Set());
+      } catch (err) {
+        console.error('Error fetching Statistics Data:', err);
+      } finally {
+        setLoading(false);
       }
-      areaMonthsMap.get(item.area)!.add(monthKey);
-    });
-
-    // Calculate monthly data for each area (needed for growth calculation)
-    const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
-
-    data.forEach(item => {
-      if (!item.area || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      if (!monthlyData.has(item.area)) {
-        monthlyData.set(item.area, new Map());
-      }
-      const areaMonths = monthlyData.get(item.area)!;
-
-      if (!areaMonths.has(monthKey)) {
-        areaMonths.set(monthKey, { amount: 0, qty: 0 });
-      }
-      const monthData = areaMonths.get(monthKey)!;
-      monthData.amount += item.amount || 0;
-      monthData.qty += item.qty || 0;
-    });
-
-    // Calculate total amount for percentage calculation
-    const totalAmountAll = Array.from(areaMap.values()).reduce((sum, v) => sum + v.amount, 0);
-
-    const stats = Array.from(areaMap.entries()).map(([area, values]) => {
-      const monthsCount = areaMonthsMap.get(area)?.size || 1;
-      const averageMonthly = values.amount / monthsCount;
-
-      // Calculate monthly growth from monthlyData
-      const areaMonthlyData = monthlyData.get(area);
-      let averageMonthlyGrowth = 0;
-      if (areaMonthlyData && areaMonthlyData.size > 1) {
-        const sortedMonths = Array.from(areaMonthlyData.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]));
-        const growths: number[] = [];
-        for (let i = 1; i < sortedMonths.length; i++) {
-          const prevAmount = sortedMonths[i - 1][1].amount;
-          const currAmount = sortedMonths[i][1].amount;
-          growths.push(currAmount - prevAmount);
-        }
-        if (growths.length > 0) {
-          averageMonthlyGrowth = growths.reduce((sum, g) => sum + g, 0) / growths.length;
-        }
-      }
-
-      return {
-        name: area,
-        totalAmount: values.amount,
-        totalQty: values.qty,
-        invoiceCount: values.count,
-        averageMonthly: averageMonthly,
-        averageMonthlyGrowth: averageMonthlyGrowth,
-        percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0
-      };
-    }).sort((a, b) => b.totalAmount - a.totalAmount);
-
-    return { stats, monthlyData };
-  }, [data]);
-
-  // Calculate statistics for Market
-  const marketStats = useMemo(() => {
-    const marketMap = new Map<string, { amount: number; qty: number; count: number }>();
-
-    data.forEach(item => {
-      if (!item.market) return;
-      const existing = marketMap.get(item.market) || { amount: 0, qty: 0, count: 0 };
-      marketMap.set(item.market, {
-        amount: existing.amount + (item.amount || 0),
-        qty: existing.qty + (item.qty || 0),
-        count: existing.count + 1
-      });
-    });
-
-    // Calculate unique months for each market
-    const marketMonthsMap = new Map<string, Set<string>>();
-    data.forEach(item => {
-      if (!item.market || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!marketMonthsMap.has(item.market)) {
-        marketMonthsMap.set(item.market, new Set());
-      }
-      marketMonthsMap.get(item.market)!.add(monthKey);
-    });
-
-    // Calculate monthly data for each market (needed for growth calculation)
-    const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
-
-    data.forEach(item => {
-      if (!item.market || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      if (!monthlyData.has(item.market)) {
-        monthlyData.set(item.market, new Map());
-      }
-      const marketMonths = monthlyData.get(item.market)!;
-
-      if (!marketMonths.has(monthKey)) {
-        marketMonths.set(monthKey, { amount: 0, qty: 0 });
-      }
-      const monthData = marketMonths.get(monthKey)!;
-      monthData.amount += item.amount || 0;
-      monthData.qty += item.qty || 0;
-    });
-
-    // Calculate total amount for percentage calculation
-    const totalAmountAll = Array.from(marketMap.values()).reduce((sum, v) => sum + v.amount, 0);
-
-    const stats = Array.from(marketMap.entries()).map(([market, values]) => {
-      const monthsCount = marketMonthsMap.get(market)?.size || 1;
-      const averageMonthly = values.amount / monthsCount;
-
-      // Calculate monthly growth from monthlyData
-      const marketMonthlyData = monthlyData.get(market);
-      let averageMonthlyGrowth = 0;
-      if (marketMonthlyData && marketMonthlyData.size > 1) {
-        const sortedMonths = Array.from(marketMonthlyData.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]));
-        const growths: number[] = [];
-        for (let i = 1; i < sortedMonths.length; i++) {
-          const prevAmount = sortedMonths[i - 1][1].amount;
-          const currAmount = sortedMonths[i][1].amount;
-          growths.push(currAmount - prevAmount);
-        }
-        if (growths.length > 0) {
-          averageMonthlyGrowth = growths.reduce((sum, g) => sum + g, 0) / growths.length;
-        }
-      }
-
-      return {
-        name: market,
-        totalAmount: values.amount,
-        totalQty: values.qty,
-        invoiceCount: values.count,
-        averageMonthly: averageMonthly,
-        averageMonthlyGrowth: averageMonthlyGrowth,
-        percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0
-      };
-    }).sort((a, b) => b.totalAmount - a.totalAmount);
-
-    return { stats, monthlyData };
-  }, [data]);
-
-  // Calculate statistics for Merchandiser
-  const merchandiserStats = useMemo(() => {
-    const merchandiserMap = new Map<string, { amount: number; qty: number; count: number }>();
-
-    data.forEach(item => {
-      if (!item.merchandiser) return;
-      const existing = merchandiserMap.get(item.merchandiser) || { amount: 0, qty: 0, count: 0 };
-      merchandiserMap.set(item.merchandiser, {
-        amount: existing.amount + (item.amount || 0),
-        qty: existing.qty + (item.qty || 0),
-        count: existing.count + 1
-      });
-    });
-
-    // Calculate unique months for each merchandiser
-    const merchandiserMonthsMap = new Map<string, Set<string>>();
-    data.forEach(item => {
-      if (!item.merchandiser || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!merchandiserMonthsMap.has(item.merchandiser)) {
-        merchandiserMonthsMap.set(item.merchandiser, new Set());
-      }
-      merchandiserMonthsMap.get(item.merchandiser)!.add(monthKey);
-    });
-
-    // Calculate monthly data for each merchandiser (needed for growth calculation)
-    const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
-
-    data.forEach(item => {
-      if (!item.merchandiser || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      if (!monthlyData.has(item.merchandiser)) {
-        monthlyData.set(item.merchandiser, new Map());
-      }
-      const merchandiserMonths = monthlyData.get(item.merchandiser)!;
-
-      if (!merchandiserMonths.has(monthKey)) {
-        merchandiserMonths.set(monthKey, { amount: 0, qty: 0 });
-      }
-      const monthData = merchandiserMonths.get(monthKey)!;
-      monthData.amount += item.amount || 0;
-      monthData.qty += item.qty || 0;
-    });
-
-    // Calculate total amount for percentage calculation
-    const totalAmountAll = Array.from(merchandiserMap.values()).reduce((sum, v) => sum + v.amount, 0);
-
-    const stats = Array.from(merchandiserMap.entries()).map(([merchandiser, values]) => {
-      const monthsCount = merchandiserMonthsMap.get(merchandiser)?.size || 1;
-      const averageMonthly = values.amount / monthsCount;
-
-      // Calculate monthly growth from monthlyData
-      const merchandiserMonthlyData = monthlyData.get(merchandiser);
-      let averageMonthlyGrowth = 0;
-      if (merchandiserMonthlyData && merchandiserMonthlyData.size > 1) {
-        const sortedMonths = Array.from(merchandiserMonthlyData.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]));
-        const growths: number[] = [];
-        for (let i = 1; i < sortedMonths.length; i++) {
-          const prevAmount = sortedMonths[i - 1][1].amount;
-          const currAmount = sortedMonths[i][1].amount;
-          growths.push(currAmount - prevAmount);
-        }
-        if (growths.length > 0) {
-          averageMonthlyGrowth = growths.reduce((sum, g) => sum + g, 0) / growths.length;
-        }
-      }
-
-      return {
-        name: merchandiser,
-        totalAmount: values.amount,
-        totalQty: values.qty,
-        invoiceCount: values.count,
-        averageMonthly: averageMonthly,
-        averageMonthlyGrowth: averageMonthlyGrowth,
-        percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0
-      };
-    }).sort((a, b) => b.totalAmount - a.totalAmount);
-
-    return { stats, monthlyData };
-  }, [data]);
-
-  // Calculate statistics for Sales Rep
-  const salesRepStats = useMemo(() => {
-    const salesRepMap = new Map<string, { amount: number; qty: number; count: number }>();
-
-    data.forEach(item => {
-      if (!item.salesRep) return;
-      const existing = salesRepMap.get(item.salesRep) || { amount: 0, qty: 0, count: 0 };
-      salesRepMap.set(item.salesRep, {
-        amount: existing.amount + (item.amount || 0),
-        qty: existing.qty + (item.qty || 0),
-        count: existing.count + 1
-      });
-    });
-
-    // Calculate unique months for each sales rep
-    const salesRepMonthsMap = new Map<string, Set<string>>();
-    data.forEach(item => {
-      if (!item.salesRep || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      if (!salesRepMonthsMap.has(item.salesRep)) {
-        salesRepMonthsMap.set(item.salesRep, new Set());
-      }
-      salesRepMonthsMap.get(item.salesRep)!.add(monthKey);
-    });
-
-    // Calculate monthly data for each sales rep (needed for growth calculation)
-    const monthlyData = new Map<string, Map<string, { amount: number; qty: number }>>();
-
-    data.forEach(item => {
-      if (!item.salesRep || !item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-
-      if (!monthlyData.has(item.salesRep)) {
-        monthlyData.set(item.salesRep, new Map());
-      }
-      const salesRepMonths = monthlyData.get(item.salesRep)!;
-
-      if (!salesRepMonths.has(monthKey)) {
-        salesRepMonths.set(monthKey, { amount: 0, qty: 0 });
-      }
-      const monthData = salesRepMonths.get(monthKey)!;
-      monthData.amount += item.amount || 0;
-      monthData.qty += item.qty || 0;
-    });
-
-    // Calculate total amount for percentage calculation
-    const totalAmountAll = Array.from(salesRepMap.values()).reduce((sum, v) => sum + v.amount, 0);
-
-    const stats = Array.from(salesRepMap.entries()).map(([salesRep, values]) => {
-      const monthsCount = salesRepMonthsMap.get(salesRep)?.size || 1;
-      const averageMonthly = values.amount / monthsCount;
-
-      // Calculate monthly growth from monthlyData
-      const salesRepMonthlyData = monthlyData.get(salesRep);
-      let averageMonthlyGrowth = 0;
-      if (salesRepMonthlyData && salesRepMonthlyData.size > 1) {
-        const sortedMonths = Array.from(salesRepMonthlyData.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]));
-        const growths: number[] = [];
-        for (let i = 1; i < sortedMonths.length; i++) {
-          const prevAmount = sortedMonths[i - 1][1].amount;
-          const currAmount = sortedMonths[i][1].amount;
-          growths.push(currAmount - prevAmount);
-        }
-        if (growths.length > 0) {
-          averageMonthlyGrowth = growths.reduce((sum, g) => sum + g, 0) / growths.length;
-        }
-      }
-
-      return {
-        name: salesRep,
-        totalAmount: values.amount,
-        totalQty: values.qty,
-        invoiceCount: values.count,
-        averageMonthly: averageMonthly,
-        averageMonthlyGrowth: averageMonthlyGrowth,
-        percentageOfTotal: totalAmountAll > 0 ? (values.amount / totalAmountAll) * 100 : 0
-      };
-    }).sort((a, b) => b.totalAmount - a.totalAmount);
-
-    return { stats, monthlyData };
-  }, [data]);
+    };
+    fetchStatistics();
+  }, [filters, userId, refreshTrigger]);
 
   const getCurrentStats = () => {
     switch (activeSubTab) {
@@ -433,11 +137,8 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading statistics...</p>
-        </div>
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
@@ -619,4 +320,5 @@ export default function SalesStatisticsTab({ data, loading }: SalesStatisticsTab
       </div>
   );
 }
+
 

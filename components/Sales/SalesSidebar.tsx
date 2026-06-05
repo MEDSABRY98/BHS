@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 interface SalesSidebarProps {
+  refreshTrigger?: number;
   activeTab: string;
   onTabChange: (tab: string) => void;
   currentUser?: any;
@@ -164,3 +165,4 @@ export default function SalesSidebar({
     </div>
   );
 }
+

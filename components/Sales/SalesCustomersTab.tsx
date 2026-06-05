@@ -8,9 +8,9 @@ import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '../01-Unified/NoDataTab';
 
 interface SalesCustomersTabProps {
-  data: SalesInvoice[];
-  allData: SalesInvoice[]; // Geography filtered but not date filtered
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
   onUploadMapping?: (mapping: Record<string, any>) => void;
   showCosts?: boolean;
 }
@@ -45,7 +45,8 @@ const CustomerRow = memo(({ item, rowNumber, onCustomerClick }: { item: { custom
 
 CustomerRow.displayName = 'CustomerRow';
 
-export default function SalesCustomersTab({ data, allData, loading, onUploadMapping, showCosts = true }: SalesCustomersTabProps) {
+export default function SalesCustomersTab({ filters, userId, onUploadMapping, showCosts = true, refreshTrigger }: SalesCustomersTabProps) {
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -54,6 +55,8 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
   const [activeTab, setActiveTab] = useState<'main' | 'sub'>('main');
   const [sortField, setSortField] = useState<'customer' | 'totalAmount' | 'averageAmount' | 'totalQty' | 'productsCount'>('totalAmount');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  const [customersData, setCustomersData] = useState<any[]>([]);
 
   // Debounce search query
   useEffect(() => {
@@ -64,103 +67,28 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Group data by customer - already using filtered data from props
-  const customersData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    const customerMap = new Map<string, {
-      customerId: string;
-      customer: string;
-      totalAmount: number;
-      totalQty: number;
-      barcodes: Set<string>;
-      months: Set<string>;
-      invoiceNumbers: Set<string>;
-    }>();
-
-    for (let i = 0; i < data.length; i++) {
-      const item = data[i];
-
-      let key: string;
-      let displayName: string;
-
-      if (activeTab === 'main') {
-        key = item.customerMainName || item.customerName || 'Unknown';
-        displayName = item.customerMainName || item.customerName || 'Unknown';
-      } else {
-        key = item.customerId || item.customerName;
-        displayName = item.customerName;
+  // Fetch Data from API
+  useEffect(() => {
+    const fetchCustomersData = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/Customers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, filters, activeTab })
+        });
+        if (!response.ok) throw new Error('Failed to fetch customers data');
+        const data = await response.json();
+        setCustomersData(data.customersData || []);
+      } catch (err) {
+        console.error('Error fetching Customers:', err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      let existing = customerMap.get(key);
-
-      if (!existing) {
-        existing = {
-          customerId: key,
-          customer: displayName,
-          totalAmount: 0,
-          totalQty: 0,
-          barcodes: new Set<string>(),
-          months: new Set<string>(),
-          invoiceNumbers: new Set<string>()
-        };
-        customerMap.set(key, existing);
-      }
-
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-
-      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
-        existing.invoiceNumbers.add(item.invoiceNumber);
-        const productKey = item.productId || item.barcode || item.product;
-        existing.barcodes.add(productKey);
-      }
-
-      if (item.invoiceDate) {
-        const date = new Date(item.invoiceDate);
-        if (!isNaN(date.getTime())) {
-          const year = date.getFullYear();
-          const month = date.getMonth() + 1;
-          const monthKey = `${year}-${month < 10 ? '0' : ''}${month}`;
-          existing.months.add(monthKey);
-        }
-      }
-    }
-
-    const result = new Array(customerMap.size);
-    let index = 0;
-
-    const currentDate = new Date();
-    const currentYear = currentDate.getFullYear();
-    const currentMonth = currentDate.getMonth();
-
-    customerMap.forEach(item => {
-      let totalMonths = 1;
-      if (item.months.size > 0) {
-        const sortedMonths = Array.from(item.months).sort();
-        const firstMonthKey = sortedMonths[0];
-        const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
-        const firstDate = new Date(firstYear, firstMonth - 1, 1);
-        const lastDate = new Date(currentYear, currentMonth, 1);
-        const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
-        const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
-        totalMonths = (yearsDiff * 12) + monthsDiff + 1;
-      }
-
-      result[index++] = {
-        customerId: item.customerId,
-        customer: item.customer,
-        totalAmount: item.totalAmount,
-        totalQty: item.totalQty,
-        averageAmount: item.totalAmount / totalMonths,
-        averageQty: item.totalQty / totalMonths,
-        productsCount: item.barcodes.size,
-        transactions: item.invoiceNumbers.size
-      };
-    });
-
-    return result;
-  }, [data, activeTab]);
+    fetchCustomersData();
+  }, [filters, userId, activeTab, refreshTrigger]);
 
   const filteredCustomers = useMemo(() => {
     if (customersData.length === 0) return [];
@@ -211,39 +139,21 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
 
   const exportToExcel = (mode: 'standard' | 'months') => {
     if (mode === 'months') {
-      const customerMonthMap = new Map<string, Map<string, { amount: number; qty: number }>>();
-      const customerInfoMap = new Map<string, { name: string, area: string, market: string }>();
       const allMonths = new Set<string>();
-
-      data.forEach(item => {
-        if (!item.invoiceDate) return;
-        const date = new Date(item.invoiceDate);
-        if (isNaN(date.getTime())) return;
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        allMonths.add(monthKey);
-
-        const customerId = activeTab === 'main' ? (item.customerMainName || item.customerName) : (item.customerId || item.customerName);
-        if (!customerMonthMap.has(customerId)) {
-          customerMonthMap.set(customerId, new Map());
-          customerInfoMap.set(customerId, { name: activeTab === 'main' ? (item.customerMainName || item.customerName) : item.customerName, area: item.area || '', market: item.market || '' });
+      customersData.forEach(item => {
+        if (item.monthlyData) {
+          Object.keys(item.monthlyData).forEach(m => allMonths.add(m));
         }
-
-        const cm = customerMonthMap.get(customerId)!;
-        const mData = cm.get(monthKey) || { amount: 0, qty: 0 };
-        mData.amount += item.amount;
-        mData.qty += item.qty;
-        cm.set(monthKey, mData);
       });
 
       const sortedMonths = Array.from(allMonths).sort();
       const workbook = XLSX.utils.book_new();
 
-      const amountRows = Array.from(customerMonthMap.entries()).map(([cid, months]) => {
-        const info = customerInfoMap.get(cid)!;
-        const row: any[] = [info.name, info.area, info.market];
+      const amountRows = customersData.map(item => {
+        const row: any[] = [item.customer, item.area || '', item.market || ''];
         let total = 0;
         sortedMonths.forEach(m => {
-          const val = months.get(m)?.amount || 0;
+          const val = item.monthlyData?.[m]?.amount || 0;
           row.push(val.toFixed(2));
           total += val;
         });
@@ -269,22 +179,19 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
     setShowExportModal(false);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center p-12">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 font-medium tracking-wide">Analyzing customer data...</p>
+  if (loading) {
+    return (
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
-    </div>
-  );
-
-  if (selectedCustomer) return (
+    );
+  } if (selectedCustomer) return (
     <SalesCustomerDetails
       customerName={selectedCustomer.name}
       customerId={selectedCustomer.id}
       customerType={activeTab}
-      data={data}
-      allData={allData}
+      filters={filters}
+      userId={userId}
       onBack={() => setSelectedCustomer(null)}
       showCosts={showCosts}
     />
@@ -432,3 +339,4 @@ export default function SalesCustomersTab({ data, allData, loading, onUploadMapp
     </div>
   );
 }
+

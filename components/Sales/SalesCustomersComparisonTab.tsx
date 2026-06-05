@@ -7,8 +7,8 @@ import * as XLSX from 'xlsx';
 import NoData from '../01-Unified/NoDataTab';
 
 interface Props {
-  data: SalesInvoice[];
-  loading: boolean;
+  filters: any;
+  userId: string;
 }
 
 const ITEMS_PER_PAGE = 50;
@@ -75,7 +75,8 @@ const CompRow = memo(({ row, rowNum, prevLabel, currLabel }: {
 });
 CompRow.displayName = 'CompRow';
 
-export default function SalesCustomersComparisonTab({ data, loading }: Props) {
+export default function SalesCustomersComparisonTab({ filters, userId, refreshTrigger }: Props) {
+  const [loading, setLoading] = useState(true);
   const today = new Date();
   const currentYear = today.getFullYear();
   const prevYear = currentYear - 1;
@@ -87,6 +88,32 @@ export default function SalesCustomersComparisonTab({ data, loading }: Props) {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [customerType, setCustomerType] = useState<'sub' | 'main'>('sub');
+
+  const [mainComparisonData, setMainComparisonData] = useState<ComparisonRow[]>([]);
+  const [subComparisonData, setSubComparisonData] = useState<ComparisonRow[]>([]);
+
+  // Fetch from server
+  useEffect(() => {
+    const fetchComparison = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/CustomersComparison', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, userId, currentYear, prevYear, selectedMonth })
+        });
+        if (!response.ok) throw new Error('Failed to fetch customers comparison');
+        const result = await response.json();
+        setMainComparisonData(result.mainComparison || []);
+        setSubComparisonData(result.subComparison || []);
+      } catch (error) {
+        console.error('Error fetching customers comparison:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchComparison();
+  }, [filters, userId, selectedMonth, currentYear, prevYear, refreshTrigger]);
 
   // Debounce
   useEffect(() => {
@@ -110,87 +137,10 @@ export default function SalesCustomersComparisonTab({ data, loading }: Props) {
     return m ? `${m.label} ${currentYear}` : `${currentYear}`;
   }, [selectedMonth, currentYear]);
 
-  // Helper to build comparison data dynamically
-  const getCompData = (type: 'main' | 'sub') => {
-    if (!data || data.length === 0) return [];
-
-    // Only SAL invoices
-    const salesOnly = data.filter(item =>
-      item.invoiceNumber?.trim().toUpperCase().startsWith('SAL')
-    );
-
-    const targetMonth = selectedMonth ? parseInt(selectedMonth) : null;
-
-    const mapPrev = new Map<string, { mainName: string; subName: string; amount: number }>();
-    const mapCurr = new Map<string, { mainName: string; subName: string; amount: number }>();
-
-    for (const item of salesOnly) {
-      if (!item.invoiceDate) continue;
-      const d = new Date(item.invoiceDate);
-      if (isNaN(d.getTime())) continue;
-
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-
-      // Skip if month filter active and month doesn't match
-      if (targetMonth && month !== targetMonth) continue;
-
-      // For current year: only up to today
-      if (year === currentYear && d > today) continue;
-
-      const key = type === 'sub'
-        ? (item.customerId?.trim() || item.customerName?.trim())
-        : (item.customerMainName?.trim() || item.customerName?.trim());
-
-      if (!key) continue;
-
-      const mainName = item.customerMainName?.trim() || item.customerName?.trim() || '';
-      const subName = item.customerName?.trim() || '';
-
-      if (year === prevYear) {
-        const existing = mapPrev.get(key) || { mainName, subName, amount: 0 };
-        existing.amount += item.amount;
-        mapPrev.set(key, existing);
-      } else if (year === currentYear) {
-        const existing = mapCurr.get(key) || { mainName, subName, amount: 0 };
-        existing.amount += item.amount;
-        mapCurr.set(key, existing);
-      }
-    }
-
-    // Merge keys from both years
-    const allKeys = new Set([...mapPrev.keys(), ...mapCurr.keys()]);
-    const result: ComparisonRow[] = [];
-
-    for (const key of allKeys) {
-      const prev = mapPrev.get(key);
-      const curr = mapCurr.get(key);
-      const prevAmt = prev?.amount ?? 0;
-      const currAmt = curr?.amount ?? 0;
-      const diff = currAmt - prevAmt;
-      const pct = prevAmt > 0 ? (diff / prevAmt) * 100 : (currAmt > 0 ? 100 : 0);
-
-      const mainName = (curr?.mainName || prev?.mainName) ?? '';
-      const subName = type === 'sub' ? ((curr?.subName || prev?.subName) ?? '') : '';
-
-      result.push({
-        customerId: key,
-        mainName,
-        subName,
-        prev: prevAmt,
-        curr: currAmt,
-        diff,
-        pct,
-      });
-    }
-
-    return result;
-  };
-
   // Build comparison data for the current view
   const comparisonData: ComparisonRow[] = useMemo(() => {
-    return getCompData(customerType);
-  }, [data, selectedMonth, customerType, currentYear, prevYear]);
+    return customerType === 'main' ? mainComparisonData : subComparisonData;
+  }, [mainComparisonData, subComparisonData, customerType]);
 
   // Filter + sort
   const filtered = useMemo(() => {
@@ -250,8 +200,7 @@ export default function SalesCustomersComparisonTab({ data, loading }: Props) {
 
   const exportToExcel = () => {
     // Generate and sort Main Customers
-    const mainDataRaw = getCompData('main');
-    let mainFiltered = [...mainDataRaw];
+    let mainFiltered = [...mainComparisonData];
     if (debouncedSearch.trim()) {
       const q = debouncedSearch.toLowerCase().trim();
       mainFiltered = mainFiltered.filter(r => r.mainName.toLowerCase().includes(q));
@@ -293,8 +242,7 @@ export default function SalesCustomersComparisonTab({ data, loading }: Props) {
     ]);
 
     // Generate and sort Sub Customers
-    const subDataRaw = getCompData('sub');
-    let subFiltered = [...subDataRaw];
+    let subFiltered = [...subComparisonData];
     if (debouncedSearch.trim()) {
       const q = debouncedSearch.toLowerCase().trim();
       subFiltered = subFiltered.filter(r => r.subName.toLowerCase().includes(q) || r.mainName.toLowerCase().includes(q));
@@ -347,16 +295,13 @@ export default function SalesCustomersComparisonTab({ data, loading }: Props) {
     XLSX.writeFile(wb, `customers_comparison_${currentYear}_vs_${prevYear}.xlsx`);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center p-12">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4" />
-        <p className="text-gray-600 font-medium">Building comparison...</p>
+  if (loading) {
+    return (
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
-    </div>
-  );
-
-  return (
+    );
+  } return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

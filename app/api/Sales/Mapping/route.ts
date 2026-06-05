@@ -15,9 +15,10 @@ export async function POST(request: Request) {
 
     // تحويل الكائن (Object) إلى مصفوفة (Array) جاهزة للرفع للسيرفر
     const rows = Object.keys(mapping).map((customerId, index) => {
+      const paddedIndex = String(index + 1).padStart(4, '0');
       const data = mapping[customerId];
       return {
-        "ID": `R-${Math.floor(Math.random() * 1000000)}-${Date.now()}-${index}`,
+        "ID": `R-${paddedIndex}`,
         "USER_ID": userId,
         "CUSTOMER ID": customerId,
         "CUSTOMER MAIN NAME": data.customerMainName || '',
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     // 2. رفع المابينج الجديد على دفعات (Chunks) لضمان عدم حدوث Timeout لو الشيت كبير
-    const chunkSize = 500;
+    const chunkSize = 10000;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
       const { error: insertError } = await bhs_supabas

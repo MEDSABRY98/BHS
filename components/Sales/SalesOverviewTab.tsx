@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { useState, useEffect } from 'react';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '../01-Unified/NoDataTab';
@@ -20,380 +19,53 @@ import {
 } from 'recharts';
 
 interface SalesOverviewTabProps {
-  data: SalesInvoice[];
-  allData: SalesInvoice[]; // Data filtered by geography but not by time
-  loading: boolean;
-  selectedYear?: string;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
 }
 
+export default function SalesOverviewTab({ filters, refreshTrigger, userId }: SalesOverviewTabProps) {
+  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState<{
+    metrics: any;
+    chartData: any[];
+    yearlyTableData: any[];
+    monthlyTableData: any[];
+  } | null>(null);
 
-export default function SalesOverviewTab({ data, allData, loading, selectedYear }: SalesOverviewTabProps) {
-  const metrics = useMemo(() => {
-    if (!data || data.length === 0) {
-      return {
-        totalAmount: 0,
-        totalQty: 0,
-        totalCustomers: 0,
-        totalProducts: 0,
-        avgAmountPerSale: 0,
-        avgQtyPerSale: 0,
-        avgMonthlyAmount: 0,
-        avgMonthlyQty: 0,
-      };
-    }
-
-    const totalAmount = data.reduce((sum, item) => sum + item.amount, 0);
-    const totalQty = data.reduce((sum, item) => sum + item.qty, 0);
-    const uniqueCustomers = new Set(data.map(item => item.customerName)).size;
-    const uniqueProducts = new Set(data.map(item => item.product)).size;
-    const avgAmountPerSale = totalAmount / data.length;
-    const avgQtyPerSale = totalQty / data.length;
-
-    // Calculate monthly averages
-    const monthsSet = new Set<string>();
-    const monthlyData = new Map<string, { amount: number; qty: number }>();
-
-    data.forEach(item => {
-      if (item.invoiceDate) {
-        try {
-          const date = new Date(item.invoiceDate);
-          if (!isNaN(date.getTime())) {
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            monthsSet.add(monthKey);
-
-            const existing = monthlyData.get(monthKey) || { amount: 0, qty: 0 };
-            existing.amount += item.amount;
-            existing.qty += item.qty;
-            monthlyData.set(monthKey, existing);
-          }
-        } catch (e) {
-          // Invalid date, skip
+  useEffect(() => {
+    let isMounted = true;
+    const fetchOverview = async () => {
+      setLoading(true);
+      try {
+        const res = await fetch('/api/Sales/Overview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, filters }),
+        });
+        
+        if (!res.ok) throw new Error('Failed to fetch');
+        const json = await res.json();
+        
+        if (isMounted) {
+          setData(json);
         }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (isMounted) setLoading(false);
       }
-    });
-
-    const totalMonths = monthsSet.size || 1;
-    const totalMonthlyAmount = Array.from(monthlyData.values()).reduce((sum, m) => sum + m.amount, 0);
-    const totalMonthlyQty = Array.from(monthlyData.values()).reduce((sum, m) => sum + m.qty, 0);
-    const avgMonthlyAmount = totalMonthlyAmount / totalMonths;
-    const avgMonthlyQty = totalMonthlyQty / totalMonths;
-
-    return {
-      totalAmount,
-      totalQty,
-      totalCustomers: uniqueCustomers,
-      totalProducts: uniqueProducts,
-      avgAmountPerSale,
-      avgQtyPerSale,
-      avgMonthlyAmount,
-      avgMonthlyQty,
     };
-  }, [data]);
 
+    fetchOverview();
+    return () => { isMounted = false; };
+  }, [filters, refreshTrigger]);
 
-  // Monthly sales data for charts - if filters are applied, show filtered data, otherwise show last 12 months
-  const monthlySales = useMemo(() => {
-    const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number }>();
-    const dataToProcess = data;
-
-    dataToProcess.forEach(item => {
-      if (!item.invoiceDate) return;
-
-      try {
-        const date = new Date(item.invoiceDate);
-        if (isNaN(date.getTime())) return;
-
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
-
-        const existing = monthMap.get(monthKey) || {
-          month: monthLabel,
-          monthKey,
-          amount: 0,
-          qty: 0,
-        };
-
-        existing.amount += item.amount;
-        existing.qty += item.qty;
-
-        monthMap.set(monthKey, existing);
-      } catch (e) {
-        // Skip invalid dates
-      }
-    });
-
-    // Find the latest month in the data
-    const allMonths = Array.from(monthMap.values());
-    if (allMonths.length === 0) return [];
-
-    const latestMonth = allMonths.reduce((latest, current) => {
-      return current.monthKey > latest.monthKey ? current : latest;
-    }, allMonths[0]);
-
-    // Calculate the last 12 months from the latest month
-    const last12MonthsKeys = new Set<string>();
-    const [latestYear, latestMonthNum] = latestMonth.monthKey.split('-').map(Number);
-
-    // Create array with all last 12 months, filling missing months with zeros
-    const result: Array<{ month: string; monthKey: string; amount: number; qty: number }> = [];
-
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date(latestYear, latestMonthNum - 1 - i, 1);
-      const year = date.getFullYear();
-      const month = date.getMonth() + 1;
-      const monthKey = `${year}-${String(month).padStart(2, '0')}`;
-      const monthLabel = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
-
-      const existing = monthMap.get(monthKey);
-      result.push({
-        month: monthLabel,
-        monthKey,
-        amount: existing?.amount || 0,
-        qty: existing?.qty || 0,
-      });
-    }
-
-    return result;
-  }, [data]);
-
-  // Chart data for monthly sales - show Jan-Dec of the main year
-  const chartData = useMemo(() => {
-    if (allData.length === 0) return [];
-
-    const monthMap = new Map<string, { amount: number; qty: number }>();
-    allData.forEach(item => {
-      if (!item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const existing = monthMap.get(key) || { amount: 0, qty: 0 };
-      existing.amount += item.amount;
-      existing.qty += item.qty;
-      monthMap.set(key, existing);
-    });
-
-    // Determine the target year
-    let targetYear: number;
-    if (selectedYear) {
-      targetYear = parseInt(selectedYear, 10);
-    } else {
-      const allKeys = Array.from(monthMap.keys()).sort();
-      const latestKey = allKeys[allKeys.length - 1];
-      targetYear = parseInt(latestKey.split('-')[0], 10);
-    }
-
-    const prevYear = targetYear - 1;
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const now = new Date();
-    const nowYear = now.getFullYear();
-    const nowMonth = now.getMonth() + 1;
-    const result = [];
-
-    for (let m = 1; m <= 12; m++) {
-      const currKey = `${targetYear}-${String(m).padStart(2, '0')}`;
-      const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
-
-      const currData = monthMap.get(currKey) || { amount: 0, qty: 0 };
-      const prevData = monthMap.get(prevKey) || { amount: 0, qty: 0 };
-
-      const diff = currData.amount - prevData.amount;
-      const percent = prevData.amount !== 0 ? (diff / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
-
-      const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
-
-      result.push({
-        month: monthNames[m - 1],
-        year: String(targetYear).slice(-2),
-        prevYear: String(prevYear).slice(-2),
-        currentAmount: currData.amount,
-        prevAmount: prevData.amount,
-        diff,
-        percent,
-        isPositive: diff >= 0,
-        isFuture,
-        legendCurr: String(targetYear),
-        legendPrev: String(prevYear)
-      });
-    }
-
-    const maxAmount = Math.max(...result.map(r => Math.max(r.currentAmount, r.prevAmount)));
-    result.forEach(r => {
-      // @ts-ignore
-      r.topBaseline = maxAmount * 1.25;
-    });
-
-    return result;
-  }, [allData, selectedYear]);
-
-  // Yearly sales table data - sorted newest to oldest
-  const yearlyTableData = useMemo(() => {
-    const yearMap = new Map<string, {
-      year: string;
-      amount: number;
-      qty: number;
-      customerCount: Set<string>;
-      invoiceNumbers: Set<string>;
-      grvNumbers: Set<string>;
-      grossSales: number;
-      grvAmount: number;
-    }>();
-
-    data.forEach(item => {
-      if (!item.invoiceDate) return;
-
-      try {
-        const date = new Date(item.invoiceDate);
-        if (isNaN(date.getTime())) return;
-
-        const year = date.getFullYear().toString();
-
-        const existing = yearMap.get(year) || {
-          year: year,
-          amount: 0,
-          qty: 0,
-          customerCount: new Set<string>(),
-          invoiceNumbers: new Set<string>(),
-          grvNumbers: new Set<string>(),
-          grossSales: 0,
-          grvAmount: 0,
-        };
-
-        existing.amount += item.amount;
-        existing.qty += item.qty;
-        existing.customerCount.add(item.customerId || item.customerName);
-
-        const invNum = item.invoiceNumber || (item as any).number || (item as any).invoiceNo;
-        const invoiceId = invNum || `missing-${Math.random()}`;
-
-        if (item.amount > 0) {
-          existing.grossSales += item.amount;
-          existing.invoiceNumbers.add(invoiceId);
-        } else if (item.amount < 0) {
-          existing.grvAmount += Math.abs(item.amount);
-          existing.grvNumbers.add(invoiceId);
-        }
-
-        yearMap.set(year, existing);
-      } catch (e) {
-        // Skip invalid dates
-      }
-    });
-
-    const sorted = Array.from(yearMap.values()).sort((a, b) => b.year.localeCompare(a.year));
-
-    return sorted.map((item, index) => {
-      const previousYear = index < sorted.length - 1 ? sorted[index + 1] : null;
-      const amountDiff = previousYear ? item.amount - previousYear.amount : 0;
-
-      return {
-        year: item.year,
-        amount: item.amount,
-        amountDiff: previousYear ? item.amount - previousYear.amount : 0,
-        qty: item.qty,
-        customerCount: item.customerCount.size,
-        grossSales: item.grossSales,
-        salesCount: item.invoiceNumbers.size,
-        grvAmount: item.grvAmount,
-        grvCount: item.grvNumbers.size,
-      };
-    });
-  }, [data]);
-
-  // Monthly sales table data - sorted from newest to oldest, showing ALL months
-  const monthlyTableData = useMemo(() => {
-    // Get all months from data
-    const monthMap = new Map<string, {
-      month: string;
-      monthKey: string;
-      amount: number;
-      qty: number;
-      customerCount: Set<string>;
-      invoiceNumbers: Set<string>;
-      grvNumbers: Set<string>;
-      grossSales: number;
-      grvAmount: number;
-    }>();
-
-    data.forEach(item => {
-      if (!item.invoiceDate) return;
-
-      try {
-        const date = new Date(item.invoiceDate);
-        if (isNaN(date.getTime())) return;
-
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
-
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
-
-        const existing = monthMap.get(monthKey) || {
-          month: monthLabel,
-          monthKey,
-          amount: 0,
-          qty: 0,
-          customerCount: new Set<string>(),
-          invoiceNumbers: new Set<string>(),
-          grvNumbers: new Set<string>(),
-          grossSales: 0,
-          grvAmount: 0,
-        };
-
-        existing.amount += item.amount;
-        existing.qty += item.qty;
-        existing.customerCount.add(item.customerId || item.customerName);
-
-        const invNum = item.invoiceNumber || (item as any).number || (item as any).invoiceNo;
-        const invoiceId = invNum || `missing-${Math.random()}`;
-
-        if (item.amount > 0) {
-          existing.grossSales += item.amount;
-          existing.invoiceNumbers.add(invoiceId);
-        } else if (item.amount < 0) {
-          existing.grvAmount += Math.abs(item.amount);
-          existing.grvNumbers.add(invoiceId);
-        }
-
-        monthMap.set(monthKey, existing);
-      } catch (e) {
-        // Skip invalid dates
-      }
-    });
-
-    // Sort from newest to oldest (descending by monthKey)
-    const sorted = Array.from(monthMap.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
-
-    return sorted.map((item, index) => {
-      // Get previous month for comparison
-      const previousMonth = index < sorted.length - 1 ? sorted[index + 1] : null;
-      const amountDiff = previousMonth ? item.amount - previousMonth.amount : 0;
-
-      return {
-        month: item.month,
-        monthKey: item.monthKey,
-        amount: item.amount,
-        amountDiff: amountDiff,
-        qty: item.qty,
-        customerCount: item.customerCount.size,
-        grossSales: item.grossSales,
-        salesCount: item.invoiceNumbers.size,
-        grvAmount: item.grvAmount,
-        grvCount: item.grvNumbers.size,
-      };
-    });
-  }, [data]);
-
-  // Export yearly table to Excel
   const exportYearlyTableToExcel = () => {
+    if (!data) return;
     const workbook = XLSX.utils.book_new();
     const headers = ['Year', 'Net Amount', 'Net Change', 'Net QTY', 'Cust. Count', 'Sales Amount', 'Sales Count', 'GRV Amount', 'GRV Count'];
-    const rows = yearlyTableData.map(item => [
+    const rows = data.yearlyTableData.map((item: any) => [
       item.year,
       item.amount,
       item.amountDiff !== 0 ? (item.amountDiff > 0 ? '+' : '') + item.amountDiff : '-',
@@ -411,12 +83,12 @@ export default function SalesOverviewTab({ data, allData, loading, selectedYear 
     XLSX.writeFile(workbook, filename);
   };
 
-  // Export monthly table to Excel
   const exportMonthlyTableToExcel = () => {
+    if (!data) return;
     const workbook = XLSX.utils.book_new();
 
     const headers = ['Month', 'Net Amount', 'Net Change', 'Net QTY', 'Cust. Count', 'Sales Amount', 'Sales Count', 'GRV Amount', 'GRV Count'];
-    const rows = monthlyTableData.map(item => [
+    const rows = data.monthlyTableData.map((item: any) => [
       item.month,
       item.amount,
       item.amountDiff !== 0 ? (item.amountDiff > 0 ? '+' : '') + item.amountDiff : '-',
@@ -436,17 +108,15 @@ export default function SalesOverviewTab({ data, allData, loading, selectedYear 
     XLSX.writeFile(workbook, filename);
   };
 
-
-  if (loading) {
+  if (loading || !data) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading sales data...</p>
-        </div>
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
+
+  const { metrics, chartData, yearlyTableData, monthlyTableData } = data;
 
   return (
     <div className="w-full">
@@ -916,3 +586,4 @@ export default function SalesOverviewTab({ data, allData, loading, selectedYear 
     </div>
   );
 }
+

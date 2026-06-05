@@ -24,8 +24,8 @@ interface SalesCustomerDetailsProps {
   customerName: string;
   customerId?: string;
   customerType?: 'main' | 'sub';
-  data: SalesInvoice[];
-  allData?: SalesInvoice[]; // Full dataset (not date filtered)
+  filters?: any;
+  userId?: string;
   onBack: () => void;
   initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
   showCosts?: boolean;
@@ -35,12 +35,15 @@ export default function SalesCustomerDetails({
   customerName,
   customerId,
   customerType = 'sub',
-  data,
-  allData = [],
+  filters,
+  userId,
   onBack,
   initialTab = 'dashboard',
   showCosts = true
 }: SalesCustomerDetailsProps) {
+  const [data, setData] = useState<SalesInvoice[]>([]);
+  const [allData, setAllData] = useState<SalesInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
@@ -59,6 +62,30 @@ export default function SalesCustomerDetails({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
+
+  // Fetch customer details from API
+  useEffect(() => {
+    const fetchCustomerDetails = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/CustomerDetails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, filters, customerName, customerId, customerType })
+        });
+        if (!response.ok) throw new Error('Failed to fetch customer details');
+        const result = await response.json();
+        setData(result.data || []);
+        setAllData(result.allData || []);
+      } catch (err) {
+        console.error('Error fetching Customer Details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomerDetails();
+  }, [userId, filters, customerName, customerId, customerType]);
 
   // Fetch invoices data for discounts calculation
   useEffect(() => {
@@ -269,8 +296,8 @@ export default function SalesCustomerDetails({
     customerData.forEach(item => {
       const key = item.productId || item.barcode || item.product;
       const existing = productMap.get(key) || {
-        barcode: item.barcode,
-        product: item.product,
+        barcode: item.barcode || '-',
+        product: item.product || '-',
         amount: 0,
         qty: 0,
         totalCost: 0,
@@ -280,6 +307,13 @@ export default function SalesCustomerDetails({
         invoiceNumbers: new Set<string>(),
         lastInvoiceDate: null
       };
+
+      if (!existing.barcode || existing.barcode === '-') {
+        existing.barcode = item.barcode || '-';
+      }
+      if (!existing.product || existing.product === '-') {
+        existing.product = item.product || '-';
+      }
 
       existing.amount += item.amount;
       existing.qty += item.qty;
@@ -828,6 +862,14 @@ export default function SalesCustomerDetails({
     XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     XLSX.writeFile(workbook, `Invoice_${invoice.invoiceNumber}.xlsx`);
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-gray-50 min-h-screen">

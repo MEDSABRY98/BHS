@@ -208,6 +208,16 @@ export const toast = {
   info: (message: string, duration = 4000) => {
     toast.show(message, 'info', duration);
   },
+  loading: (message: string, options?: { id?: string }) => {
+    const id = options?.id || Math.random().toString(36).substring(7);
+    // Remove if already exists to avoid duplicates
+    memoryNotifications = [...memoryNotifications.filter(n => n.id !== id), { id, message, type: 'info', duration: 0 }];
+    emit();
+    return id;
+  },
+  dismiss: (id: string) => {
+    toast.remove(id);
+  },
   remove: (id: string) => {
     memoryNotifications = memoryNotifications.filter((n) => n.id !== id);
     emit();

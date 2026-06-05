@@ -7,8 +7,9 @@ import * as XLSX from 'xlsx';
 import NoData from '../01-Unified/NoDataTab';
 
 interface SalesCategoriesTabProps {
-  data: SalesInvoice[];
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
 }
 
 const CategoryRow = memo(({ item, rowNumber }: { item: { category: string; amount: number; qty: number; customers: number }; rowNumber: number }) => {
@@ -29,50 +30,32 @@ const CategoryRow = memo(({ item, rowNumber }: { item: { category: string; amoun
 
 CategoryRow.displayName = 'CategoryRow';
 
-export default function SalesCategoriesTab({ data, loading }: SalesCategoriesTabProps) {
+export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: SalesCategoriesTabProps) {
+  const [loading, setLoading] = useState(true);
+  const [categoriesData, setCategoriesData] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Aggregate category data from transactions (based on productTag)
-  const categoriesData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    const categoryMap = new Map<string, {
-      category: string;
-      totalAmount: number;
-      totalQty: number;
-      customerIds: Set<string>;
-    }>();
-
-    data.forEach(item => {
-      const category = item.productTag || 'Uncategorized';
-      let existing = categoryMap.get(category);
-
-      if (!existing) {
-        existing = {
-          category: category,
-          totalAmount: 0,
-          totalQty: 0,
-          customerIds: new Set<string>(),
-        };
-        categoryMap.set(category, existing);
+  // Fetch data
+  useEffect(() => {
+    const fetchCategories = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/Categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, userId })
+        });
+        if (!response.ok) throw new Error('Failed to fetch categories data');
+        const result = await response.json();
+        setCategoriesData(result.categoriesData || []);
+      } catch (err) {
+        console.error('Error fetching Categories Data:', err);
+      } finally {
+        setLoading(false);
       }
-
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-      
-      const customerKey = item.customerId || item.customerName;
-      if (customerKey) {
-        existing.customerIds.add(customerKey);
-      }
-    });
-
-    return Array.from(categoryMap.values()).map(item => ({
-      category: item.category,
-      amount: item.totalAmount,
-      qty: item.totalQty,
-      customers: item.customerIds.size,
-    }));
-  }, [data]);
+    };
+    fetchCategories();
+  }, [filters, userId, refreshTrigger]);
 
   // Filter and sort categories
   const filteredCategories = useMemo(() => {
@@ -92,36 +75,26 @@ export default function SalesCategoriesTab({ data, loading }: SalesCategoriesTab
   }, [categoriesData, searchQuery]);
 
   // Calculate totals
-  // Calculate totals
   const totals = useMemo(() => {
     const allUniqueCustomers = new Set<string>();
     
     const totalsData = filteredCategories.reduce((acc, item) => {
       acc.totalAmount += item.amount;
       acc.totalQty += item.qty;
+      if (item.customerIds) {
+        item.customerIds.forEach((id: string) => allUniqueCustomers.add(id));
+      }
       return acc;
     }, {
       totalAmount: 0,
       totalQty: 0
     });
 
-    // To get the true total of unique customers across all filtered data
-    data.forEach(item => {
-      // Only count customers that belong to the filtered categories
-      const category = item.productTag || 'Uncategorized';
-      const isFiltered = filteredCategories.some(f => f.category === category);
-      
-      const customerKey = item.customerId || item.customerName;
-      if (isFiltered && customerKey) {
-        allUniqueCustomers.add(customerKey);
-      }
-    });
-
     return {
       ...totalsData,
       totalCustomers: allUniqueCustomers.size
     };
-  }, [filteredCategories, data]);
+  }, [filteredCategories]);
 
   const exportToExcel = () => {
     const workbook = XLSX.utils.book_new();
@@ -155,11 +128,8 @@ export default function SalesCategoriesTab({ data, loading }: SalesCategoriesTab
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-12">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 font-medium">Loading category data...</p>
-        </div>
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
@@ -245,3 +215,4 @@ export default function SalesCategoriesTab({ data, loading }: SalesCategoriesTab
     </div>
   );
 }
+

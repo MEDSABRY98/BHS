@@ -1,20 +1,46 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { Users, Tag, BarChart2 } from 'lucide-react';
 import SalesST_ByCustomers from './SalesST_ByCustomersTab';
 import SalesST_ByProduct from './SalesST_ByProductTab';
 
 interface SalesStockReportTabProps {
-  data: SalesInvoice[];
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
 }
 
 type TabMode = 'customers' | 'products';
 
-export default function SalesStockReportTab({ data, loading }: SalesStockReportTabProps) {
+export default function SalesStockReportTab({ filters, userId, refreshTrigger }: SalesStockReportTabProps) {
   const [activeTab, setActiveTab] = useState<TabMode>('customers');
+  const [loading, setLoading] = useState(true);
+  const [customersData, setCustomersData] = useState<any[]>([]);
+  const [productList, setProductList] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchStockData = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/StockReport', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, userId })
+        });
+        if (!response.ok) throw new Error('Failed to fetch stock report');
+        const result = await response.json();
+        setCustomersData(result.customersData || []);
+        setProductList(result.productList || []);
+      } catch (error) {
+        console.error('Error fetching stock report data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchStockData();
+  }, [filters, userId, refreshTrigger]);
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">
@@ -53,9 +79,9 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
       {/* View Content */}
       <div className="transition-all duration-500">
         {activeTab === 'customers' ? (
-          <SalesST_ByCustomers data={data} loading={loading} />
+          <SalesST_ByCustomers customersData={customersData} loading={loading} />
         ) : (
-          <SalesST_ByProduct data={data} loading={loading} />
+          <SalesST_ByProduct productList={productList} loading={loading} />
         )}
       </div>
 
@@ -73,3 +99,4 @@ export default function SalesStockReportTab({ data, loading }: SalesStockReportT
     </div>
   );
 }
+

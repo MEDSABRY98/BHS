@@ -8,8 +8,9 @@ import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '../01-Unified/NoDataTab';
 
 interface SalesInactiveCustomersTabProps {
-  data: SalesInvoice[];
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
   days?: string;
   minAmount?: string;
 }
@@ -79,7 +80,8 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick, onExclude,
 
 InactiveCustomerRow.displayName = 'InactiveCustomerRow';
 
-export default function SalesInactiveCustomersTab({ data, loading, days = '30', minAmount = '0' }: SalesInactiveCustomersTabProps) {
+export default function SalesInactiveCustomersTab({ filters, userId, days = '30', minAmount = '0', refreshTrigger }: SalesInactiveCustomersTabProps) {
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -92,6 +94,8 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
   const [showExcludedModal, setShowExcludedModal] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [customerToExclude, setCustomerToExclude] = useState<{ id: string, name: string } | null>(null);
+
+  const [serverInactiveCustomersData, setServerInactiveCustomersData] = useState<any[]>([]);
 
   // Fetch excluded customers
   useEffect(() => {
@@ -112,7 +116,29 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
       }
     };
     fetchExceptions();
-  }, []);
+  }, [refreshTrigger]);
+
+  // Fetch inactive customers from server
+  useEffect(() => {
+    const fetchInactiveCustomers = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/InactiveCustomers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filters, userId, days, minAmount, refreshTrigger })
+        });
+        if (!response.ok) throw new Error('Failed to fetch inactive customers');
+        const result = await response.json();
+        setServerInactiveCustomersData(result.inactiveCustomersData || []);
+      } catch (error) {
+        console.error('Error fetching inactive customers:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInactiveCustomers();
+  }, [filters, userId, days, minAmount, refreshTrigger]);
 
   // Debounce search
   useEffect(() => {
@@ -123,86 +149,10 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
     return () => clearTimeout(timer);
   }, [searchQuery]);
 
-  // Main data processing
+  // Main data processing - filter excluded on client side
   const inactiveCustomersData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    const customerMap = new Map<string, {
-      customerId: string;
-      customer: string;
-      lastPurchaseDate: Date | null;
-      totalAmount: number;
-      invoiceNumbers: Set<string>;
-    }>();
-
-    const currentDate = new Date();
-    currentDate.setHours(0, 0, 0, 0);
-
-    for (let i = 0; i < data.length; i++) {
-      const item = data[i];
-      const key = item.customerId || item.customerName;
-      let existing = customerMap.get(key);
-
-      if (!existing) {
-        existing = {
-          customerId: key,
-          customer: item.customerName,
-          lastPurchaseDate: null,
-          totalAmount: 0,
-          invoiceNumbers: new Set<string>(),
-        };
-        customerMap.set(key, existing);
-      }
-
-      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
-        existing.totalAmount += item.amount;
-        existing.invoiceNumbers.add(item.invoiceNumber);
-
-        if (item.invoiceDate) {
-          const date = new Date(item.invoiceDate);
-          if (!isNaN(date.getTime())) {
-            if (!existing.lastPurchaseDate || date > existing.lastPurchaseDate) {
-              existing.lastPurchaseDate = date;
-            }
-          }
-        }
-      }
-    }
-
-    const result: any[] = [];
-    const minD = parseInt(days) || 10;
-    const minA = parseFloat(minAmount) || 0;
-
-    customerMap.forEach(item => {
-      if (!item.lastPurchaseDate) return;
-      if (excludedCustomerIds.has(item.customerId)) return;
-
-      const daysSince = Math.floor((currentDate.getTime() - item.lastPurchaseDate.getTime()) / (1000 * 60 * 60 * 24));
-
-      if (daysSince < minD) return;
-      if (item.totalAmount < minA) return;
-
-      const orderCount = item.invoiceNumbers.size;
-      const averageOrderValue = orderCount > 0 ? item.totalAmount / orderCount : 0;
-
-      let status = 'Lost';
-      if (daysSince < 30) status = 'At Risk';
-      else if (daysSince < 60) status = 'Inactive';
-
-      result.push({
-        customerId: item.customerId,
-        customer: item.customer,
-        lastPurchaseDate: item.lastPurchaseDate,
-        daysSinceLastPurchase: daysSince,
-        totalAmount: item.totalAmount,
-        averageOrderValue,
-        orderCount,
-        status
-      });
-    });
-
-    return result;
-  }, [data, excludedCustomerIds, days, minAmount]);
+    return serverInactiveCustomersData.filter(item => !excludedCustomerIds.has(item.customerId));
+  }, [serverInactiveCustomersData, excludedCustomerIds]);
 
   // Search & Sort
   const filteredCustomers = useMemo(() => {
@@ -299,17 +249,14 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
     XLSX.writeFile(wb, `inactive_customers_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  if (loading) return (
-    <div className="flex items-center justify-center p-12">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-        <p className="text-gray-600 font-medium tracking-wide">Analyzing customer activity...</p>
+  if (loading) {
+    return (
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
-    </div>
-  );
-
-  if (selectedCustomer) return (
-    <SalesCustomerDetails customerName={selectedCustomer} data={data} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
+    );
+  } if (selectedCustomer) return (
+    <SalesCustomerDetails customerName={selectedCustomer} filters={filters} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
   );
 
   const totalPages = Math.ceil(filteredCustomers.length / ITEMS_PER_PAGE);
@@ -476,3 +423,4 @@ export default function SalesInactiveCustomersTab({ data, loading, days = '30', 
     </div>
   );
 }
+

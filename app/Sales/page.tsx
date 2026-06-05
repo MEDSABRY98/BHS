@@ -130,11 +130,19 @@ export default function SalesPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('sales-overview');
-  const [data, setData] = useState<SalesInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [uniqueValues, setUniqueValues] = useState({
+    areas: [] as string[],
+    markets: [] as string[],
+    merchandisers: [] as string[],
+    salesReps: [] as string[],
+    productTags: [] as string[],
+    years: [] as string[]
+  });
   const [customerMapping, setCustomerMapping] = useState<Record<string, any>>({});
   const mainContentRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -244,39 +252,49 @@ export default function SalesPage() {
     setActiveTab('sales-overview');
   };
 
+  // ── Background Build (fire & forget) ─────────────────────────
+  // Triggers a cache rebuild on Supabase Storage without blocking the UI.
+  // The current data stays visible while the build runs in the background.
+  const triggerBackgroundBuild = () => {
+    fetch('/api/Sales/Build', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => console.log(`🏗️ Background build done: ${d.rows} rows`))
+      .catch(e => console.warn('⚠️ Background build error:', e));
+  };
+
   const fetchData = async (silent = false) => {
     try {
       if (silent) setIsRefreshing(true);
       else setLoading(true);
-      const response = await fetch('/api/Sales');
+      
+      const currentUserObj = localStorage.getItem('currentUser');
+      const userId = currentUserObj ? JSON.parse(currentUserObj).name : 'ADMIN';
+
+      const response = await fetch('/api/Sales/Metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId, forceRefresh: silent })
+      });
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.details || result.error || 'Failed to fetch sales data');
+        throw new Error(result.details || result.error || 'Failed to fetch metadata');
       }
 
-      setData(result.data);
-
-      // Find the latest date from INVOICE DATE column
-      if (result.data && result.data.length > 0) {
-        const dates = result.data
-          .map((row: SalesInvoice) => row.invoiceDate ? new Date(row.invoiceDate).getTime() : 0)
-          .filter((time: number) => !isNaN(time) && time > 0);
-
-        if (dates.length > 0) {
-          const maxDate = new Date(Math.max(...dates));
-          setLastUpdated(maxDate.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-          }));
-        }
+      setUniqueValues(result.uniqueValues);
+      setLastUpdated(result.lastUpdated);
+      
+      if (silent) {
+        setRefreshTrigger(prev => prev + 1);
+        toast.success('Data refreshed! Rebuilding cache in background...');
+        // Fire background build so next cold start is instant
+        triggerBackgroundBuild();
       }
 
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
-      console.error('Error fetching sales data:', err);
+      console.error('Error fetching sales metadata:', err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);
@@ -288,19 +306,22 @@ export default function SalesPage() {
     setCustomerMapping(mapping);
     localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
 
-    const currentUser = localStorage.getItem('currentUser') || 'ADMIN';
+    const currentUserStr = localStorage.getItem('currentUser');
+    const userId = currentUserStr ? JSON.parse(currentUserStr).name : 'ADMIN';
 
     try {
       const response = await fetch('/api/Sales/Mapping', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: currentUser, mapping }),
+        body: JSON.stringify({ userId: userId, mapping }),
       });
 
       if (!response.ok) {
         throw new Error('Failed to sync mapping with database');
       }
       console.log('Mapping synced successfully to DB');
+      // Rebuild cache in background so next cold start reflects new mapping
+      triggerBackgroundBuild();
     } catch (error) {
       console.error('Failed to sync mapping:', error);
       toast.error('Local mapping saved, but failed to sync to database.');
@@ -329,140 +350,8 @@ export default function SalesPage() {
   const [isFiltering, setIsFiltering] = useState(false);
   const [activeFilterTab, setActiveFilterTab] = useState<'mode' | 'timing' | 'product' | 'outreach' | 'advanced'>('mode');
 
-  // Augmented data based on customer mapping
-  const augmentedData = useMemo(() => {
-    if (Object.keys(customerMapping).length === 0) return data;
-
-    return data.map(item => {
-      const mapping = customerMapping[item.customerId];
-      if (mapping) {
-        return {
-          ...item,
-          customerMainName: mapping.customerMainName || item.customerMainName,
-          customerName: mapping.customerName || item.customerName,
-          area: mapping.area || item.area,
-          market: mapping.market || item.market,
-          merchandiser: mapping.merchandiser || item.merchandiser,
-          salesRep: mapping.salesRep || item.salesRep,
-        };
-      }
-      return item;
-    });
-  }, [data, customerMapping]);
-
-  // Apply Comprehensive Global Filtering
-  const globallyFilteredData = useMemo(() => {
-    let filtered = [...augmentedData];
-
-    // 1. Invoice Type Filter
-    if (invoiceTypeFilter !== 'all') {
-      filtered = filtered.filter(item => {
-        const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-        if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
-        return true;
-      });
-    }
-
-    // 2. Year filter
-    if (filterYear.trim()) {
-      const yearNum = parseInt(filterYear.trim(), 10);
-      if (!isNaN(yearNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          const d = new Date(item.invoiceDate);
-          return !isNaN(d.getTime()) && d.getFullYear() === yearNum;
-        });
-      }
-    }
-
-    // 3. Month filter
-    if (filterMonth.trim()) {
-      const monthNum = parseInt(filterMonth.trim(), 10);
-      if (!isNaN(monthNum)) {
-        filtered = filtered.filter(item => {
-          if (!item.invoiceDate) return false;
-          const d = new Date(item.invoiceDate);
-          return !isNaN(d.getTime()) && d.getMonth() + 1 === monthNum;
-        });
-      }
-    }
-
-    // 4. Date range filter
-    if (dateFrom || dateTo) {
-      filtered = filtered.filter(item => {
-        if (!item.invoiceDate) return false;
-        const itemDate = new Date(item.invoiceDate);
-        if (isNaN(itemDate.getTime())) return false;
-        if (dateFrom && itemDate < new Date(dateFrom)) return false;
-        if (dateTo) {
-          const toDate = new Date(dateTo);
-          toDate.setHours(23, 59, 59, 999);
-          if (itemDate > toDate) return false;
-        }
-        return true;
-      });
-    }
-
-    // 5. Area, Market, Merchandiser, SalesRep
-    if (filterArea) filtered = filtered.filter(item => item.area === filterArea);
-    if (filterMarket) filtered = filtered.filter(item => item.market === filterMarket);
-    if (filterMerchandiser) filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
-    if (filterSalesRep) filtered = filtered.filter(item => item.salesRep === filterSalesRep);
-    if (filterProductTag) filtered = filtered.filter(item => item.productTag === filterProductTag);
-
-    return filtered;
-  }, [augmentedData, invoiceTypeFilter, filterYear, filterMonth, dateFrom, dateTo, filterArea, filterMarket, filterMerchandiser, filterSalesRep, filterProductTag]);
-
-  // geographyFilteredData (respects Area, Market, Rep, Merchandiser, Invoice Type, Product Category but IGNORES time)
-  const geographyFilteredData = useMemo(() => {
-    let filtered = [...augmentedData];
-    if (invoiceTypeFilter !== 'all') {
-      filtered = filtered.filter(item => {
-        const num = item.invoiceNumber?.trim().toUpperCase() || '';
-        if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
-        if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
-        return true;
-      });
-    }
-    if (filterProductTag) filtered = filtered.filter(item => item.productTag === filterProductTag);
-    if (filterArea) filtered = filtered.filter(item => item.area === filterArea);
-    if (filterMarket) filtered = filtered.filter(item => item.market === filterMarket);
-    if (filterMerchandiser) filtered = filtered.filter(item => item.merchandiser === filterMerchandiser);
-    if (filterSalesRep) filtered = filtered.filter(item => item.salesRep === filterSalesRep);
-    return filtered;
-  }, [augmentedData, invoiceTypeFilter, filterProductTag, filterArea, filterMarket, filterMerchandiser, filterSalesRep]);
-
-  // Unique values for dropdowns
-  const uniqueValues = useMemo(() => {
-    const areas = new Set<string>();
-    const markets = new Set<string>();
-    const merchandisers = new Set<string>();
-    const salesReps = new Set<string>();
-    const productTags = new Set<string>();
-    const years = new Set<string>();
-
-    augmentedData.forEach(item => {
-      if (item.area) areas.add(item.area);
-      if (item.market) markets.add(item.market);
-      if (item.merchandiser) merchandisers.add(item.merchandiser);
-      if (item.salesRep) salesReps.add(item.salesRep);
-      if (item.productTag) productTags.add(item.productTag);
-      if (item.invoiceDate) {
-        const d = new Date(item.invoiceDate);
-        if (!isNaN(d.getTime())) years.add(d.getFullYear().toString());
-      }
-    });
-
-    return {
-      areas: Array.from(areas).sort(),
-      markets: Array.from(markets).sort(),
-      merchandisers: Array.from(merchandisers).sort(),
-      salesReps: Array.from(salesReps).sort(),
-      productTags: Array.from(productTags).sort(),
-      years: Array.from(years).sort((a, b) => b.localeCompare(a))
-    };
-  }, [augmentedData]);
+  // Removed heavy local calculations (augmentedData, globallyFilteredData, uniqueValues useMemo)
+  // These are now handled entirely by the Server API!
 
   const hasAnyFilter = useMemo(() => {
     return invoiceTypeFilter !== 'all' || filterYear || filterMonth || dateFrom || dateTo || filterArea || filterMarket || filterMerchandiser || filterSalesRep || filterProductTag;
@@ -495,7 +384,13 @@ export default function SalesPage() {
       const dataRows = XLSX.utils.sheet_to_json(ws) as any[];
 
       const mapping: Record<string, any> = {};
-      dataRows.forEach(row => {
+      dataRows.forEach(rawRow => {
+        // Normalize keys to uppercase and trim spaces
+        const row: Record<string, any> = {};
+        Object.keys(rawRow).forEach(key => {
+          row[key.toString().trim().toUpperCase()] = rawRow[key];
+        });
+
         const id = row['CUSTOMER ID']?.toString().trim();
         if (id) {
           mapping[id] = {
@@ -513,6 +408,10 @@ export default function SalesPage() {
       await handleUploadMapping(mapping);
       toast.dismiss('mapping_upload');
       toast.success('Customer data uploaded and synced successfully!');
+      
+      // Trigger a silent refresh to load the new mapping into memory and update active tabs
+      fetchData(true);
+      
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
@@ -529,32 +428,33 @@ export default function SalesPage() {
     XLSX.writeFile(wb, 'Customer_Mapping_Template.xlsx');
   };
 
-  const uniqueCustomers = useMemo(() => {
-    const customersMap = new Map<string, { id: string, mainName: string, subName: string }>();
-    data.forEach(item => {
-      if (item.customerId && !customersMap.has(item.customerId)) {
-        customersMap.set(item.customerId, {
-          id: item.customerId,
-          mainName: item.customerMainName,
-          subName: item.customerName
-        });
-      }
-    });
-    return Array.from(customersMap.values()).sort((a, b) => a.id.localeCompare(b.id));
-  }, [data]);
+  const downloadTemplateWithData = async () => {
+    toast.loading('Fetching customer data...', { id: 'fetching_customers' });
+    try {
+      const response = await fetch('/api/Sales/CustomersList');
+      if (!response.ok) throw new Error('Failed to fetch customers');
+      const result = await response.json();
+      const uniqueCustomers = result.uniqueCustomers;
 
-  const downloadTemplateWithData = () => {
-    if (uniqueCustomers.length === 0) {
-      toast.warning('No current customer data found to extract.');
-      return;
+      if (!uniqueCustomers || uniqueCustomers.length === 0) {
+        toast.warning('No current customer data found to extract.');
+        toast.dismiss('fetching_customers');
+        return;
+      }
+      const headers = ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'];
+      const rows = uniqueCustomers.map((c: any) => [c.id, c.mainName, c.subName, '', '', '', '']);
+      const template = [headers, ...rows];
+      const ws = XLSX.utils.aoa_to_sheet(template);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Data Template');
+      XLSX.writeFile(wb, `Customer_Mapping_With_Data_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.xlsx`);
+      toast.success('Template downloaded successfully!');
+    } catch (error) {
+      console.error('Error fetching customers:', error);
+      toast.error('Failed to download template with data.');
+    } finally {
+      toast.dismiss('fetching_customers');
     }
-    const headers = ['CUSTOMER ID', 'CUSTOMER MAIN NAME', 'CUSTOMER SUB NAME', 'AREA', 'MARKETS', 'SALESREP', 'MERCHANDISER'];
-    const rows = uniqueCustomers.map(c => [c.id, c.mainName, c.subName, '', '', '', '']);
-    const template = [headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Data Template');
-    XLSX.writeFile(wb, `Customer_Mapping_With_Data_${new Date().toLocaleDateString('en-GB').replace(/\//g, '-')}.xlsx`);
   };
 
   const allTabs = [
@@ -573,7 +473,11 @@ export default function SalesPage() {
 
   const renderTabContent = () => {
     if (loading) {
-      return <Loading message="Loading Sales Analysis Data..." />;
+      return (
+        <div className="flex justify-center pt-10 min-h-[400px] w-full">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        </div>
+      );
     }
 
     if (error) {
@@ -607,63 +511,211 @@ export default function SalesPage() {
       case 'sales-overview':
         return (
           <SalesOverviewTab 
-            data={globallyFilteredData} 
-            allData={geographyFilteredData}
-            loading={loading} 
-            selectedYear={filterYear}
+            filters={{
+              invoiceType: invoiceTypeFilter,
+              year: filterYear,
+              month: filterMonth,
+              dateFrom,
+              dateTo,
+              area: filterArea,
+              market: filterMarket,
+              merchandiser: filterMerchandiser,
+              salesRep: filterSalesRep,
+              productTag: filterProductTag
+            }}
+            userId={currentUser?.name || 'ADMIN'}
+            refreshTrigger={refreshTrigger}
           />
         );
       case 'sales-top10':
-        return <SalesTop10Tab data={globallyFilteredData} loading={loading} />;
+        return (
+          <SalesTop10Tab 
+            filters={{
+              invoiceType: invoiceTypeFilter,
+              year: filterYear,
+              month: filterMonth,
+              dateFrom,
+              dateTo,
+              area: filterArea,
+              market: filterMarket,
+              merchandiser: filterMerchandiser,
+              salesRep: filterSalesRep,
+              productTag: filterProductTag
+            }}
+            userId={currentUser?.name || 'ADMIN'}
+            refreshTrigger={refreshTrigger}
+          />
+        );
 
       case 'sales-customers':
         return (
           <SalesCustomersTab 
-            data={globallyFilteredData} 
-            allData={geographyFilteredData}
-            loading={loading} 
+            filters={{
+              invoiceType: invoiceTypeFilter,
+              year: filterYear,
+              month: filterMonth,
+              dateFrom,
+              dateTo,
+              area: filterArea,
+              market: filterMarket,
+              merchandiser: filterMerchandiser,
+              salesRep: filterSalesRep,
+              productTag: filterProductTag
+            }}
+            userId={currentUser?.name || 'ADMIN'}
             onUploadMapping={handleUploadMapping} 
             showCosts={showCosts}
+            refreshTrigger={refreshTrigger}
           />
         );
 
       case 'sales-customers-comparison':
         return (
           <SalesCustomersComparisonTab
-            data={geographyFilteredData}
-            loading={loading}
+            filters={{
+              invoiceType: invoiceTypeFilter,
+              year: filterYear,
+              month: filterMonth,
+              dateFrom,
+              dateTo,
+              area: filterArea,
+              market: filterMarket,
+              merchandiser: filterMerchandiser,
+              salesRep: filterSalesRep,
+              productTag: filterProductTag
+            }}
+            userId={currentUser?.name || 'ADMIN'}
+            refreshTrigger={refreshTrigger}
           />
         );
 
       case 'sales-inactive-customers':
         return (
           <SalesInactiveCustomersTab
-            data={geographyFilteredData}
-            loading={loading}
+            filters={{
+              invoiceType: invoiceTypeFilter,
+              year: filterYear,
+              month: filterMonth,
+              dateFrom,
+              dateTo,
+              area: filterArea,
+              market: filterMarket,
+              merchandiser: filterMerchandiser,
+              salesRep: filterSalesRep,
+              productTag: filterProductTag
+            }}
+            userId={currentUser?.name || 'ADMIN'}
             // @ts-ignore
             days={inactiveDays}
             // @ts-ignore
             minAmount={inactiveMinAmount}
+            refreshTrigger={refreshTrigger}
           />
         );
       case 'sales-statistics':
-        return <SalesStatisticsTab data={globallyFilteredData} loading={loading} />;
+        return <SalesStatisticsTab 
+                 filters={{
+                   invoiceType: invoiceTypeFilter,
+                   year: filterYear,
+                   month: filterMonth,
+                   dateFrom,
+                   dateTo,
+                   area: filterArea,
+                   market: filterMarket,
+                   merchandiser: filterMerchandiser,
+                   salesRep: filterSalesRep,
+                   productTag: filterProductTag
+                 }}
+                 userId={currentUser?.name || 'ADMIN'} 
+                 refreshTrigger={refreshTrigger}
+               />;
       case 'sales-daily-sales':
-        return <SalesDailySalesTab data={globallyFilteredData} loading={loading} showCosts={showCosts} />;
+        return <SalesDailySalesTab 
+                 filters={{
+                   year: filterYear,
+                   month: filterMonth,
+                   dateFrom,
+                   dateTo,
+                   area: filterArea,
+                   market: filterMarket,
+                   merchandiser: filterMerchandiser,
+                   salesRep: filterSalesRep,
+                   productTag: filterProductTag
+                 }}
+                 invoiceTypeFilter={invoiceTypeFilter}
+                 userId={currentUser?.name || 'ADMIN'} 
+                 showCosts={showCosts} 
+                 refreshTrigger={refreshTrigger}
+               />;
       case 'sales-products':
-        return <SalesProductsTab data={globallyFilteredData} allData={geographyFilteredData} loading={loading} />;
+        return <SalesProductsTab 
+                 filters={{
+                   invoiceType: invoiceTypeFilter,
+                   year: filterYear,
+                   month: filterMonth,
+                   dateFrom,
+                   dateTo,
+                   area: filterArea,
+                   market: filterMarket,
+                   merchandiser: filterMerchandiser,
+                   salesRep: filterSalesRep,
+                   productTag: filterProductTag
+                 }}
+                 userId={currentUser?.name || 'ADMIN'} 
+                 refreshTrigger={refreshTrigger}
+               />;
       case 'sales-categories':
-        return <SalesCategoriesTab data={globallyFilteredData} loading={loading} />;
+        return <SalesCategoriesTab 
+                 filters={{
+                   invoiceType: invoiceTypeFilter,
+                   year: filterYear,
+                   month: filterMonth,
+                   dateFrom,
+                   dateTo,
+                   area: filterArea,
+                   market: filterMarket,
+                   merchandiser: filterMerchandiser,
+                   salesRep: filterSalesRep,
+                   productTag: filterProductTag
+                 }}
+                 userId={currentUser?.name || 'ADMIN'} 
+                 refreshTrigger={refreshTrigger}
+               />;
 
       case 'sales-download-form':
-        return <SalesStockReportTab data={globallyFilteredData} loading={loading} />;
+        return <SalesStockReportTab 
+                  filters={{
+                    invoiceType: invoiceTypeFilter,
+                    year: filterYear,
+                    month: filterMonth,
+                    dateFrom,
+                    dateTo,
+                    area: filterArea,
+                    market: filterMarket,
+                    merchandiser: filterMerchandiser,
+                    salesRep: filterSalesRep,
+                    productTag: filterProductTag
+                  }}
+                  userId={currentUser?.name || 'ADMIN'}
+                  refreshTrigger={refreshTrigger}
+               />;
       default:
         return (
           <SalesOverviewTab 
-            data={globallyFilteredData} 
-            allData={geographyFilteredData}
-            loading={loading} 
-            selectedYear={filterYear}
+            filters={{
+              invoiceType: invoiceTypeFilter,
+              year: filterYear,
+              month: filterMonth,
+              dateFrom,
+              dateTo,
+              area: filterArea,
+              market: filterMarket,
+              merchandiser: filterMerchandiser,
+              salesRep: filterSalesRep,
+              productTag: filterProductTag
+            }}
+            userId={currentUser?.name || 'ADMIN'}
+            refreshTrigger={refreshTrigger}
           />
         );
     }

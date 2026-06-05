@@ -6,13 +6,15 @@ import { Package, Users, ArrowUp, ArrowDown, Download, Calendar, MapPin, Shoppin
 import * as XLSX from 'xlsx';
 
 interface SalesTop10TabProps {
-  data: SalesInvoice[];
-  loading: boolean;
+  refreshTrigger?: number;
+  filters: any;
+  userId: string;
 }
 
 type SortDirection = 'asc' | 'desc';
 
-export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
+export default function SalesTop10Tab({ filters, userId, refreshTrigger }: SalesTop10TabProps) {
+  const [loading, setLoading] = useState(true);
   const [topCount, setTopCount] = useState<number>(10);
 
   // Sorting states for products
@@ -23,99 +25,33 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
   const [customerSortBy, setCustomerSortBy] = useState<'amount' | 'qty'>('amount');
   const [customerSortDirection, setCustomerSortDirection] = useState<SortDirection>('desc');
 
-  // Products data - grouped by PRODUCT ID
-  const productsData = useMemo(() => {
-    if (!data || data.length === 0) return [];
+  // Data from API
+  const [productsData, setProductsData] = useState<any[]>([]);
+  const [customersData, setCustomersData] = useState<any[]>([]);
 
-    const productMap = new Map<string, {
-      productId: string;
-      barcodes: Set<string>;
-      products: string[];
-      totalAmount: number;
-      totalQty: number;
-      invoiceNumbers: Set<string>;
-    }>();
-
-    data.forEach(item => {
-      const key = item.productId || item.barcode || item.product;
-      const existing = productMap.get(key) || {
-        productId: item.productId || '',
-        barcodes: new Set<string>(),
-        products: [],
-        totalAmount: 0,
-        totalQty: 0,
-        invoiceNumbers: new Set<string>()
-      };
-
-      // Add barcode if it exists
-      if (item.barcode) {
-        existing.barcodes.add(item.barcode);
+  // Fetch Data from API
+  useEffect(() => {
+    const fetchTop10Data = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/Top10', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, filters })
+        });
+        if (!response.ok) throw new Error('Failed to fetch Top 10 data');
+        const data = await response.json();
+        setProductsData(data.productsData || []);
+        setCustomersData(data.customersData || []);
+      } catch (err) {
+        console.error('Error fetching Top 10:', err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      // Add product name if not already in the list
-      if (!existing.products.includes(item.product)) {
-        existing.products.push(item.product);
-      }
-
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-
-      // Add invoice number for transaction count
-      if (item.invoiceNumber) {
-        existing.invoiceNumbers.add(item.invoiceNumber);
-      }
-
-      productMap.set(key, existing);
-    });
-
-    return Array.from(productMap.values()).map(item => ({
-      productId: item.productId,
-      barcode: Array.from(item.barcodes).join(', ') || '-',
-      products: item.products,
-      totalAmount: item.totalAmount,
-      totalQty: item.totalQty,
-      transactions: item.invoiceNumbers.size
-    }));
-  }, [data]);
-
-  // Customers data - grouped by customerId, display customerName
-  const customersData = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    const customerMap = new Map<string, {
-      customer: string;
-      totalAmount: number;
-      totalQty: number;
-      invoiceNumbers: Set<string>;
-    }>();
-
-    data.forEach(item => {
-      const name = item.customerMainName || item.customerName || 'Unknown';
-      const existing = customerMap.get(name) || {
-        customer: name,
-        totalAmount: 0,
-        totalQty: 0,
-        invoiceNumbers: new Set<string>()
-      };
-
-      existing.totalAmount += item.amount;
-      existing.totalQty += item.qty;
-
-      // Add invoice number for transaction count
-      if (item.invoiceNumber) {
-        existing.invoiceNumbers.add(item.invoiceNumber);
-      }
-
-      customerMap.set(name, existing);
-    });
-
-    return Array.from(customerMap.values()).map(item => ({
-      customer: item.customer,
-      totalAmount: item.totalAmount,
-      totalQty: item.totalQty,
-      transactions: item.invoiceNumbers.size
-    }));
-  }, [data]);
+    fetchTop10Data();
+  }, [filters, userId, refreshTrigger]);
 
   // Sorted and limited products
   const sortedProducts = useMemo(() => {
@@ -253,11 +189,8 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading sales data...</p>
-        </div>
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
@@ -485,4 +418,5 @@ export default function SalesTop10Tab({ data, loading }: SalesTop10TabProps) {
     </div>
   );
 }
+
 

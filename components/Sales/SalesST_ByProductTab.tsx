@@ -8,27 +8,12 @@ import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
 interface SalesST_ByProductProps {
-  data: SalesInvoice[];
+  refreshTrigger?: number;
+  productList: any[];
   loading: boolean;
 }
 
-const calculateMode = (numbers: number[]): number => {
-  if (!numbers || numbers.length === 0) return 0;
-  const counts: Record<number, number> = {};
-  let maxCount = 0;
-  let mode = numbers[0];
-  for (const n of numbers) {
-    const val = parseFloat(n.toFixed(2));
-    counts[val] = (counts[val] || 0) + 1;
-    if (counts[val] > maxCount) {
-      maxCount = counts[val];
-      mode = val;
-    }
-  }
-  return mode;
-};
-
-export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductProps) {
+export default function SalesST_ByProduct({ productList, loading, refreshTrigger }: SalesST_ByProductProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [appliedSearchQuery, setAppliedSearchQuery] = useState('');
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
@@ -42,78 +27,16 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
     }
   };
 
-  const productList = useMemo(() => {
-    if (!data || data.length === 0) return [];
-
-    // Sort data by date descending to ensure we pick the latest name/barcode for display
-    const sortedData = [...data].sort((a, b) => {
-      const dateA = a.invoiceDate ? new Date(a.invoiceDate).getTime() : 0;
-      const dateB = b.invoiceDate ? new Date(b.invoiceDate).getTime() : 0;
-      return dateB - dateA;
-    });
-
-    const map = new Map<string, {
-      productId: string;
-      barcode: string;
-      product: string;
-      priceRange: { min: number, max: number };
-      customers: Map<string, { prices: number[]; cost: number }>;
-      allNames: Set<string>;
-      allBarcodes: Set<string>;
-    }>();
-
-    sortedData.forEach(item => {
-      // Prioritize productId as the unique key, fallback to barcode then name
-      const productKey = item.productId || item.barcode || item.product;
-      if (!map.has(productKey)) {
-        map.set(productKey, {
-          productId: item.productId || '',
-          barcode: item.barcode || '-',
-          product: item.product || '-',
-          priceRange: { min: Infinity, max: -Infinity },
-          customers: new Map(),
-          allNames: new Set(),
-          allBarcodes: new Set()
-        });
-      }
-      const prod = map.get(productKey)!;
-      
-      // Store all historical names and barcodes for searching
-      if (item.product) prod.allNames.add(item.product.toLowerCase());
-      if (item.barcode) prod.allBarcodes.add(item.barcode.toLowerCase());
-
-      const custName = item.customerMainName || item.customerName || 'Unknown';
-      if (!prod.customers.has(custName)) {
-        prod.customers.set(custName, { prices: [], cost: item.productCost || 0 });
-      }
-      const cust = prod.customers.get(custName)!;
-
-      const itemAny = item as any;
-      let price = itemAny.price || itemAny.unitPrice || 0;
-      if (!price && itemAny.amount && itemAny.qty) price = itemAny.amount / itemAny.qty;
-      const pNum = parseFloat(price);
-
-      if (!isNaN(pNum) && pNum > 0) {
-        cust.prices.push(pNum);
-        prod.priceRange.min = Math.min(prod.priceRange.min, pNum);
-        prod.priceRange.max = Math.max(prod.priceRange.max, pNum);
-      }
-      if (item.productCost > 0) cust.cost = item.productCost;
-    });
-
-    return Array.from(map.values()).sort((a, b) => a.product.localeCompare(b.product));
-  }, [data]);
-
   const filteredProducts = useMemo(() => {
-    let list = productList;
+    let list = productList || [];
 
     if (appliedSearchQuery.trim()) {
       const query = appliedSearchQuery.toLowerCase().trim();
       list = list.filter(p =>
         p.product.toLowerCase().includes(query) ||
         p.barcode.toLowerCase().includes(query) ||
-        Array.from(p.allNames).some(name => name.includes(query)) ||
-        Array.from(p.allBarcodes).some(bc => bc.includes(query)) ||
+        (p.allNames && p.allNames.some((name: string) => name.includes(query))) ||
+        (p.allBarcodes && p.allBarcodes.some((bc: string) => bc.includes(query))) ||
         p.productId.toLowerCase().includes(query)
       );
     }
@@ -121,7 +44,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
     if (appliedCustomerQuery.trim()) {
       const query = appliedCustomerQuery.toLowerCase().trim();
       list = list.filter(p =>
-        Array.from(p.customers.keys()).some(c => c.toLowerCase().includes(query))
+        p.customers.some((c: any) => c.customerName.toLowerCase().includes(query))
       );
     }
 
@@ -132,9 +55,9 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
     if (filteredProducts.length === 0) return;
     const exportData: any[] = [];
     filteredProducts.forEach(p => {
-      Array.from(p.customers.entries()).forEach(([custName, stats]) => {
-        const most = calculateMode(stats.prices);
-        const last = stats.prices[0] || 0;
+      p.customers.forEach((stats: any) => {
+        const most = stats.mostPrice;
+        const last = stats.lastPrice;
         const cost = stats.cost;
         const diff = most - cost;
         const margin = most > 0 ? (diff / most) * 100 : 0;
@@ -142,7 +65,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
         exportData.push({
           'Barcode': p.barcode,
           'Product Name': p.product,
-          'Customer Name': custName,
+          'Customer Name': stats.customerName,
           'Most Price': most,
           'Last Price': last,
           'Cost': cost,
@@ -214,16 +137,16 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
           <div className="bg-white rounded-3xl p-20 border border-slate-100 shadow-sm"><NoData /></div>
         ) : (
           filteredProducts.map((p, idx) => {
-            const customerList = Array.from(p.customers.entries())
-              .filter(([custName]) => !appliedCustomerQuery.trim() || custName.toLowerCase().includes(appliedCustomerQuery.toLowerCase().trim()))
-              .sort((a, b) => a[0].localeCompare(b[0]));
+            const customerList = p.customers
+              .filter((c: any) => !appliedCustomerQuery.trim() || c.customerName.toLowerCase().includes(appliedCustomerQuery.toLowerCase().trim()))
+              .sort((a: any, b: any) => a.customerName.localeCompare(b.customerName));
             
             if (customerList.length === 0) return null;
             
             // Calculate column averages
-            const columnTotals = customerList.reduce((acc, [_, stats]) => {
-              acc.most += calculateMode(stats.prices);
-              acc.last += stats.prices[0] || 0;
+            const columnTotals = customerList.reduce((acc: any, stats: any) => {
+              acc.most += stats.mostPrice;
+              acc.last += stats.lastPrice;
               acc.cost += stats.cost;
               return acc;
             }, { most: 0, last: 0, cost: 0 });
@@ -253,7 +176,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-white px-2 py-0.5 rounded-md border border-slate-100">{p.barcode}</span>
-                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md">{p.customers.size} Customers</span>
+                      <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded-md">{p.customers.length} Customers</span>
                     </div>
                   </div>
                 </div>
@@ -275,9 +198,9 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
-                    {customerList.map(([custName, stats], i) => {
-                      const most = calculateMode(stats.prices);
-                      const last = stats.prices[0] || 0;
+                    {customerList.map((stats: any, i: number) => {
+                      const most = stats.mostPrice;
+                      const last = stats.lastPrice;
                       const cost = stats.cost;
                       const diff = most - cost;
                       const margin = most > 0 ? (diff / most) * 100 : 0;
@@ -289,7 +212,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                               <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center shrink-0">
                                 <User className="w-4 h-4 text-slate-500" />
                               </div>
-                              <span className="text-base font-semibold text-slate-800 text-center w-full truncate" title={custName}>{custName}</span>
+                              <span className="text-base font-semibold text-slate-800 text-center w-full truncate" title={stats.customerName}>{stats.customerName}</span>
                             </div>
                           </td>
                           <td className="py-4 px-4 text-center">
@@ -358,11 +281,13 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                       const counts: Record<number, number> = {};
                       let total = 0;
                       selectedProductData.customers.forEach((stats: any) => {
-                        stats.prices.forEach((price: number) => {
-                          const p = parseFloat(price.toFixed(1));
-                          counts[p] = (counts[p] || 0) + 1;
-                          total++;
-                        });
+                        if (stats.pricesDistribution && Array.isArray(stats.pricesDistribution)) {
+                          stats.pricesDistribution.forEach((price: number) => {
+                            const p = parseFloat(price.toFixed(1));
+                            counts[p] = (counts[p] || 0) + 1;
+                            total++;
+                          });
+                        }
                       });
                       return Object.entries(counts)
                         .map(([price, count]) => ({
@@ -438,3 +363,4 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
     </div>
   );
 }
+
