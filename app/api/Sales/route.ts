@@ -15,16 +15,16 @@ export async function GET(request: Request) {
       if (!refresh) {
         const { data: cacheRow, error: cacheErr } = await bhs_supabas
           .from('web_Sales_Cache')
-          .select('DAT')
+          .select('DATA')
           .eq('KEY', 'months_data')
           .single();
 
-        if (!cacheErr && cacheRow && cacheRow.DAT) {
-          return NextResponse.json({ data: cacheRow.DAT });
+        if (!cacheErr && cacheRow && cacheRow.DATA) {
+          return NextResponse.json({ data: cacheRow.DATA });
         }
       }
 
-      // 2. إذا لم يكن هناك كاش، نسحب من الداتا بيز
+      // 2. إذا لم يكن هناك كاش، نسحب من الداتا بيز الأصلية
       const { data, error } = await bhs_supabas.rpc('get_sales_months_summary');
       if (error) throw error;
 
@@ -37,7 +37,7 @@ export async function GET(request: Request) {
       // 3. تخزين النتيجة في الكاش
       await bhs_supabas
         .from('web_Sales_Cache')
-        .update({ DAT: monthsList, UPDATED_AT: new Date().toISOString() })
+        .update({ DATA: monthsList, UPDATED_AT: new Date().toISOString() })
         .eq('KEY', 'months_data');
 
       return NextResponse.json({ data: monthsList });
@@ -51,16 +51,16 @@ export async function GET(request: Request) {
     if (!refresh) {
       const { data: cacheRow, error: cacheErr } = await bhs_supabas
         .from('web_Sales_Cache')
-        .select('DAT')
+        .select('DATA')
         .eq('KEY', 'sales_data')
         .single();
 
-      if (!cacheErr && cacheRow && cacheRow.DAT) {
-        return NextResponse.json({ data: cacheRow.DAT });
+      if (!cacheErr && cacheRow && cacheRow.DATA) {
+        return NextResponse.json({ data: cacheRow.DATA });
       }
     }
 
-    // 2. إذا لم يكن هناك كاش، نقوم بالسحب على دفعات
+    // 2. إذا لم يكن هناك كاش، نقوم بالسحب على دفعات من جدول المبيعات
     const { count, error: countErr } = await bhs_supabas
       .from('web_Sales_DB')
       .select('ID', { count: 'exact', head: true });
@@ -108,7 +108,7 @@ export async function GET(request: Request) {
       if (data) rawData = rawData.concat(data);
     }
 
-    // تنظيف البيانات
+    // تنظيف وتجهيز البيانات
     const formattedData = rawData.map((item: any) => ({
       invoiceDate: item["INVOICE DATE"] || '',
       invoiceNumber: item["INVOICE NUMBER"] || '',
@@ -132,7 +132,7 @@ export async function GET(request: Request) {
     // 3. تخزين النتيجة في الكاش
     await bhs_supabas
       .from('web_Sales_Cache')
-      .update({ DAT: formattedData, UPDATED_AT: new Date().toISOString() })
+      .update({ DATA: formattedData, UPDATED_AT: new Date().toISOString() })
       .eq('KEY', 'sales_data');
 
     return NextResponse.json({ data: formattedData });
@@ -171,9 +171,10 @@ export async function DELETE(request: Request) {
 
     if (error) throw error;
 
-    // مسح الكاش من قاعدة البيانات حتى يتم تجديده في الطلب القادم
-    await bhs_supabas.from('web_Sales_Cache').update({ DAT: null }).eq('KEY', 'sales_data');
-    await bhs_supabas.from('web_Sales_Cache').update({ DAT: null }).eq('KEY', 'months_data');
+    // بمجرد حدوث مسح للمبيعات، نمسح كاش المبيعات وكاش الشهور
+    // عشان يتحدثوا تلقائياً مع أول طلب قادم
+    await bhs_supabas.from('web_Sales_Cache').update({ DATA: null }).eq('KEY', 'sales_data');
+    await bhs_supabas.from('web_Sales_Cache').update({ DATA: null }).eq('KEY', 'months_data');
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
