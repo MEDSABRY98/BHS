@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   Search,
   Eye,
@@ -96,7 +96,7 @@ export default function OrdersPage() {
   }, [searchTerm, statusFilter, advancedFilters]);
 
   async function fetchStaff() {
-    const { data } = await app_lpos_supabase
+    const { data } = await bhs_supabas
       .from('bhs_USERS')
       .select('ID, NAME')
       .order('NAME');
@@ -105,7 +105,7 @@ export default function OrdersPage() {
 
   async function fetchOrders() {
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select(`
           *,
@@ -139,13 +139,13 @@ export default function OrdersPage() {
     try {
       if (bulkActionType === 'Approve') {
         // 1. Fetch items for selected orders
-        const { data: items } = await app_lpos_supabase
+        const { data: items } = await bhs_supabas
           .from('app_lpos_ORDERS_ITEMS')
           .select('ID, QTY_REQUEST, QTY_RECEIVED')
           .in('ORDER_ID', selectedOrderIds);
 
         // 2. Update status of the orders to Approved
-        const { error: ordersError } = await app_lpos_supabase
+        const { error: ordersError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .update({ STATUS: 'Approved' })
           .in('ID', selectedOrderIds);
@@ -157,7 +157,7 @@ export default function OrdersPage() {
           await Promise.all(
             items.map((item: any) => {
               const qty = item.QTY_RECEIVED || item.QTY_REQUEST || 0;
-              return app_lpos_supabase
+              return bhs_supabas
                 .from('app_lpos_ORDERS_ITEMS')
                 .update({
                   ITEMS_STATUS: 'Approved',
@@ -169,7 +169,7 @@ export default function OrdersPage() {
         }
       } else if (bulkActionType === 'Reject') {
         // 1. Update status of the orders to Rejected
-        const { error: ordersError } = await app_lpos_supabase
+        const { error: ordersError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .update({ STATUS: 'Rejected' })
           .in('ID', selectedOrderIds);
@@ -177,31 +177,31 @@ export default function OrdersPage() {
         if (ordersError) throw ordersError;
 
         // 2. Update status of all items in these orders to Rejected and QTY_RECEIVED = 0
-        const { error: itemsError } = await app_lpos_supabase
+        const { error: itemsError } = await bhs_supabas
           .from('app_lpos_ORDERS_ITEMS')
           .update({ ITEMS_STATUS: 'Rejected', QTY_RECEIVED: 0 })
           .in('ORDER_ID', selectedOrderIds);
       } else if (bulkActionType === 'Delete') {
         // 1. Delete items
-        await app_lpos_supabase
+        await bhs_supabas
           .from('app_lpos_ORDERS_ITEMS')
           .delete()
           .in('ORDER_ID', selectedOrderIds);
 
         // 2. Delete Preparation
-        await app_lpos_supabase
+        await bhs_supabas
           .from('app_lpos_PREPARATION')
           .delete()
           .in('ORDER_ID', selectedOrderIds);
 
         // 3. Delete Drivers/Logistics
-        await app_lpos_supabase
+        await bhs_supabas
           .from('app_lpos_DRIVERS')
           .delete()
           .in('ORDER_ID', selectedOrderIds);
 
         // 4. Delete the orders
-        const { error: ordersError } = await app_lpos_supabase
+        const { error: ordersError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .delete()
           .in('ID', selectedOrderIds);

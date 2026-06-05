@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { Printer, Trash2, Calendar, FileText, Search, Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/lib/pdf/InventoryScrapReportPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -36,7 +36,7 @@ export default function SavedReportsTab() {
   const fetchSavedReports = async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_REPORT')
         .select(`
           ID,
@@ -127,7 +127,7 @@ export default function SavedReportsTab() {
     if (!reportToDelete) return;
 
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_REPORT')
         .delete()
         .eq('REPORT_ID', reportToDelete);

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   ArrowLeft,
   CheckCircle2,
@@ -59,7 +59,7 @@ function OrderDetailsPageContent() {
 
   async function fetchOrderDetails() {
     try {
-      const { data: orderData, error: orderError } = await app_lpos_supabase
+      const { data: orderData, error: orderError } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select(`
           *,
@@ -72,7 +72,7 @@ function OrderDetailsPageContent() {
       if (orderError) throw orderError;
       if (!orderData) throw new Error('Order not found');
       // 3. Fetch items
-      const { data: itemsData, error: itemsError } = await app_lpos_supabase
+      const { data: itemsData, error: itemsError } = await bhs_supabas
         .from('app_lpos_ORDERS_ITEMS')
         .select(`
           *,
@@ -98,9 +98,9 @@ function OrderDetailsPageContent() {
 
       // 4. Fetch Logistics & Prep for PDF
       const [prepRes, deliveryRes, staffRes] = await Promise.all([
-        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
-        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ORDER_ID).maybeSingle(),
-        app_lpos_supabase.from('bhs_USERS').select('*')
+        bhs_supabas.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
+        bhs_supabas.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ORDER_ID).maybeSingle(),
+        bhs_supabas.from('bhs_USERS').select('*')
       ]);
 
       setPrepStaff(prepRes.data || []);
@@ -146,7 +146,7 @@ function OrderDetailsPageContent() {
 
       // 1. Delete items if it's a standard order
       if (!isNoItemsOrder) {
-        const { error: itemsError } = await app_lpos_supabase
+        const { error: itemsError } = await bhs_supabas
           .from('app_lpos_ORDERS_ITEMS')
           .delete()
           .eq('ORDER_ID', order.ID);
@@ -156,12 +156,12 @@ function OrderDetailsPageContent() {
 
       // 2. Delete Preparation & Delivery data (common for both types)
       await Promise.all([
-        app_lpos_supabase.from('app_lpos_PREPARATION').delete().eq('ORDER_ID', order.ID),
-        app_lpos_supabase.from('app_lpos_DRIVERS').delete().eq('ORDER_ID', order.ID)
+        bhs_supabas.from('app_lpos_PREPARATION').delete().eq('ORDER_ID', order.ID),
+        bhs_supabas.from('app_lpos_DRIVERS').delete().eq('ORDER_ID', order.ID)
       ]);
 
       // 3. Delete the order itself from the main table
-      const { error: orderError } = await app_lpos_supabase
+      const { error: orderError } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .delete()
         .eq('ID', order.ID);
@@ -214,7 +214,7 @@ function OrderDetailsPageContent() {
         }
 
         // 1. Update order status and notes in the main table
-        const { error: orderError } = await app_lpos_supabase
+        const { error: orderError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .update({ STATUS: statusToSave, NOTES: adminNotes })
           .eq('ID', order.ID);
@@ -223,7 +223,7 @@ function OrderDetailsPageContent() {
 
         // 2. Update item quantities and statuses
         for (const item of processedItems) {
-          await app_lpos_supabase
+          await bhs_supabas
             .from('app_lpos_ORDERS_ITEMS')
             .update({
               QTY_RECEIVED: item.finalQty,
@@ -233,7 +233,7 @@ function OrderDetailsPageContent() {
         }
       } else {
         // Direct status update for orders without items
-        const { error: orderError } = await app_lpos_supabase
+        const { error: orderError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .update({ STATUS: statusToSave, NOTES: adminNotes })
           .eq('ID', order.ID);
@@ -279,8 +279,8 @@ function OrderDetailsPageContent() {
     try {
       // Re-fetch latest logistics data to ensure PDF is not stale
       const [prepRes, deliveryRes] = await Promise.all([
-        app_lpos_supabase.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', order.ID),
-        app_lpos_supabase.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', order.ID).maybeSingle()
+        bhs_supabas.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', order.ID),
+        bhs_supabas.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', order.ID).maybeSingle()
       ]);
 
       const latestPrep = prepRes.data || [];

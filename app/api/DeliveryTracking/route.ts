@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,11 +8,11 @@ export const dynamic = 'force-dynamic';
 export async function GET() {
     try {
         const [ordersRes, customersRes] = await Promise.all([
-            app_lpos_supabase
+            bhs_supabas
                 .from('web_DELIVERYTRACKING')
                 .select('*')
                 .order('CREATED_AT', { ascending: false }),
-            (app_lpos_supabase
+            (bhs_supabas
                 .from('bhs_CUSTOMERS')
                 .select('ID, "CUSTOMER NAME":"CUSTOMER SUB NAME", "CUSTOMER CITY"') as any)
         ]);
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
                     POSTPONED_DATE: lpo.postponedDate || ''
                 }));
 
-                const { data, error } = await app_lpos_supabase
+                const { data, error } = await bhs_supabas
                     .from('web_DELIVERYTRACKING')
                     .insert(rowsToInsert)
                     .select();
@@ -117,7 +117,7 @@ export async function POST(request: Request) {
                     POSTPONED_DATE: postponedDate || ''
                 };
 
-                const { data, error } = await app_lpos_supabase
+                const { data, error } = await bhs_supabas
                     .from('web_DELIVERYTRACKING')
                     .insert(rowToInsert)
                     .select();
@@ -170,7 +170,7 @@ export async function PUT(request: Request) {
             updateFields.LPO_AMOUNT = Number(lpoValue) || 0;
         }
 
-        const { data, error } = await app_lpos_supabase
+        const { data, error } = await bhs_supabas
             .from('web_DELIVERYTRACKING')
             .update(updateFields)
             .eq('ID', rowId)
@@ -196,7 +196,7 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ error: 'ID is required for delete' }, { status: 400 });
         }
 
-        const { data, error } = await app_lpos_supabase
+        const { data, error } = await bhs_supabas
             .from('web_DELIVERYTRACKING')
             .delete()
             .eq('ID', rowId)

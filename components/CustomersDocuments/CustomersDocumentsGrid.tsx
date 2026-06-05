@@ -17,7 +17,7 @@ import {
 import NoData from '../01-Unified/NoDataTab';
 
 interface CustomerDoc {
-  rowIndex: number;
+  rowIndex: string;
   customerName: string;
   creditApp: string;
   licence: string;
@@ -36,7 +36,7 @@ export default function CustomersDocumentsGrid({
 }: { 
   data: CustomerDoc[]; 
   loading: boolean;
-  onUpdate: (rowIndex: number, field: keyof CustomerDoc, value: string) => void;
+  onUpdate: (rowIndex: string, field: keyof CustomerDoc, value: string) => void;
 }) {
   const getDocStatus = (value: string) => {
     if (!value) return 'missing';

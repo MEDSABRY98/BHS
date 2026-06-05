@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { Filter, X, ChevronDown, User, Truck, ClipboardList, RotateCcw } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
 
@@ -28,7 +28,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
   async function fetchFilterData() {
     try {
       // Fetch drivers from STAFF master table since assignment uses staff IDs
-      const { data: driverData } = await app_lpos_supabase
+      const { data: driverData } = await bhs_supabas
         .from('bhs_USERS')
         .select('ID, NAME')
         .eq('USER_TYPE', 'Driver')

@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 
 export async function GET() {
   try {
-    const { data: dbUsers, error } = await app_lpos_supabase
+    const { data: dbUsers, error } = await bhs_supabas
       .from('bhs_USERS')
       .select('NAME, ROLE, AUTHORITY')
       .order('NAME');
@@ -38,7 +38,7 @@ export async function PUT(request: Request) {
       );
     }
 
-    const { error } = await app_lpos_supabase
+    const { error } = await bhs_supabas
       .from('bhs_USERS')
       .update({ AUTHORITY: role })
       .eq('NAME', name);
@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { data: user, error } = await app_lpos_supabase
+    const { data: user, error } = await bhs_supabas
       .from('bhs_USERS')
       .select('NAME, ROLE, AUTHORITY')
       .eq('NAME', name)

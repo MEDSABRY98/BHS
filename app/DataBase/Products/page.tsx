@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   Package,
   Search,
@@ -59,7 +59,7 @@ export default function ProductsPage() {
       const start = (page - 1) * itemsPerPage;
       const end = start + itemsPerPage - 1;
 
-      let query = app_lpos_supabase
+      let query = bhs_supabas
         .from('bhs_PRODUCTS')
         .select('*', { count: 'exact' });
 
@@ -101,7 +101,7 @@ export default function ProductsPage() {
     try {
       // Validate Product ID is unique
       if (productId.trim()) {
-        const { data: existing, error: checkError } = await app_lpos_supabase
+        const { data: existing, error: checkError } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .select('ID')
           .eq('PRODUCT ID', productId.trim())
@@ -120,7 +120,7 @@ export default function ProductsPage() {
 
       const itemCodeValue = itemCode !== '' ? Number(itemCode) : null;
       if (editingProduct) {
-        const { error } = await app_lpos_supabase
+        const { error } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .update({
             "PRODUCT NAME": name,
@@ -132,7 +132,7 @@ export default function ProductsPage() {
         if (error) throw error;
       } else {
         // Query the database view directly to get the absolute maximum ID stored, bypass client-side limits
-        const { data: maxIdData, error: maxIdError } = await app_lpos_supabase
+        const { data: maxIdData, error: maxIdError } = await bhs_supabas
           .from('bhs_PRODUCTS_MAX_ID')
           .select('ID')
           .single();
@@ -150,7 +150,7 @@ export default function ProductsPage() {
         }
         const nextId = `R-${String(nextNum).padStart(4, '0')}`;
 
-        const { error } = await app_lpos_supabase
+        const { error } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .insert({
             ID: nextId,
@@ -181,7 +181,7 @@ export default function ProductsPage() {
     if (!itemToDelete) return;
     setIsSaving(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('bhs_PRODUCTS')
         .delete()
         .eq('ID', itemToDelete);

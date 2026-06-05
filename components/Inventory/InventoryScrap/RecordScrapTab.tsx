@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   Search,
   Trash2,
@@ -87,7 +87,7 @@ export default function RecordScrapTab({
       while (hasMore) {
         const start = page * pageSize;
         const end = start + pageSize - 1;
-        const { data, error } = await app_lpos_supabase
+        const { data, error } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .select('*')
           .order('PRODUCT NAME')
@@ -167,7 +167,7 @@ export default function RecordScrapTab({
   const handleSaveAndNewSession = async () => {
     try {
       const nextSession = calculateNextSessionId(scrapEntries, currentSession);
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
         .upsert({ KEY: 'active_scrap_session', VALUE: nextSession });
 
@@ -212,7 +212,7 @@ export default function RecordScrapTab({
     setIsSubmitting(true);
     try {
       const nextRecordId = calculateNextRecordId(scrapEntries);
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB')
         .insert({
           ID: nextRecordId,
@@ -246,7 +246,7 @@ export default function RecordScrapTab({
     if (!entryToDelete) return;
     setIsDeleting(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB')
         .delete()
         .eq('ID', entryToDelete);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   UserCircle,
   Search,
@@ -69,7 +69,7 @@ export default function CustomersPage() {
       const start = (page - 1) * itemsPerPage;
       const end = start + itemsPerPage - 1;
 
-      let query = app_lpos_supabase
+      let query = bhs_supabas
         .from('bhs_CUSTOMERS')
         .select('*', { count: 'exact' });
 
@@ -111,7 +111,7 @@ export default function CustomersPage() {
     try {
       // Validate Customer ID is unique
       if (CUSTOMER_ID.trim()) {
-        const { data: existing, error: checkError } = await app_lpos_supabase
+        const { data: existing, error: checkError } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .select('ID')
           .eq('CUSTOMER ID', CUSTOMER_ID.trim())
@@ -129,7 +129,7 @@ export default function CustomersPage() {
       }
 
       if (editingCustomer) {
-        const { error } = await app_lpos_supabase
+        const { error } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .update({
             "CUSTOMER SUB NAME": CUSTOMER_SUB_NAME,
@@ -140,7 +140,7 @@ export default function CustomersPage() {
           .eq('ID', editingCustomer.ID);
         if (error) throw error;
       } else {
-        const { data: maxIdData, error: maxIdError } = await app_lpos_supabase
+        const { data: maxIdData, error: maxIdError } = await bhs_supabas
           .from('bhs_CUSTOMERS_MAX_ID')
           .select('ID')
           .single();
@@ -158,7 +158,7 @@ export default function CustomersPage() {
         }
         const nextId = `R-${String(nextNum).padStart(4, '0')}`;
 
-        const { error } = await app_lpos_supabase
+        const { error } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .insert({
             ID: nextId,
@@ -189,7 +189,7 @@ export default function CustomersPage() {
     if (!itemToDelete) return;
     setIsSaving(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('bhs_CUSTOMERS')
         .delete()
         .eq('ID', itemToDelete);
@@ -264,7 +264,7 @@ export default function CustomersPage() {
         }
 
         // Fetch latest customers from DB to ensure sequential IDs are unique and correct, and check for duplicate CUSTOMER IDs
-        const { data: latestCustomers, error: fetchErr } = await app_lpos_supabase
+        const { data: latestCustomers, error: fetchErr } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .select('ID, "CUSTOMER ID"');
 
@@ -334,7 +334,7 @@ export default function CustomersPage() {
         }
 
         // Perform bulk upsert
-        const { error: upsertErr } = await app_lpos_supabase
+        const { error: upsertErr } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .upsert(recordsToUpsert);
 

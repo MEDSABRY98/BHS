@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import RecordScrapTab from './RecordScrapTab';
 import SessionsHistoryTab from './SessionsHistoryScrapTab';
 import InventoryScrapReportTab from './InventoryScrapReportTab';
@@ -60,7 +60,7 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
   const initializeSession = async (loadedEntries: ScrapEntry[]) => {
     try {
       // Query active session globally from database settings table
-      const { data: settingsData, error: settingsError } = await app_lpos_supabase
+      const { data: settingsData, error: settingsError } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
         .select('VALUE')
         .eq('KEY', 'active_scrap_session');
@@ -73,7 +73,7 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
       if (!isValidFormat) {
         session = calculateNextSessionId(loadedEntries);
         // Save back to DB to establish global session
-        await app_lpos_supabase
+        await bhs_supabas
           .from('web_INVENTORY_SCRAB_LIVE_SESSION_ID')
           .upsert({ KEY: 'active_scrap_session', VALUE: session });
       }
@@ -87,7 +87,7 @@ export default function InventoryScrapTab({ activeSubTab = 'record' }: Inventory
   const fetchScrapEntries = async () => {
     try {
       setIsEntriesLoading(true);
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB')
         .select(`
           ID,

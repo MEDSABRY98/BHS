@@ -90,7 +90,7 @@ export default function CustomersDocumentsPage() {
     return result;
   }, [data, searchQuery, missingFilters]);
 
-  const handleUpdate = async (rowIndex: number, field: any, value: string) => {
+  const handleUpdate = async (rowIndex: string, field: any, value: string) => {
     try {
       const newData = data.map(item => 
         item.rowIndex === rowIndex ? { ...item, [field]: value } : item

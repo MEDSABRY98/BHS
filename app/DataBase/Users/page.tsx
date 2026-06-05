@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   Users,
   Search,
@@ -72,7 +72,7 @@ export default function UsersPage() {
 
   async function fetchUsers(search: string = '') {
     try {
-      let query = app_lpos_supabase
+      let query = bhs_supabas
         .from('bhs_USERS')
         .select('*');
 
@@ -112,13 +112,13 @@ export default function UsersPage() {
     setIsSaving(true);
     try {
       if (editingUser) {
-        const { error } = await app_lpos_supabase
+        const { error } = await bhs_supabas
           .from('bhs_USERS')
           .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
-        const { data: maxIdData, error: maxIdError } = await app_lpos_supabase
+        const { data: maxIdData, error: maxIdError } = await bhs_supabas
           .from('bhs_USERS_MAX_ID')
           .select('ID')
           .single();
@@ -136,7 +136,7 @@ export default function UsersPage() {
         }
         const nextId = `R-${String(nextNum).padStart(4, '0')}`;
 
-        const { error } = await app_lpos_supabase
+        const { error } = await bhs_supabas
           .from('bhs_USERS')
           .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY });
         if (error) throw error;
@@ -161,7 +161,7 @@ export default function UsersPage() {
     if (!itemToDelete) return;
     setIsSaving(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('bhs_USERS')
         .delete()
         .eq('ID', itemToDelete);

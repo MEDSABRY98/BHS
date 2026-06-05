@@ -11,7 +11,7 @@ import Loading from '../01-Unified/Loading';
 import NoData from '../01-Unified/NoDataTab';
 
 interface CustomerDoc {
-  rowIndex: number;
+  rowIndex: string;
   customerName: string;
   creditApp: string;
   licence: string;
@@ -33,14 +33,14 @@ export default function CustomersDocumentsTab({
   refreshTrigger?: number; 
 }) {
   const [data, setData] = useState<CustomerDoc[]>(initialData);
-  const [updatingRow, setUpdatingRow] = useState<number | null>(null);
+  const [updatingRow, setUpdatingRow] = useState<string | null>(null);
 
   // Sync with initialData when it changes
   useEffect(() => {
     setData(initialData);
   }, [initialData]);
 
-  const handleUpdate = async (rowIndex: number, field: keyof CustomerDoc, value: string) => {
+  const handleUpdate = async (rowIndex: string, field: keyof CustomerDoc, value: string) => {
     setUpdatingRow(rowIndex);
     try {
       // Update local state first

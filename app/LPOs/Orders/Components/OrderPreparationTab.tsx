@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { UserPlus, Trash2, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
 import { ConfirmModal } from '../../Components/ConfirmModal';
@@ -28,14 +28,14 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
     setIsLoading(true);
     try {
       // Fetch all staff for dropdown
-      const { data: staffData } = await app_lpos_supabase
+      const { data: staffData } = await bhs_supabas
         .from('bhs_USERS')
         .select('*')
         .order('NAME');
       setAllStaff(staffData || []);
 
       // Fetch current prep assignments for this order
-      const { data: prepData } = await app_lpos_supabase
+      const { data: prepData } = await bhs_supabas
         .from('app_lpos_PREPARATION')
         .select('*')
         .eq('ORDER_ID', orderId)
@@ -49,7 +49,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
   };
 
   const generateNextId = async () => {
-    const { data } = await app_lpos_supabase
+    const { data } = await bhs_supabas
       .from('app_lpos_PREPARATION')
       .select('ID')
       .order('ID', { ascending: false })
@@ -70,7 +70,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
       const staffMember = allStaff.find(s => s.ID === selectedStaffId);
       const nextId = await generateNextId();
 
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('app_lpos_PREPARATION')
         .insert([{
           ID: nextId,
@@ -99,7 +99,7 @@ export default function OrderPreparationTab({ orderId }: OrderPreparationTabProp
     if (!staffToDelete) return;
     setIsActionLoading(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('app_lpos_PREPARATION')
         .delete()
         .eq('ID', staffToDelete);

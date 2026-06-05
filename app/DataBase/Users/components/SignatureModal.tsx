@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { X, Loader2, Save, FilePenLine } from 'lucide-react';
 import SignaturePad from '@/app/DataBase/Users/components/SignaturePad';
 import SearchSelect from '../../../LPOs/Components/DropDownList';
@@ -53,7 +53,7 @@ export default function SignatureModal({
   async function fetchUsers() {
     setIsLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('bhs_USERS')
         .select('*')
         .order('NAME');
@@ -78,7 +78,7 @@ export default function SignatureModal({
 
   async function fetchUserSignature(userId: string) {
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('bhs_USERS')
         .select('SIGNATURE')
         .eq('ID', userId)
@@ -97,7 +97,7 @@ export default function SignatureModal({
     setIsSaving(true);
     setSuccessMsg('');
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('bhs_USERS')
         .update({ SIGNATURE: newSignatureBase64 })
         .eq('ID', selectedUserId);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/lib/pdf/PendingDriverInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -35,7 +35,7 @@ export default function PendingDriverInvoices() {
     setIsLoading(true);
     try {
       // 1. Fetch drivers
-      const { data: driversData, error: drvErr } = await app_lpos_supabase
+      const { data: driversData, error: drvErr } = await bhs_supabas
         .from('bhs_USERS')
         .select('*')
         .eq('USER_TYPE', 'Driver')
@@ -44,7 +44,7 @@ export default function PendingDriverInvoices() {
       setDrivers(driversData || []);
 
       // 2. Fetch all pending driver invoices (where handover status !== Confirmed)
-      const { data: ordersData, error: ordErr } = await app_lpos_supabase
+      const { data: ordersData, error: ordErr } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select(`
           *,
@@ -136,7 +136,7 @@ export default function PendingDriverInvoices() {
     try {
       // Fetch driver signature from database
       let driverSignature = '';
-      const { data: driverData, error: driverErr } = await app_lpos_supabase
+      const { data: driverData, error: driverErr } = await bhs_supabas
         .from('bhs_USERS')
         .select('SIGNATURE')
         .eq('ID', driver.ID)
@@ -148,7 +148,7 @@ export default function PendingDriverInvoices() {
       // Fetch admin signature from database
       let adminSignature = '';
       if (currentAdmin?.id) {
-        const { data: adminData, error: adminErr } = await app_lpos_supabase
+        const { data: adminData, error: adminErr } = await bhs_supabas
           .from('bhs_USERS')
           .select('SIGNATURE')
           .eq('ID', currentAdmin.id)

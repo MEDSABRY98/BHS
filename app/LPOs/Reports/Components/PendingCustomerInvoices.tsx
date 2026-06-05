@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, Search } from 'lucide-react';
 import { generatePendingCustomerInvoicesPDF } from '@/lib/pdf/PendingCustomerInvoicesPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -24,7 +24,7 @@ export default function PendingCustomerInvoices() {
 
   async function fetchDrivers() {
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('bhs_USERS')
         .select('*')
         .eq('USER_TYPE', 'Driver')
@@ -39,7 +39,7 @@ export default function PendingCustomerInvoices() {
   async function fetchPendingInvoices() {
     setIsInvoicesLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select(`
           *,

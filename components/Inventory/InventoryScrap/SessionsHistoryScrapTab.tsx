@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   Layers,
   RefreshCw,
@@ -163,7 +163,7 @@ export default function SessionsHistoryTab({
     if (!sessionToDelete) return;
     setIsDeletingSession(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB')
         .delete()
         .eq('SESSION_ID', sessionToDelete);
@@ -192,7 +192,7 @@ export default function SessionsHistoryTab({
     if (!entryToDelete) return;
     setIsDeletingEntry(true);
     try {
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB')
         .delete()
         .eq('ID', entryToDelete);

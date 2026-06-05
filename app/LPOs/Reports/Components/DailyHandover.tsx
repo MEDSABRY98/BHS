@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
 import { generateDailyHandoverPDF } from '@/lib/pdf/DailyHandoverPdf';
@@ -46,7 +46,7 @@ export default function HandoverReports() {
   async function fetchDrivers() {
     setIsDriversLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('bhs_USERS')
         .select('*')
         .eq('USER_TYPE', 'Driver')
@@ -63,7 +63,7 @@ export default function HandoverReports() {
   async function fetchConfirmedOrders() {
     setIsOrdersLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select(`
           *,
@@ -161,7 +161,7 @@ export default function HandoverReports() {
     try {
       // Fetch driver signature from database
       let driverSignature = '';
-      const { data: driverData, error: driverErr } = await app_lpos_supabase
+      const { data: driverData, error: driverErr } = await bhs_supabas
         .from('bhs_USERS')
         .select('SIGNATURE')
         .eq('ID', group.driverId)
@@ -173,7 +173,7 @@ export default function HandoverReports() {
       // Fetch admin signature from database
       let adminSignature = '';
       if (currentAdmin?.id) {
-        const { data: adminData, error: adminErr } = await app_lpos_supabase
+        const { data: adminData, error: adminErr } = await bhs_supabas
           .from('bhs_USERS')
           .select('SIGNATURE')
           .eq('ID', currentAdmin.id)

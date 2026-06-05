@@ -62,12 +62,12 @@ export default function DatabaseDashboard() {
     async function fetchCounts() {
       setIsLoading(true);
       try {
-        const { app_lpos_supabase } = await import('@/lib/supabase');
+        const { bhs_supabas } = await import('@/lib/supabase');
         
         const [custRes, prodRes, userRes] = await Promise.all([
-          app_lpos_supabase.from('bhs_CUSTOMERS').select('ID', { count: 'exact', head: true }),
-          app_lpos_supabase.from('bhs_PRODUCTS').select('ID', { count: 'exact', head: true }),
-          app_lpos_supabase.from('bhs_USERS').select('ID', { count: 'exact', head: true })
+          bhs_supabas.from('bhs_CUSTOMERS').select('ID', { count: 'exact', head: true }),
+          bhs_supabas.from('bhs_PRODUCTS').select('ID', { count: 'exact', head: true }),
+          bhs_supabas.from('bhs_USERS').select('ID', { count: 'exact', head: true })
         ]);
 
         setCounts({

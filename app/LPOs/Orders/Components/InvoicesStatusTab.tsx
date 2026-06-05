@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck } from 'lucide-react';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../../Hooks/usePermissions';
@@ -26,7 +26,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
     resolveCurrentUser();
 
     // Subscribe to realtime updates for this order's driver tracking
-    const channel = app_lpos_supabase
+    const channel = bhs_supabas
       .channel(`delivery_tracking_${orderId}`)
       .on(
         'postgres_changes',
@@ -44,7 +44,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       .subscribe();
 
     return () => {
-      app_lpos_supabase.removeChannel(channel);
+      bhs_supabas.removeChannel(channel);
     };
   }, [orderId]);
 
@@ -56,7 +56,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         const name = parsed.name || parsed.NAME;
         if (name) {
           const cleanName = name.trim();
-          const { data } = await app_lpos_supabase
+          const { data } = await bhs_supabas
             .from('bhs_USERS')
             .select('*')
             .ilike('NAME', cleanName)
@@ -65,7 +65,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
             setCurrentUserProfile(data);
           } else {
             // Fallback: fetch all users and match case-insensitively/trimmed
-            const { data: allUsers } = await app_lpos_supabase
+            const { data: allUsers } = await bhs_supabas
               .from('bhs_USERS')
               .select('*');
             const matchedUser = allUsers?.find(
@@ -94,7 +94,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
     setIsLoading(true);
     try {
       // 1. Fetch delivery data which contains handover info
-      const { data: delData, error: delError } = await app_lpos_supabase
+      const { data: delData, error: delError } = await bhs_supabas
         .from('app_lpos_DRIVERS')
         .select('*')
         .eq('ORDER_ID', orderId)
@@ -105,7 +105,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
 
       // 2. Fetch handover user details if ID exists
       if (delData?.OFFICE_HANDOVER_ID) {
-        const { data: userData } = await app_lpos_supabase
+        const { data: userData } = await bhs_supabas
           .from('bhs_USERS')
           .select('NAME')
           .eq('ID', delData.OFFICE_HANDOVER_ID)
@@ -117,7 +117,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
 
       // 3. Fetch driver staff details if DRIVERS_NAME exists
       if (delData?.DRIVERS_NAME) {
-        const { data: staffData } = await app_lpos_supabase
+        const { data: staffData } = await bhs_supabas
           .from('bhs_USERS')
           .select('NAME')
           .eq('ID', delData.DRIVERS_NAME)
@@ -128,7 +128,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
       }
 
       // 4. Fetch order details for the digital invoice mockup
-      const { data: ordData } = await app_lpos_supabase
+      const { data: ordData } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select('LPO_ID, CUSTOMER_NAME, TOTAL_AMOUNT, CREATED_AT')
         .eq('ORDER_ID', orderId)
@@ -162,7 +162,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
             const name = parsed.name || parsed.NAME;
             if (name) {
               const cleanName = name.trim();
-              const { data } = await app_lpos_supabase
+              const { data } = await bhs_supabas
                 .from('bhs_USERS')
                 .select('*')
                 .ilike('NAME', cleanName)
@@ -170,7 +170,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
               if (data?.ID) {
                 userId = data.ID;
               } else {
-                const { data: allUsers } = await app_lpos_supabase.from('bhs_USERS').select('*');
+                const { data: allUsers } = await bhs_supabas.from('bhs_USERS').select('*');
                 const matched = allUsers?.find(
                   (u: any) => u.NAME.trim().toLowerCase() === cleanName.toLowerCase()
                 );
@@ -205,7 +205,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         }
       }
 
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('app_lpos_DRIVERS')
         .update(updatePayload)
         .eq('ID', deliveryData.ID);
@@ -230,7 +230,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
           const name = parsed.name || parsed.NAME;
           if (name) {
             const cleanName = name.trim();
-            const { data } = await app_lpos_supabase
+            const { data } = await bhs_supabas
               .from('bhs_USERS')
               .select('*')
               .ilike('NAME', cleanName)
@@ -240,7 +240,7 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
         }
       }
 
-      const { error } = await app_lpos_supabase
+      const { error } = await bhs_supabas
         .from('app_lpos_DRIVERS')
         .update({
           STATUS: 'Delivered',

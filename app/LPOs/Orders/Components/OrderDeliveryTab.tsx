@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { Truck, Navigation, CheckCircle2, Clock, Save, MapPin, Trash2 } from 'lucide-react';
 import SearchSelect from '../../Components/DropDownList';
 
@@ -23,14 +23,14 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
     setIsLoading(true);
     try {
       // Fetch all staff for dropdowns
-      const { data: staffData } = await app_lpos_supabase
+      const { data: staffData } = await bhs_supabas
         .from('bhs_USERS')
         .select('*')
         .order('NAME');
       setAllStaff(staffData || []);
 
       // Fetch delivery tracking for this order
-      const { data: delData } = await app_lpos_supabase
+      const { data: delData } = await bhs_supabas
         .from('app_lpos_DRIVERS')
         .select('*')
         .eq('ORDER_ID', orderId)
@@ -59,7 +59,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
   };
 
   const generateNextId = async () => {
-    const { data } = await app_lpos_supabase
+    const { data } = await bhs_supabas
       .from('app_lpos_DRIVERS')
       .select('ID')
       .order('ID', { ascending: false })
@@ -85,7 +85,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
       if (!currentData.ID) {
         // Create new record
         const nextId = await generateNextId();
-        const { data, error } = await app_lpos_supabase
+        const { data, error } = await bhs_supabas
           .from('app_lpos_DRIVERS')
           .insert([{ ...currentData, ID: nextId }])
           .select()
@@ -94,7 +94,7 @@ export default function OrderDeliveryTab({ orderId }: OrderDeliveryTabProps) {
         if (data) setDeliveryData(data);
       } else {
         // Update existing record
-        const { data, error } = await app_lpos_supabase
+        const { data, error } = await bhs_supabas
           .from('app_lpos_DRIVERS')
           .update(sanitizedFields)
           .eq('ID', currentData.ID)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   ReceiptText,
   Send,
@@ -55,8 +55,8 @@ export default function CreateOrderPage() {
   async function fetchInitialData() {
     try {
       const [usersRes, customersRes] = await Promise.all([
-        app_lpos_supabase.from('bhs_USERS').select('*').order('NAME'),
-        app_lpos_supabase.from('bhs_CUSTOMERS').select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"').order('CUSTOMER SUB NAME')
+        bhs_supabas.from('bhs_USERS').select('*').order('NAME'),
+        bhs_supabas.from('bhs_CUSTOMERS').select('*, "CUSTOMER NAME":"CUSTOMER SUB NAME"').order('CUSTOMER SUB NAME')
       ]);
 
       const fetchedUsers = usersRes.data || [];
@@ -119,7 +119,7 @@ export default function CreateOrderPage() {
       }
 
       // Check Supabase database
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .select('ORDER_ID')
         .eq('INVOICE_ID', trimmedInvoice)
@@ -162,7 +162,7 @@ export default function CreateOrderPage() {
   };
 
   async function generateNextOrderId() {
-    const { data } = await app_lpos_supabase
+    const { data } = await bhs_supabas
       .from('app_lpos_ORDERS')
       .select('ID');
 
@@ -184,7 +184,7 @@ export default function CreateOrderPage() {
   }
 
   async function generateNextDriverId() {
-    const { data } = await app_lpos_supabase
+    const { data } = await bhs_supabas
       .from('app_lpos_DRIVERS')
       .select('ID')
       .order('ID', { ascending: false })
@@ -234,7 +234,7 @@ export default function CreateOrderPage() {
         };
       });
 
-      const { error: orderError } = await app_lpos_supabase
+      const { error: orderError } = await bhs_supabas
         .from('app_lpos_ORDERS')
         .insert(ordersToInsert);
 
@@ -257,7 +257,7 @@ export default function CreateOrderPage() {
           };
         });
 
-        const { error: driverError } = await app_lpos_supabase
+        const { error: driverError } = await bhs_supabas
           .from('app_lpos_DRIVERS')
           .insert(driversToInsert);
 
@@ -315,7 +315,7 @@ export default function CreateOrderPage() {
         // Fetch existing Invoice IDs from the database to prevent duplicates
         let dbExistingInvoices: Record<string, string> = {}; // invoice_id -> order_id
         if (uploadedInvoiceIds.length > 0) {
-          const { data: dbOrders, error: dbError } = await app_lpos_supabase
+          const { data: dbOrders, error: dbError } = await bhs_supabas
             .from('app_lpos_ORDERS')
             .select('ORDER_ID, INVOICE_ID')
             .in('INVOICE_ID', uploadedInvoiceIds);
@@ -493,7 +493,7 @@ export default function CreateOrderPage() {
           }
 
           // Check if this invoice ID exists in database
-          const { data: dbOrders, error: findError } = await app_lpos_supabase
+          const { data: dbOrders, error: findError } = await bhs_supabas
             .from('app_lpos_ORDERS')
             .select('ORDER_ID')
             .eq('INVOICE_ID', invoiceId)
@@ -564,7 +564,7 @@ export default function CreateOrderPage() {
 
           // Perform database update
           if (Object.keys(updatePayload).length > 0) {
-            const { error: updateErr } = await app_lpos_supabase
+            const { error: updateErr } = await bhs_supabas
               .from('app_lpos_ORDERS')
               .update(updatePayload)
               .eq('ORDER_ID', orderId);

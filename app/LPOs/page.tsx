@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   TrendingUp,
   Clock,
@@ -60,19 +60,19 @@ export default function DashboardPage() {
         allOrdersRes,
         allUsersRes
       ] = await Promise.all([
-        app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }),
-        app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Approved'),
-        app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Partially Approved'),
-        app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Pending'),
-        app_lpos_supabase.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Rejected'),
-        app_lpos_supabase.from('app_lpos_ORDERS')
+        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }),
+        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Approved'),
+        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Partially Approved'),
+        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Pending'),
+        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Rejected'),
+        bhs_supabas.from('app_lpos_ORDERS')
           .select(`
             *,
             bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
             bhs_USERS ( "NAME" )
           `)
           .order('ORDER_ID', { ascending: false }),
-        app_lpos_supabase.from('bhs_USERS').select('*')
+        bhs_supabas.from('bhs_USERS').select('*')
       ]);
 
       setStats({

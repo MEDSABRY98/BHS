@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { app_lpos_supabase } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { FileText, Calendar, Printer, Loader2, Eye, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/lib/pdf/InventoryScrapReportPdf';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -42,7 +42,7 @@ export default function InventoryScrapReportTab() {
 
     setIsLoading(true);
     try {
-      const { data, error } = await app_lpos_supabase
+      const { data, error } = await bhs_supabas
         .from('web_INVENTORY_SCRAB')
         .select(`
           ID,
@@ -115,7 +115,7 @@ export default function InventoryScrapReportTab() {
       const currentYear = new Date().getFullYear();
       
       // 1. Fetch max row ID
-      const { data: maxIdData } = await app_lpos_supabase
+      const { data: maxIdData } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_REPORT_MAX_ID')
         .select('ID')
         .maybeSingle();
@@ -129,7 +129,7 @@ export default function InventoryScrapReportTab() {
       }
       
       // 2. Fetch max report ID for the current year
-      const { data: maxReportData } = await app_lpos_supabase
+      const { data: maxReportData } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_REPORT')
         .select('REPORT_ID')
         .like('REPORT_ID', `SCR-${currentYear}-%`)
@@ -164,7 +164,7 @@ export default function InventoryScrapReportTab() {
         };
       });
       
-      const { error: insertError } = await app_lpos_supabase
+      const { error: insertError } = await bhs_supabas
         .from('web_INVENTORY_SCRAB_REPORT')
         .insert(insertPayload);
         
