@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
+import { invalidateMappingCache } from '@/lib/MappingCache';
 
 export async function POST(request: Request) {
   try {
@@ -54,6 +55,9 @@ export async function POST(request: Request) {
         throw insertError;
       }
     }
+
+    // 3. Invalidate Memory Cache
+    invalidateMappingCache(userId);
 
     return NextResponse.json({ success: true, message: `Inserted ${rows.length} mappings successfully` });
   } catch (error: any) {

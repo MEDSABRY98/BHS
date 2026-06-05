@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { getMappingServer, applyMapping } from '@/lib/MappingCache';
 import { getSalesDataServer } from '@/lib/SalesCache';
 
 export async function POST(request: Request) {
@@ -16,36 +16,11 @@ export async function POST(request: Request) {
       return (item.productId || item.barcode || item.product) === productId;
     });
 
-    // Apply Mapping for customer details (since product details show customers)
-    let mappingMap = new Map<string, any>();
-    if (userId) {
-      const { data: mappingData, error: mapErr } = await bhs_supabas
-        .from('web_Sales_DB_CUSTOMERSMAPPING')
-        .select('*')
-        .eq('USER_ID', userId);
-      if (!mapErr && mappingData) {
-        mappingData.forEach(m => mappingMap.set(m["CUSTOMER ID"], m));
-      }
-    }
-
-    let augmentedData = productRawData;
-    if (mappingMap.size > 0) {
-      augmentedData = productRawData.map(item => {
-        const mapping = mappingMap.get(item.customerId);
-        if (mapping) {
-          return {
-            ...item,
-            customerMainName: mapping["CUSTOMER MAIN NAME"] || item.customerMainName,
-            customerName: mapping["CUSTOMER SUB NAME"] || item.customerName,
-            area: mapping["AREA"] || item.area,
-            market: mapping["MARKET"] || item.market,
-            merchandiser: mapping["MERCHANDISER"] || item.merchandiser,
-            salesRep: mapping["SALES_REP"] || item.salesRep,
-          };
-        }
-        return item;
-      });
-    }
+    // Mapping (memory cache — no DB call after first request)
+    const mappingMap = userId ? await getMappingServer(userId) : new Map();
+    const augmentedData = mappingMap.size > 0
+      ? productRawData.map((item: any) => applyMapping(item, mappingMap))
+      : productRawData;
 
     // Apply Global Filters (except date) -> to get `allData`
     let allData = augmentedData;

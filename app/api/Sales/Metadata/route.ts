@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { getMappingServer, applyMapping } from '@/lib/MappingCache';
 import { getSalesDataServer } from '@/lib/SalesCache';
 
 export async function POST(request: Request) {
@@ -13,20 +13,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
     }
 
-    // 2. Fetch User Mapping from the database
-    let mappingMap = new Map<string, any>();
-    if (userId) {
-      const { data: mappingData, error: mapErr } = await bhs_supabas
-        .from('web_Sales_DB_CUSTOMERSMAPPING')
-        .select('*')
-        .eq('USER_ID', userId);
-
-      if (!mapErr && mappingData) {
-        mappingData.forEach(m => {
-          mappingMap.set(m["CUSTOMER ID"], m);
-        });
-      }
-    }
+    // 2. Mapping (memory cache)
+    const mappingMap = userId ? await getMappingServer(userId) : new Map();
 
     // 3. Apply Mapping to extract unique values
     const areas = new Set<string>();

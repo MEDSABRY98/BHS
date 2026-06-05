@@ -320,8 +320,6 @@ export default function SalesPage() {
         throw new Error('Failed to sync mapping with database');
       }
       console.log('Mapping synced successfully to DB');
-      // Rebuild cache in background so next cold start reflects new mapping
-      triggerBackgroundBuild();
     } catch (error) {
       console.error('Failed to sync mapping:', error);
       toast.error('Local mapping saved, but failed to sync to database.');
@@ -408,9 +406,6 @@ export default function SalesPage() {
       await handleUploadMapping(mapping);
       toast.dismiss('mapping_upload');
       toast.success('Customer data uploaded and synced successfully!');
-      
-      // Trigger a silent refresh to load the new mapping into memory and update active tabs
-      fetchData(true);
       
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
@@ -790,14 +785,16 @@ export default function SalesPage() {
                 </div>
                 
                 {/* Refresh Data Button */}
-                <button
-                  onClick={() => fetchData(true)}
-                  disabled={loading || isRefreshing}
-                  className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
-                  title="Refresh Data"
-                >
-                  <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                </button>
+                {currentUser?.name === 'MED Sabry' && (
+                  <button
+                    onClick={() => fetchData(true)}
+                    disabled={loading || isRefreshing}
+                    className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
+                    title="Refresh Data"
+                  >
+                    <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                  </button>
+                )}
               </div>
 
               <input

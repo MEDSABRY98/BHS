@@ -1,53 +1,28 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
 import { getSalesDataServer } from '@/lib/SalesCache';
+import { getMappingServer, applyMapping } from '@/lib/MappingCache';
+
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
     const body = await request.json();
     const { userId, filters } = body;
 
-    // 1. Fetch cached sales data from Vercel Memory (Super fast)
+    // 1. Sales data (memory → storage → DB fallback)
     const rawData = await getSalesDataServer();
-
     if (!rawData || rawData.length === 0) {
       return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
     }
 
-    // 2. Fetch User Mapping from the new table
-    let mappingMap = new Map<string, any>();
-    if (userId) {
-      const { data: mappingData, error: mapErr } = await bhs_supabas
-        .from('web_Sales_DB_CUSTOMERSMAPPING')
-        .select('*')
-        .eq('USER_ID', userId);
+    // 2. Mapping (memory cache — no DB call after first request)
+    const mappingMap = userId ? await getMappingServer(userId) : new Map();
 
-      if (!mapErr && mappingData) {
-        mappingData.forEach(m => {
-          mappingMap.set(m["CUSTOMER ID"], m);
-        });
-      }
-    }
+    // 3. Apply Mapping
+    let augmentedData = mappingMap.size > 0
+      ? rawData.map(item => applyMapping(item, mappingMap))
+      : rawData;
 
-    // 3. Apply Mapping to Data
-    let augmentedData = rawData;
-    if (mappingMap.size > 0) {
-      augmentedData = rawData.map(item => {
-        const mapping = mappingMap.get(item.customerId);
-        if (mapping) {
-          return {
-            ...item,
-            customerMainName: mapping["CUSTOMER MAIN NAME"] || item.customerMainName,
-            customerName: mapping["CUSTOMER SUB NAME"] || item.customerName,
-            area: mapping["AREA"] || item.area,
-            market: mapping["MARKET"] || item.market,
-            merchandiser: mapping["MERCHANDISER"] || item.merchandiser,
-            salesRep: mapping["SALES_REP"] || item.salesRep,
-          };
-        }
-        return item;
-      });
-    }
 
     // 4. Apply Global Filters
     let globallyFilteredData = augmentedData;
