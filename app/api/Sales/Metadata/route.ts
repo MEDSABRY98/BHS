@@ -7,7 +7,7 @@ export async function POST(request: Request) {
     const { userId, forceRefresh } = await request.json();
 
     // 1. Fetch cached sales data from Vercel Memory (Super fast)
-    const rawData = await getSalesDataServer(forceRefresh);
+    const rawData = await getSalesDataServer();
 
     if (!rawData || rawData.length === 0) {
       return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
