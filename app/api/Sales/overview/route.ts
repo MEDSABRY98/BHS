@@ -1,0 +1,285 @@
+import { NextResponse } from 'next/server';
+import { bhs_supabas } from '@/lib/supabase';
+
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const { userId, filters } = body;
+
+    // 1. Fetch cached sales data (Super fast)
+    const { data: cacheRow, error: cacheErr } = await bhs_supabas
+      .from('web_Sales_Cache')
+      .select('DATA')
+      .eq('KEY', 'sales_data')
+      .single();
+
+    if (cacheErr || !cacheRow?.DATA) {
+      return NextResponse.json({ error: 'Sales cache not found or DB error' }, { status: 500 });
+    }
+
+    let rawData = cacheRow.DATA as any[];
+
+    // 2. Fetch User Mapping from the new table
+    let mappingMap = new Map<string, any>();
+    if (userId) {
+      const { data: mappingData, error: mapErr } = await bhs_supabas
+        .from('web_Sales_DB_CUSTOMERSMAPPING')
+        .select('*')
+        .eq('USER_ID', userId);
+
+      if (!mapErr && mappingData) {
+        mappingData.forEach(m => {
+          mappingMap.set(m["CUSTOMER ID"], m);
+        });
+      }
+    }
+
+    // 3. Apply Mapping to Data
+    let augmentedData = rawData;
+    if (mappingMap.size > 0) {
+      augmentedData = rawData.map(item => {
+        const mapping = mappingMap.get(item.customerId);
+        if (mapping) {
+          return {
+            ...item,
+            customerMainName: mapping["CUSTOMER MAIN NAME"] || item.customerMainName,
+            customerName: mapping["CUSTOMER SUB NAME"] || item.customerName,
+            area: mapping["AREA"] || item.area,
+            market: mapping["MARKET"] || item.market,
+            merchandiser: mapping["MERCHANDISER"] || item.merchandiser,
+            salesRep: mapping["SALES_REP"] || item.salesRep,
+          };
+        }
+        return item;
+      });
+    }
+
+    // 4. Apply Global Filters
+    let globallyFilteredData = augmentedData;
+    let geographyFilteredData = augmentedData; // Used for "all months" chart ignoring time
+
+    if (filters) {
+      const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters;
+
+      // Apply Invoice Type
+      if (invoiceType && invoiceType !== 'all') {
+        augmentedData = augmentedData.filter(item => {
+          const num = item.invoiceNumber?.trim().toUpperCase() || '';
+          if (invoiceType === 'sales') return num.startsWith('SAL');
+          if (invoiceType === 'returns') return num.startsWith('RSAL');
+          return true;
+        });
+      }
+
+      geographyFilteredData = [...augmentedData];
+
+      // Apply Geo Filters to geographyFilteredData
+      if (productTag) geographyFilteredData = geographyFilteredData.filter(i => i.productTag === productTag);
+      if (area) geographyFilteredData = geographyFilteredData.filter(i => i.area === area);
+      if (market) geographyFilteredData = geographyFilteredData.filter(i => i.market === market);
+      if (merchandiser) geographyFilteredData = geographyFilteredData.filter(i => i.merchandiser === merchandiser);
+      if (salesRep) geographyFilteredData = geographyFilteredData.filter(i => i.salesRep === salesRep);
+
+      globallyFilteredData = [...geographyFilteredData];
+
+      // Apply Time Filters to globallyFilteredData
+      if (year) {
+        const yearNum = parseInt(year, 10);
+        globallyFilteredData = globallyFilteredData.filter(item => {
+          if (!item.invoiceDate) return false;
+          const d = new Date(item.invoiceDate);
+          return !isNaN(d.getTime()) && d.getFullYear() === yearNum;
+        });
+      }
+
+      if (month) {
+        const monthNum = parseInt(month, 10);
+        globallyFilteredData = globallyFilteredData.filter(item => {
+          if (!item.invoiceDate) return false;
+          const d = new Date(item.invoiceDate);
+          return !isNaN(d.getTime()) && d.getMonth() + 1 === monthNum;
+        });
+      }
+
+      if (dateFrom || dateTo) {
+        globallyFilteredData = globallyFilteredData.filter(item => {
+          if (!item.invoiceDate) return false;
+          const itemDate = new Date(item.invoiceDate);
+          if (isNaN(itemDate.getTime())) return false;
+          if (dateFrom && itemDate < new Date(dateFrom)) return false;
+          if (dateTo) {
+            const toDate = new Date(dateTo);
+            toDate.setHours(23, 59, 59, 999);
+            if (itemDate > toDate) return false;
+          }
+          return true;
+        });
+      }
+    }
+
+    // 5. Calculate Metrics
+    const totalAmount = globallyFilteredData.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    const totalQty = globallyFilteredData.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+    const totalCustomers = new Set(globallyFilteredData.map(item => item.customerId || item.customerName)).size;
+    const totalProducts = new Set(globallyFilteredData.map(item => item.productId || item.product)).size;
+    
+    // Monthly Averages
+    const monthsSet = new Set<string>();
+    const monthlyDataMap = new Map<string, { amount: number; qty: number }>();
+    globallyFilteredData.forEach(item => {
+      if (item.invoiceDate) {
+        const date = new Date(item.invoiceDate);
+        if (!isNaN(date.getTime())) {
+          const mKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+          monthsSet.add(mKey);
+          const ex = monthlyDataMap.get(mKey) || { amount: 0, qty: 0 };
+          ex.amount += Number(item.amount) || 0;
+          ex.qty += Number(item.qty) || 0;
+          monthlyDataMap.set(mKey, ex);
+        }
+      }
+    });
+    const totalMonthsCount = monthsSet.size || 1;
+    const totalMonthlyAmount = Array.from(monthlyDataMap.values()).reduce((sum, m) => sum + m.amount, 0);
+    const totalMonthlyQty = Array.from(monthlyDataMap.values()).reduce((sum, m) => sum + m.qty, 0);
+
+    const metrics = {
+      totalAmount,
+      totalQty,
+      totalCustomers,
+      totalProducts,
+      avgMonthlyAmount: totalMonthlyAmount / totalMonthsCount,
+      avgMonthlyQty: totalMonthlyQty / totalMonthsCount,
+    };
+
+    // 6. Calculate Chart Data (Using geographyFilteredData so it ignores time filters)
+    const monthMapChart = new Map<string, { amount: number; qty: number }>();
+    geographyFilteredData.forEach(item => {
+      if (!item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const ex = monthMapChart.get(key) || { amount: 0, qty: 0 };
+      ex.amount += Number(item.amount) || 0;
+      ex.qty += Number(item.qty) || 0;
+      monthMapChart.set(key, ex);
+    });
+
+    let targetYear = filters?.year ? parseInt(filters.year, 10) : null;
+    if (!targetYear) {
+      const allKeys = Array.from(monthMapChart.keys()).sort();
+      targetYear = allKeys.length > 0 ? parseInt(allKeys[allKeys.length - 1].split('-')[0], 10) : new Date().getFullYear();
+    }
+    const prevYear = targetYear - 1;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth() + 1;
+    const chartData = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const currKey = `${targetYear}-${String(m).padStart(2, '0')}`;
+      const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+      const currData = monthMapChart.get(currKey) || { amount: 0, qty: 0 };
+      const prevData = monthMapChart.get(prevKey) || { amount: 0, qty: 0 };
+      const diff = currData.amount - prevData.amount;
+      const percent = prevData.amount !== 0 ? (diff / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+      const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
+
+      chartData.push({
+        month: monthNames[m - 1],
+        year: String(targetYear).slice(-2),
+        prevYear: String(prevYear).slice(-2),
+        currentAmount: currData.amount,
+        prevAmount: prevData.amount,
+        diff,
+        percent,
+        isPositive: diff >= 0,
+        isFuture,
+        legendCurr: String(targetYear),
+        legendPrev: String(prevYear)
+      });
+    }
+
+    // 7. Calculate Yearly Table
+    const yearMap = new Map<string, any>();
+    globallyFilteredData.forEach(item => {
+      if (!item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const yr = date.getFullYear().toString();
+      const ex = yearMap.get(yr) || { year: yr, amount: 0, qty: 0, customerCount: new Set(), invoiceNumbers: new Set(), grvNumbers: new Set(), grossSales: 0, grvAmount: 0 };
+      const amt = Number(item.amount) || 0;
+      ex.amount += amt;
+      ex.qty += Number(item.qty) || 0;
+      ex.customerCount.add(item.customerId || item.customerName);
+      const invId = item.invoiceNumber || `missing-${Math.random()}`;
+      if (amt > 0) { ex.grossSales += amt; ex.invoiceNumbers.add(invId); }
+      else if (amt < 0) { ex.grvAmount += Math.abs(amt); ex.grvNumbers.add(invId); }
+      yearMap.set(yr, ex);
+    });
+    const sortedYears = Array.from(yearMap.values()).sort((a, b) => b.year.localeCompare(a.year));
+    const yearlyTableData = sortedYears.map((item, index) => {
+      const prev = index < sortedYears.length - 1 ? sortedYears[index + 1] : null;
+      return {
+        year: item.year,
+        amount: item.amount,
+        amountDiff: prev ? item.amount - prev.amount : 0,
+        qty: item.qty,
+        customerCount: item.customerCount.size,
+        grossSales: item.grossSales,
+        salesCount: item.invoiceNumbers.size,
+        grvAmount: item.grvAmount,
+        grvCount: item.grvNumbers.size,
+      };
+    });
+
+    // 8. Calculate Monthly Table
+    const monthMapTable = new Map<string, any>();
+    globallyFilteredData.forEach(item => {
+      if (!item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const yr = date.getFullYear();
+      const mn = date.getMonth();
+      const mKey = `${yr}-${String(mn + 1).padStart(2, '0')}`;
+      const mLabel = `${monthNames[mn]} ${String(yr).slice(-2)}`;
+      
+      const ex = monthMapTable.get(mKey) || { month: mLabel, monthKey: mKey, amount: 0, qty: 0, customerCount: new Set(), invoiceNumbers: new Set(), grvNumbers: new Set(), grossSales: 0, grvAmount: 0 };
+      const amt = Number(item.amount) || 0;
+      ex.amount += amt;
+      ex.qty += Number(item.qty) || 0;
+      ex.customerCount.add(item.customerId || item.customerName);
+      const invId = item.invoiceNumber || `missing-${Math.random()}`;
+      if (amt > 0) { ex.grossSales += amt; ex.invoiceNumbers.add(invId); }
+      else if (amt < 0) { ex.grvAmount += Math.abs(amt); ex.grvNumbers.add(invId); }
+      monthMapTable.set(mKey, ex);
+    });
+    const sortedMonths = Array.from(monthMapTable.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+    const monthlyTableData = sortedMonths.map((item, index) => {
+      const prev = index < sortedMonths.length - 1 ? sortedMonths[index + 1] : null;
+      return {
+        ...item,
+        customerCount: item.customerCount.size,
+        salesCount: item.invoiceNumbers.size,
+        grvCount: item.grvNumbers.size,
+        amountDiff: prev ? item.amount - prev.amount : 0,
+      };
+    });
+
+    // Return the incredibly small JSON
+    return NextResponse.json({
+      metrics,
+      chartData,
+      yearlyTableData,
+      monthlyTableData
+    });
+
+  } catch (error: any) {
+    console.error('API Error Overview:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch overview data', details: error.message || error },
+      { status: 500 }
+    );
+  }
+}
