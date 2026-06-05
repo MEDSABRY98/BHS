@@ -89,8 +89,8 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
         item.product.toLowerCase().includes(query) ||
         item.barcode.toLowerCase().includes(query) ||
         item.productId.toLowerCase().includes(query) ||
-        Array.from(item.allNames).some(name => name.includes(query)) ||
-        Array.from(item.allBarcodes).some(bc => bc.includes(query))
+        Array.from(item.allNames as string[]).some(name => name.includes(query)) ||
+        Array.from(item.allBarcodes as string[]).some(bc => bc.includes(query))
       );
     }
 
