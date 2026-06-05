@@ -363,7 +363,7 @@ export default function SalesTop10Tab({ filters, userId, refreshTrigger }: Sales
                     <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center font-mono">{item.barcode}</td>
                     <td className="py-3 px-4 text-sm text-gray-800 font-medium text-center">
                       <div className="flex flex-col gap-1">
-                        {item.products.map((product, idx) => (
+                        {(item.products as string[]).map((product: string, idx: number) => (
                           <div key={idx}>{product}</div>
                         ))}
                       </div>
