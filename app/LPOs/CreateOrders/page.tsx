@@ -456,7 +456,7 @@ export default function CreateOrderPage() {
 
   const downloadUpdateTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
-      { "Invoice ID": "INV-001", "LPO ID": "LPO-100", "Customer Name": "Example Customer", "Amount": 1500.50 }
+      { "Order Date": "2026-05-18", "Invoice ID": "INV-001", "LPO ID": "LPO-100", "Customer Name": "Example Customer", "Amount": 1500.50 }
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Update Template");
@@ -506,6 +506,32 @@ export default function CreateOrderPage() {
 
           const orderId = dbOrders[0].ORDER_ID;
           const updatePayload: any = {};
+
+          // Validate and parse Order Date if provided
+          const rawDate = row["Order Date"] || row["Date"];
+          if (rawDate !== undefined && rawDate !== null && rawDate !== '') {
+            try {
+              let parsedOrderDate = '';
+              if (typeof rawDate === 'number') {
+                const dateObj = new Date((rawDate - 25569) * 86400 * 1000);
+                parsedOrderDate = dateObj.toISOString();
+              } else {
+                const dateObj = new Date(rawDate.toString().trim());
+                if (!isNaN(dateObj.getTime())) {
+                  parsedOrderDate = dateObj.toISOString();
+                }
+              }
+              if (parsedOrderDate) {
+                updatePayload.ORDER_DATE = parsedOrderDate;
+              } else {
+                errors.push(`Row ${index + 2}: Invalid date "${rawDate}"`);
+                continue;
+              }
+            } catch (e) {
+              errors.push(`Row ${index + 2}: Error parsing date "${rawDate}"`);
+              continue;
+            }
+          }
 
           // Validate and parse amount if provided
           if (amount !== undefined && amount !== null && amount !== '') {

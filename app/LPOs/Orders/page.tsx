@@ -8,13 +8,15 @@ import {
   ChevronRight,
   CheckCircle2,
   XCircle,
-  Trash2
+  Trash2,
+  FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from './Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
+import * as XLSX from 'xlsx';
 
 
 export default function OrdersPage() {
@@ -319,6 +321,28 @@ export default function OrdersPage() {
     return filteredOrders.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   }, [filteredOrders, currentPage]);
 
+  const exportToExcel = () => {
+    const dataToExport = filteredOrders.map(order => ({
+      "Order ID": order.ORDER_ID,
+      "Order Date": order.ORDER_DATE ? new Date(order.ORDER_DATE).toLocaleDateString('en-GB') : new Date(order.CREATED_AT).toLocaleDateString('en-GB'),
+      "LPO ID": order.LPO_ID || '',
+      "Invoice ID": order.INVOICE_ID || '',
+      "Sales Rep": order.bhs_USERS?.NAME || '',
+      "Customer Name": order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || '',
+      "Customer City": order.bhs_CUSTOMERS?.["CUSTOMER CITY"] || '',
+      "Amount": order.AMOUNT || 0,
+      "Status": order.STATUS || 'Pending',
+      "Driver": staffList.find(s => s.ID === order.driver_id)?.NAME || order.driver_id || '',
+      "Handover Status": order.handover_status || 'Not Handed Over',
+      "Tracking Notes": order.tracking_notes || ''
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Orders");
+    XLSX.writeFile(wb, `Orders_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
@@ -342,6 +366,13 @@ export default function OrdersPage() {
               <span className="w-2 h-2 bg-[#D4AF37] rounded-full animate-pulse" />
               {filteredOrders.length} {filteredOrders.length === 1 ? 'Order' : 'Orders'}
             </div>
+            <button
+              onClick={exportToExcel}
+              className="w-10 h-10 bg-white border border-gray-100 rounded-xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black hover:bg-gray-50 transition-all shadow-sm group"
+              title="Export to Excel"
+            >
+              <FileSpreadsheet className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            </button>
           </div>
         </div>
 

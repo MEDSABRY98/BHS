@@ -16,7 +16,6 @@ import { DeliveryEntry } from './types';
 // Import subcomponents
 import NewOrderTab from './NewOrderTab';
 import OrdersTab from './OrdersTab';
-import ImportModals from './ImportModals';
 
 export default function DeliveryTrackingTab() {
     const [activeTab, setActiveTab] = useState('orders');
@@ -24,8 +23,6 @@ export default function DeliveryTrackingTab() {
     const [searchQuery, setSearchQuery] = useState('');
     const [filterStatus, setFilterStatus] = useState('all');
     const [customers, setCustomers] = useState<{ customerId: string, customerName: string, customerCity: string }[]>([]);
-
-    const fileInputRef = useRef<HTMLInputElement>(null);
 
     // New LPO Form State (Multiple Rows)
     const [lpoRows, setLpoRows] = useState([{
@@ -43,10 +40,7 @@ export default function DeliveryTrackingTab() {
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
 
-    // Import states
-    const [isImportModalOpen, setIsImportModalOpen] = useState(false);
-    const [isLpoExcelModalOpen, setIsLpoExcelModalOpen] = useState(false);
-    const [importType, setImportType] = useState<'lpo' | 'loi' | 'invoice'>('lpo');
+
 
     // Date / location filters
     const [filterYear, setFilterYear] = useState('');
@@ -265,153 +259,6 @@ export default function DeliveryTrackingTab() {
         }
     };
 
-    const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const bstr = event.target?.result;
-                const wb = XLSX.read(bstr, { type: 'binary' });
-                const wsname = wb.SheetNames[0];
-                const ws = wb.Sheets[wsname];
-                const data = XLSX.utils.sheet_to_json(ws) as any[];
-
-                if (data.length === 0) {
-                    showToast('Excel file is empty', 'error');
-                    return;
-                }
-
-                setIsSaving(true);
-                showToast(`Reading ${data.length} records...`, 'info');
-
-                if (importType === 'lpo') {
-                    const lposToAdd: any[] = [];
-
-                    for (const row of data) {
-                        const lpoNumber = row['LPO Number'] || row['lpo number'] || row['LPO_Number'];
-                        const lpoDateRaw = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
-                        const deliveryDateRaw = row['Delivery Date'] || row['delivery date'] || row['Delivery_Date'];
-                        const customerName = row['Customer Name'] || row['customer name'] || row['Customer_Name'];
-                        const lpoValue = row['LPO Value'] || row['lpo value'] || row['LPO_Value'];
-
-                        if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
-                            const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
-                            const lpoDeliveryDate = deliveryDateRaw ? (typeof deliveryDateRaw === 'string' ? deliveryDateRaw : new Date((deliveryDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0]) : '';
-                            const matchedCustomer = customers.find(c =>
-                                c.customerName.toLowerCase().trim() === customerName.toString().toLowerCase().trim()
-                            );
-                            lposToAdd.push({
-                                lpoNumber: lpoNumber.toString(),
-                                lpoDate,
-                                lpoDeliveryDate,
-                                customerName: matchedCustomer ? matchedCustomer.customerId : customerName.toString(),
-                                lpoValue: parseFloat(lpoValue)
-                            });
-                        }
-                    }
-
-                    if (lposToAdd.length === 0) {
-                        showToast('No valid LPO records found in Excel', 'error');
-                        return;
-                    }
-
-                    const res = await fetch('/api/DeliveryTracking', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'add_lpo',
-                            lpos: lposToAdd
-                        })
-                    });
-
-                    if (res.ok) {
-                        await refreshOrders();
-                        showToast(`Successfully uploaded ${lposToAdd.length} records`, 'success');
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                        setActiveTab('orders');
-                    } else {
-                        showToast('Failed to upload records to database', 'error');
-                    }
-                } else if (importType === 'loi') {
-                    const lposToAdd: any[] = [];
-
-                    for (const row of data) {
-                        const lpoNumber = row['LPO Number'] || row['lpo number'] || row['LPO_Number'];
-                        const lpoDateRaw = row['LPO Date'] || row['lpo date'] || row['LPO_Date'];
-                        const deliveryDateRaw = row['Delivery Date'] || row['delivery date'] || row['Delivery_Date'];
-                        const customerName = row['Customer Name'] || row['customer name'] || row['Customer_Name'];
-                        const lpoValue = row['LPO Value'] || row['lpo value'] || row['LPO_Value'];
-
-                        const invoiceDateRaw = row['Invoice Date'] || row['invoice date'] || row['Invoice_Date'];
-                        const invoiceNumber = row['Invoice Number'] || row['invoice number'] || row['Invoice_Number'];
-                        const invoiceValue = row['Invoice Value'] || row['invoice value'] || row['Invoice_Value'];
-                        const status = row['Status'] || row['status'];
-                        const notes = row['Notes'] || row['notes'];
-
-                        if (lpoNumber && lpoDateRaw && customerName && lpoValue) {
-                            const lpoDate = typeof lpoDateRaw === 'string' ? lpoDateRaw : new Date((lpoDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0];
-                            const lpoDeliveryDate = deliveryDateRaw ? (typeof deliveryDateRaw === 'string' ? deliveryDateRaw : new Date((deliveryDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0]) : '';
-                            const invoiceDate = invoiceDateRaw ? (typeof invoiceDateRaw === 'string' ? invoiceDateRaw : new Date((invoiceDateRaw - 25569) * 86400 * 1000).toISOString().split('T')[0]) : '';
-
-                            const matchedCustomer = customers.find(c =>
-                                c.customerName.toLowerCase().trim() === customerName.toString().toLowerCase().trim()
-                            );
-                            lposToAdd.push({
-                                lpoNumber: lpoNumber.toString(),
-                                lpoDate,
-                                lpoDeliveryDate,
-                                customerName: matchedCustomer ? matchedCustomer.customerId : customerName.toString(),
-                                lpoValue: parseFloat(lpoValue),
-                                invoiceDate,
-                                invoiceNumber: invoiceNumber ? invoiceNumber.toString() : '',
-                                invoiceValue: invoiceValue ? parseFloat(invoiceValue) : 0,
-                                status: status ? status.toString().toLowerCase() : 'pending',
-                                notes: notes ? notes.toString() : ''
-                            });
-                        }
-                    }
-
-                    if (lposToAdd.length === 0) {
-                        showToast('No valid LPO records found in Excel', 'error');
-                        return;
-                    }
-
-                    const res = await fetch('/api/DeliveryTracking', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            action: 'add_lpo',
-                            lpos: lposToAdd
-                        })
-                    });
-
-                    if (res.ok) {
-                        await refreshOrders();
-                        showToast(`Successfully uploaded ${lposToAdd.length} records`, 'success');
-                        if (fileInputRef.current) fileInputRef.current.value = '';
-                        setActiveTab('orders');
-                    } else {
-                        showToast('Failed to upload records to database', 'error');
-                    }
-                } else if (importType === 'invoice') {
-                    showToast('Invoice complementary steps upload functionality to be implemented.', 'info');
-                    if (fileInputRef.current) fileInputRef.current.value = '';
-                }
-
-            } catch (error) {
-                console.error('Excel parse error:', error);
-                showToast('Failed to parse Excel file', 'error');
-            } finally {
-                setIsSaving(false);
-            }
-        };
-        reader.readAsBinaryString(file);
-    };
-
-
-
     const handleUpdateStatusAndDate = async (orderId: string, status: string, postponedDate?: string) => {
         const order = orders.find(o => o.id === orderId);
         if (!order) return;
@@ -467,28 +314,6 @@ export default function DeliveryTrackingTab() {
         });
         downloadCSV(`LPO_Orders_${new Date().toISOString().slice(0, 10)}.csv`, [header, ...rows]);
         showToast(`Exported ${filteredOrders.length} records`, 'success');
-    };
-
-    const downloadTemplate = (type: 'lpo' | 'loi' | 'invoice') => {
-        let headers: string[] = [];
-        let filename = '';
-
-        if (type === 'lpo') {
-            headers = ['LPO Number', 'LPO Date', 'Delivery Date', 'Customer Name', 'LPO Value'];
-            filename = 'LPO_Only_Template.xlsx';
-        } else if (type === 'loi') {
-            headers = ['LPO Number', 'LPO Date', 'Delivery Date', 'Customer Name', 'LPO Value', 'Invoice Date', 'Invoice Number', 'Invoice Value', 'Status', 'Notes'];
-            filename = 'LPO_Complementary_Template.xlsx';
-        } else if (type === 'invoice') {
-            headers = ['LPO ID', 'Invoice Date', 'Invoice Number', 'Invoice Value', 'Status', 'Notes'];
-            filename = 'Invoice_Complementary_Template.xlsx';
-        }
-
-        const ws = XLSX.utils.aoa_to_sheet([headers]);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Template');
-        XLSX.writeFile(wb, filename);
-        showToast(`Template ${filename} downloaded`, 'success');
     };
 
     const filteredOrders = useMemo(() => {
@@ -659,24 +484,7 @@ export default function DeliveryTrackingTab() {
             )}
 
 
-            {/* EXCEL IMPORT / DOWNLOAD MODALS */}
-            <ImportModals
-                isImportOpen={isImportModalOpen}
-                setIsImportOpen={setIsImportModalOpen}
-                isLpoExcelOpen={isLpoExcelModalOpen}
-                setIsLpoExcelOpen={setIsLpoExcelModalOpen}
-                setImportType={setImportType}
-                triggerFileInput={() => fileInputRef.current?.click()}
-                downloadTemplate={downloadTemplate}
-            />
 
-            <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleExcelUpload}
-                accept=".xlsx, .xls"
-                className="hidden"
-            />
 
             {/* HEADER */}
             <header className="bg-[#312E81] text-white sticky top-0 z-50 shadow-[0_4px_25px_rgba(49,46,129,0.25)]">
@@ -805,6 +613,7 @@ export default function DeliveryTrackingTab() {
                         {activeTab === 'orders' && (
                             <OrdersTab
                                 filteredOrders={filteredOrders}
+                                customers={customers}
                                 canDownload={canDownload}
                                 exportOrdersCSV={exportOrdersCSV}
                                 filterYear={filterYear}

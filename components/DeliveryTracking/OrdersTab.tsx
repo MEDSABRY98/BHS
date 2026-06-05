@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { FileSpreadsheet, Calendar, ChevronDown, Loader2, X, Pencil, Trash2 } from 'lucide-react';
 import { DeliveryEntry, STATUS_CONFIG } from './types';
 import NoData from '../01-Unified/NoDataTab';
 
 interface OrdersTabProps {
     filteredOrders: DeliveryEntry[];
+    customers: { customerId: string, customerName: string, customerCity: string }[];
     filterStatus: string;
     setFilterStatus: (status: string) => void;
     canDownload: boolean;
@@ -25,6 +26,7 @@ interface OrdersTabProps {
 
 export default function OrdersTab({
     filteredOrders,
+    customers,
     filterStatus,
     setFilterStatus,
     canDownload,
@@ -44,6 +46,7 @@ export default function OrdersTab({
 }: OrdersTabProps) {
     const [updatingId, setUpdatingId] = useState<string | null>(null);
     const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+    const [selectedCity, setSelectedCity] = useState('All');
 
     const handleStatusChange = async (order: DeliveryEntry, newStatus: string) => {
         if (!canEdit) return;
@@ -70,6 +73,24 @@ export default function OrdersTab({
             setUpdatingId(null);
         }
     };
+
+    const uniqueCities = useMemo(() => {
+        const cities = new Set<string>();
+        customers.forEach(c => {
+            if (c.customerCity) {
+                cities.add(c.customerCity);
+            }
+        });
+        return ['All', ...Array.from(cities).sort()];
+    }, [customers]);
+
+    const finalOrders = useMemo(() => {
+        if (selectedCity === 'All') return filteredOrders;
+        return filteredOrders.filter(o => {
+            const matched = customers.find(c => c.customerName === o.customer);
+            return matched?.customerCity === selectedCity;
+        });
+    }, [filteredOrders, selectedCity, customers]);
 
     return (
         <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 font-sans">
@@ -175,12 +196,33 @@ export default function OrdersTab({
                     />
                 </div>
 
+                {/* City Dropdown */}
+                <div className="w-px h-5 bg-slate-200" />
+                <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-slate-500">City</span>
+                    <select
+                        value={selectedCity}
+                        onChange={e => setSelectedCity(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-800 outline-none focus:border-indigo-500 focus:bg-white transition-all cursor-pointer"
+                    >
+                        {uniqueCities.map(city => (
+                            <option key={city} value={city}>{city}</option>
+                        ))}
+                    </select>
+                </div>
+
                 {/* Clear */}
-                {(filterYear || filterMonth || filterDateFrom || filterDateTo) && (
+                {(filterYear || filterMonth || filterDateFrom || filterDateTo || selectedCity !== 'All') && (
                     <>
                         <div className="w-px h-5 bg-slate-200" />
                         <button
-                            onClick={() => { setFilterYear(''); setFilterMonth(''); setFilterDateFrom(''); setFilterDateTo(''); }}
+                            onClick={() => {
+                                setFilterYear('');
+                                setFilterMonth('');
+                                setFilterDateFrom('');
+                                setFilterDateTo('');
+                                setSelectedCity('All');
+                            }}
                             className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 transition-colors"
                         >
                             <X className="w-4 h-4" /> Clear Filters
@@ -194,13 +236,14 @@ export default function OrdersTab({
                 <div className="overflow-visible">
                     <table className="w-full table-fixed border-collapse">
                         <colgroup>
+                            <col className="w-[10%]" />
+                            <col className="w-[10%]" />
                             <col className="w-[11%]" />
+                            <col className="w-[18%]" />
+                            <col className="w-[10%]" />
+                            <col className="w-[8%]" />
+                            <col className="w-[12%]" />
                             <col className="w-[11%]" />
-                            <col className="w-[12%]" />
-                            <col className="w-[22%]" />
-                            <col className="w-[9%]" />
-                            <col className="w-[13%]" />
-                            <col className="w-[12%]" />
                             <col className="w-[10%]" />
                         </colgroup>
                         <thead>
@@ -209,6 +252,7 @@ export default function OrdersTab({
                                 <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Delivery Date</th>
                                 <th className="p-4 text-xs font-extrabold text-slate-500 text-center">LPO Number</th>
                                 <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Customer Name</th>
+                                <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Customer City</th>
                                 <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Value</th>
                                 <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Status</th>
                                 <th className="p-4 text-xs font-extrabold text-slate-500 text-center">Postponed Date</th>
@@ -216,9 +260,9 @@ export default function OrdersTab({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100 font-sans font-bold">
-                            {filteredOrders.length === 0 ? (
+                            {finalOrders.length === 0 ? (
                                 <tr>
-                                    <td colSpan={8} className="py-20 text-center">
+                                    <td colSpan={9} className="py-20 text-center">
                                         <NoData
                                             title="No Orders Found"
                                             message="Try adjusting your search query or filters to find what you are looking for."
@@ -226,9 +270,11 @@ export default function OrdersTab({
                                     </td>
                                 </tr>
                             ) : (
-                                filteredOrders.map((o) => {
+                                finalOrders.map((o) => {
                                     const currentStatus = o.status || 'pending';
                                     const statusConfig = STATUS_CONFIG[currentStatus as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.pending;
+                                    const matchedCustomer = customers.find(c => c.customerName === o.customer);
+                                    const city = matchedCustomer ? matchedCustomer.customerCity : '';
 
                                     return (
                                         <tr key={o.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -252,6 +298,11 @@ export default function OrdersTab({
                                             {/* Customer Name */}
                                             <td className="p-4 text-sm text-slate-800 font-extrabold text-center truncate" title={o.customer || '—'}>
                                                 {o.customer || '—'}
+                                            </td>
+
+                                            {/* Customer City */}
+                                            <td className="p-4 text-sm text-slate-600 font-bold text-center truncate" title={city || '—'}>
+                                                {city || '—'}
                                             </td>
 
                                             {/* Value */}
