@@ -21,6 +21,7 @@ import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import SignatureModal from './components/SignatureModal';
+import { toast } from '@/components/01-Unified/Notification';
 
 export default function UsersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -140,12 +141,12 @@ export default function UsersPage() {
           .from('bhs_USERS')
           .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY });
         if (error) throw error;
-      }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
       fetchUsers(searchTerm);
+      toast.success(editingUser ? 'User updated successfully!' : 'User added successfully!');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to save user');
     } finally {
       setIsSaving(false);
     }
@@ -167,8 +168,9 @@ export default function UsersPage() {
         .eq('ID', itemToDelete);
       if (error) throw error;
       fetchUsers(searchTerm);
+      toast.success('User deleted successfully!');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to delete user');
     } finally {
       setIsSaving(false);
       setIsConfirmOpen(false);

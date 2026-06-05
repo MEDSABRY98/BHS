@@ -66,131 +66,137 @@ export default function DetailsModal({
                     </button>
                 </div>
                 <div className="modal-content">
-                    <div className="check-details-grid">
-                        <div className="detail-item">
-                            <span className="label">صاحب الشيك:</span>
-                            <span className="value font-bold">{check.client}</span>
+                    {/* DETAILS LIST */}
+                    <div className="check-details" style={{ marginBottom: '24px' }}>
+                        <div className="detail-row">
+                            <span className="detail-label">صاحب الشيك:</span>
+                            <span className="detail-value font-bold">{check.client}</span>
                         </div>
-                        <div className="detail-item">
-                            <span className="label">رقم الشيك:</span>
-                            <span className="value check-num">{check.num}</span>
+                        <div className="detail-row">
+                            <span className="detail-label">رقم الشيك:</span>
+                            <span className="detail-value check-num">{check.num}</span>
                         </div>
-                        <div className="detail-item">
-                            <span className="label">تاريخ الشيك:</span>
-                            <span className="value">{formatDate(check.checkDate)}</span>
+                        <div className="detail-row">
+                            <span className="detail-label">تاريخ الشيك:</span>
+                            <span className="detail-value">{formatDate(check.checkDate)}</span>
                         </div>
-                        <div className="detail-item">
-                            <span className="label">تاريخ الاستلام:</span>
-                            <span className="value">{formatDate(check.date)}</span>
+                        <div className="detail-row">
+                            <span className="detail-label">تاريخ الاستلام:</span>
+                            <span className="detail-value">{formatDate(check.date)}</span>
                         </div>
-                        <div className="detail-item">
-                            <span className="label">البنك المستلم منه:</span>
-                            <span className="value">{check.bank}</span>
+                        <div className="detail-row">
+                            <span className="detail-label">تم الاستلام من:</span>
+                            <span className="detail-value">{check.bank || '—'}</span>
                         </div>
-                        <div className="detail-item">
-                            <span className="label">المبلغ:</span>
-                            <span className="value check-amount gold">
+                        <div className="detail-row">
+                            <span className="detail-label">المبلغ:</span>
+                            <span className="detail-value check-amount gold" style={{ color: 'var(--gold-dark)' }}>
                                 {check.amount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} د.إ
                             </span>
                         </div>
-                        <div className="detail-item">
-                            <span className="label">الحالة الحالية:</span>
+                        <div className="detail-row">
+                            <span className="detail-label">الحالة الحالية:</span>
                             <span className={`badge badge-${currentStatus}`}>
                                 {STATUS_LABELS[currentStatus]}
                             </span>
                         </div>
                         {check.receiverName && (
-                            <div className="detail-item">
-                                <span className="label">المندوب المستلم:</span>
-                                <span className="value">{check.receiverName}</span>
+                            <div className="detail-row">
+                                <span className="detail-label">المندوب المستلم:</span>
+                                <span className="detail-value">{check.receiverName}</span>
                             </div>
                         )}
                         {check.finalReceiverName && (
-                            <div className="detail-item">
-                                <span className="label">المستلم النهائي بالشركة:</span>
-                                <span className="value">{check.finalReceiverName}</span>
+                            <div className="detail-row">
+                                <span className="detail-label">المستلم النهائي بالشركة:</span>
+                                <span className="detail-value">{check.finalReceiverName}</span>
                             </div>
                         )}
-                        <div className="detail-item full-width" style={{ gridColumn: '1 / -1' }}>
-                            <span className="label">ملاحظات:</span>
-                            <span className="value notes-box">{check.notes || 'لا يوجد ملاحظات'}</span>
-                        </div>
                     </div>
 
+                    {/* NOTES BOX */}
+                    {check.notes && (
+                        <div style={{ marginBottom: '24px' }}>
+                            <div className="detail-label" style={{ marginBottom: '8px', fontSize: '13px' }}>ملاحظات:</div>
+                            <div className="notes-box">{check.notes}</div>
+                        </div>
+                    )}
+
                     {/* Progress tracking bar */}
-                    <div className="modal-progress-bar">
-                        <div className={`step-item ${isStepDone('received') ? 'completed' : ''}`}>
-                            <div className="circle">1</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
+                        <div className="progress-track" style={{ justifyContent: 'center', width: '100%' }}>
+                            <div className={`step ${isStepDone('received') ? 'done' : ''}`} title="مستلمة">
+                                {isStepDone('registered') ? '✓' : '1'}
+                            </div>
+                            <div className={`step-line ${isStepDone('registered') ? 'done' : ''}`}></div>
+                            <div className={`step ${isStepDone('registered') ? (isStepDone('delivered') ? 'done' : 'current') : ''}`} title="مسجلة">
+                                {isStepDone('delivered') ? '✓' : '2'}
+                            </div>
+                            <div className={`step-line ${isStepDone('delivered') ? 'done' : ''}`}></div>
+                            <div className={`step ${isStepDone('delivered') ? 'done' : ''}`} title="مسلمة للمكتب">
+                                3
+                            </div>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', width: '80%', fontSize: '11px', fontWeight: 700, color: 'var(--gray-600)' }}>
                             <span>استلام</span>
-                        </div>
-                        <div className="progress-line-between"></div>
-                        <div className={`step-item ${isStepDone('registered') ? 'completed' : ''}`}>
-                            <div className="circle">2</div>
                             <span>تسجيل</span>
-                        </div>
-                        <div className="progress-line-between"></div>
-                        <div className={`step-item ${isStepDone('delivered') ? 'completed' : ''}`}>
-                            <div className="circle">3</div>
                             <span>تسليم مكتب</span>
                         </div>
                     </div>
 
                     {/* Action form to advance status */}
                     {nextStatus && (
-                        <div className="status-action-box">
-                            <h4 className="action-box-title">
-                                <Info size={16} /> ترقية حالة الشيك إلى: {STATUS_LABELS[nextStatus]}
+                        <div className="status-action-box" style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '16px', marginTop: '20px' }}>
+                            <h4 className="action-box-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 800, color: 'var(--black)', marginBottom: '12px' }}>
+                                <Info size={16} style={{ color: 'var(--gold-dark)' }} /> ترقية حالة الشيك إلى: {STATUS_LABELS[nextStatus]}
                             </h4>
                             <form onSubmit={handleAdvance} className="action-form">
-                                {currentStatus === 'received' && (
-                                    <div className="field">
-                                        <label>اسم المندوب المسؤول عن التسجيل</label>
-                                        <input
-                                            type="text"
-                                            value={receiverNameInput}
-                                            onChange={e => setReceiverNameInput(e.target.value)}
-                                            placeholder="أدخل اسم المندوب..."
-                                            required
-                                            style={{ color: '#000' }}
-                                        />
-                                    </div>
-                                )}
-                                {currentStatus === 'registered' && (
-                                    <div
-                                        style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: '1fr 1fr',
-                                            gap: '12px'
-                                        }}
-                                    >
+                                <div className="delivery-inputs" style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '16px' }}>
+                                    {currentStatus === 'received' && (
                                         <div className="field">
-                                            <label>اسم المندوب</label>
+                                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>اسم المندوب المسؤول عن التسجيل</label>
                                             <input
                                                 type="text"
                                                 value={receiverNameInput}
                                                 onChange={e => setReceiverNameInput(e.target.value)}
-                                                placeholder="اسم المندوب..."
+                                                placeholder="أدخل اسم المندوب..."
                                                 required
                                                 style={{ color: '#000' }}
                                             />
                                         </div>
-                                        <div className="field">
-                                            <label>المستلم النهائي بالمكتب</label>
-                                            <input
-                                                type="text"
-                                                value={finalReceiverNameInput}
-                                                onChange={e => setFinalReceiverNameInput(e.target.value)}
-                                                placeholder="اسم مستلم المكتب..."
-                                                required
-                                                style={{ color: '#000' }}
-                                            />
+                                    )}
+                                    {currentStatus === 'registered' && (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                            <div className="field">
+                                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>اسم المندوب</label>
+                                                <input
+                                                    type="text"
+                                                    value={receiverNameInput}
+                                                    onChange={e => setReceiverNameInput(e.target.value)}
+                                                    placeholder="اسم المندوب..."
+                                                    required
+                                                    style={{ color: '#000' }}
+                                                />
+                                            </div>
+                                            <div className="field">
+                                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--gray-600)', display: 'block', marginBottom: '6px' }}>المستلم النهائي بالمكتب</label>
+                                                <input
+                                                    type="text"
+                                                    value={finalReceiverNameInput}
+                                                    onChange={e => setFinalReceiverNameInput(e.target.value)}
+                                                    placeholder="اسم مستلم المكتب..."
+                                                    required
+                                                    style={{ color: '#000' }}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
                                 <button
                                     type="submit"
-                                    className="btn-status-confirm"
+                                    className="btn-status btn-advance"
                                     disabled={isAdvancing}
+                                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                                 >
                                     <ShieldCheck size={18} />
                                     {isAdvancing ? 'جاري التحديث...' : nextStatusLabel}

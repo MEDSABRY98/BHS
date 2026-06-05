@@ -19,6 +19,7 @@ import {
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
+import { toast } from '@/components/01-Unified/Notification';
 
 
 export default function ProductsPage() {
@@ -111,7 +112,7 @@ export default function ProductsPage() {
 
         if (existing) {
           if (!editingProduct || existing.ID !== editingProduct.ID) {
-            alert(`The Product ID "${productId}" is already in use by another product!`);
+            toast.error(`The Product ID "${productId}" is already in use by another product!`);
             setIsSaving(false);
             return;
           }
@@ -160,12 +161,12 @@ export default function ProductsPage() {
             "ITEM CODE": itemCodeValue
           });
         if (error) throw error;
-      }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
       fetchProducts(searchTerm, currentPage);
+      toast.success(editingProduct ? 'Product updated successfully!' : 'Product added successfully!');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to save product');
     } finally {
       setIsSaving(false);
     }
@@ -187,8 +188,9 @@ export default function ProductsPage() {
         .eq('ID', itemToDelete);
       if (error) throw error;
       fetchProducts(searchTerm, currentPage);
+      toast.success('Product deleted successfully!');
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message || 'Failed to delete product');
     } finally {
       setIsSaving(false);
       setIsConfirmOpen(false);

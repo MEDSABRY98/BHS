@@ -17,11 +17,10 @@ import {
   FileSpreadsheet,
   Download,
   Upload,
-  CheckCircle2,
-  AlertCircle,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { toast } from '@/components/01-Unified/Notification';
 import * as XLSX from 'xlsx';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -41,7 +40,6 @@ export default function CustomersPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
   const [totalCount, setTotalCount] = useState(0);
@@ -172,8 +170,9 @@ export default function CustomersPage() {
       setIsConfirmOpen(false);
       setIsModalOpen(false);
       fetchCustomers(searchTerm, currentPage);
+      triggerMessage('success', editingCustomer ? 'Customer updated successfully!' : 'Customer added successfully!');
     } catch (err: any) {
-      alert(err.message);
+      triggerMessage('error', err.message || 'Failed to save customer');
     } finally {
       setIsSaving(false);
     }
@@ -195,8 +194,9 @@ export default function CustomersPage() {
         .eq('ID', itemToDelete);
       if (error) throw error;
       fetchCustomers(searchTerm, currentPage);
+      triggerMessage('success', 'Customer deleted successfully!');
     } catch (err: any) {
-      alert(err.message);
+      triggerMessage('error', err.message || 'Failed to delete customer');
     } finally {
       setIsSaving(false);
       setIsConfirmOpen(false);
@@ -205,8 +205,8 @@ export default function CustomersPage() {
   };
 
   const triggerMessage = (type: 'success' | 'error', text: string) => {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 5000);
+    if (type === 'success') toast.success(text);
+    else toast.error(text);
   };
 
   const downloadCustomersExcel = () => {
@@ -246,7 +246,6 @@ export default function CustomersPage() {
     if (!file) return;
 
     setIsUploading(true);
-    setMessage(null);
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
@@ -263,29 +262,35 @@ export default function CustomersPage() {
           return;
         }
 
-        // Fetch latest customers from DB to ensure sequential IDs are unique and correct, and check for duplicate CUSTOMER IDs
+        // Fetch latest customers from DB to ensure sequential IDs are unique and correct
         const { data: latestCustomers, error: fetchErr } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .select('ID, "CUSTOMER ID"');
 
         if (fetchErr) throw fetchErr;
 
-        // Build mapping of CUSTOMER ID -> ID from DB
-        const dbIdMap = new Map<string, string>();
+        // Build mapping of CUSTOMER ID -> ID from DB, and track existing DB IDs
+        const dbCustomerIdToIdMap = new Map<string, string>();
+        const dbIdSet = new Set<string>();
         let highestNum = 0;
+
         (latestCustomers || []).forEach(c => {
           if (c["CUSTOMER ID"]) {
-            dbIdMap.set(c["CUSTOMER ID"].trim(), c.ID);
+            dbCustomerIdToIdMap.set(c["CUSTOMER ID"].trim(), c.ID);
           }
-          if (c.ID && c.ID.startsWith('R-')) {
-            const num = parseInt(c.ID.split('-')[1]);
-            if (!isNaN(num) && num > highestNum) {
-              highestNum = num;
+          if (c.ID) {
+            dbIdSet.add(c.ID.trim());
+            if (c.ID.startsWith('R-')) {
+              const num = parseInt(c.ID.split('-')[1]);
+              if (!isNaN(num) && num > highestNum) {
+                highestNum = num;
+              }
             }
           }
         });
 
-        // Also track duplicate CUSTOMER IDs within the uploaded Excel file itself
+        // Track duplicate CUSTOMER IDs and IDs within the Excel file itself to prevent collisions in the batch
+        const excelCustomerIdSet = new Set<string>();
         const excelIdSet = new Set<string>();
 
         const recordsToUpsert = [];
@@ -293,44 +298,72 @@ export default function CustomersPage() {
           const row = data[i];
           let id = row["ID"]?.toString().trim();
           const customerId = row["Customer ID"]?.toString().trim() || '';
-          const customerMainName = row["Customer Main Name"]?.toString().trim() || '';
-          const customerSubName = row["Customer Sub Name"]?.toString().trim() || row["Customer Name"]?.toString().trim() || '';
-          const customerCity = row["Customer City"]?.toString().trim() || '';
-
-          if (!customerSubName) {
-            triggerMessage('error', `Row ${i + 2}: 'Customer Sub Name' or 'Customer Name' is required`);
-            setIsUploading(false);
-            return;
-          }
 
           if (customerId) {
-            if (excelIdSet.has(customerId)) {
+            // Check for duplicates of Customer ID within the Excel sheet itself
+            if (excelCustomerIdSet.has(customerId)) {
               triggerMessage('error', `Row ${i + 2}: Duplicate 'Customer ID' "${customerId}" found within the Excel file.`);
               setIsUploading(false);
               return;
             }
-            excelIdSet.add(customerId);
+            excelCustomerIdSet.add(customerId);
+          }
 
-            const existingDbId = dbIdMap.get(customerId);
-            if (existingDbId && existingDbId !== id) {
-              triggerMessage('error', `Row ${i + 2}: Customer ID "${customerId}" is already in use in the database (by customer record "${existingDbId}").`);
+          // Determine database ID for this customer (prioritize explicit ID column, then Customer ID lookup)
+          let finalId = id;
+          if (!finalId && customerId) {
+            finalId = dbCustomerIdToIdMap.get(customerId);
+          }
+
+          const isExisting = !!finalId;
+
+          // Check if name is provided in the Excel row
+          const customerSubNameRaw = row["Customer Sub Name"] !== undefined ? row["Customer Sub Name"] : row["Customer Name"];
+          const customerSubName = customerSubNameRaw !== undefined ? customerSubNameRaw.toString().trim() : undefined;
+
+          // If it's a new customer, name is required
+          if (!isExisting && !customerSubName) {
+            triggerMessage('error', `Row ${i + 2}: 'Customer Sub Name' or 'Customer Name' is required for new customers.`);
+            setIsUploading(false);
+            return;
+          }
+
+          // Check if this DB ID is already claimed by another row in the same Excel file
+          if (finalId) {
+            if (excelIdSet.has(finalId)) {
+              triggerMessage('error', `Row ${i + 2}: Database ID "${finalId}" is claimed by multiple rows in the Excel file.`);
               setIsUploading(false);
               return;
             }
-          }
-
-          if (!id) {
+          } else {
+            // Generate a new ID for new customer
             highestNum++;
-            id = `R-${highestNum.toString().padStart(4, '0')}`;
+            finalId = `R-${highestNum.toString().padStart(4, '0')}`;
+            while (dbIdSet.has(finalId) || excelIdSet.has(finalId)) {
+              highestNum++;
+              finalId = `R-${highestNum.toString().padStart(4, '0')}`;
+            }
           }
 
-          recordsToUpsert.push({
-            ID: id,
-            "CUSTOMER ID": customerId,
-            "CUSTOMER MAIN NAME": customerMainName,
-            "CUSTOMER SUB NAME": customerSubName,
-            "CUSTOMER CITY": customerCity
-          });
+          excelIdSet.add(finalId);
+
+          // Build payload dynamically - only include fields defined in the Excel sheet
+          const record: any = { ID: finalId };
+
+          if (row["Customer ID"] !== undefined) {
+            record["CUSTOMER ID"] = customerId;
+          }
+          if (row["Customer Main Name"] !== undefined) {
+            record["CUSTOMER MAIN NAME"] = row["Customer Main Name"].toString().trim();
+          }
+          if (customerSubNameRaw !== undefined) {
+            record["CUSTOMER SUB NAME"] = customerSubName;
+          }
+          if (row["Customer City"] !== undefined) {
+            record["CUSTOMER CITY"] = row["Customer City"].toString().trim();
+          }
+
+          recordsToUpsert.push(record);
         }
 
         // Perform bulk upsert
@@ -443,21 +476,21 @@ export default function CustomersPage() {
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-medium font-mono text-gray-400 tracking-wider">{customer["CUSTOMER ID"]}</span>
                     </td>
-                    <td className="px-8 py-6 text-left">
-                      <div className="flex items-center justify-start gap-3">
+                    <td className="px-8 py-6 text-center">
+                      <div className="flex items-center justify-center gap-3">
                         <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5">
                           <Building2 className="w-5 h-5 text-[#D4AF37]" />
                         </div>
                         <span className="font-bold text-black">{customer["CUSTOMER MAIN NAME"] || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-left">
+                    <td className="px-8 py-6 text-center">
                       <span className="font-bold text-black">{customer["CUSTOMER SUB NAME"]}</span>
                     </td>
-                    <td className="px-8 py-6 text-center">
+                    <td className="px-8 py-6 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2 text-gray-500">
-                        <MapPin className="w-3.5 h-3.5 text-gray-300" />
-                        <span className="text-xs font-bold uppercase tracking-widest">{customer["CUSTOMER CITY"]}</span>
+                        <MapPin className="w-3.5 h-3.5 text-gray-300 shrink-0" />
+                        <span className="text-xs font-bold uppercase tracking-widest whitespace-nowrap">{customer["CUSTOMER CITY"]}</span>
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
@@ -687,18 +720,6 @@ export default function CustomersPage() {
         </div>
       )}
 
-      {/* Global Message Notification */}
-      {message && (
-        <div className={`fixed bottom-10 left-[calc(50%+9rem)] -translate-x-1/2 px-8 py-4 rounded-[2rem] shadow-2xl z-[600] flex items-center gap-4 animate-in fade-in slide-in-from-bottom-4 duration-300 border-b-4 ${message.type === 'success' ? 'bg-black text-white border-emerald-500' : 'bg-red-600 text-white border-red-800'
-          }`}>
-          {message.type === 'success' ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-          ) : (
-            <AlertCircle className="w-5 h-5" />
-          )}
-          <p className="text-[11px] font-black uppercase tracking-widest leading-none">{message.text}</p>
-        </div>
-      )}
     </div>
   );
 }

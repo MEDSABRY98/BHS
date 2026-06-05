@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Database, UserCircle, Package, Users, ArrowRight } from 'lucide-react';
+import { Database, UserCircle, Package, Users, ArrowRight, FileSpreadsheet } from 'lucide-react';
 
 interface MenuCardProps {
   title: string;
@@ -51,10 +51,11 @@ const MenuCard = ({ title, description, icon: Icon, count, isLoading, onClick, c
 
 export default function DatabaseDashboard() {
   const router = useRouter();
-  const [counts, setCounts] = useState<{ customers: number | null; products: number | null; users: number | null }>({
+  const [counts, setCounts] = useState<{ customers: number | null; products: number | null; users: number | null; sales: number | null }>({
     customers: null,
     products: null,
-    users: null
+    users: null,
+    sales: null
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -64,16 +65,18 @@ export default function DatabaseDashboard() {
       try {
         const { bhs_supabas } = await import('@/lib/supabase');
         
-        const [custRes, prodRes, userRes] = await Promise.all([
+        const [custRes, prodRes, userRes, salesRes] = await Promise.all([
           bhs_supabas.from('bhs_CUSTOMERS').select('ID', { count: 'exact', head: true }),
           bhs_supabas.from('bhs_PRODUCTS').select('ID', { count: 'exact', head: true }),
-          bhs_supabas.from('bhs_USERS').select('ID', { count: 'exact', head: true })
+          bhs_supabas.from('bhs_USERS').select('ID', { count: 'exact', head: true }),
+          bhs_supabas.from('web_Sales_DB').select('ID', { count: 'exact', head: true })
         ]);
 
         setCounts({
           customers: custRes.count,
           products: prodRes.count,
-          users: userRes.count
+          users: userRes.count,
+          sales: salesRes.count
         });
       } catch (err) {
         console.error('Error fetching database counts:', err);
@@ -102,7 +105,7 @@ export default function DatabaseDashboard() {
       </div>
 
       {/* Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
         <MenuCard
           title="Customers DB"
           description="Manage client profile details, locations, and unique customer identification."
@@ -129,6 +132,15 @@ export default function DatabaseDashboard() {
           isLoading={isLoading}
           onClick={() => router.push('/DataBase/Users')}
           color="indigo"
+        />
+        <MenuCard
+          title="Sales DB"
+          description="Manage and delete historical transaction entries grouped by year and month."
+          icon={FileSpreadsheet}
+          count={counts.sales}
+          isLoading={isLoading}
+          onClick={() => router.push('/DataBase/Sales')}
+          color="amber"
         />
       </div>
     </div>

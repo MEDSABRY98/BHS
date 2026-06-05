@@ -158,9 +158,9 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
         barcode: p.barcode,
         product: p.product,
         price: mode === 'pricelist' || mode === 'analysis'
-          ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices))
+          ? (strategy === 'last' ? (p.prices[0] || 0) : calculateMode(p.prices))
           : undefined,
-        avgPrice: mode === 'analysis' ? (p.prices[p.prices.length - 1] || 0) : undefined,
+        avgPrice: mode === 'analysis' ? (p.prices[0] || 0) : undefined,
         costPrice: mode === 'analysis' ? p.cost : undefined
       }));
       if (mode === 'pricelist') {
@@ -179,7 +179,7 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
 
     const exportData = customer.products.map((p, index) => {
       const frequent = calculateMode(p.prices);
-      const recent = p.prices[p.prices.length - 1] || 0;
+      const recent = p.prices[0] || 0;
       const cost = p.cost;
       const diff = frequent - cost;
       const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
@@ -217,9 +217,9 @@ export default function SalesST_ByCustomers({ data, loading }: SalesST_ByCustome
           barcode: p.barcode,
           product: p.product,
           price: mode === 'pricelist' || mode === 'analysis'
-            ? (strategy === 'last' ? (p.prices[p.prices.length - 1] || 0) : calculateMode(p.prices))
+            ? (strategy === 'last' ? (p.prices[0] || 0) : calculateMode(p.prices))
             : undefined,
-          avgPrice: mode === 'analysis' ? (p.prices[p.prices.length - 1] || 0) : undefined,
+          avgPrice: mode === 'analysis' ? (p.prices[0] || 0) : undefined,
           costPrice: mode === 'analysis' ? p.cost : undefined
         }));
         let blob: Blob;

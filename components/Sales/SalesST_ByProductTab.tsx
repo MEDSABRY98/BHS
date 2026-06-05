@@ -134,7 +134,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
     filteredProducts.forEach(p => {
       Array.from(p.customers.entries()).forEach(([custName, stats]) => {
         const most = calculateMode(stats.prices);
-        const last = stats.prices[stats.prices.length - 1] || 0;
+        const last = stats.prices[0] || 0;
         const cost = stats.cost;
         const diff = most - cost;
         const margin = most > 0 ? (diff / most) * 100 : 0;
@@ -223,7 +223,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
             // Calculate column averages
             const columnTotals = customerList.reduce((acc, [_, stats]) => {
               acc.most += calculateMode(stats.prices);
-              acc.last += stats.prices[stats.prices.length - 1] || 0;
+              acc.last += stats.prices[0] || 0;
               acc.cost += stats.cost;
               return acc;
             }, { most: 0, last: 0, cost: 0 });
@@ -277,7 +277,7 @@ export default function SalesST_ByProduct({ data, loading }: SalesST_ByProductPr
                   <tbody className="divide-y divide-slate-50">
                     {customerList.map(([custName, stats], i) => {
                       const most = calculateMode(stats.prices);
-                      const last = stats.prices[stats.prices.length - 1] || 0;
+                      const last = stats.prices[0] || 0;
                       const cost = stats.cost;
                       const diff = most - cost;
                       const margin = most > 0 ? (diff / most) * 100 : 0;

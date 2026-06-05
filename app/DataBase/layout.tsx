@@ -16,7 +16,8 @@ import {
   Database,
   ChevronRight,
   ChevronLeft,
-  ArrowLeft
+  ArrowLeft,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -109,6 +110,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     { id: 'db-customers', href: '/DataBase/Customers', icon: UserCircle, label: 'Customers DB' },
     { id: 'db-products', href: '/DataBase/Products', icon: Package, label: 'Products DB' },
     { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
+    { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB' },
   ];
 
   return (
