@@ -73,7 +73,7 @@ export default function DatabaseDashboard() {
 
         let salesCount = 0;
         try {
-          const salesMonthsRes = await fetch('/api/Sales/Months');
+          const salesMonthsRes = await fetch('/api/Sales?action=months');
           const salesMonthsData = await salesMonthsRes.json();
           if (salesMonthsData.data) {
             salesCount = salesMonthsData.data.reduce((acc: number, cur: any) => acc + (cur.count || 0), 0);

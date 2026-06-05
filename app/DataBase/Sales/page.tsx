@@ -33,7 +33,7 @@ export default function SalesDBPage() {
   async function fetchSalesMonths(forceRefresh = false) {
     setIsLoading(true);
     try {
-      const response = await fetch('/api/Sales/Months');
+      const response = await fetch('/api/Sales?action=months');
       const resData = await response.json();
       if (resData.error) throw new Error(resData.error);
       setSalesMonths(resData.data || []);
@@ -54,7 +54,7 @@ export default function SalesDBPage() {
     if (!targetMonth) return;
     setIsDeleting(true);
     try {
-      const response = await fetch(`/api/Sales/Months?year=${targetMonth.year}&month=${targetMonth.month}`, {
+      const response = await fetch(`/api/Sales?year=${targetMonth.year}&month=${targetMonth.month}`, {
         method: 'DELETE'
       });
       const data = await response.json();
