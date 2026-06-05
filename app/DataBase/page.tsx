@@ -65,18 +65,28 @@ export default function DatabaseDashboard() {
       try {
         const { bhs_supabas } = await import('@/lib/supabase');
         
-        const [custRes, prodRes, userRes, salesRes] = await Promise.all([
+        const [custRes, prodRes, userRes] = await Promise.all([
           bhs_supabas.from('bhs_CUSTOMERS').select('ID', { count: 'exact', head: true }),
           bhs_supabas.from('bhs_PRODUCTS').select('ID', { count: 'exact', head: true }),
-          bhs_supabas.from('bhs_USERS').select('ID', { count: 'exact', head: true }),
-          bhs_supabas.from('web_Sales_DB').select('ID', { count: 'exact', head: true })
+          bhs_supabas.from('bhs_USERS').select('ID', { count: 'exact', head: true })
         ]);
+
+        let salesCount = 0;
+        try {
+          const salesMonthsRes = await fetch('/api/Sales/months');
+          const salesMonthsData = await salesMonthsRes.json();
+          if (salesMonthsData.data) {
+            salesCount = salesMonthsData.data.reduce((acc: number, cur: any) => acc + (cur.count || 0), 0);
+          }
+        } catch (salesErr) {
+          console.error('Error fetching sales count from API:', salesErr);
+        }
 
         setCounts({
           customers: custRes.count,
           products: prodRes.count,
           users: userRes.count,
-          sales: salesRes.count
+          sales: salesCount
         });
       } catch (err) {
         console.error('Error fetching database counts:', err);
