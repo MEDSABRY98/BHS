@@ -1,17 +1,5 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import fs from 'fs';
-import path from 'path';
-
-// تحديد مسار فولدر الكاش
-const CACHE_DIR = path.join(process.cwd(), 'app', 'api', 'Sales', 'Cache');
-const SALES_CACHE_FILE = path.join(CACHE_DIR, 'sales_data.json');
-const MONTHS_CACHE_FILE = path.join(CACHE_DIR, 'months_data.json');
-
-// التأكد من وجود فولدر الكاش
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
 
 export async function GET(request: Request) {
   try {
@@ -23,13 +11,20 @@ export async function GET(request: Request) {
     // مسار تجميع الشهور (Months Aggregation)
     // -------------------------------------------------------------
     if (action === 'months') {
-      // إرجاع الكاش فوراً لو متاح ومفيش طلب refresh
-      if (!refresh && fs.existsSync(MONTHS_CACHE_FILE)) {
-        const cachedData = fs.readFileSync(MONTHS_CACHE_FILE, 'utf-8');
-        return NextResponse.json(JSON.parse(cachedData));
+      // 1. فحص الكاش في الداتا بيز
+      if (!refresh) {
+        const { data: cacheRow, error: cacheErr } = await bhs_supabas
+          .from('web_Sales_Cache')
+          .select('DAT')
+          .eq('KEY', 'months_data')
+          .single();
+
+        if (!cacheErr && cacheRow && cacheRow.DAT) {
+          return NextResponse.json({ data: cacheRow.DAT });
+        }
       }
 
-      // جلب البيانات من الداتا بيز في حالة الـ refresh أو عدم وجود الكاش
+      // 2. إذا لم يكن هناك كاش، نسحب من الداتا بيز
       const { data, error } = await bhs_supabas.rpc('get_sales_months_summary');
       if (error) throw error;
 
@@ -39,8 +34,12 @@ export async function GET(request: Request) {
         count: Number(row.count),
       }));
 
-      // تحديث الكاش
-      fs.writeFileSync(MONTHS_CACHE_FILE, JSON.stringify({ data: monthsList }, null, 2));
+      // 3. تخزين النتيجة في الكاش
+      await bhs_supabas
+        .from('web_Sales_Cache')
+        .update({ DAT: monthsList, UPDATED_AT: new Date().toISOString() })
+        .eq('KEY', 'months_data');
+
       return NextResponse.json({ data: monthsList });
     }
 
@@ -48,14 +47,20 @@ export async function GET(request: Request) {
     // مسار جلب المبيعات بالكامل (All Sales Data)
     // -------------------------------------------------------------
     
-    // إرجاع الكاش فوراً لو متاح ومفيش طلب refresh
-    if (!refresh && fs.existsSync(SALES_CACHE_FILE)) {
-      const cachedData = fs.readFileSync(SALES_CACHE_FILE, 'utf-8');
-      return NextResponse.json(JSON.parse(cachedData));
+    // 1. فحص الكاش في الداتا بيز
+    if (!refresh) {
+      const { data: cacheRow, error: cacheErr } = await bhs_supabas
+        .from('web_Sales_Cache')
+        .select('DAT')
+        .eq('KEY', 'sales_data')
+        .single();
+
+      if (!cacheErr && cacheRow && cacheRow.DAT) {
+        return NextResponse.json({ data: cacheRow.DAT });
+      }
     }
 
-    // عشان نتجنب الـ timeout في جلب 70 الف صف، هنجيب الـ count الأول
-    // ونستخدم limit / range بشكل متتالي
+    // 2. إذا لم يكن هناك كاش، نقوم بالسحب على دفعات
     const { count, error: countErr } = await bhs_supabas
       .from('web_Sales_DB')
       .select('ID', { count: 'exact', head: true });
@@ -68,7 +73,6 @@ export async function GET(request: Request) {
     
     let rawData: any[] = [];
     
-    // سحب البيانات على شكل دفعات متتالية لتجنب إرهاق السيرفر (بدل Promise.all)
     for (let i = 0; i < numPages; i++) {
       const start = i * batchSize;
       const end = start + batchSize - 1;
@@ -104,7 +108,7 @@ export async function GET(request: Request) {
       if (data) rawData = rawData.concat(data);
     }
 
-    // ترتيب وتنظيف البيانات
+    // تنظيف البيانات
     const formattedData = rawData.map((item: any) => ({
       invoiceDate: item["INVOICE DATE"] || '',
       invoiceNumber: item["INVOICE NUMBER"] || '',
@@ -125,8 +129,11 @@ export async function GET(request: Request) {
       qty: Number(item.QTY) || 0
     }));
 
-    // تحديث ملف الكاش
-    fs.writeFileSync(SALES_CACHE_FILE, JSON.stringify({ data: formattedData }, null, 2));
+    // 3. تخزين النتيجة في الكاش
+    await bhs_supabas
+      .from('web_Sales_Cache')
+      .update({ DAT: formattedData, UPDATED_AT: new Date().toISOString() })
+      .eq('KEY', 'sales_data');
 
     return NextResponse.json({ data: formattedData });
 
@@ -164,9 +171,9 @@ export async function DELETE(request: Request) {
 
     if (error) throw error;
 
-    // بمجرد حدوث تعديل أو حذف، نقوم بمسح الكاش عشان يتم بناءه من جديد المرة الجاية
-    if (fs.existsSync(SALES_CACHE_FILE)) fs.unlinkSync(SALES_CACHE_FILE);
-    if (fs.existsSync(MONTHS_CACHE_FILE)) fs.unlinkSync(MONTHS_CACHE_FILE);
+    // مسح الكاش من قاعدة البيانات حتى يتم تجديده في الطلب القادم
+    await bhs_supabas.from('web_Sales_Cache').update({ DAT: null }).eq('KEY', 'sales_data');
+    await bhs_supabas.from('web_Sales_Cache').update({ DAT: null }).eq('KEY', 'months_data');
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
