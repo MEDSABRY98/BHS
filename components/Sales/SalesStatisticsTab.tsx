@@ -95,7 +95,7 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
     const monthlyData = current.monthlyData.get(name);
     if (!monthlyData) return null;
 
-    const months = Array.from(monthlyData.entries())
+    const months = Array.from(monthlyData.entries() as Iterable<[string, any]>)
       .map(([monthKey, values]) => {
         const [year, month] = monthKey.split('-');
         const date = new Date(parseInt(year), parseInt(month) - 1);
