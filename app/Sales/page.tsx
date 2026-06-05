@@ -133,7 +133,7 @@ export default function SalesPage() {
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [uniqueValues, setUniqueValues] = useState({
     areas: [] as string[],
