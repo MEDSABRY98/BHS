@@ -13,67 +13,22 @@ export async function GET() {
       return NextResponse.json(JSON.parse(cachedData));
     }
 
-    // 2. Fetch and group from database
-    const { count, error: countErr } = await bhs_supabas
-      .from('web_Sales_DB')
-      .select('*', { count: 'exact', head: true });
+    // 2. Use DB-side aggregation via RPC — single fast query, no timeout risk
+    const { data, error } = await bhs_supabas.rpc('get_sales_months_summary');
 
-    if (countErr) throw countErr;
+    if (error) throw error;
 
-    const totalCount = count || 0;
-    const batchSize = 1000;
-    const numPages = Math.ceil(totalCount / batchSize);
+    const monthsList = (data || []).map((row: any) => ({
+      year: Number(row.year),
+      month: Number(row.month),
+      count: Number(row.count),
+    }));
 
-    const promises = [];
-    for (let i = 0; i < numPages; i++) {
-      const start = i * batchSize;
-      const end = start + batchSize - 1;
-      promises.push(
-        bhs_supabas
-          .from('web_Sales_DB')
-          .select('"INVOICE DATE"')
-          .range(start, end)
-      );
-    }
-
-    const results = await Promise.all(promises);
-    const groups: Record<string, number> = {};
-
-    for (const res of results) {
-      if (res.error) throw res.error;
-      for (const row of res.data || []) {
-        const dateStr = row['INVOICE DATE'];
-        if (!dateStr) continue;
-
-        const parts = dateStr.split('-');
-        if (parts.length < 2) continue;
-
-        const year = parts[0];
-        const month = parts[1];
-        const key = `${year}-${month}`;
-
-        groups[key] = (groups[key] || 0) + 1;
-      }
-    }
-
-    const monthsList = Object.entries(groups).map(([key, count]) => {
-      const [year, month] = key.split('-');
-      return {
-        year: parseInt(year),
-        month: parseInt(month),
-        count
-      };
-    }).sort((a, b) => {
-      if (b.year !== a.year) return b.year - a.year;
-      return b.month - a.month;
-    });
-
-    // Ensure parent directory exists
+    // 3. Cache the result for subsequent requests
     const dir = path.dirname(CACHE_FILE);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
-    // Save to cache
     fs.writeFileSync(CACHE_FILE, JSON.stringify({ data: monthsList }, null, 2));
 
     return NextResponse.json({ data: monthsList });
@@ -96,18 +51,23 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Year and Month are required' }, { status: 400 });
     }
 
-    const monthStr = month.toString().padStart(2, '0');
-    const pattern = `${year}-${monthStr}-%`;
+    // Build a date range for the given month and delete all matching rows
+    const y = parseInt(year);
+    const m = parseInt(month);
+    const startDate = `${y}-${String(m).padStart(2, '0')}-01`;
+    const endDate = m === 12
+      ? `${y + 1}-01-01`
+      : `${y}-${String(m + 1).padStart(2, '0')}-01`;
 
-    // Delete all records matching the year and month pattern
     const { error } = await bhs_supabas
       .from('web_Sales_DB')
       .delete()
-      .like('INVOICE DATE', pattern);
+      .gte('INVOICE DATE', startDate)
+      .lt('INVOICE DATE', endDate);
 
     if (error) throw error;
 
-    // Invalidate cache
+    // Invalidate cache so next GET rebuilds from DB
     if (fs.existsSync(CACHE_FILE)) {
       fs.unlinkSync(CACHE_FILE);
     }
