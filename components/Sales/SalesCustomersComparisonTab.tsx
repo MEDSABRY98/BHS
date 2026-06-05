@@ -9,6 +9,7 @@ import NoData from '../01-Unified/NoDataTab';
 interface Props {
   filters: any;
   userId: string;
+  refreshTrigger?: number;
 }
 
 const ITEMS_PER_PAGE = 50;
