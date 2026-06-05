@@ -141,6 +141,7 @@ export default function UsersPage() {
           .from('bhs_USERS')
           .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY });
         if (error) throw error;
+      }
       setIsConfirmOpen(false);
       setIsModalOpen(false);
       fetchUsers(searchTerm);
