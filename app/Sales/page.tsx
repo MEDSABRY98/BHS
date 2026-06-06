@@ -130,6 +130,7 @@ export default function SalesPage() {
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeTab, setActiveTab] = useState('sales-overview');
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(['sales-overview']));
   const [loading, setLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -231,8 +232,9 @@ export default function SalesPage() {
     return true; // default to true
   }, [currentUser]);
 
-  // Reset scroll position when tab changes
+  // Reset scroll position and track visited tabs when tab changes
   useEffect(() => {
+    setVisitedTabs(prev => new Set([...prev, activeTab]));
     if (mainContentRef.current) {
       mainContentRef.current.scrollTop = 0;
     }
@@ -502,218 +504,73 @@ export default function SalesPage() {
       }
     } catch (e) { }
 
-    switch (activeTab) {
-      case 'sales-overview':
-        return (
-          <SalesOverviewTab 
-            filters={{
-              invoiceType: invoiceTypeFilter,
-              year: filterYear,
-              month: filterMonth,
-              dateFrom,
-              dateTo,
-              area: filterArea,
-              market: filterMarket,
-              merchandiser: filterMerchandiser,
-              salesRep: filterSalesRep,
-              productTag: filterProductTag
-            }}
-            userId={currentUser?.name || 'ADMIN'}
-            refreshTrigger={refreshTrigger}
-          />
-        );
-      case 'sales-top10':
-        return (
-          <SalesTop10Tab 
-            filters={{
-              invoiceType: invoiceTypeFilter,
-              year: filterYear,
-              month: filterMonth,
-              dateFrom,
-              dateTo,
-              area: filterArea,
-              market: filterMarket,
-              merchandiser: filterMerchandiser,
-              salesRep: filterSalesRep,
-              productTag: filterProductTag
-            }}
-            userId={currentUser?.name || 'ADMIN'}
-            refreshTrigger={refreshTrigger}
-          />
-        );
+    const commonFilters = {
+      invoiceType: invoiceTypeFilter,
+      year: filterYear,
+      month: filterMonth,
+      dateFrom,
+      dateTo,
+      area: filterArea,
+      market: filterMarket,
+      merchandiser: filterMerchandiser,
+      salesRep: filterSalesRep,
+      productTag: filterProductTag
+    };
 
-      case 'sales-customers':
-        return (
-          <SalesCustomersTab 
-            filters={{
-              invoiceType: invoiceTypeFilter,
-              year: filterYear,
-              month: filterMonth,
-              dateFrom,
-              dateTo,
-              area: filterArea,
-              market: filterMarket,
-              merchandiser: filterMerchandiser,
-              salesRep: filterSalesRep,
-              productTag: filterProductTag
-            }}
-            userId={currentUser?.name || 'ADMIN'}
-            onUploadMapping={handleUploadMapping} 
-            showCosts={showCosts}
-            refreshTrigger={refreshTrigger}
-          />
-        );
-
-      case 'sales-customers-comparison':
-        return (
-          <SalesCustomersComparisonTab
-            filters={{
-              invoiceType: invoiceTypeFilter,
-              year: filterYear,
-              month: filterMonth,
-              dateFrom,
-              dateTo,
-              area: filterArea,
-              market: filterMarket,
-              merchandiser: filterMerchandiser,
-              salesRep: filterSalesRep,
-              productTag: filterProductTag
-            }}
-            userId={currentUser?.name || 'ADMIN'}
-            refreshTrigger={refreshTrigger}
-          />
-        );
-
-      case 'sales-inactive-customers':
-        return (
-          <SalesInactiveCustomersTab
-            filters={{
-              invoiceType: invoiceTypeFilter,
-              year: filterYear,
-              month: filterMonth,
-              dateFrom,
-              dateTo,
-              area: filterArea,
-              market: filterMarket,
-              merchandiser: filterMerchandiser,
-              salesRep: filterSalesRep,
-              productTag: filterProductTag
-            }}
-            userId={currentUser?.name || 'ADMIN'}
-            // @ts-ignore
-            days={inactiveDays}
-            // @ts-ignore
-            minAmount={inactiveMinAmount}
-            refreshTrigger={refreshTrigger}
-          />
-        );
-      case 'sales-statistics':
-        return <SalesStatisticsTab 
-                 filters={{
-                   invoiceType: invoiceTypeFilter,
-                   year: filterYear,
-                   month: filterMonth,
-                   dateFrom,
-                   dateTo,
-                   area: filterArea,
-                   market: filterMarket,
-                   merchandiser: filterMerchandiser,
-                   salesRep: filterSalesRep,
-                   productTag: filterProductTag
-                 }}
-                 userId={currentUser?.name || 'ADMIN'} 
-                 refreshTrigger={refreshTrigger}
-               />;
-      case 'sales-daily-sales':
-        return <SalesDailySalesTab 
-                 filters={{
-                   year: filterYear,
-                   month: filterMonth,
-                   dateFrom,
-                   dateTo,
-                   area: filterArea,
-                   market: filterMarket,
-                   merchandiser: filterMerchandiser,
-                   salesRep: filterSalesRep,
-                   productTag: filterProductTag
-                 }}
-                 invoiceTypeFilter={invoiceTypeFilter}
-                 userId={currentUser?.name || 'ADMIN'} 
-                 showCosts={showCosts} 
-                 refreshTrigger={refreshTrigger}
-               />;
-      case 'sales-products':
-        return <SalesProductsTab 
-                 filters={{
-                   invoiceType: invoiceTypeFilter,
-                   year: filterYear,
-                   month: filterMonth,
-                   dateFrom,
-                   dateTo,
-                   area: filterArea,
-                   market: filterMarket,
-                   merchandiser: filterMerchandiser,
-                   salesRep: filterSalesRep,
-                   productTag: filterProductTag
-                 }}
-                 userId={currentUser?.name || 'ADMIN'} 
-                 refreshTrigger={refreshTrigger}
-               />;
-      case 'sales-categories':
-        return <SalesCategoriesTab 
-                 filters={{
-                   invoiceType: invoiceTypeFilter,
-                   year: filterYear,
-                   month: filterMonth,
-                   dateFrom,
-                   dateTo,
-                   area: filterArea,
-                   market: filterMarket,
-                   merchandiser: filterMerchandiser,
-                   salesRep: filterSalesRep,
-                   productTag: filterProductTag
-                 }}
-                 userId={currentUser?.name || 'ADMIN'} 
-                 refreshTrigger={refreshTrigger}
-               />;
-
-      case 'sales-download-form':
-        return <SalesStockReportTab 
-                  filters={{
-                    invoiceType: invoiceTypeFilter,
-                    year: filterYear,
-                    month: filterMonth,
-                    dateFrom,
-                    dateTo,
-                    area: filterArea,
-                    market: filterMarket,
-                    merchandiser: filterMerchandiser,
-                    salesRep: filterSalesRep,
-                    productTag: filterProductTag
-                  }}
-                  userId={currentUser?.name || 'ADMIN'}
-                  refreshTrigger={refreshTrigger}
-               />;
-      default:
-        return (
-          <SalesOverviewTab 
-            filters={{
-              invoiceType: invoiceTypeFilter,
-              year: filterYear,
-              month: filterMonth,
-              dateFrom,
-              dateTo,
-              area: filterArea,
-              market: filterMarket,
-              merchandiser: filterMerchandiser,
-              salesRep: filterSalesRep,
-              productTag: filterProductTag
-            }}
-            userId={currentUser?.name || 'ADMIN'}
-            refreshTrigger={refreshTrigger}
-          />
-        );
-    }
+    return (
+      <div className="relative w-full">
+        {visitedTabs.has('sales-overview') && (
+          <div className={activeTab === 'sales-overview' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesOverviewTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-top10') && (
+          <div className={activeTab === 'sales-top10' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesTop10Tab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-customers') && (
+          <div className={activeTab === 'sales-customers' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesCustomersTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-customers-comparison') && (
+          <div className={activeTab === 'sales-customers-comparison' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesCustomersComparisonTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-inactive-customers') && (
+          <div className={activeTab === 'sales-inactive-customers' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesInactiveCustomersTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-statistics') && (
+          <div className={activeTab === 'sales-statistics' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesStatisticsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-daily-sales') && (
+          <div className={activeTab === 'sales-daily-sales' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={currentUser?.name || 'ADMIN'} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-products') && (
+          <div className={activeTab === 'sales-products' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesProductsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-categories') && (
+          <div className={activeTab === 'sales-categories' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesCategoriesTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-download-form') && (
+          <div className={activeTab === 'sales-download-form' ? 'block animate-in fade-in' : 'hidden'}>
+            <SalesStockReportTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (isChecking) {
