@@ -85,9 +85,9 @@ export function invalidateMemoryCache() {
 //  PRIVATE: Pull everything from DB and merge
 // ─────────────────────────────────────────────────────────────
 async function buildFromDB(): Promise<any[]> {
-  const fetchAllSales = async () => {
+  const fetchAllFromTable = async (table: string, selectFields: string) => {
     const { count, error: countErr } = await bhs_supabas
-      .from('web_Sales_DB')
+      .from(table)
       .select('*', { count: 'exact', head: true });
 
     if (countErr) throw countErr;
@@ -99,7 +99,6 @@ async function buildFromDB(): Promise<any[]> {
       ranges.push({ from: i, to: i + step - 1 });
     }
 
-    // 3 concurrent requests at a time to avoid DB overload
     const batchSize = 3;
     const allResults: any[] = [];
 
@@ -108,8 +107,8 @@ async function buildFromDB(): Promise<any[]> {
       const responses = await Promise.all(
         batch.map(r =>
           bhs_supabas
-            .from('web_Sales_DB')
-            .select('ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT TAG", "PRODUCT COST", "PRODUCT PRICE", AMOUNT, QTY')
+            .from(table)
+            .select(selectFields)
             .range(r.from, r.to)
         )
       );
@@ -122,25 +121,22 @@ async function buildFromDB(): Promise<any[]> {
     return allResults;
   };
 
-  const [salesData, customersRes, productsRes] = await Promise.all([
-    fetchAllSales(),
-    bhs_supabas.from('bhs_CUSTOMERS').select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"'),
-    bhs_supabas.from('bhs_PRODUCTS').select('"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE"'),
+  const [salesData, customersData, productsData] = await Promise.all([
+    fetchAllFromTable('web_Sales_DB', 'ID, "INVOICE DATE", "INVOICE NUMBER", "CUSTOMER ID", "PRODUCT ID", "PRODUCT TAG", "PRODUCT COST", "PRODUCT PRICE", AMOUNT, QTY'),
+    fetchAllFromTable('bhs_CUSTOMERS', '"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"'),
+    fetchAllFromTable('bhs_PRODUCTS', '"PRODUCT ID", "PRODUCT NAME", "PRODUCT BARCODE"'),
   ]);
-
-  if (customersRes.error) throw customersRes.error;
-  if (productsRes.error) throw productsRes.error;
 
   const norm = (v: any) => (v ? String(v).trim().toUpperCase() : '');
 
   const custMap = new Map<string, any>();
-  (customersRes.data || []).forEach((c: any) => {
+  (customersData || []).forEach((c: any) => {
     const id = norm(c['CUSTOMER ID']);
     if (id) custMap.set(id, c);
   });
 
   const prodMap = new Map<string, any>();
-  (productsRes.data || []).forEach((p: any) => {
+  (productsData || []).forEach((p: any) => {
     const pId      = norm(p['PRODUCT ID']);
     const pBarcode = norm(p['PRODUCT BARCODE']);
     if (pId)                     prodMap.set(pId, p);
