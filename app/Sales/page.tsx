@@ -520,52 +520,52 @@ export default function SalesPage() {
     return (
       <div className="relative w-full">
         {visitedTabs.has('sales-overview') && (
-          <div className={activeTab === 'sales-overview' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-overview' ? 'block' : 'hidden'}>
             <SalesOverviewTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-top10') && (
-          <div className={activeTab === 'sales-top10' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-top10' ? 'block' : 'hidden'}>
             <SalesTop10Tab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-customers') && (
-          <div className={activeTab === 'sales-customers' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-customers' ? 'block' : 'hidden'}>
             <SalesCustomersTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-customers-comparison') && (
-          <div className={activeTab === 'sales-customers-comparison' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-customers-comparison' ? 'block' : 'hidden'}>
             <SalesCustomersComparisonTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-inactive-customers') && (
-          <div className={activeTab === 'sales-inactive-customers' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-inactive-customers' ? 'block' : 'hidden'}>
             <SalesInactiveCustomersTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-statistics') && (
-          <div className={activeTab === 'sales-statistics' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-statistics' ? 'block' : 'hidden'}>
             <SalesStatisticsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-daily-sales') && (
-          <div className={activeTab === 'sales-daily-sales' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-daily-sales' ? 'block' : 'hidden'}>
             <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={currentUser?.name || 'ADMIN'} showCosts={showCosts} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-products') && (
-          <div className={activeTab === 'sales-products' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-products' ? 'block' : 'hidden'}>
             <SalesProductsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-categories') && (
-          <div className={activeTab === 'sales-categories' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-categories' ? 'block' : 'hidden'}>
             <SalesCategoriesTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-download-form') && (
-          <div className={activeTab === 'sales-download-form' ? 'block animate-in fade-in' : 'hidden'}>
+          <div className={activeTab === 'sales-download-form' ? 'block' : 'hidden'}>
             <SalesStockReportTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
