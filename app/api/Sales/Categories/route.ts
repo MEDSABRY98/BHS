@@ -1,5 +1,5 @@
 ﻿import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/lib/MappingCache';
+import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
 import { getSalesDataServer } from '@/lib/SalesCache';
 
 export async function POST(request: Request) {
@@ -11,7 +11,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
     }
 
-        // Mapping (memory cache — no DB call after first request)
+    // Mapping (memory cache — no DB call after first request)
     const mappingMap = userId ? await getMappingServer(userId) : new Map();
     const augmentedData = mappingMap.size > 0
       ? rawData.map((item: any) => applyMapping(item, mappingMap))
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
 
       existing.totalAmount += Number(item.amount) || 0;
       existing.totalQty += Number(item.qty) || 0;
-      
+
       const customerKey = item.customerId || item.customerName;
       if (customerKey) {
         existing.customerIds.add(customerKey);

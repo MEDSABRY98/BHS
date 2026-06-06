@@ -38,7 +38,7 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
     const fetchOverview = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/Sales/Overview', {
+        const res = await fetch('/api/Sales/overview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, filters }),

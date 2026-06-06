@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { invalidateMappingCache } from '@/lib/MappingCache';
+import { invalidateMappingCache } from '@/lib/SalesMappingCache';
 
 export async function POST(request: Request) {
   try {
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
       const { error: insertError } = await bhs_supabas
         .from('web_Sales_DB_CUSTOMERSMAPPING')
         .insert(chunk);
-        
+
       if (insertError) {
         console.error('Error inserting mapping chunk:', insertError);
         throw insertError;

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/lib/MappingCache';
+import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
 import { getSalesDataServer } from '@/lib/SalesCache';
 
 export async function POST(request: Request) {
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
     const salesReps = new Set<string>();
     const productTags = new Set<string>();
     const years = new Set<string>();
-    
+
     let latestDate = 0;
 
     rawData.forEach(item => {
@@ -32,13 +32,13 @@ export async function POST(request: Request) {
       const market = mapping?.["MARKET"] || item.market;
       const merchandiser = mapping?.["MERCHANDISER"] || item.merchandiser;
       const salesRep = mapping?.["SALES_REP"] || item.salesRep;
-      
+
       if (area) areas.add(area);
       if (market) markets.add(market);
       if (merchandiser) merchandisers.add(merchandiser);
       if (salesRep) salesReps.add(salesRep);
       if (item.productTag) productTags.add(item.productTag);
-      
+
       if (item.invoiceDate) {
         const d = new Date(item.invoiceDate);
         if (!isNaN(d.getTime())) {
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       }
     });
 
-    const lastUpdated = latestDate > 0 
+    const lastUpdated = latestDate > 0
       ? new Date(latestDate).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })
       : null;
 

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSalesDataServer } from '@/lib/SalesCache';
-import { getMappingServer, applyMapping } from '@/lib/MappingCache';
+import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
 
 export const maxDuration = 60;
 
@@ -83,7 +83,7 @@ export async function POST(request: Request) {
       if (dateFrom || dateTo) {
         const fromTime = dateFrom ? new Date(dateFrom).getTime() : -Infinity;
         const toTime = dateTo ? new Date(dateTo).setHours(23, 59, 59, 999) : Infinity;
-        
+
         globallyFilteredData = globallyFilteredData.filter(item => {
           if (isNaN(item.time)) return false;
           if (item.time < fromTime) return false;
@@ -222,7 +222,7 @@ export async function POST(request: Request) {
       else if (amt < 0) { ex.grvAmount += Math.abs(amt); ex.grvNumbers.add(invId); }
       monthMapTable.set(mKey, ex);
     });
-    
+
     const sortedMonths = Array.from(monthMapTable.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
     const monthlyTableData = sortedMonths.map((item, index) => {
       const prev = index < sortedMonths.length - 1 ? sortedMonths[index + 1] : null;

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/lib/MappingCache';
+import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
 import { getSalesDataServer } from '@/lib/SalesCache';
 
 const calculateMode = (numbers: number[]): number => {
@@ -67,10 +67,10 @@ export async function POST(request: Request) {
       customerId: string;
       latestName: string;
       allNames: Set<string>;
-      products: Map<string, { 
-        barcode: string; 
-        product: string; 
-        prices: number[]; 
+      products: Map<string, {
+        barcode: string;
+        product: string;
+        prices: number[];
         cost: number;
         allNames: Set<string>;
         allBarcodes: Set<string>;
@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       let price = itemAny.price || itemAny.unitPrice || 0;
       if (!price && itemAny.amount && itemAny.qty) price = itemAny.amount / itemAny.qty;
       const pNum = parseFloat(price);
-      
+
       const custId = item.customerId || item.customerMainName || item.customerName || 'Unknown';
       const custName = item.customerMainName || item.customerName || 'Unknown';
       const productKey = item.productId || item.barcode || item.product || 'Unknown';

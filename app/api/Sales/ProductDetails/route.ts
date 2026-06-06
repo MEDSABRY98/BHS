@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/lib/MappingCache';
+import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
 import { getSalesDataServer } from '@/lib/SalesCache';
 
 export async function POST(request: Request) {
