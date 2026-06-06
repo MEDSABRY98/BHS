@@ -1,5 +1,4 @@
 'use client';
-import { fetchWithCache } from '@/lib/fetchWithCache';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -48,10 +47,10 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
     const fetchDailySales = async () => {
       setLoading(true);
       try {
-        const response = await fetchWithCache('/api/Sales/DailySales', {
+        const response = await fetch('/api/Sales/DailySales', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, invoiceTypeFilter, userId }, { filters, userId, refreshTrigger })
+          body: JSON.stringify({ filters, invoiceTypeFilter, userId })
         });
         if (!response.ok) throw new Error('Failed to fetch daily sales data');
         const result = await response.json();

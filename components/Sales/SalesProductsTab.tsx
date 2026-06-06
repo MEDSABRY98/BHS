@@ -1,5 +1,4 @@
 'use client';
-import { fetchWithCache } from '@/lib/fetchWithCache';
 
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -63,10 +62,10 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
     const fetchProducts = async () => {
       setLoading(true);
       try {
-        const response = await fetchWithCache('/api/Sales/Products', {
+        const response = await fetch('/api/Sales/Products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId }, { filters, userId, refreshTrigger })
+          body: JSON.stringify({ filters, userId })
         });
         if (!response.ok) throw new Error('Failed to fetch products data');
         const result = await response.json();

@@ -1,5 +1,4 @@
 'use client';
-import { fetchWithCache } from '@/lib/fetchWithCache';
 
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -35,10 +34,10 @@ export default function SalesTop10Tab({ filters, userId, refreshTrigger }: Sales
     const fetchTop10Data = async () => {
       setLoading(true);
       try {
-        const response = await fetchWithCache('/api/Sales/Top10', {
+        const response = await fetch('/api/Sales/Top10', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId, filters }, { filters, userId, refreshTrigger })
+          body: JSON.stringify({ userId, filters })
         });
         if (!response.ok) throw new Error('Failed to fetch Top 10 data');
         const data = await response.json();
