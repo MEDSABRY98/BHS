@@ -24,16 +24,33 @@ export async function POST(request: Request) {
       : rawData;
 
 
-    // 4. Apply Global Filters
-    let globallyFilteredData = augmentedData;
-    let geographyFilteredData = augmentedData; // Used for "all months" chart ignoring time
+    // 4. Pre-parse dates and Apply Global Filters
+    // Parsing dates is slow, so we do it once and cache the parsed values.
+    const augmentedWithDates = augmentedData.map(item => {
+      let parsedDate = null;
+      let time = NaN;
+      let yr = NaN;
+      let mn = NaN;
+      if (item.invoiceDate) {
+        parsedDate = new Date(item.invoiceDate);
+        time = parsedDate.getTime();
+        if (!isNaN(time)) {
+          yr = parsedDate.getFullYear();
+          mn = parsedDate.getMonth() + 1; // 1-indexed
+        }
+      }
+      return { ...item, parsedDate, time, yr, mn };
+    });
+
+    let globallyFilteredData = augmentedWithDates;
+    let geographyFilteredData = augmentedWithDates; // Used for "all months" chart ignoring time
 
     if (filters) {
       const { invoiceType, year, month, dateFrom, dateTo, area, market, merchandiser, salesRep, productTag } = filters;
 
       // Apply Invoice Type
       if (invoiceType && invoiceType !== 'all') {
-        augmentedData = augmentedData.filter(item => {
+        globallyFilteredData = globallyFilteredData.filter(item => {
           const num = item.invoiceNumber?.trim().toUpperCase() || '';
           if (invoiceType === 'sales') return num.startsWith('SAL');
           if (invoiceType === 'returns') return num.startsWith('RSAL');
@@ -41,7 +58,7 @@ export async function POST(request: Request) {
         });
       }
 
-      geographyFilteredData = [...augmentedData];
+      geographyFilteredData = [...globallyFilteredData];
 
       // Apply Geo Filters to geographyFilteredData
       if (productTag) geographyFilteredData = geographyFilteredData.filter(i => i.productTag === productTag);
@@ -55,33 +72,22 @@ export async function POST(request: Request) {
       // Apply Time Filters to globallyFilteredData
       if (year) {
         const yearNum = parseInt(year, 10);
-        globallyFilteredData = globallyFilteredData.filter(item => {
-          if (!item.invoiceDate) return false;
-          const d = new Date(item.invoiceDate);
-          return !isNaN(d.getTime()) && d.getFullYear() === yearNum;
-        });
+        globallyFilteredData = globallyFilteredData.filter(item => item.yr === yearNum);
       }
 
       if (month) {
         const monthNum = parseInt(month, 10);
-        globallyFilteredData = globallyFilteredData.filter(item => {
-          if (!item.invoiceDate) return false;
-          const d = new Date(item.invoiceDate);
-          return !isNaN(d.getTime()) && d.getMonth() + 1 === monthNum;
-        });
+        globallyFilteredData = globallyFilteredData.filter(item => item.mn === monthNum);
       }
 
       if (dateFrom || dateTo) {
+        const fromTime = dateFrom ? new Date(dateFrom).getTime() : -Infinity;
+        const toTime = dateTo ? new Date(dateTo).setHours(23, 59, 59, 999) : Infinity;
+        
         globallyFilteredData = globallyFilteredData.filter(item => {
-          if (!item.invoiceDate) return false;
-          const itemDate = new Date(item.invoiceDate);
-          if (isNaN(itemDate.getTime())) return false;
-          if (dateFrom && itemDate < new Date(dateFrom)) return false;
-          if (dateTo) {
-            const toDate = new Date(dateTo);
-            toDate.setHours(23, 59, 59, 999);
-            if (itemDate > toDate) return false;
-          }
+          if (isNaN(item.time)) return false;
+          if (item.time < fromTime) return false;
+          if (item.time > toTime) return false;
           return true;
         });
       }
@@ -97,16 +103,13 @@ export async function POST(request: Request) {
     const monthsSet = new Set<string>();
     const monthlyDataMap = new Map<string, { amount: number; qty: number }>();
     globallyFilteredData.forEach(item => {
-      if (item.invoiceDate) {
-        const date = new Date(item.invoiceDate);
-        if (!isNaN(date.getTime())) {
-          const mKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          monthsSet.add(mKey);
-          const ex = monthlyDataMap.get(mKey) || { amount: 0, qty: 0 };
-          ex.amount += Number(item.amount) || 0;
-          ex.qty += Number(item.qty) || 0;
-          monthlyDataMap.set(mKey, ex);
-        }
+      if (!isNaN(item.time)) {
+        const mKey = `${item.yr}-${String(item.mn).padStart(2, '0')}`;
+        monthsSet.add(mKey);
+        const ex = monthlyDataMap.get(mKey) || { amount: 0, qty: 0 };
+        ex.amount += Number(item.amount) || 0;
+        ex.qty += Number(item.qty) || 0;
+        monthlyDataMap.set(mKey, ex);
       }
     });
     const totalMonthsCount = monthsSet.size || 1;
@@ -125,10 +128,8 @@ export async function POST(request: Request) {
     // 6. Calculate Chart Data (Using geographyFilteredData so it ignores time filters)
     const monthMapChart = new Map<string, { amount: number; qty: number }>();
     geographyFilteredData.forEach(item => {
-      if (!item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (isNaN(item.time)) return;
+      const key = `${item.yr}-${String(item.mn).padStart(2, '0')}`;
       const ex = monthMapChart.get(key) || { amount: 0, qty: 0 };
       ex.amount += Number(item.amount) || 0;
       ex.qty += Number(item.qty) || 0;
@@ -174,10 +175,8 @@ export async function POST(request: Request) {
     // 7. Calculate Yearly Table
     const yearMap = new Map<string, any>();
     globallyFilteredData.forEach(item => {
-      if (!item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const yr = date.getFullYear().toString();
+      if (isNaN(item.time)) return;
+      const yr = item.yr.toString();
       const ex = yearMap.get(yr) || { year: yr, amount: 0, qty: 0, customerCount: new Set(), invoiceNumbers: new Set(), grvNumbers: new Set(), grossSales: 0, grvAmount: 0 };
       const amt = Number(item.amount) || 0;
       ex.amount += amt;
@@ -207,11 +206,9 @@ export async function POST(request: Request) {
     // 8. Calculate Monthly Table
     const monthMapTable = new Map<string, any>();
     globallyFilteredData.forEach(item => {
-      if (!item.invoiceDate) return;
-      const date = new Date(item.invoiceDate);
-      if (isNaN(date.getTime())) return;
-      const yr = date.getFullYear();
-      const mn = date.getMonth();
+      if (isNaN(item.time)) return;
+      const yr = item.yr;
+      const mn = item.mn - 1; // 0-indexed for array
       const mKey = `${yr}-${String(mn + 1).padStart(2, '0')}`;
       const mLabel = `${monthNames[mn]} ${String(yr).slice(-2)}`;
 
@@ -225,11 +222,17 @@ export async function POST(request: Request) {
       else if (amt < 0) { ex.grvAmount += Math.abs(amt); ex.grvNumbers.add(invId); }
       monthMapTable.set(mKey, ex);
     });
+    
     const sortedMonths = Array.from(monthMapTable.values()).sort((a, b) => b.monthKey.localeCompare(a.monthKey));
     const monthlyTableData = sortedMonths.map((item, index) => {
       const prev = index < sortedMonths.length - 1 ? sortedMonths[index + 1] : null;
       return {
-        ...item,
+        month: item.month,
+        monthKey: item.monthKey,
+        amount: item.amount,
+        qty: item.qty,
+        grossSales: item.grossSales,
+        grvAmount: item.grvAmount,
         customerCount: item.customerCount.size,
         salesCount: item.invoiceNumbers.size,
         grvCount: item.grvNumbers.size,
