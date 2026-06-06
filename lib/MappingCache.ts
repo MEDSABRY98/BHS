@@ -6,20 +6,17 @@ import { bhs_supabas } from '@/lib/supabase';
 //  across ALL Sales API routes (Overview, Products, Customers…)
 // ─────────────────────────────────────────────────────────────
 
-const MAPPING_TTL = 1000 * 60 * 60; // 1 hour
-
-// { userId → { map: Map<customerId, mapping>, ts: number } }
-const cache = new Map<string, { map: Map<string, any>; ts: number }>();
+// { userId → { map: Map<customerId, mapping> } }
+const cache = new Map<string, { map: Map<string, any> }>();
 
 /**
  * Returns the customer mapping Map for a given userId.
- * First call fetches from DB; subsequent calls within TTL return from memory.
+ * First call fetches from DB; subsequent calls return from memory indefinitely until invalidated.
  */
 export async function getMappingServer(userId: string): Promise<Map<string, any>> {
-  const now = Date.now();
   const cached = cache.get(userId);
 
-  if (cached && now - cached.ts < MAPPING_TTL) {
+  if (cached) {
     return cached.map;
   }
 
@@ -34,7 +31,7 @@ export async function getMappingServer(userId: string): Promise<Map<string, any>
     data.forEach((m: any) => mappingMap.set(m['CUSTOMER ID'], m));
   }
 
-  cache.set(userId, { map: mappingMap, ts: now });
+  cache.set(userId, { map: mappingMap });
   console.log(`🗺️ Mapping cached for "${userId}": ${mappingMap.size} entries`);
 
   return mappingMap;

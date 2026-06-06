@@ -5,21 +5,19 @@ import { bhs_supabas } from '@/lib/supabase';
 // ─────────────────────────────────────────────────────────────
 const STORAGE_BUCKET = 'sales-cache';
 const STORAGE_FILE   = 'sales_cache.json';
-const MEMORY_TTL     = 1000 * 60 * 60 * 12; // 12 hours
 
 // ─────────────────────────────────────────────────────────────
 //  MEMORY LAYER (warm Vercel instances)
 // ─────────────────────────────────────────────────────────────
 let memoryCache: any[] | null = null;
-let memoryTimestamp = 0;
 
 // ─────────────────────────────────────────────────────────────
 //  PUBLIC: Read cache (used by every API route)
 //  Priority: Memory → Storage JSON → DB fallback
 // ─────────────────────────────────────────────────────────────
 export async function getSalesDataServer(): Promise<any[]> {
-  // 1. Memory hit (fastest — same warm Vercel instance)
-  if (memoryCache && (Date.now() - memoryTimestamp < MEMORY_TTL)) {
+  // 1. Memory hit (fastest — same warm Vercel instance, kept indefinitely)
+  if (memoryCache) {
     return memoryCache;
   }
 
@@ -36,7 +34,6 @@ export async function getSalesDataServer(): Promise<any[]> {
       if (Array.isArray(parsed) && parsed.length > 0) {
         // Warm memory for next requests in this instance
         memoryCache = parsed;
-        memoryTimestamp = Date.now();
         console.log(`📦 Storage cache hit: ${parsed.length} rows`);
         return memoryCache;
       }
@@ -49,7 +46,6 @@ export async function getSalesDataServer(): Promise<any[]> {
   console.log('🔄 DB fallback: building cache from scratch...');
   const built = await buildFromDB();
   memoryCache = built;
-  memoryTimestamp = Date.now();
   return memoryCache;
 }
 
@@ -73,7 +69,6 @@ export async function buildAndSaveCache(): Promise<{ rows: number }> {
 
   // Update memory immediately
   memoryCache = data;
-  memoryTimestamp = Date.now();
 
   console.log(`✅ Cache built & saved: ${data.length} rows → ${STORAGE_BUCKET}/${STORAGE_FILE}`);
   return { rows: data.length };
@@ -84,7 +79,6 @@ export async function buildAndSaveCache(): Promise<{ rows: number }> {
 // ─────────────────────────────────────────────────────────────
 export function invalidateMemoryCache() {
   memoryCache = null;
-  memoryTimestamp = 0;
 }
 
 // ─────────────────────────────────────────────────────────────
