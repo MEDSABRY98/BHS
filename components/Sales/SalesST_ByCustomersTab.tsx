@@ -148,8 +148,8 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
   };
 
   if (loading) return (
-    <div className="flex items-center justify-center h-[200px]">
-      <Loader2 className="w-8 h-8 animate-spin text-green-600" />
+    <div className="flex items-start justify-center pt-24 min-h-[400px]">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
     </div>
   );
 
