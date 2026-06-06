@@ -262,6 +262,50 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
     }
   };
 
+  const handleDirectCancel = async () => {
+    setIsSaving(true);
+    try {
+      let userId = currentUserProfile?.ID;
+      if (!userId) {
+        const mainUserStr = localStorage.getItem('currentUser');
+        if (mainUserStr) {
+          const parsed = JSON.parse(mainUserStr);
+          const name = parsed.name || parsed.NAME;
+          if (name) {
+            const cleanName = name.trim();
+            const { data } = await bhs_supabas
+              .from('bhs_USERS')
+              .select('*')
+              .ilike('NAME', cleanName)
+              .maybeSingle();
+            userId = data?.ID || parsed.id || parsed.ID;
+          }
+        }
+      }
+
+      const { error } = await bhs_supabas
+        .from('app_lpos_DRIVERS')
+        .update({
+          STATUS: 'Delivered',
+          DELIVERY_TIME: new Date().toISOString(),
+          IS_CUSTOMER_SIGNED: false,
+          OFFICE_HANDOVER_ID: userId || 'R-0001',
+          OFFICE_HANDOVER_STATUS: 'Confirmed',
+          OFFICE_HANDOVER_TIME: new Date().toISOString(),
+          TRACKING_NOTES: 'SYSTEM_CANCELLED'
+        })
+        .eq('ID', deliveryData.ID);
+
+      if (error) throw error;
+      await fetchData();
+    } catch (err) {
+      alert('Failed to update status directly');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[300px] gap-4">
@@ -527,20 +571,30 @@ export default function InvoicesStatusTab({ orderId }: InvoicesStatusTabProps) {
               <Truck className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h4 className="text-black font-black text-base">Direct Office Receipt</h4>
+              <h4 className="text-black font-black text-base">Direct Office Actions</h4>
               <p className="text-gray-500 text-xs mt-1 font-medium">
-                Bypass driver workflow and instantly mark this invoice as fully received and confirmed by the office.
+                Bypass driver workflow to instantly confirm receipt or directly cancel this invoice from the office.
               </p>
             </div>
           </div>
-          <button
-            onClick={handleDirectOfficeReceipt}
-            disabled={isSaving}
-            className="w-full md:w-auto px-8 py-4 bg-black text-[#D4AF37] rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-gray-900 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap"
-          >
-            {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-            Direct Confirm
-          </button>
+          <div className="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto mt-4 md:mt-0">
+            <button
+              onClick={handleDirectCancel}
+              disabled={isSaving}
+              className="w-full md:w-auto px-8 py-4 bg-red-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl shadow-red-500/20 hover:bg-red-600 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <XCircle className="w-5 h-5" />}
+              Direct Cancel
+            </button>
+            <button
+              onClick={handleDirectOfficeReceipt}
+              disabled={isSaving}
+              className="w-full md:w-auto px-8 py-4 bg-black text-[#D4AF37] rounded-2xl font-black text-xs uppercase tracking-widest shadow-xl hover:bg-gray-900 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 whitespace-nowrap"
+            >
+              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+              Direct Confirm
+            </button>
+          </div>
         </div>
       )}
     </div>
