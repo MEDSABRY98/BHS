@@ -1,4 +1,5 @@
 'use client';
+import { fetchWithCache } from '@/lib/fetchWithCache';
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -123,10 +124,10 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
     const fetchInactiveCustomers = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/InactiveCustomers', {
+        const response = await fetchWithCache('/api/Sales/InactiveCustomers', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId, days, minAmount, refreshTrigger })
+          body: JSON.stringify({ filters, userId, days, minAmount, refreshTrigger }, { filters, userId, refreshTrigger })
         });
         if (!response.ok) throw new Error('Failed to fetch inactive customers');
         const result = await response.json();
@@ -201,11 +202,11 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
     setExcludingId(customerId);
 
     try {
-      const resp = await fetch('/api/InactiveCustomer', {
+      const resp = await fetchWithCache('/api/InactiveCustomer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId, customerName }),
-      });
+      }, { filters, userId, refreshTrigger });
       if (resp.ok) {
         setExcludedCustomerIds(prev => new Set(prev).add(customerId));
         setExcludedCustomersData(prev => [...prev, { customerId, customerName }]);
@@ -216,7 +217,7 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
   const handleRestoreCustomer = async (customerId: string) => {
     setRestoringId(customerId);
     try {
-      const resp = await fetch(`/api/InactiveCustomer?customerId=${encodeURIComponent(customerId)}`, { method: 'DELETE' });
+      const resp = await fetchWithCache(`/api/InactiveCustomer?customerId=${encodeURIComponent(customerId)}`, { method: 'DELETE' }, { filters, userId, refreshTrigger });
       if (resp.ok) {
         setExcludedCustomerIds(prev => { const n = new Set(prev); n.delete(customerId); return n; });
         setExcludedCustomersData(prev => prev.filter(c => c.customerId !== customerId));

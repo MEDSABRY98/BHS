@@ -1,4 +1,5 @@
 'use client';
+import { fetchWithCache } from '@/lib/fetchWithCache';
 
 import { useState, useMemo, useEffect, memo } from 'react';
 import { SalesInvoice } from '@/lib/googleSheets';
@@ -98,10 +99,10 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
     const fetchComparison = async () => {
       setLoading(true);
       try {
-        const response = await fetch('/api/Sales/CustomersComparison', {
+        const response = await fetchWithCache('/api/Sales/CustomersComparison', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ filters, userId, currentYear, prevYear, selectedMonth })
+          body: JSON.stringify({ filters, userId, currentYear, prevYear, selectedMonth }, { filters, userId, refreshTrigger })
         });
         if (!response.ok) throw new Error('Failed to fetch customers comparison');
         const result = await response.json();

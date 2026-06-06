@@ -1,4 +1,5 @@
 'use client';
+import { fetchWithCache } from '@/lib/fetchWithCache';
 
 import { useState, useEffect } from 'react';
 import { TrendingUp, Package, Users, DollarSign, BarChart3, Calendar, MapPin, ShoppingBag, UserCircle, ChevronDown, Download, Filter, X, FileSpreadsheet } from 'lucide-react';
@@ -38,11 +39,11 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
     const fetchOverview = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/Sales/Overview', {
+        const res = await fetchWithCache('/api/Sales/Overview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ userId, filters }),
-        });
+        }, { filters, userId, refreshTrigger });
         
         if (!res.ok) throw new Error('Failed to fetch');
         const json = await res.json();
