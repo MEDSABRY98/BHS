@@ -10,7 +10,7 @@ export async function generateSalesPricelistPDF(
     price?: number;
   }>,
   returnBlob: boolean = false,
-  pricingStrategy: 'most' | 'last' = 'most'
+  pricingStrategy: 'most' | 'max' = 'most'
 ) {
   const jsPDFModule = await import('jspdf');
   const jsPDF = jsPDFModule.default;
@@ -27,7 +27,7 @@ export async function generateSalesPricelistPDF(
   doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 8;
   doc.setFontSize(12); doc.setTextColor(100, 100, 100); 
-  const subtitle = `Price List (${pricingStrategy === 'last' ? 'Last Price' : 'Most Price'})`;
+  const subtitle = `Price List (${pricingStrategy === 'max' ? 'Max Price' : 'Most Price'})`;
   doc.text(subtitle, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 8;
 
