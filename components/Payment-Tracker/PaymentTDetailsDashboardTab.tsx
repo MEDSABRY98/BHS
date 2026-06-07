@@ -113,7 +113,7 @@ export default function PaymentTDetailsDashboardTab({
   const periods = [
     {
       title: 'CURRENT',
-      range: `${formatDate(startDate)} – ${formatDate(endDate)} (${curDays} Days)`,
+      range: `${formatDate(startDate as Date)} – ${formatDate(endDate as Date)} (${curDays} Days)`,
       amount: curMet.total,
       colors: {
         bg: 'bg-[#f0f6ff]',
@@ -124,18 +124,18 @@ export default function PaymentTDetailsDashboardTab({
     },
     {
       title: 'PREVIOUS',
-      range: `${formatDate(prevStartDate)} – ${formatDate(prevEndDate)} (${prevDays} Days)`,
+      range: `${prevStartDate ? formatDate(prevStartDate) : ''} – ${prevEndDate ? formatDate(prevEndDate) : ''} (${prevDays} Days)`,
       amount: prevMet.total,
       colors: {
         bg: 'bg-[#f7f7f7]',
-        border: 'border-[#bbbbbb]',
-        text: 'text-[#888888]',
-        accent: 'bg-[#888888]'
+        border: 'border-[#a1a1aa]',
+        text: 'text-[#52525b]',
+        accent: 'bg-[#a1a1aa]'
       }
     },
     {
       title: 'LAST YEAR',
-      range: `${formatDate(lyStartDate)} – ${formatDate(lyEndDate)} (${lyDays} Days)`,
+      range: `${lyStartDate ? formatDate(lyStartDate) : ''} – ${lyEndDate ? formatDate(lyEndDate) : ''} (${lyDays} Days)`,
       amount: lyMet.total,
       colors: {
         bg: 'bg-[#f2fbec]',
