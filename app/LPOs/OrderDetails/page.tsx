@@ -27,10 +27,10 @@ import {
 import { ConfirmModal } from '../Components/ConfirmModal';
 import { usePermissions } from '../Hooks/usePermissions';
 import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
-import OrderItemsTab from '../Orders/Components/OrderItemsTab';
-import OrderPreparationTab from '../Orders/Components/OrderPreparationTab';
-import OrderDeliveryTab from '../Orders/Components/OrderDeliveryTab';
-import InvoicesStatusTab from '../Orders/Components/InvoicesStatusTab';
+import OrderItemsTab from './Components/OrderItemsTab';
+
+import OrderDeliveryTab from './Components/OrderDeliveryTab';
+import InvoicesStatusTab from './Components/InvoicesStatusTab';
 import NoData from '@/components/01-Unified/NoDataTab';
 import * as XLSX from 'xlsx';
 
@@ -454,16 +454,7 @@ function OrderDetailsPageContent() {
             Order Items
           </button>
         )}
-        <button
-          onClick={() => setActiveTab('PREPARATION')}
-          className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'PREPARATION'
-            ? 'bg-black text-[#D4AF37] border-[#D4AF37]/40 shadow-xl shadow-black/10'
-            : 'text-gray-400 border-transparent hover:text-black hover:bg-white'
-            }`}
-        >
-          <Loader2 className={`w-4 h-4 ${activeTab === 'PREPARATION' ? 'animate-spin' : ''}`} />
-          Preparation
-        </button>
+
         <button
           onClick={() => setActiveTab('DELIVERY')}
           className={`flex-1 px-6 py-4 rounded-3xl font-black text-xs uppercase tracking-[0.1em] transition-all flex items-center justify-center gap-2 border ${activeTab === 'DELIVERY'
@@ -663,13 +654,7 @@ function OrderDetailsPageContent() {
           />
         )}
 
-        {activeTab === 'PREPARATION' && (
-          !isTabsEnabled ? (
-            <NoData title="ORDER NOT APPROVED" />
-          ) : (
-            <OrderPreparationTab orderId={order.ID} />
-          )
-        )}
+
 
         {activeTab === 'DELIVERY' && (
           !isTabsEnabled ? (

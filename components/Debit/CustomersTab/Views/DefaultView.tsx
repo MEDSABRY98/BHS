@@ -85,176 +85,176 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 
       <div className="space-y-3 mb-6">
         {table.getRowModel().rows.map((row, index) => {
-            const customer = row.original;
-            const netDebt = customer.netDebt;
-            const totalDebit = customer.totalDebit;
-            const collectionRate = totalDebit > 0 ? ((customer.totalCredit / totalDebit) * 100) : 0;
-            const creditDenom = customer.totalCredit || 0;
-            const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
-            const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
-            const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
-            const rating = calculateDebtRating(customer, closedCustomers);
-            const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
-            const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
-            const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
+          const customer = row.original;
+          const netDebt = customer.netDebt;
+          const totalDebit = customer.totalDebit;
+          const collectionRate = totalDebit > 0 ? ((customer.totalCredit / totalDebit) * 100) : 0;
+          const creditDenom = customer.totalCredit || 0;
+          const payRate = creditDenom > 0 ? ((customer.creditPayments || 0) / creditDenom * 100) : 0;
+          const returnRate = creditDenom > 0 ? ((customer.creditReturns || 0) / creditDenom * 100) : 0;
+          const discountRate = creditDenom > 0 ? ((customer.creditDiscounts || 0) / creditDenom * 100) : 0;
+          const rating = calculateDebtRating(customer, closedCustomers);
+          const ratingColor = rating === 'Good' ? 'from-emerald-500 to-green-600' : rating === 'Medium' ? 'from-amber-500 to-yellow-600' : 'from-red-500 to-rose-600';
+          const ratingBg = rating === 'Good' ? 'bg-emerald-50 border-emerald-200' : rating === 'Medium' ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200';
+          const ratingText = rating === 'Good' ? 'text-emerald-700' : rating === 'Medium' ? 'text-amber-700' : 'text-red-700';
 
-            return (
-              <div
-                key={row.id}
-                className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
-              >
-                <div className="p-5">
-                  <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
-                    <div className="md:col-span-3">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-black text-slate-400 min-w-[24px]">#{index + 1}</span>
-                        <input
-                          type="checkbox"
-                          checked={selectedCustomersForDownload.has(customer.customerName)}
-                          onChange={() => toggleCustomerSelection(customer.customerName)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
-                        />
-                        <button
-                          onClick={() => setSelectedCustomer(customer.customerName)}
-                          className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
-                        >
-                          {customer.customerName}
-                        </button>
-                        <button
-                          onClick={async (e) => {
-                            e.stopPropagation();
-                            const buttonEl = (e.currentTarget as HTMLButtonElement | null);
-                            const originalTitle = buttonEl?.title || 'Copy customer name';
-                            const success = await copyToClipboard(customer.customerName);
-                            if (success && buttonEl) {
-                              buttonEl.title = 'Copied!';
-                              setTimeout(() => { buttonEl.title = originalTitle; }, 2000);
-                            }
-                          }}
-                          className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0 ml-auto"
-                          title="Copy customer name"
-                        >
-                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                          <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-1 hidden md:flex items-center justify-center">
-                      <span className="text-sm font-semibold text-gray-700 text-center">
-                        {(() => {
-                          const val = customer.salesReps;
-                          if (val && val instanceof Set && val.size > 0) return Array.from(val).join(', ');
-                          if (Array.isArray(val) && val.length > 0) return val.join(', ');
-                          return '-';
-                        })()}
-                      </span>
-                    </div>
-
-                    <div className="md:col-span-1">
+          return (
+            <div
+              key={row.id}
+              className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:border-blue-300 overflow-hidden group"
+            >
+              <div className="p-5">
+                <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
+                  <div className="md:col-span-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-400 min-w-[24px]">#{index + 1}</span>
+                      <input
+                        type="checkbox"
+                        checked={selectedCustomersForDownload.has(customer.customerName)}
+                        onChange={() => toggleCustomerSelection(customer.customerName)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 cursor-pointer shrink-0"
+                      />
                       <button
-                        onClick={() => setSelectedCustomerForMonths(customer.customerName)}
-                        className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0 ? 'text-red-600 hover:text-red-700' : netDebt < 0 ? 'text-green-600 hover:text-green-700' : 'text-gray-600 hover:text-gray-700'}`}
-                        title="Click to view monthly debt breakdown"
+                        onClick={() => setSelectedCustomer(customer.customerName)}
+                        className="text-lg font-bold text-gray-900 hover:text-blue-600 transition-colors text-left flex-1 group-hover:underline"
                       >
-                        {netDebt.toLocaleString('en-US')}
+                        {customer.customerName}
+                      </button>
+                      <button
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          const buttonEl = (e.currentTarget as HTMLButtonElement | null);
+                          const originalTitle = buttonEl?.title || 'Copy customer name';
+                          const success = await copyToClipboard(customer.customerName);
+                          if (success && buttonEl) {
+                            buttonEl.title = 'Copied!';
+                            setTimeout(() => { buttonEl.title = originalTitle; }, 2000);
+                          }
+                        }}
+                        className="flex flex-col gap-0.5 p-1 hover:bg-gray-100 rounded transition-colors shrink-0 ml-auto"
+                        title="Copy customer name"
+                      >
+                        <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
+                        <div className="w-3 h-3 border border-gray-600 rounded-sm"></div>
                       </button>
                     </div>
+                  </div>
 
-                    <div className="md:col-span-1">
-                      {mode === 'OB_POS' || mode === 'OB_NEG' ? (
-                        <div className="text-xl font-bold transition-colors w-full text-center">
-                          <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {(customer.openOBAmount || 0).toLocaleString('en-US')}
-                          </span>
-                        </div>
-                      ) : mode === 'DEBIT' ? (
-                        customer.netDebt < 0 ? (
-                          <div className="text-center"><span className="text-gray-500 text-xl font-bold">-</span></div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              if (isDateFilterActive) return;
-                              const stats = filteredData.map(c => {
-                                const denom = c.totalCredit || 0;
-                                return {
-                                  name: c.customerName,
-                                  collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
-                                  payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
-                                  returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
-                                  discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
-                                };
-                              });
-                              const getRank = (metric: keyof typeof stats[0], val: number) => {
-                                const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
-                                return sorted.findIndex(s => s.name === customer.customerName) + 1;
-                              };
-                              setSelectedCollectionStats({
-                                customer,
-                                ranks: {
-                                  collRank: getRank('collRate', collectionRate),
-                                  payRank: getRank('payRate', payRate),
-                                  returnRank: getRank('returnRate', returnRate),
-                                  discountRank: getRank('discountRate', discountRate),
-                                  totalCount: filteredData.length
-                                },
-                                rates: { payRate, returnRate, discountRate }
-                              });
-                            }}
-                            className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${isDateFilterActive ? 'cursor-default' : 'hover:bg-gray-50 group cursor-pointer'}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <span className={`text-xl font-bold ${collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
-                                {collectionRate.toFixed(1)}%
-                              </span>
-                              {!isDateFilterActive && (
-                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                              )}
-                              {!isDateFilterActive && (
-                                <span className="text-xs text-gray-500">
-                                  ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
-                                </span>
-                              )}
-                            </div>
-                          </button>
-                        )
-                      ) : (
-                        <div className="text-center text-gray-400 text-sm italic">N/A</div>
-                      )}
-                    </div>
+                  <div className="md:col-span-1 hidden md:flex items-center justify-center">
+                    <span className="text-sm font-semibold text-gray-700 text-center">
+                      {(() => {
+                        const val = customer.salesReps;
+                        if (val && val instanceof Set && val.size > 0) return Array.from(val).join(', ');
+                        if (Array.isArray(val) && val.length > 0) return val.join(', ');
+                        return '-';
+                      })()}
+                    </span>
+                  </div>
 
-                    <div className="md:col-span-1 flex items-center justify-center">
-                      <div className="text-center">
-                        <span className="text-lg font-bold text-gray-700">
-                          {customer.avgPaymentInterval ? `${customer.avgPaymentInterval.toFixed(1)} days` : '-'}
+                  <div className="md:col-span-1">
+                    <button
+                      onClick={() => setSelectedCustomerForMonths(customer.customerName)}
+                      className={`text-xl font-bold transition-colors w-full text-center ${netDebt > 0 ? 'text-red-600 hover:text-red-700' : netDebt < 0 ? 'text-green-600 hover:text-green-700' : 'text-gray-600 hover:text-gray-700'}`}
+                      title="Click to view monthly debt breakdown"
+                    >
+                      {netDebt.toLocaleString('en-US')}
+                    </button>
+                  </div>
+
+                  <div className="md:col-span-1">
+                    {mode === 'OB_POS' || mode === 'OB_NEG' ? (
+                      <div className="text-xl font-bold transition-colors w-full text-center">
+                        <span className={`${(customer.openOBAmount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          {(customer.openOBAmount || 0).toLocaleString('en-US')}
                         </span>
                       </div>
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <div className="flex justify-center">
+                    ) : mode === 'DEBIT' ? (
+                      customer.netDebt < 0 ? (
+                        <div className="text-center"><span className="text-gray-500 text-xl font-bold">-</span></div>
+                      ) : (
                         <button
                           onClick={() => {
-                            const breakdown = calculateDebtRating(customer, closedCustomers, true);
-                            setSelectedRatingCustomer(customer);
-                            setRatingBreakdown(breakdown);
+                            if (isDateFilterActive) return;
+                            const stats = filteredData.map(c => {
+                              const denom = c.totalCredit || 0;
+                              return {
+                                name: c.customerName,
+                                collRate: c.totalDebit > 0 ? (c.totalCredit / c.totalDebit * 100) : 0,
+                                payRate: denom > 0 ? ((c.creditPayments || 0) / denom * 100) : 0,
+                                returnRate: denom > 0 ? ((c.creditReturns || 0) / denom * 100) : 0,
+                                discountRate: denom > 0 ? ((c.creditDiscounts || 0) / denom * 100) : 0,
+                              };
+                            });
+                            const getRank = (metric: keyof typeof stats[0], val: number) => {
+                              const sorted = [...stats].sort((a, b) => Number(b[metric]) - Number(a[metric]));
+                              return sorted.findIndex(s => s.name === customer.customerName) + 1;
+                            };
+                            setSelectedCollectionStats({
+                              customer,
+                              ranks: {
+                                collRank: getRank('collRate', collectionRate),
+                                payRank: getRank('payRate', payRate),
+                                returnRank: getRank('returnRate', returnRate),
+                                discountRank: getRank('discountRate', discountRate),
+                                totalCount: filteredData.length
+                              },
+                              rates: { payRate, returnRate, discountRate }
+                            });
                           }}
-                          className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
-                          title="اضغط لعرض تفاصيل التقييم"
+                          className={`flex flex-col items-center gap-2 w-full rounded-lg p-1 transition-colors ${isDateFilterActive ? 'cursor-default' : 'hover:bg-gray-50 group cursor-pointer'}`}
                         >
-                          <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
-                          {rating}
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xl font-bold ${collectionRate >= 80 ? 'text-green-600' : collectionRate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                              {collectionRate.toFixed(1)}%
+                            </span>
+                            {!isDateFilterActive && (
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-400 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            )}
+                            {!isDateFilterActive && (
+                              <span className="text-xs text-gray-500">
+                                ({payRate.toFixed(0)}%, {returnRate.toFixed(0)}%, {discountRate.toFixed(0)}%)
+                              </span>
+                            )}
+                          </div>
                         </button>
-                      </div>
+                      )
+                    ) : (
+                      <div className="text-center text-gray-400 text-sm italic">N/A</div>
+                    )}
+                  </div>
+
+                  <div className="md:col-span-1 flex items-center justify-center">
+                    <div className="text-center">
+                      <span className="text-lg font-bold text-gray-700">
+                        {customer.avgPaymentInterval ? `${customer.avgPaymentInterval.toFixed(1)} days` : '-'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="md:col-span-1">
+                    <div className="flex justify-center">
+                      <button
+                        onClick={() => {
+                          const breakdown = calculateDebtRating(customer, closedCustomers, true);
+                          setSelectedRatingCustomer(customer);
+                          setRatingBreakdown(breakdown);
+                        }}
+                        className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${ratingText} ${ratingBg} border-2 transition-all hover:shadow-lg hover:scale-105 cursor-pointer`}
+                        title="اضغط لعرض تفاصيل التقييم"
+                      >
+                        <div className={`w-2 h-2 rounded-full bg-gradient-to-r ${ratingColor}`}></div>
+                        {rating}
+                      </button>
                     </div>
                   </div>
                 </div>
               </div>
-            );
-          })}
+            </div>
+          );
+        })}
       </div>
 
       <div className="bg-white rounded-xl border-2 border-gray-200 shadow-[0_4px_12px_rgba(0,0,0,0.08)] mt-6 overflow-hidden">

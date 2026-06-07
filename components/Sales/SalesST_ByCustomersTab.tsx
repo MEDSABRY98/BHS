@@ -54,22 +54,28 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
 
   useEffect(() => { setCurrentPage(1); }, [debouncedSearchQuery]);
 
-  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'last' = 'most') => {
+  const handleDownload = async (customerName: string, mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most') => {
     const customer = customersData.find(c => c.customer === customerName);
     if (!customer) return;
     try {
       setIsGenerating(true);
       setSelectedCustomerForPriceList(null);
       setSelectedCustomerForAnalysis(null);
-      const productsToPrint = customer.products.map((p: any) => ({
-        barcode: p.barcode,
-        product: p.product,
-        price: mode === 'pricelist' || mode === 'analysis'
-          ? (strategy === 'last' ? p.lastPrice : p.mostPrice)
-          : undefined,
-        avgPrice: mode === 'analysis' ? p.lastPrice : undefined,
-        costPrice: mode === 'analysis' ? p.cost : undefined
-      }));
+      const productsToPrint = customer.products.map((p: any) => {
+        const maxPrice = (p.pricesDistribution && Array.isArray(p.pricesDistribution) && p.pricesDistribution.length > 0)
+          ? Math.max(...p.pricesDistribution)
+          : p.mostPrice;
+          
+        return {
+          barcode: p.barcode,
+          product: p.product,
+          price: mode === 'pricelist' || mode === 'analysis'
+            ? (strategy === 'max' ? maxPrice : p.mostPrice)
+            : undefined,
+          avgPrice: mode === 'analysis' ? maxPrice : undefined,
+          costPrice: mode === 'analysis' ? p.cost : undefined
+        };
+      });
       if (mode === 'pricelist') {
         await generateSalesPricelistPDF(customer.customer, productsToPrint as any, false, strategy);
       } else if (mode === 'analysis') {
@@ -86,7 +92,9 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
 
     const exportData = customer.products.map((p: any, index: number) => {
       const frequent = p.mostPrice;
-      const recent = p.lastPrice;
+      const maxPrice = (p.pricesDistribution && Array.isArray(p.pricesDistribution) && p.pricesDistribution.length > 0)
+        ? Math.max(...p.pricesDistribution)
+        : p.mostPrice;
       const cost = p.cost;
       const diff = frequent - cost;
       const margin = frequent > 0 ? (diff / frequent) * 100 : 0;
@@ -96,7 +104,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
         'Barcode': p.barcode,
         'Product': p.product,
         'Most Price': frequent,
-        'Last Price': recent,
+        'Max Price': maxPrice,
         'Cost': cost,
         'Diff': diff,
         '%': `${margin.toFixed(1)}%`
@@ -110,7 +118,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     setSelectedCustomerForAnalysis(null);
   };
 
-  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'last' = 'most') => {
+  const handleDownloadAllPDFs = async (mode: 'order' | 'pricelist' | 'analysis', strategy: 'most' | 'max' = 'most') => {
     if (filteredCustomers.length === 0) return;
     setShowDownloadModal(false);
     try {
@@ -120,15 +128,21 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
       for (let i = 0; i < filteredCustomers.length; i++) {
         const customer = filteredCustomers[i];
         setGenerationProgress({ current: i + 1, total: filteredCustomers.length });
-        const productsToPrint = customer.products.map((p: any) => ({
-          barcode: p.barcode,
-          product: p.product,
-          price: mode === 'pricelist' || mode === 'analysis'
-            ? (strategy === 'last' ? p.lastPrice : p.mostPrice)
-            : undefined,
-          avgPrice: mode === 'analysis' ? p.lastPrice : undefined,
-          costPrice: mode === 'analysis' ? p.cost : undefined
-        }));
+        const productsToPrint = customer.products.map((p: any) => {
+          const maxPrice = (p.pricesDistribution && Array.isArray(p.pricesDistribution) && p.pricesDistribution.length > 0)
+            ? Math.max(...p.pricesDistribution)
+            : p.mostPrice;
+            
+          return {
+            barcode: p.barcode,
+            product: p.product,
+            price: mode === 'pricelist' || mode === 'analysis'
+              ? (strategy === 'max' ? maxPrice : p.mostPrice)
+              : undefined,
+            avgPrice: mode === 'analysis' ? maxPrice : undefined,
+            costPrice: mode === 'analysis' ? p.cost : undefined
+          };
+        });
         let blob: Blob;
         if (mode === 'pricelist') {
           blob = await generateSalesPricelistPDF(customer.customer, productsToPrint as any, true, strategy) as unknown as Blob;
@@ -190,11 +204,11 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
           <table className="w-full table-fixed">
             <thead>
               <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Customer Name</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Items</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Standard</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Pricing</th>
-                <th className="py-4 px-8 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Analysis</th>
+                <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</th>
+                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Items</th>
+                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Standard</th>
+                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Pricing</th>
+                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Analysis</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -227,7 +241,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                         <DollarSign className="w-4 h-4" />
                       </button>
                     </td>
-                    <td className="py-3 px-8 text-center">
+                    <td className="py-3 px-4 text-center">
                       <button
                         onClick={() => setSelectedCustomerForAnalysis(c.customer)}
                         disabled={isGenerating}
@@ -263,11 +277,11 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                   <span className="text-[9px] text-white/50 font-medium">Frequent</span>
                 </button>
                 <button
-                  onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'last')}
-                  className="w-full py-4 bg-indigo-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-between px-6 group"
+                  onClick={() => handleDownload(selectedCustomerForPriceList, 'pricelist', 'max')}
+                  className="w-full py-4 bg-amber-600 text-white font-black text-xs uppercase tracking-[0.2em] rounded-xl hover:bg-amber-700 transition-all shadow-lg flex items-center justify-between px-6 group"
                 >
-                  <span>Last Price</span>
-                  <span className="text-[9px] text-white/50 font-medium">Recent</span>
+                  <span>Max Price</span>
+                  <span className="text-[9px] text-white/50 font-medium">Highest</span>
                 </button>
               </div>
 
@@ -371,11 +385,11 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                     <span>Most Price</span>
                   </button>
                   <button
-                    onClick={() => handleDownloadAllPDFs('pricelist', 'last')}
-                    className="py-5 bg-slate-100 text-slate-600 font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-slate-200 transition-all shadow-sm flex flex-col items-center gap-2"
+                    onClick={() => handleDownloadAllPDFs('pricelist', 'max')}
+                    className="py-5 bg-amber-100 text-amber-700 font-black text-[10px] uppercase tracking-widest rounded-2xl hover:bg-amber-200 transition-all shadow-sm flex flex-col items-center gap-2"
                   >
-                    <span className="text-slate-400 text-[8px]">Mode 2</span>
-                    <span>Last Price</span>
+                    <span className="text-amber-500/70 text-[8px]">Mode 2</span>
+                    <span>Max Price</span>
                   </button>
                 </div>
               </div>

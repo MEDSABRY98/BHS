@@ -16,33 +16,36 @@ import {
   XCircle,
   Package,
   Trophy,
-  Eye
+  Eye,
+  Truck,
+  FileCheck,
+  FileText
 } from 'lucide-react';
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 
 interface Stats {
   total: number;
-  approved: number;
-  partiallyApproved: number;
+  delivered: number;
+  officeConfirmed: number;
   pending: number;
-  rejected: number;
+  cancelled: number;
 }
 
-interface UserPerformance {
+interface DriverPerformance {
   id: string;
   name: string;
   total: number;
-  approved: number;
-  partiallyApproved: number;
-  rejected: number;
+  delivered: number;
+  officeConfirmed: number;
   pending: number;
+  cancelled: number;
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats>({ total: 0, approved: 0, partiallyApproved: 0, pending: 0, rejected: 0 });
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [userPerformance, setUserPerformance] = useState<UserPerformance[]>([]);
+  const [stats, setStats] = useState<Stats>({ total: 0, delivered: 0, officeConfirmed: 0, pending: 0, cancelled: 0 });
+  const [recentInvoices, setRecentInvoices] = useState<any[]>([]);
+  const [driverPerformance, setDriverPerformance] = useState<DriverPerformance[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -51,72 +54,75 @@ export default function DashboardPage() {
 
   async function fetchDashboardData() {
     try {
-      const [
-        totalRes,
-        approvedRes,
-        partialRes,
-        pendingRes,
-        rejectedRes,
-        allOrdersRes,
-        allUsersRes
-      ] = await Promise.all([
-        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }),
-        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Approved'),
-        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Partially Approved'),
-        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Pending'),
-        bhs_supabas.from('app_lpos_ORDERS').select('*', { count: 'exact', head: true }).eq('STATUS', 'Rejected'),
-        bhs_supabas.from('app_lpos_ORDERS')
-          .select(`
-            *,
-            bhs_CUSTOMERS ( "CUSTOMER NAME":"CUSTOMER SUB NAME" ),
-            bhs_USERS ( "NAME" )
-          `)
-          .order('ORDER_ID', { ascending: false }),
-        bhs_supabas.from('bhs_USERS').select('*')
-      ]);
+      const { data: allDriversData, error } = await bhs_supabas
+        .from('app_lpos_DRIVERS')
+        .select('*')
+        .order('ID', { ascending: false });
+
+      if (error) throw error;
+      const drivers = allDriversData || [];
+
+      let total = 0;
+      let delivered = 0;
+      let officeConfirmed = 0;
+      let pending = 0;
+      let cancelled = 0;
+
+      const performanceMap: Record<string, DriverPerformance> = {};
+
+      const { data: allUsersRes } = await bhs_supabas.from('bhs_USERS').select('*');
+      const allUsers = allUsersRes || [];
+
+      drivers.forEach((driver: any) => {
+        total++;
+        const isCancelled = driver.TRACKING_NOTES === 'SYSTEM_CANCELLED';
+        const isDelivered = driver.STATUS === 'Delivered' && !isCancelled;
+        const isOfficeConfirmed = driver.OFFICE_HANDOVER_STATUS === 'Confirmed' && !isCancelled;
+        const isPending = driver.STATUS !== 'Delivered' && !isCancelled;
+
+        if (isCancelled) cancelled++;
+        else if (isDelivered) delivered++;
+        
+        if (isOfficeConfirmed) officeConfirmed++;
+        if (isPending) pending++;
+
+        const driverId = driver.DRIVERS_NAME;
+        if (!driverId) return; // Skip unassigned
+
+        if (!performanceMap[driverId]) {
+          const userObj = allUsers.find(u => u.ID === driverId);
+          performanceMap[driverId] = {
+            id: driverId,
+            name: userObj?.NAME || driverId,
+            total: 0,
+            delivered: 0,
+            officeConfirmed: 0,
+            pending: 0,
+            cancelled: 0
+          };
+        }
+
+        performanceMap[driverId].total++;
+        if (isCancelled) performanceMap[driverId].cancelled++;
+        else if (isDelivered) performanceMap[driverId].delivered++;
+        if (isOfficeConfirmed) performanceMap[driverId].officeConfirmed++;
+        if (isPending) performanceMap[driverId].pending++;
+      });
 
       setStats({
-        total: totalRes.count || 0,
-        approved: approvedRes.count || 0,
-        partiallyApproved: partialRes.count || 0,
-        pending: pendingRes.count || 0,
-        rejected: rejectedRes.count || 0,
+        total,
+        delivered,
+        officeConfirmed,
+        pending,
+        cancelled
       });
 
-      setRecentOrders((allOrdersRes.data || []).slice(0, 10));
-
-      const users = allUsersRes.data || [];
-      const orders = allOrdersRes.data || [];
-
-      const performanceMap: Record<string, UserPerformance> = users.reduce((acc: any, user: any) => {
-        acc[user.ID] = {
-          id: user.ID,
-          name: user.NAME,
-          total: 0,
-          approved: 0,
-          partiallyApproved: 0,
-          rejected: 0,
-          pending: 0
-        };
-        return acc;
-      }, {});
-
-      orders.forEach((order: any) => {
-        const userId = order.CREATED_BY;
-        if (performanceMap[userId]) {
-          performanceMap[userId].total++;
-          if (order.STATUS === 'Approved') performanceMap[userId].approved++;
-          else if (order.STATUS === 'Partially Approved') performanceMap[userId].partiallyApproved++;
-          else if (order.STATUS === 'Rejected') performanceMap[userId].rejected++;
-          else if (order.STATUS === 'Pending') performanceMap[userId].pending++;
-        }
-      });
+      setRecentInvoices(drivers.slice(0, 10));
 
       const performanceArray = Object.values(performanceMap)
-        .filter(u => u.total > 0)
-        .sort((a, b) => b.total - a.total) as UserPerformance[];
+        .sort((a, b) => b.total - a.total) as DriverPerformance[];
 
-      setUserPerformance(performanceArray);
+      setDriverPerformance(performanceArray);
 
     } catch (err) {
       console.error('Dashboard Data Fetch Error:', err);
@@ -138,7 +144,7 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-normal text-black tracking-tighter">Dashboard</h1>
+          <h1 className="text-4xl font-normal text-black tracking-tighter">Invoices Dashboard</h1>
         </div>
         <div className="flex items-center gap-3 bg-white px-5 py-3 rounded-2xl border border-gray-100 shadow-sm">
           <Calendar className="w-5 h-5 text-[#D4AF37]" />
@@ -149,48 +155,48 @@ export default function DashboardPage() {
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
         <StatCard
-          title="Total LPO's"
+          title="Total Invoices"
           value={stats.total.toString()}
-          icon={Package}
+          icon={FileText}
           color="bg-black"
-          subtitle="All Time Volume"
+          subtitle="All Dispatched Invoices"
         />
         <StatCard
-          title="Approved LPOs"
-          value={stats.approved.toString()}
+          title="Delivered"
+          value={stats.delivered.toString()}
           icon={CheckCircle2}
           color="bg-emerald-500"
-          subtitle="Finalized Orders"
+          subtitle="Customer Received"
         />
         <StatCard
-          title="Partial Approval"
-          value={stats.partiallyApproved.toString()}
-          icon={AlertCircle}
-          color="bg-orange-500"
-          subtitle="Incomplete Orders"
+          title="Office Confirmed"
+          value={stats.officeConfirmed.toString()}
+          icon={FileCheck}
+          color="bg-blue-500"
+          subtitle="Returned to Office"
         />
         <StatCard
-          title="Pending LPOs"
+          title="Pending"
           value={stats.pending.toString()}
           icon={Clock}
-          color="bg-blue-500"
-          subtitle="Waiting for Review"
+          color="bg-orange-500"
+          subtitle="Waiting for Delivery"
         />
         <StatCard
-          title="Rejected LPOs"
-          value={stats.rejected.toString()}
+          title="Cancelled"
+          value={stats.cancelled.toString()}
           icon={XCircle}
           color="bg-red-500"
-          subtitle="Cancelled/Invalid"
+          subtitle="Returned & Cancelled"
         />
       </div>
 
-      {/* Staff Performance Table */}
+      {/* Drivers Performance Table */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-8">
           <h3 className="text-2xl font-black text-black flex items-center gap-3">
-            <Trophy className="w-6 h-6 text-[#D4AF37]" />
-            Staff Performance
+            <Truck className="w-6 h-6 text-[#D4AF37]" />
+            Drivers Performance
           </h3>
           <Activity className="w-6 h-6 text-gray-200" />
         </div>
@@ -199,45 +205,45 @@ export default function DashboardPage() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-100 text-center">
-                <th className="pb-5 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] text-left">Sales Representative</th>
-                <th className="pb-5 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Total LPOs</th>
-                <th className="pb-5 px-4 text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Approved</th>
-                <th className="pb-5 px-4 text-[10px] font-black text-orange-500 uppercase tracking-[0.2em]">Partial</th>
-                <th className="pb-5 px-4 text-[10px] font-black text-red-500 uppercase tracking-[0.2em]">Rejected</th>
-                <th className="pb-5 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Pending</th>
+                <th className="pb-5 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Driver Name</th>
+                <th className="pb-5 px-4 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Total Invoices</th>
+                <th className="pb-5 px-4 text-[10px] font-black text-emerald-500 uppercase tracking-[0.2em]">Delivered</th>
+                <th className="pb-5 px-4 text-[10px] font-black text-blue-500 uppercase tracking-[0.2em]">Office Confirmed</th>
+                <th className="pb-5 px-4 text-[10px] font-black text-orange-500 uppercase tracking-[0.2em]">Pending</th>
+                <th className="pb-5 px-4 text-[10px] font-black text-red-500 uppercase tracking-[0.2em]">Cancelled</th>
                 <th className="pb-5 px-4 text-[10px] font-black text-black uppercase tracking-[0.2em]">Success Rate</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {userPerformance.map((u) => {
-                const successRate = u.total > 0 ? Math.round((u.approved / u.total) * 100) : 0;
+              {driverPerformance.map((d) => {
+                const successRate = d.total > 0 ? Math.round((d.delivered / d.total) * 100) : 0;
                 return (
-                  <tr key={u.id} className="group hover:bg-gray-50/50 transition-all text-center">
-                    <td className="py-6 px-4 text-left">
-                      <div className="flex items-center gap-4">
+                  <tr key={d.id} className="group hover:bg-gray-50/50 transition-all text-center">
+                    <td className="py-6 px-4 text-center">
+                      <div className="flex items-center justify-center gap-4">
                         <div className="w-10 h-10 bg-black rounded-2xl flex items-center justify-center text-xs text-[#D4AF37] font-black shadow-lg shadow-black/10">
-                          {u.name.charAt(0)}
+                          {d.name.charAt(0)}
                         </div>
                         <div>
-                          <p className="text-sm font-black text-black">{u.name}</p>
-                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{u.id}</p>
+                          <p className="text-sm font-black text-black">{d.name}</p>
+                          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">{d.id}</p>
                         </div>
                       </div>
                     </td>
                     <td className="py-6 px-4">
-                      <span className="text-lg font-black text-black">{u.total}</span>
+                      <span className="text-lg font-black text-black">{d.total}</span>
                     </td>
                     <td className="py-6 px-4">
-                      <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg font-black text-sm">{u.approved}</span>
+                      <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg font-black text-sm">{d.delivered}</span>
                     </td>
                     <td className="py-6 px-4">
-                      <span className="px-3 py-1 bg-orange-50 text-orange-600 rounded-lg font-black text-sm">{u.partiallyApproved}</span>
+                      <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-lg font-black text-sm">{d.officeConfirmed}</span>
                     </td>
                     <td className="py-6 px-4">
-                      <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-black text-sm">{u.rejected}</span>
+                      <span className="px-3 py-1 bg-orange-50 text-orange-600 rounded-lg font-black text-sm">{d.pending}</span>
                     </td>
                     <td className="py-6 px-4">
-                      <span className="px-3 py-1 bg-gray-100 text-gray-400 rounded-lg font-black text-sm">{u.pending}</span>
+                      <span className="px-3 py-1 bg-red-50 text-red-600 rounded-lg font-black text-sm">{d.cancelled}</span>
                     </td>
                     <td className="py-6 px-4">
                       <div className="flex items-center justify-center gap-2">
@@ -258,12 +264,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Recent Orders Table */}
+      {/* Recent Invoices Table */}
       <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
         <div className="flex items-center justify-between mb-8">
           <h3 className="text-2xl font-black text-black flex items-center gap-3">
             <Activity className="w-6 h-6 text-[#D4AF37]" />
-            Recent Activity
+            Recent Invoices Activity
           </h3>
           <Link href="/LPOs/Orders" className="bg-black text-white px-5 py-2.5 rounded-2xl text-xs font-black hover:bg-gray-800 transition-all flex items-center gap-2">
             VIEW ALL ORDERS <ChevronRight className="w-4 h-4 text-[#D4AF37]" />
@@ -275,67 +281,67 @@ export default function DashboardPage() {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order ID</th>
-                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Order Date</th>
-                <th className="w-[20%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Sales Rep</th>
-                <th className="w-[25%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer</th>
+                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Dispatch Date</th>
+                <th className="w-[20%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Driver</th>
                 <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Status</th>
+                <th className="w-[15%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Office Handover</th>
                 <th className="w-[10%] px-6 py-6 text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {recentOrders.length === 0 ? (
+              {recentInvoices.length === 0 ? (
                 <tr>
                   <td colSpan={6}>
                     <NoData title="NO RECENT ACTIVITY FOUND" />
                   </td>
                 </tr>
               ) : (
-                recentOrders.map((order) => (
-                  <tr key={order.ID} className="group hover:bg-gray-50/50 transition-all">
+                recentInvoices.map((inv) => {
+                  const isCancelled = inv.TRACKING_NOTES === 'SYSTEM_CANCELLED';
+                  const isDelivered = inv.STATUS === 'Delivered' && !isCancelled;
+                  const isPending = inv.STATUS !== 'Delivered' && !isCancelled;
+                  const isOfficeConfirmed = inv.OFFICE_HANDOVER_STATUS === 'Confirmed' && !isCancelled;
+
+                  return (
+                  <tr key={inv.ID} className="group hover:bg-gray-50/50 transition-all">
                     {/* 1. Order ID */}
                     <td className="px-6 py-6 truncate">
-                      <span className="font-black text-black text-sm">{order.ORDER_ID}</span>
+                      <span className="font-black text-black text-sm">{inv.ORDER_ID}</span>
                     </td>
 
                     {/* 2. Date */}
                     <td className="px-6 py-6">
                       <p className="text-sm text-gray-500 font-bold">
-                        {new Date(order.ORDER_DATE || order.CREATED_AT).toLocaleDateString('en-GB')}
+                        {inv.DISPATCH_TIME ? new Date(inv.DISPATCH_TIME).toLocaleDateString('en-GB') : '-'}
                       </p>
                     </td>
 
-                    {/* 3. Sales Rep */}
+                    {/* 3. Driver */}
                     <td className="px-6 py-6 overflow-hidden">
                       <div className="flex items-center justify-center">
-                        <div className="w-8 h-8 bg-black rounded-xl flex items-center justify-center mr-3 shadow-lg shadow-black/10 shrink-0">
-                          <span className="text-[10px] font-black text-[#D4AF37]">
-                            {order.bhs_USERS?.NAME?.charAt(0)}
-                          </span>
-                        </div>
-                        <span className="text-sm font-bold text-gray-700 truncate">{order.bhs_USERS?.NAME}</span>
+                        <span className="text-sm font-bold text-gray-700 truncate">
+                          {inv.DRIVERS_NAME ? (driverPerformance.find(d => d.id === inv.DRIVERS_NAME)?.name || inv.DRIVERS_NAME) : 'Unassigned'}
+                        </span>
                       </div>
                     </td>
 
-                    {/* 4. Customer */}
-                    <td className="px-6 py-6 overflow-hidden">
-                      <div className="flex flex-col items-center">
-                        <p className="font-black text-black text-sm truncate w-full" title={order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}>
-                          {order.bhs_CUSTOMERS?.["CUSTOMER NAME"]}
-                        </p>
-                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mt-1 truncate w-full">
-                          {order.bhs_CUSTOMERS?.["CUSTOMER CITY"]}
-                        </p>
-                      </div>
-                    </td>
-
-                    {/* 5. Status */}
+                    {/* 4. Status */}
                     <td className="px-6 py-6">
-                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${order.STATUS === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                        order.STATUS === 'Partially Approved' ? 'bg-orange-50 text-orange-600' :
-                          order.STATUS === 'Pending' ? 'bg-blue-50 text-blue-600' :
-                            'bg-red-50 text-red-600'
+                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                        isCancelled ? 'bg-red-50 text-red-600' :
+                        isDelivered ? 'bg-emerald-50 text-emerald-600' :
+                        'bg-orange-50 text-orange-600'
                         }`}>
-                        {order.STATUS}
+                        {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : inv.STATUS || 'Pending'}
+                      </div>
+                    </td>
+
+                    {/* 5. Office Handover */}
+                    <td className="px-6 py-6">
+                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
+                        isOfficeConfirmed ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'
+                      }`}>
+                        {isOfficeConfirmed ? 'Confirmed' : 'Pending'}
                       </div>
                     </td>
 
@@ -343,7 +349,7 @@ export default function DashboardPage() {
                     <td className="px-6 py-6">
                       <div className="flex justify-center">
                         <Link
-                          href={`/LPOs/OrderDetails?id=${order.ORDER_ID || order.ID}`}
+                          href={`/LPOs/OrderDetails?id=${inv.ORDER_ID}`}
                           className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
                           title="View Details"
                         >
@@ -352,7 +358,7 @@ export default function DashboardPage() {
                       </div>
                     </td>
                   </tr>
-                ))
+                )})
               )}
             </tbody>
           </table>

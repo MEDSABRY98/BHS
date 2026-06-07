@@ -1,6 +1,6 @@
 export type PeriodType = 'daily' | 'weekly' | 'monthly' | 'yearly';
 export type DetailMode = 'none' | 'customer' | 'period';
-export type PaymentTrackerSubTab = 'dashboard' | 'customer' | 'period' | 'area';
+export type PaymentTrackerSubTab = 'dashboard' | 'details-dashboard' | 'customer' | 'period' | 'area';
 
 export interface PaymentEntry {
   date: string;

@@ -1,7 +1,7 @@
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from './CstomersUtils';
 
-export const generateSingleCustomerExcelBlob = async (customerName: string, invoices: InvoiceRow[]): Promise<Blob> => {
+export const generateSingleCustomerExcelBlob = async (customerName: string, invoices: InvoiceRow[], isShortInvoiceId: boolean = true): Promise<Blob> => {
   const ExcelJS = (await import('exceljs')).default;
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('Transactions');
@@ -77,7 +77,22 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
     const invType = getInvoiceType(inv);
     const numUpper = (inv.number || '').toUpperCase();
     row.getCell(2).value = (numUpper.startsWith('JV') || numUpper.startsWith('BIL')) ? '-' : invType;
-    row.getCell(3).value = (inv.number || '').split(' ')[0];
+    let invoiceNumber = inv.number || '';
+    if (isShortInvoiceId && invoiceNumber) {
+      if (invoiceNumber.startsWith('BHS-')) {
+        const parts = invoiceNumber.split('-');
+        if (parts.length >= 3) {
+          invoiceNumber = parts[2].split(' ')[0];
+        } else {
+          invoiceNumber = invoiceNumber.split(' ')[0];
+        }
+      } else {
+        invoiceNumber = invoiceNumber.split(' ')[0];
+      }
+    } else {
+      invoiceNumber = invoiceNumber.trim();
+    }
+    row.getCell(3).value = invoiceNumber;
     
     const debitVal = inv.debit ? parseFloat(inv.debit.toString()) : 0;
     const creditVal = inv.credit ? parseFloat(inv.credit.toString()) : 0;
@@ -87,7 +102,11 @@ export const generateSingleCustomerExcelBlob = async (customerName: string, invo
 
     row.eachCell((cell, colNumber) => {
       cell.font = { name: 'Calibri', size: 11 };
-      cell.alignment = { vertical: 'middle', horizontal: 'center' };
+      cell.alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center',
+        ...(colNumber === 3 && !isShortInvoiceId ? { shrinkToFit: true } : {})
+      };
       cell.border = thinBorder;
       
       if (colNumber === 4 || colNumber === 5) {

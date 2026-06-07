@@ -597,11 +597,10 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
 
 
     // --- METRICS CALCULATION (Current vs Previous Period) ---
-    const prevStartDate = new Date(startDate!);
-    prevStartDate.setMonth(prevStartDate.getMonth() - 1);
+    const durationMs = endDate!.getTime() - startDate!.getTime();
     
-    const prevEndDate = new Date(endDate!);
-    prevEndDate.setMonth(prevEndDate.getMonth() - 1);
+    const prevEndDate = new Date(startDate!.getTime() - 1); // 1ms before start
+    const prevStartDate = new Date(prevEndDate.getTime() - durationMs);
 
     // Helper for specific range sums
     const getMetrics = (s: Date, e: Date) => {
@@ -977,11 +976,15 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
         const showPrev = filters.sections?.summaryPrevious !== false;
         const showLY = filters.sections?.summaryLastYear !== false && hasLYData;
 
+        const curDays = Math.ceil((endDate!.getTime() - startDate!.getTime()) / 86400000);
+        const prevDays = Math.ceil((prevEndDate.getTime() - prevStartDate.getTime()) / 86400000);
+        const lyDays = Math.ceil((lyEndDate.getTime() - lyStartDate.getTime()) / 86400000);
+
         const periodDefs = [
             {
                 show: true,
                 title: 'CURRENT',
-                range: `${formatDate(startDate!)} – ${formatDate(endDate!)}`,
+                range: `${formatDate(startDate!)} – ${formatDate(endDate!)} (${curDays} Days)`,
                 amount: curMet.total,
                 accent: [58, 127, 232] as [number, number, number],
                 border: [58, 127, 232] as [number, number, number],
@@ -990,7 +993,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             {
                 show: showPrev,
                 title: 'PREVIOUS',
-                range: `${formatDate(prevStartDate)} – ${formatDate(prevEndDate)}`,
+                range: `${formatDate(prevStartDate)} – ${formatDate(prevEndDate)} (${prevDays} Days)`,
                 amount: prevMet.total,
                 accent: [136, 136, 136] as [number, number, number],
                 border: [187, 187, 187] as [number, number, number],
@@ -999,7 +1002,7 @@ export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: Filte
             {
                 show: showLY,
                 title: 'LAST YEAR',
-                range: `${formatDate(lyStartDate)} – ${formatDate(lyEndDate)}`,
+                range: `${formatDate(lyStartDate)} – ${formatDate(lyEndDate)} (${lyDays} Days)`,
                 amount: lyMet.total,
                 accent: [90, 173, 46] as [number, number, number],
                 border: [90, 173, 46] as [number, number, number],

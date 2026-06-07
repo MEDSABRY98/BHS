@@ -14,7 +14,7 @@ import {
 import Link from 'next/link';
 import NoData from '@/components/01-Unified/NoDataTab';
 import { usePermissions } from '../Hooks/usePermissions';
-import OrdersFilterMenu, { FilterCriteria } from './Components/OrdersFilterMenu';
+import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import * as XLSX from 'xlsx';
 
@@ -115,7 +115,8 @@ export default function OrdersPage() {
             ID,
             DRIVERS_NAME, 
             OFFICE_HANDOVER_STATUS,
-            TRACKING_NOTES
+            TRACKING_NOTES,
+            STATUS
           ),
           app_lpos_PREPARATION (
             PREPARATION_NAME
@@ -252,6 +253,7 @@ export default function OrdersPage() {
         driver_id: drv?.DRIVERS_NAME,
         handover_status: drv?.OFFICE_HANDOVER_STATUS || 'Not Handed Over',
         tracking_notes: drv?.TRACKING_NOTES || '',
+        driver_status: drv?.STATUS || '',
         prep_staff_ids: o.app_lpos_PREPARATION?.map((p: any) => p.PREPARATION_NAME) || []
       };
     }).sort((a, b) => {
@@ -273,7 +275,16 @@ export default function OrdersPage() {
         order.bhs_USERS?.NAME?.toLowerCase().includes(searchTerm.toLowerCase());
 
       // 2. Tab Status Filter
-      const matchesStatus = statusFilter === 'All' || order.STATUS === statusFilter;
+      let matchesStatus = true;
+      if (statusFilter !== 'All') {
+        const isCancelled = order.tracking_notes === 'SYSTEM_CANCELLED';
+        const isDelivered = order.driver_status === 'Delivered' && !isCancelled;
+        const isPending = order.driver_status !== 'Delivered' && !isCancelled;
+
+        if (statusFilter === 'Cancelled') matchesStatus = isCancelled;
+        else if (statusFilter === 'Received') matchesStatus = isDelivered;
+        else if (statusFilter === 'Pending') matchesStatus = isPending;
+      }
 
       // 3. Advanced Filters
       let matchesAdvanced = true;
@@ -434,7 +445,7 @@ export default function OrdersPage() {
           />
         </div>
         <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 md:pb-0">
-          {['All', 'Approved', 'Pending', 'Partially Approved', 'Rejected'].map((status) => (
+          {['All', 'Received', 'Pending', 'Cancelled'].map((status) => (
             <button
               key={status}
               onClick={() => setStatusFilter(status)}
@@ -548,17 +559,22 @@ export default function OrdersPage() {
                       <span className="font-black text-black text-sm">{order.AMOUNT?.toLocaleString() || '0'} AED</span>
                     </td>
 
-                    {/* 7. Status */}
+                    {/* 8. Status */}
                     <td className="px-6 py-6 whitespace-nowrap">
-                      <div className={`inline-flex items-center justify-center w-8 h-8 rounded-xl text-[11px] font-black uppercase ${order.STATUS === 'Approved' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' :
-                        order.STATUS === 'Partially Approved' ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' :
-                          order.STATUS === 'Rejected' ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' :
-                            'bg-gray-100 text-gray-400'
-                        }`}
-                        title={order.STATUS || 'Pending'}
-                      >
-                        {order.STATUS === 'Partially Approved' ? 'PA' : (order.STATUS ? order.STATUS.charAt(0) : 'P')}
-                      </div>
+                      {(() => {
+                        const isCancelled = order.tracking_notes === 'SYSTEM_CANCELLED';
+                        const isDelivered = order.driver_status === 'Delivered' && !isCancelled;
+                        const isPending = order.driver_status !== 'Delivered' && !isCancelled;
+
+                        return (
+                          <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isCancelled ? 'bg-red-50 text-red-600' :
+                              isDelivered ? 'bg-emerald-50 text-emerald-600' :
+                                'bg-orange-50 text-orange-600'
+                            }`}>
+                            {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : order.driver_status || 'Pending'}
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* 7. Action (Icon Only) */}

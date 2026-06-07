@@ -1,13 +1,14 @@
 'use client';
 
 import React from 'react';
-import { FileText } from 'lucide-react';
+import { FileText, X } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 import { generatePaymentAnalysisPDF } from '@/lib/pdf/PaymentUtils';
 
 // Sub-components
 import { usePaymentTDataTab } from './PaymentTDataHookTab';
 import PaymentTDashboardTab from './PaymentTDashboardTab';
+import PaymentTDetailsDashboardTab from './PaymentTDetailsDashboardTab';
 import PaymentTCustomerTab from './PaymentTCustomerTab';
 import PaymentTPeriodTab from './PaymentTPeriodTab';
 import PaymentTAreaTab from './PaymentTAreaTab';
@@ -121,19 +122,37 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
             </div>
           </div>
 
-          {/* PDF Action - Premium Vibrant Red */}
-          <button
-            onClick={() => p.setIsPdfExportOpen(true)}
-            className="h-[46px] w-[46px] bg-rose-600 text-white rounded-2xl flex items-center justify-center lg:ml-auto mb-[1px] hover:bg-rose-700 transition-colors shadow-sm active:scale-95"
-            title="Generate PDF Analytics"
-          >
-            <FileText className="h-6 w-6" />
-          </button>
+          <div className="flex gap-2 lg:ml-auto mb-[1px]">
+            {/* Clear Filters */}
+            <button
+              onClick={() => {
+                p.setSearch('');
+                p.setChartYear('');
+                p.setChartMonth('');
+                p.setDateFrom('');
+                p.setDateTo('');
+                p.setSelectedSalesRep('');
+              }}
+              className="h-[46px] w-[46px] bg-gray-100 text-gray-500 rounded-2xl flex items-center justify-center hover:bg-gray-200 hover:text-gray-700 transition-colors shadow-sm active:scale-95"
+              title="Clear All Filters"
+            >
+              <X className="h-6 w-6" />
+            </button>
+
+            {/* PDF Action - Premium Vibrant Red */}
+            <button
+              onClick={() => p.setIsPdfExportOpen(true)}
+              className="h-[46px] w-[46px] bg-rose-600 text-white rounded-2xl flex items-center justify-center hover:bg-rose-700 transition-colors shadow-sm active:scale-95"
+              title="Generate PDF Analytics"
+            >
+              <FileText className="h-6 w-6" />
+            </button>
+          </div>
         </div>
 
         {/* Row 2: Tabs Switcher - Segmented Control Style */}
         <div className="flex items-center gap-1 p-1 bg-gray-50/80 rounded-[20px] border border-gray-100 w-full shadow-inner">
-          {(['dashboard', 'customer', 'period', 'area'] as const).map((tab) => (
+          {(['dashboard', 'details-dashboard', 'customer', 'period', 'area'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => {
@@ -168,6 +187,16 @@ export default function PaymentTrackerTab({ data }: PaymentTrackerTabProps) {
 
             dateFrom={p.dateFrom}
             dateTo={p.dateTo}
+          />
+        )}
+
+        {p.activeSubTab === 'details-dashboard' && (
+          <PaymentTDetailsDashboardTab
+            data={data}
+            startDate={p.startDate}
+            endDate={p.endDate}
+            searchQuery={p.search}
+            salesRep={p.selectedSalesRep}
           />
         )}
 

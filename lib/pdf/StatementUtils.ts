@@ -95,7 +95,16 @@ export async function generateAccountStatementPDF(
     }
     let invoiceNumber = inv.number || '';
     if (shortenInvoiceNumbers && invoiceNumber) {
-      invoiceNumber = invoiceNumber.split(' ')[0];
+      if (invoiceNumber.startsWith('BHS-')) {
+        const parts = invoiceNumber.split('-');
+        if (parts.length >= 3) {
+          invoiceNumber = parts[2].split(' ')[0];
+        } else {
+          invoiceNumber = invoiceNumber.split(' ')[0];
+        }
+      } else {
+        invoiceNumber = invoiceNumber.split(' ')[0];
+      }
     }
     return [
       dateStr,
@@ -339,7 +348,16 @@ export async function generateBulkCustomerStatementsPDF(
       }
       let invoiceNumber = inv.number || '';
       if (shortenInvoiceNumbers && invoiceNumber) {
-        invoiceNumber = invoiceNumber.split(' ')[0];
+        if (invoiceNumber.startsWith('BHS-')) {
+          const parts = invoiceNumber.split('-');
+          if (parts.length >= 3) {
+            invoiceNumber = parts[2].split(' ')[0];
+          } else {
+            invoiceNumber = invoiceNumber.split(' ')[0];
+          }
+        } else {
+          invoiceNumber = invoiceNumber.split(' ')[0];
+        }
       }
       return [
         dateStr,
@@ -568,7 +586,16 @@ export async function generateMonthlySeparatedPDF(
       }
       let invoiceNumber = inv.number || '';
       if (shortenInvoiceNumbers && invoiceNumber) {
-        invoiceNumber = invoiceNumber.split(' ')[0];
+        if (invoiceNumber.startsWith('BHS-')) {
+          const parts = invoiceNumber.split('-');
+          if (parts.length >= 3) {
+            invoiceNumber = parts[2].split(' ')[0];
+          } else {
+            invoiceNumber = invoiceNumber.split(' ')[0];
+          }
+        } else {
+          invoiceNumber = invoiceNumber.split(' ')[0];
+        }
       }
       return [dateStr, type, invoiceNumber, inv.debit.toLocaleString('en-US'), inv.credit.toLocaleString('en-US'), inv.netDebt.toLocaleString('en-US')];
     });

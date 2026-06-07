@@ -6,7 +6,7 @@ interface EmailStatementModalProps {
   onClose: () => void;
   emailStatementDate: string;
   setEmailStatementDate: (date: string) => void;
-  onConfirm: (date: string) => void;
+  onConfirm: (date: string, isShort: boolean) => void;
   isProcessing: boolean;
 }
 
@@ -18,6 +18,8 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
   onConfirm,
   isProcessing,
 }) => {
+  const [isShortInvoiceId, setIsShortInvoiceId] = React.useState(true);
+
   if (!isOpen) return null;
 
   return (
@@ -61,6 +63,38 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
             </div>
           </div>
 
+          <div className="mb-6">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">Invoice Number Format</label>
+            <div className="flex gap-4">
+              <label className="flex-1 cursor-pointer border border-slate-200 rounded-xl p-3 flex items-center gap-3 hover:bg-slate-50 transition-all">
+                <input
+                  type="radio"
+                  name="invoiceFormatEmail"
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  checked={isShortInvoiceId}
+                  onChange={() => setIsShortInvoiceId(true)}
+                />
+                <div>
+                  <div className="text-sm font-bold text-slate-900">Short ID</div>
+                  <div className="text-[10px] text-slate-500 font-semibold mt-0.5">e.g. 0001</div>
+                </div>
+              </label>
+              <label className="flex-1 cursor-pointer border border-slate-200 rounded-xl p-3 flex items-center gap-3 hover:bg-slate-50 transition-all">
+                <input
+                  type="radio"
+                  name="invoiceFormatEmail"
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  checked={!isShortInvoiceId}
+                  onChange={() => setIsShortInvoiceId(false)}
+                />
+                <div>
+                  <div className="text-sm font-bold text-slate-900">Full ID</div>
+                  <div className="text-[10px] text-slate-500 font-semibold mt-0.5">e.g. BHS-2024-0001</div>
+                </div>
+              </label>
+            </div>
+          </div>
+
           <div className="flex gap-3">
             <button
               onClick={onClose}
@@ -69,7 +103,7 @@ const EmailStatementModal: React.FC<EmailStatementModalProps> = ({
               Cancel
             </button>
             <button
-              onClick={() => onConfirm(emailStatementDate)}
+              onClick={() => onConfirm(emailStatementDate, isShortInvoiceId)}
               disabled={isProcessing}
               className="flex-1 py-3 px-4 rounded-xl text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm shadow-blue-200 transition-all active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-70 disabled:pointer-events-none"
             >

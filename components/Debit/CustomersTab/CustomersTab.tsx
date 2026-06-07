@@ -177,7 +177,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkZIPDownload = async (overrideDate?: string) => {
+  const handleBulkZIPDownload = async (overrideDate?: string, isShort?: boolean) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to download');
       return;
@@ -217,7 +217,7 @@ export default function CustomersTab({
         if (netOnlyInvoices.length === 0) continue;
 
         const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
         if (pdfBlob) {
           const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
           zip.file(`${cleanName}.pdf`, pdfBlob as Blob);
@@ -241,7 +241,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkEmail = async (overrideDate?: string) => {
+  const handleBulkEmail = async (overrideDate?: string, isShort?: boolean) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
@@ -282,7 +282,7 @@ export default function CustomersTab({
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
         const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
         if (!pdfBlob) continue;
 
         const reader = new FileReader();
@@ -351,7 +351,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkLuluEmail = async (overrideDate?: string) => {
+  const handleBulkLuluEmail = async (overrideDate?: string, isShort?: boolean) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
@@ -373,7 +373,7 @@ export default function CustomersTab({
       for (const customerName of selectedCustomersForDownload) {
         const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
         const luluRec = luluEmails.find(l => normalize(l.customerName) === normalize(customerName));
-        
+
         if (!luluRec) {
           console.warn(`No Lulu email data found for: ${customerName}`);
           continue;
@@ -408,9 +408,9 @@ export default function CustomersTab({
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
         const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-        
+
         // Generate PDF
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
         if (!pdfBlob) continue;
 
         const pdfBase64 = await new Promise<string>((resolve) => {
@@ -420,7 +420,7 @@ export default function CustomersTab({
         });
 
         // Generate Excel
-        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
+        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
         const excelBase64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
@@ -502,7 +502,7 @@ export default function CustomersTab({
     }
   };
 
-  const handleBulkSpiEmail = async (overrideDate?: string) => {
+  const handleBulkSpiEmail = async (overrideDate?: string, isShort?: boolean) => {
     if (selectedCustomersForDownload.size === 0) {
       alert('Please select customers to email');
       return;
@@ -524,7 +524,7 @@ export default function CustomersTab({
       for (const customerName of selectedCustomersForDownload) {
         const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
         const hasSpi = spiData.some(s => normalize(s.customerName) === normalize(customerName));
-        
+
         if (!hasSpi) {
           console.warn(`No SPI data found for: ${customerName}`);
           continue;
@@ -559,9 +559,9 @@ export default function CustomersTab({
 
         const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
         const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-        
+
         // Generate PDF
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel);
+        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
         if (!pdfBlob) continue;
 
         const pdfBase64 = await new Promise<string>((resolve) => {
@@ -571,7 +571,7 @@ export default function CustomersTab({
         });
 
         // Generate Excel
-        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices);
+        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
         const excelBase64 = await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
@@ -1038,13 +1038,13 @@ export default function CustomersTab({
         onClose={() => setStatementModalAction(null)}
         emailStatementDate={emailStatementDate}
         setEmailStatementDate={setEmailStatementDate}
-        onConfirm={(date) => {
+        onConfirm={(date, isShort) => {
           const action = statementModalAction;
           setStatementModalAction(null);
-          if (action === 'EMAIL') handleBulkEmail(date);
-          else if (action === 'ZIP') handleBulkZIPDownload(date);
-          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date);
-          else if (action === 'EMAIL_SPI') handleBulkSpiEmail(date);
+          if (action === 'EMAIL') handleBulkEmail(date, isShort);
+          else if (action === 'ZIP') handleBulkZIPDownload(date, isShort);
+          else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort);
+          else if (action === 'EMAIL_SPI') handleBulkSpiEmail(date, isShort);
         }}
         isProcessing={isDownloading}
       />

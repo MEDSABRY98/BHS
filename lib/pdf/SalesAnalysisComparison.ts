@@ -41,7 +41,7 @@ export async function generateSalesAnalysisComparisonPDF(
   doc.text(`Date: ${new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}`, 20, yPosition);
   yPosition += 3;
 
-  const headers = [['#', 'Barcode', 'Product', 'Most Price', 'Last Price', 'Cost', 'Diff', '%']];
+  const headers = [['#', 'Barcode', 'Product', 'Most Price', 'Max Price', 'Cost', 'Diff', '%']];
   const body = products.map((p, i) => {
     const freq = p.price || 0;
     const cost = p.costPrice || 0;
