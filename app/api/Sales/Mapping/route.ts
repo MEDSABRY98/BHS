@@ -19,7 +19,7 @@ export async function POST(request: Request) {
       const paddedIndex = String(index + 1).padStart(4, '0');
       const data = mapping[customerId];
       return {
-        "ID": `R-${paddedIndex}`,
+        "ID": `${userId}-R-${paddedIndex}`,
         "USER_ID": userId,
         "CUSTOMER ID": customerId,
         "CUSTOMER MAIN NAME": data.customerMainName || '',
