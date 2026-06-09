@@ -94,7 +94,7 @@ export async function POST(request: Request) {
       const barcode = invoiceItem.barcode || '-';
       const productName = invoiceItem.product;
       const customerId = invoiceItem.customerId || invoiceItem.customerName;
-      const customerName = invoiceItem.customerMainName || invoiceItem.customerName || 'Unknown';
+      const customerName = invoiceItem.customerName || invoiceItem.customerMainName || 'Unknown';
 
       if (!monthlyListings[monthKey].products[productId]) {
         monthlyListings[monthKey].products[productId] = {

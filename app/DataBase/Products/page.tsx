@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
+import * as XLSX from 'xlsx';
 import {
   Package,
   Search,
@@ -14,7 +15,9 @@ import {
   Loader2,
   MoreVertical,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download,
+  Upload
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/components/01-Unified/NoDataTab';
@@ -46,6 +49,8 @@ export default function ProductsPage() {
   const [barcode, setBarcode] = useState('');
   const [productId, setProductId] = useState('');
   const [itemCode, setItemCode] = useState<string>('');
+  const [productCategory, setProductCategory] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   // Fetch products when page or search term changes (debounced)
   useEffect(() => {
@@ -89,6 +94,7 @@ export default function ProductsPage() {
     setBarcode(product ? product["PRODUCT BARCODE"] : '');
     setProductId(product ? product["PRODUCT ID"] : '');
     setItemCode(product ? (product["ITEM CODE"] ?? '').toString() : '');
+    setProductCategory(product ? product["PRODUCT CATEGORY"] || '' : '');
     setIsModalOpen(true);
   };
 
@@ -127,7 +133,8 @@ export default function ProductsPage() {
             "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
             "PRODUCT ID": productId,
-            "ITEM CODE": itemCodeValue
+            "ITEM CODE": itemCodeValue,
+            "PRODUCT CATEGORY": productCategory
           })
           .eq('ID', editingProduct.ID);
         if (error) throw error;
@@ -158,7 +165,8 @@ export default function ProductsPage() {
             "PRODUCT NAME": name,
             "PRODUCT BARCODE": barcode,
             "PRODUCT ID": productId,
-            "ITEM CODE": itemCodeValue
+            "ITEM CODE": itemCodeValue,
+            "PRODUCT CATEGORY": productCategory
           });
         if (error) throw error;
       }
@@ -199,6 +207,85 @@ export default function ProductsPage() {
     }
   };
 
+  const handleExportExcel = async () => {
+    setIsSaving(true);
+    try {
+      const { data, error } = await bhs_supabas.from('bhs_PRODUCTS').select('*').order('PRODUCT NAME');
+      if (error) throw error;
+      
+      const exportData = data.map((p: any) => ({
+        'ID': p.ID,
+        'PRODUCT ID': p['PRODUCT ID'],
+        'PRODUCT BARCODE': p['PRODUCT BARCODE'],
+        'PRODUCT NAME': p['PRODUCT NAME'],
+        'PRODUCT CATEGORY': p['PRODUCT CATEGORY'],
+        'ITEM CODE': p['ITEM CODE']
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Products');
+      XLSX.writeFile(wb, `Products_Database_${new Date().toISOString().split('T')[0]}.xlsx`);
+      toast.success('Database exported successfully!');
+    } catch (err: any) {
+      toast.error('Failed to export data: ' + err.message);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploading(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+      if (jsonData.length === 0) {
+        toast.error('The uploaded Excel file is empty.');
+        return;
+      }
+
+      // Map JSON to match the database columns
+      const formattedData = jsonData.map(row => ({
+        ID: row['ID'] || undefined,
+        "PRODUCT NAME": row['PRODUCT NAME'] || '',
+        "PRODUCT BARCODE": row['PRODUCT BARCODE'] || '',
+        "PRODUCT ID": row['PRODUCT ID'] || '',
+        "ITEM CODE": row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
+        "PRODUCT CATEGORY": row['PRODUCT CATEGORY'] || ''
+      })).filter(row => row["PRODUCT NAME"] && row.ID);
+
+      if (formattedData.length === 0) {
+        toast.error('No valid products found in the file. Make sure ID and PRODUCT NAME exist.');
+        return;
+      }
+
+      const chunkSize = 500;
+      for (let i = 0; i < formattedData.length; i += chunkSize) {
+        const chunk = formattedData.slice(i, i + chunkSize);
+        const { error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .upsert(chunk, { onConflict: 'ID' });
+          
+        if (error) throw error;
+      }
+
+      toast.success(`Successfully imported ${formattedData.length} products!`);
+      fetchProducts(searchTerm, currentPage);
+    } catch (err: any) {
+      toast.error('Failed to import data: ' + err.message);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
+  };
+
   const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const paginatedProducts = products;
@@ -212,6 +299,28 @@ export default function ProductsPage() {
         <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
           {canEdit && (
             <>
+              <button
+                onClick={handleExportExcel}
+                disabled={isSaving}
+                className="p-4 bg-white border border-gray-200 text-green-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title="Export Excel"
+              >
+                <Download className="w-6 h-6" />
+              </button>
+              
+              <label
+                className={`p-4 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Import/Update from Excel"
+              >
+                {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                <input 
+                  type="file" 
+                  accept=".xlsx, .xls" 
+                  className="hidden" 
+                  onChange={handleImportExcel}
+                  disabled={isUploading}
+                />
+              </label>
 
               <button
                 onClick={() => handleOpenModal()}
@@ -246,6 +355,7 @@ export default function ProductsPage() {
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Product Name</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Barcode</th>
+                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Category</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Item Code</th>
                 <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
               </tr>
@@ -254,14 +364,14 @@ export default function ProductsPage() {
               {isLoading ? (
                 Array(8).fill(0).map((_, i) => (
                   <tr key={i} className="animate-pulse">
-                    <td colSpan={5} className="px-8 py-6">
+                    <td colSpan={6} className="px-8 py-6">
                       <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
                     </td>
                   </tr>
                 ))
               ) : paginatedProducts.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-8 py-12 text-center">
+                  <td colSpan={6} className="px-8 py-12 text-center">
                     <NoData title="NO PRODUCTS FOUND" />
                   </td>
                 </tr>
@@ -284,6 +394,11 @@ export default function ProductsPage() {
                         <Barcode className="w-3.5 h-3.5" />
                         <span className="text-xs font-medium font-mono tracking-widest">{product["PRODUCT BARCODE"]}</span>
                       </div>
+                    </td>
+                    <td className="px-8 py-6 text-center">
+                      <span className="text-xs font-bold text-gray-600 px-3 py-1 bg-gray-100 rounded-lg whitespace-nowrap">
+                        {product["PRODUCT CATEGORY"] || '—'}
+                      </span>
                     </td>
                     <td className="px-8 py-6 text-center">
                       {product["ITEM CODE"] != null ? (
@@ -420,6 +535,17 @@ export default function ProductsPage() {
                       className="w-full pl-14 pr-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold font-mono"
                     />
                   </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">PRODUCT CATEGORY</label>
+                  <input
+                    type="text"
+                    value={productCategory}
+                    onChange={(e) => setProductCategory(e.target.value)}
+                    placeholder="e.g. ELECTRONICS"
+                    className="w-full px-6 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:outline-none focus:ring-2 focus:ring-black/5 transition-all text-black font-bold"
+                  />
                 </div>
 
                 <div className="space-y-2">

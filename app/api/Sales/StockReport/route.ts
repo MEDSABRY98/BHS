@@ -125,7 +125,7 @@ export async function POST(request: Request) {
       if (item.product) prodInCust.allNames.add(item.product.toLowerCase());
       if (item.barcode) prodInCust.allBarcodes.add(item.barcode.toLowerCase());
       if (!isNaN(pNum) && pNum > 0) prodInCust.prices.push(pNum);
-      if (item.productCost > 0) prodInCust.cost = item.productCost;
+      if (item.productCost > 0) prodInCust.cost = Math.max(prodInCust.cost, item.productCost);
 
       // --- Products Map ---
       if (!productMap.has(productKey)) {
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
         prodEntry.priceRange.min = Math.min(prodEntry.priceRange.min, pNum);
         prodEntry.priceRange.max = Math.max(prodEntry.priceRange.max, pNum);
       }
-      if (item.productCost > 0) custInProd.cost = item.productCost;
+      if (item.productCost > 0) custInProd.cost = Math.max(custInProd.cost, item.productCost);
     });
 
     // Finalize Customers Data
