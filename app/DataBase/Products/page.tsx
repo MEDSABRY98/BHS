@@ -372,15 +372,15 @@ export default function ProductsPage() {
 
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse table-fixed min-w-[1200px]">
             <thead>
               <tr className="border-b border-gray-50">
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Product Name</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-64">Barcode</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Category</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">Item Code</th>
-                <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
+                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-24">ID</th>
+                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[35%]">Product Name</th>
+                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Barcode</th>
+                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[20%]">Category</th>
+                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Item Code</th>
+                <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-28">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -404,12 +404,12 @@ export default function ProductsPage() {
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{product.ID}</span>
                     </td>
-                    <td className="px-8 py-6 text-center">
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="w-10 h-10 bg-black/5 rounded-xl flex items-center justify-center shrink-0">
-                          <Package className="w-5 h-5 text-black/20" />
+                    <td className="px-6 py-6 text-center overflow-hidden">
+                      <div className="flex items-center justify-center gap-3 w-full">
+                        <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shrink-0 shadow-lg shadow-black/5">
+                          <Package className="w-5 h-5 text-[#D4AF37]" />
                         </div>
-                        <span className="font-bold text-black">{product["PRODUCT NAME"]}</span>
+                        <span className="font-bold text-black truncate" title={product["PRODUCT NAME"]}>{product["PRODUCT NAME"]}</span>
                       </div>
                     </td>
                     <td className="px-8 py-6 text-center">
@@ -418,8 +418,11 @@ export default function ProductsPage() {
                         <span className="text-xs font-medium font-mono tracking-widest">{product["PRODUCT BARCODE"]}</span>
                       </div>
                     </td>
-                    <td className="px-8 py-6 text-center">
-                      <span className="text-xs font-bold text-gray-600 px-3 py-1 bg-gray-100 rounded-lg whitespace-nowrap">
+                    <td className="px-6 py-6 text-center overflow-hidden">
+                      <span 
+                        className="text-xs font-bold text-gray-600 px-3 py-1 bg-gray-100 rounded-lg whitespace-nowrap truncate inline-block max-w-full"
+                        title={product["PRODUCT CATEGORY"] || ''}
+                      >
                         {product["PRODUCT CATEGORY"] || '—'}
                       </span>
                     </td>

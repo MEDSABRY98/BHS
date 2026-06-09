@@ -38,7 +38,6 @@ export default function CustomersPage() {
   const [confirmAction, setConfirmAction] = useState<'save' | 'delete'>('save');
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 100;
@@ -374,7 +373,6 @@ export default function CustomersPage() {
         if (upsertErr) throw upsertErr;
 
         triggerMessage('success', `${recordsToUpsert.length} customers processed successfully!`);
-        setIsExcelModalOpen(false);
         fetchCustomers(searchTerm, currentPage);
       } catch (err: any) {
         console.error(err);
@@ -408,12 +406,28 @@ export default function CustomersPage() {
           {canEdit && (
             <>
               <button
-                onClick={() => setIsExcelModalOpen(true)}
-                className="w-12 h-12 bg-white border border-gray-100 rounded-2xl flex items-center justify-center text-gray-400 hover:text-black hover:border-black hover:bg-gray-50 transition-all shadow-sm group"
-                title="Excel Actions"
+                onClick={downloadCustomersExcel}
+                disabled={isSaving}
+                className="p-4 bg-white border border-gray-200 text-green-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center disabled:opacity-50"
+                title="Export Excel"
               >
-                <FileSpreadsheet className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                <Download className="w-6 h-6" />
               </button>
+              
+              <label
+                className={`p-4 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                title="Import/Update from Excel"
+              >
+                {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+                <input 
+                  type="file" 
+                  accept=".xlsx, .xls" 
+                  className="hidden" 
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                />
+              </label>
+
               <button
                 onClick={() => handleOpenModal()}
                 className="p-4 bg-black text-[#D4AF37] rounded-2xl shadow-xl shadow-black/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center"
@@ -666,59 +680,6 @@ export default function CustomersPage() {
         title="Confirm Deletion"
         message="Are you sure you want to delete this customer? This action cannot be undone."
       />
-
-      {/* Excel Modal */}
-      {isExcelModalOpen && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-6 animate-in fade-in duration-300">
-          <div className="absolute inset-0 bg-transparent" onClick={() => !isUploading && setIsExcelModalOpen(false)} />
-          <div className="bg-white rounded-[3rem] p-10 shadow-2xl relative w-full max-w-xl animate-in zoom-in-95 duration-300 border border-white/20">
-            <button
-              onClick={() => setIsExcelModalOpen(false)}
-              className="absolute top-8 right-8 w-10 h-10 flex items-center justify-center text-gray-300 hover:text-black hover:bg-gray-50 rounded-xl transition-all"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="mb-10">
-              <div className="w-14 h-14 bg-emerald-50 rounded-[1.25rem] flex items-center justify-center mb-6">
-                <FileSpreadsheet className="w-7 h-7 text-emerald-600" />
-              </div>
-              <h3 className="text-2xl font-black text-black">Excel Actions</h3>
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mt-1">Update or add customers via Excel</p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                onClick={downloadCustomersExcel}
-                className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4"
-              >
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-black group-hover:text-white transition-all">
-                  <Download className="w-6 h-6" />
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-black text-black uppercase tracking-widest">Download Data</p>
-                </div>
-              </button>
-
-              <label className="flex flex-col items-center justify-center p-8 bg-gray-50 border border-gray-100 rounded-[2.5rem] hover:bg-white hover:border-black hover:shadow-xl hover:shadow-black/5 transition-all group gap-4 cursor-pointer relative overflow-hidden">
-                <input
-                  type="file"
-                  accept=".xlsx, .xls"
-                  onChange={handleFileUpload}
-                  disabled={isUploading}
-                  className="absolute inset-0 opacity-0 cursor-pointer"
-                />
-                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:bg-emerald-600 group-hover:text-white transition-all">
-                  {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
-                </div>
-                <div className="text-center">
-                  <p className="text-xs font-black text-black uppercase tracking-widest">{isUploading ? 'Uploading...' : 'Upload Update'}</p>
-                </div>
-              </label>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
