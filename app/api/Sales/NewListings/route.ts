@@ -117,7 +117,7 @@ export async function POST(request: Request) {
       const uniqueCustomersInMonth = new Set<string>();
 
       for (const [productId, pData] of Object.entries(productsData)) {
-        const customersArr = Array.from((pData as any).customersMap.entries()).map(([id, name]) => {
+        const customersArr = Array.from((pData as any).customersMap.entries()).map(([id, name]: any) => {
           uniqueCustomersInMonth.add(id as string);
           return { id, name };
         }).sort((a: any, b: any) => a.name.localeCompare(b.name));
