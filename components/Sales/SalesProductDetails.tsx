@@ -77,10 +77,10 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
       filtered = filtered.filter(item =>
-        item.product.toLowerCase().includes(query) ||
-        item.customerName.toLowerCase().includes(query) ||
-        item.merchandiser.toLowerCase().includes(query) ||
-        item.salesRep.toLowerCase().includes(query)
+        item.product?.toLowerCase().includes(query) ||
+        item.customerName?.toLowerCase().includes(query) ||
+        item.merchandiser?.toLowerCase().includes(query) ||
+        item.salesRep?.toLowerCase().includes(query)
       );
     }
 

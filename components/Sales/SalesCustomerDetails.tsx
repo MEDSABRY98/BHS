@@ -129,11 +129,11 @@ export default function SalesCustomerDetails({
     if (debouncedSearchQuery.trim()) {
       const query = debouncedSearchQuery.toLowerCase().trim();
       filtered = filtered.filter(item =>
-        item.product.toLowerCase().includes(query) ||
-        item.barcode.toLowerCase().includes(query) ||
-        item.merchandiser.toLowerCase().includes(query) ||
-        item.salesRep.toLowerCase().includes(query) ||
-        (item.invoiceNumber && item.invoiceNumber.toLowerCase().includes(query))
+        item.product?.toLowerCase().includes(query) ||
+        item.barcode?.toLowerCase().includes(query) ||
+        item.merchandiser?.toLowerCase().includes(query) ||
+        item.salesRep?.toLowerCase().includes(query) ||
+        item.invoiceNumber?.toLowerCase().includes(query)
       );
     }
 

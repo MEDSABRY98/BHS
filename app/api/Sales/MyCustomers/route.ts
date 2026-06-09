@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
 import { invalidateMappingCache } from '@/lib/SalesMappingCache';
-import { v4 as uuidv4 } from 'uuid'; // Fallback if crypto not available
 
 export async function GET(request: Request) {
   try {
