@@ -210,10 +210,33 @@ export default function ProductsPage() {
   const handleExportExcel = async () => {
     setIsSaving(true);
     try {
-      const { data, error } = await bhs_supabas.from('bhs_PRODUCTS').select('*').order('PRODUCT NAME');
-      if (error) throw error;
+      let allData: any[] = [];
+      let start = 0;
+      const step = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_PRODUCTS')
+          .select('*')
+          .order('PRODUCT NAME')
+          .range(start, start + step - 1);
+          
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allData = [...allData, ...data];
+          start += step;
+        } else {
+          hasMore = false;
+        }
+        
+        if (data && data.length < step) {
+          hasMore = false;
+        }
+      }
       
-      const exportData = data.map((p: any) => ({
+      const exportData = allData.map((p: any) => ({
         'ID': p.ID,
         'PRODUCT ID': p['PRODUCT ID'],
         'PRODUCT BARCODE': p['PRODUCT BARCODE'],
