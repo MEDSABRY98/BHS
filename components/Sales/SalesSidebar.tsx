@@ -15,7 +15,8 @@ import {
   ChevronLeft,
   ChevronRight,
   User,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 
 interface SalesSidebarProps {
@@ -49,7 +50,9 @@ export default function SalesSidebar({
     { id: 'sales-daily-sales', label: 'Daily Sales', icon: Calendar },
     { id: 'sales-categories', label: 'Product Category', icon: Tag },
     { id: 'sales-products', label: 'Products', icon: Package },
+    { id: 'sales-new-listings', label: 'New Listings', icon: Sparkles },
     { id: 'sales-download-form', label: 'Stock Report', icon: FileText },
+    { id: 'sales-my-customers', label: 'My Customers', icon: User },
   ];
 
   // Filter tabs based on user permissions

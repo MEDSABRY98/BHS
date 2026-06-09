@@ -12,6 +12,8 @@ import SalesProductsTab from '@/components/Sales/SalesProductsTab';
 import SalesCategoriesTab from '@/components/Sales/SalesCategoriesTab';
 import SalesStockReportTab from '@/components/Sales/SalesStockReportTab';
 import SalesSidebar from '@/components/Sales/SalesSidebar';
+import SalesMyCustomersTab from '@/components/Sales/SalesMyCustomersTab';
+import SalesNewListingsTab from '@/components/Sales/SalesNewListingsTab';
 
 import Login from '@/components/01-Unified/Login';
 import Loading from '@/components/01-Unified/Loading';
@@ -465,7 +467,9 @@ export default function SalesPage() {
     { id: 'sales-daily-sales', label: 'Daily Sales' },
     { id: 'sales-categories', label: 'Category' },
     { id: 'sales-products', label: 'Products' },
+    { id: 'sales-new-listings', label: 'New Listings' },
     { id: 'sales-download-form', label: 'Stock Report' },
+    { id: 'sales-my-customers', label: 'My Customers' },
   ];
 
   const renderTabContent = () => {
@@ -559,6 +563,11 @@ export default function SalesPage() {
             <SalesProductsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
+        {visitedTabs.has('sales-new-listings') && (
+          <div className={activeTab === 'sales-new-listings' ? 'block' : 'hidden'}>
+            <SalesNewListingsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
         {visitedTabs.has('sales-categories') && (
           <div className={activeTab === 'sales-categories' ? 'block' : 'hidden'}>
             <SalesCategoriesTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
@@ -567,6 +576,11 @@ export default function SalesPage() {
         {visitedTabs.has('sales-download-form') && (
           <div className={activeTab === 'sales-download-form' ? 'block' : 'hidden'}>
             <SalesStockReportTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+          </div>
+        )}
+        {visitedTabs.has('sales-my-customers') && (
+          <div className={activeTab === 'sales-my-customers' ? 'block' : 'hidden'}>
+            <SalesMyCustomersTab userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
       </div>
