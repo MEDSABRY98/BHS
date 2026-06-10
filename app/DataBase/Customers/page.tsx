@@ -211,12 +211,28 @@ export default function CustomersPage() {
   const downloadCustomersExcel = async () => {
     setIsSaving(true);
     try {
-      const { data: allCustomers, error } = await bhs_supabas
-        .from('bhs_CUSTOMERS')
-        .select('*')
-        .order('CUSTOMER SUB NAME');
+      let allCustomers: any[] = [];
+      let fetchMore = true;
+      let pageIndex = 0;
+      const limit = 1000;
 
-      if (error) throw error;
+      while (fetchMore) {
+        const { data, error } = await bhs_supabas
+          .from('bhs_CUSTOMERS')
+          .select('*')
+          .order('CUSTOMER SUB NAME')
+          .range(pageIndex * limit, (pageIndex + 1) * limit - 1);
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+          allCustomers = [...allCustomers, ...data];
+          if (data.length < limit) fetchMore = false;
+          else pageIndex++;
+        } else {
+          fetchMore = false;
+        }
+      }
 
       const exportData = (allCustomers || []).map(c => ({
         "ID": c.ID,
