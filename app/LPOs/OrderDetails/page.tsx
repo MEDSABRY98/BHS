@@ -26,7 +26,6 @@ import {
 } from 'lucide-react';
 import { ConfirmModal } from '../Components/ConfirmModal';
 import { usePermissions } from '../Hooks/usePermissions';
-import { generateLpoPackingListPDF } from '@/lib/pdf/PackingListUtils';
 import OrderItemsTab from './Components/OrderItemsTab';
 
 import OrderDeliveryTab from './Components/OrderDeliveryTab';
@@ -49,9 +48,6 @@ function OrderDetailsPageContent() {
   const [isNoItemsOrder, setIsNoItemsOrder] = useState(false);
   const [isEditingStatus, setIsEditingStatus] = useState(false);
   const [pendingStatus, setPendingStatus] = useState('');
-  const [prepStaff, setPrepStaff] = useState<any[]>([]);
-  const [deliveryData, setDeliveryData] = useState<any>(null);
-  const [allStaff, setAllStaff] = useState<any[]>([]);
 
   useEffect(() => {
     if (id) fetchOrderDetails();
@@ -95,17 +91,6 @@ function OrderDetailsPageContent() {
             : item.QTY_RECEIVED
         }));
       }
-
-      // 4. Fetch Logistics & Prep for PDF
-      const [prepRes, deliveryRes, staffRes] = await Promise.all([
-        bhs_supabas.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', orderData.ID),
-        bhs_supabas.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', orderData.ORDER_ID).maybeSingle(),
-        bhs_supabas.from('bhs_USERS').select('*')
-      ]);
-
-      setPrepStaff(prepRes.data || []);
-      setDeliveryData(deliveryRes.data);
-      setAllStaff(staffRes.data || []);
 
       setOrder(orderData);
       setItems(enrichedItems);
@@ -274,42 +259,6 @@ function OrderDetailsPageContent() {
     return sum + (item.PRICE * sentQty);
   }, 0);
 
-  const handlePrintPDF = async (action: 'print' | 'download') => {
-    setIsSaving(true);
-    try {
-      // Re-fetch latest logistics data to ensure PDF is not stale
-      const [prepRes, deliveryRes] = await Promise.all([
-        bhs_supabas.from('app_lpos_PREPARATION').select('*').eq('ORDER_ID', order.ID),
-        bhs_supabas.from('app_lpos_DRIVERS').select('*').eq('ORDER_ID', order.ID).maybeSingle()
-      ]);
-
-      const latestPrep = prepRes.data || [];
-      const latestDelivery = deliveryRes.data;
-
-      const getStaffName = (id: string) => {
-        return allStaff.find(s => s.ID === id)?.NAME || id;
-      };
-
-      const enrichedPrep = latestPrep.map(s => ({
-        ...s,
-        PREPARATION_NAME: getStaffName(s.PREPARATION_NAME)
-      }));
-
-      const enrichedDelivery = latestDelivery ? {
-        ...latestDelivery,
-        DRIVERS_NAME: getStaffName(latestDelivery.DRIVERS_NAME),
-        ASSISTANT_NAME: getStaffName(latestDelivery.ASSISTANT_NAME)
-      } : null;
-
-      await generateLpoPackingListPDF(order, items, action, enrichedPrep, enrichedDelivery);
-    } catch (err) {
-      console.error('Error generating PDF:', err);
-      alert('Failed to generate PDF with latest data');
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
   const handleDownloadExcel = () => {
     try {
       const customerName = order.bhs_CUSTOMERS?.["CUSTOMER NAME"] || '-';
@@ -375,22 +324,6 @@ function OrderDetailsPageContent() {
               title="Export to Excel"
             >
               <FileSpreadsheet className="w-5 h-5" />
-            </button>
-            <button
-              onClick={() => handlePrintPDF('print')}
-              disabled={isSaving}
-              className="p-4 bg-white border border-gray-100 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
-              title="Print Packing List"
-            >
-              <Printer className="w-5 h-5 text-blue-500" />
-            </button>
-            <button
-              onClick={() => handlePrintPDF('download')}
-              disabled={isSaving}
-              className="p-4 bg-white border border-gray-100 text-gray-700 rounded-2xl hover:bg-gray-50 transition-all flex items-center justify-center shadow-sm"
-              title="Download PDF"
-            >
-              <FileText className="w-5 h-5 text-red-500" />
             </button>
             {(order?.STATUS === 'Pending' || isEditingStatus) ? (
               <>

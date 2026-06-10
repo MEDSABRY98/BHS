@@ -208,9 +208,17 @@ export default function CustomersPage() {
     else toast.error(text);
   };
 
-  const downloadCustomersExcel = () => {
+  const downloadCustomersExcel = async () => {
+    setIsSaving(true);
     try {
-      const exportData = customers.map(c => ({
+      const { data: allCustomers, error } = await bhs_supabas
+        .from('bhs_CUSTOMERS')
+        .select('*')
+        .order('CUSTOMER SUB NAME');
+
+      if (error) throw error;
+
+      const exportData = (allCustomers || []).map(c => ({
         "ID": c.ID,
         "Customer ID": c["CUSTOMER ID"] || '',
         "Customer Main Name": c["CUSTOMER MAIN NAME"] || '',
@@ -218,15 +226,10 @@ export default function CustomersPage() {
         "Customer City": c["CUSTOMER CITY"] || ''
       }));
 
-      // If there's no customer data yet, provide a sample row
       if (exportData.length === 0) {
-        exportData.push({
-          "ID": "R-0001",
-          "Customer ID": "CUST-1001",
-          "Customer Main Name": "Lulu Group",
-          "Customer Sub Name": "Lulu Hypermarket",
-          "Customer City": "Dubai"
-        });
+        triggerMessage('error', 'No customers found in database to export');
+        setIsSaving(false);
+        return;
       }
 
       const ws = XLSX.utils.json_to_sheet(exportData);
@@ -237,6 +240,8 @@ export default function CustomersPage() {
     } catch (err: any) {
       console.error(err);
       triggerMessage('error', 'Failed to export Excel file');
+    } finally {
+      setIsSaving(false);
     }
   };
 

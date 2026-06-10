@@ -1,24 +1,40 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileText, Plus, Trash2, Printer, ArrowLeft, Save, Loader2, Search, Edit2, X, CheckCircle2, List } from 'lucide-react';
+import { Plus, Search, List, ArrowLeft, History, Menu } from 'lucide-react';
 import { generateWaterDeliveryNotePDF } from '@/lib/pdf/PdfUtils';
 import { toast } from '@/components/01-Unified/Notification';
 import Loading from '@/components/01-Unified/Loading';
+import { bhs_supabas } from '@/lib/supabase';
+import WaterEntryTab from './Components/WaterEntryTab';
+import WaterSearchTab from './Components/WaterSearchTab';
+import WaterDailyTab from './Components/WaterDailyTab';
+import WaterHistoryTab from './Components/WaterHistoryTab';
+import WaterSidebar from './Components/WaterSidebar';
 
-interface WaterDeliveryNoteItem {
+export interface WaterDeliveryNoteItem {
   itemName: string;
   signature: string;
 }
 
-interface DeliveryNoteLine {
+export interface DeliveryNoteLine {
   itemName: string;
   quantity: number;
   unitType: 'Outer';
 }
 
+export interface DailyDataRow {
+  deliveryNoteNumber: string;
+  date: string;
+  itemName: string;
+  quantity: number;
+  receivedBy: string;
+}
+
 export default function WaterDeliveryNotePage() {
-  const [activeTab, setActiveTab] = useState<'entry' | 'search' | 'daily'>('entry');
+  const [activeTab, setActiveTab] = useState<'entry' | 'search' | 'history' | 'daily'>('entry');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [items, setItems] = useState<WaterDeliveryNoteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,6 +46,7 @@ export default function WaterDeliveryNotePage() {
   ]);
   const [deliveryNoteNumber, setDeliveryNoteNumber] = useState('');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [receivedBy, setReceivedBy] = useState('');
 
   // Search Tab states (for editing existing entries)
   const [searchNumber, setSearchNumber] = useState('');
@@ -41,9 +58,27 @@ export default function WaterDeliveryNotePage() {
   ]);
   const [editDeliveryNoteNumber, setEditDeliveryNoteNumber] = useState('');
   const [editDate, setEditDate] = useState(new Date().toISOString().split('T')[0]);
+  const [editReceivedBy, setEditReceivedBy] = useState('');
 
   // Daily output states
-  const [dailyData, setDailyData] = useState<any[]>([]);
+  const [dailyData, setDailyData] = useState<DailyDataRow[]>([]);
+  
+  // Unique receivers list derived from history
+  const uniqueReceivers = Array.from(new Set(dailyData.map(d => d.receivedBy).filter(Boolean))).sort();
+
+  // Load sidebar collapsed state on mount
+  useEffect(() => {
+    const stored = localStorage.getItem('waterSidebarCollapsed');
+    if (stored === 'true') {
+      setIsSidebarCollapsed(true);
+    }
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextState = !isSidebarCollapsed;
+    setIsSidebarCollapsed(nextState);
+    localStorage.setItem('waterSidebarCollapsed', String(nextState));
+  };
 
   const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     if (type === 'success') toast.success(message);
@@ -73,28 +108,46 @@ export default function WaterDeliveryNotePage() {
           } catch (e) { }
         }
 
-        // Fetch items
-        const itemsResponse = await fetch('/api/Waters');
-        const itemsData = await itemsResponse.json();
-        if (itemsData.data) {
-          setItems(itemsData.data);
+        // Fetch items from web_WATER_DB_PRODUCT
+        const { data: productsData, error: productsError } = await bhs_supabas
+          .from('web_WATER_DB_PRODUCT')
+          .select('PRODUCT_NAME')
+          .order('PRODUCT_NAME');
+          
+        if (productsData) {
+          setItems(productsData.map(p => ({ itemName: p.PRODUCT_NAME, signature: '' })));
         }
 
-        // Fetch next delivery note number
-        const numberResponse = await fetch('/api/Waters?action=next-number');
-        const numberData = await numberResponse.json();
-        if (numberData.nextNumber) {
-          setDeliveryNoteNumber(numberData.nextNumber);
-        } else {
-          // Fallback to DN-001 if no number returned
-          setDeliveryNoteNumber('DN-001');
+        // Fetch next delivery note number from web_WATER_DB
+        const { data: maxTxData } = await bhs_supabas
+          .from('web_WATER_DB')
+          .select('TRANSCTION_ID')
+          .order('TRANSCTION_ID', { ascending: false })
+          .limit(1);
+          
+        let nextNumber = 'W-0001';
+        if (maxTxData && maxTxData.length > 0 && maxTxData[0].TRANSCTION_ID) {
+          const match = maxTxData[0].TRANSCTION_ID.match(/W-(\d+)/);
+          if (match && match[1]) {
+            nextNumber = `W-${String(parseInt(match[1]) + 1).padStart(4, '0')}`;
+          }
         }
+        setDeliveryNoteNumber(nextNumber);
 
         // Fetch all delivery notes for daily output
-        const allDataResponse = await fetch('/api/Waters?action=all');
-        const allDataJson = await allDataResponse.json();
-        if (allDataJson.data) {
-          setDailyData(allDataJson.data);
+        const { data: allData } = await bhs_supabas
+          .from('web_WATER_DB')
+          .select('*')
+          .order('DATE', { ascending: false });
+          
+        if (allData) {
+          setDailyData(allData.map(row => ({
+            deliveryNoteNumber: row.TRANSCTION_ID,
+            date: row.DATE,
+            itemName: row.PRODUCT_NAME,
+            quantity: Number(row.QUANTITY),
+            receivedBy: row.RECEIVED_BY || ''
+          })));
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -156,16 +209,23 @@ export default function WaterDeliveryNotePage() {
 
   const fetchNextDeliveryNoteNumber = async () => {
     try {
-      const numberResponse = await fetch('/api/Waters?action=next-number');
-      const numberData = await numberResponse.json();
-      if (numberData.nextNumber) {
-        setDeliveryNoteNumber(numberData.nextNumber);
-      } else {
-        setDeliveryNoteNumber('DN-001');
+      const { data: maxTxData } = await bhs_supabas
+        .from('web_WATER_DB')
+        .select('TRANSCTION_ID')
+        .order('TRANSCTION_ID', { ascending: false })
+        .limit(1);
+        
+      let nextNumber = 'W-0001';
+      if (maxTxData && maxTxData.length > 0 && maxTxData[0].TRANSCTION_ID) {
+        const match = maxTxData[0].TRANSCTION_ID.match(/W-(\d+)/);
+        if (match && match[1]) {
+          nextNumber = `W-${String(parseInt(match[1]) + 1).padStart(4, '0')}`;
+        }
       }
+      setDeliveryNoteNumber(nextNumber);
     } catch (error) {
       console.error('Error fetching next number:', error);
-      setDeliveryNoteNumber('DN-001');
+      setDeliveryNoteNumber('W-0001');
     }
   };
 
@@ -177,31 +237,36 @@ export default function WaterDeliveryNotePage() {
 
     setIsSearching(true);
     try {
-      const response = await fetch(`/api/Waters?number=${encodeURIComponent(searchNumber.trim())}`);
-      if (response.status === 404) {
+      const { data, error } = await bhs_supabas
+        .from('web_WATER_DB')
+        .select('*')
+        .eq('TRANSCTION_ID', searchNumber.trim());
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
         showNotification('Delivery note not found', 'error');
         setFoundDeliveryNote(null);
         setIsSearching(false);
         return;
       }
 
-      if (!response.ok) {
-        throw new Error('Failed to search');
-      }
+      // Format data back to the structure expected by the app
+      const date = data[0].DATE;
+      const receivedBy = data[0].RECEIVED_BY || '';
+      const items = data.map(row => ({
+        itemName: row.PRODUCT_NAME,
+        quantity: Number(row.QUANTITY),
+        unitType: 'Outer' as const
+      }));
 
-      const data = await response.json();
-      if (data.data) {
-        setFoundDeliveryNote(data.data);
-        setEditDeliveryNoteNumber(data.data.deliveryNoteNumber);
-        setEditDate(data.data.date);
-        setEditLines(data.data.items.map((item: any) => ({
-          itemName: item.itemName,
-          quantity: item.quantity,
-          unitType: 'Outer' as const
-        })));
-        setIsEditing(true);
-        showNotification('Delivery note loaded successfully', 'success');
-      }
+      setFoundDeliveryNote({ deliveryNoteNumber: searchNumber.trim(), date, items });
+      setEditDeliveryNoteNumber(searchNumber.trim());
+      setEditDate(date);
+      setEditReceivedBy(receivedBy);
+      setEditLines(items);
+      setIsEditing(true);
+      showNotification('Delivery note loaded successfully', 'success');
     } catch (error) {
       console.error('Error searching:', error);
       showNotification('Error searching for delivery note. Please try again.', 'error');
@@ -217,6 +282,7 @@ export default function WaterDeliveryNotePage() {
     setEditLines([{ itemName: '', quantity: 0, unitType: 'Outer' }]);
     setEditDate(new Date().toISOString().split('T')[0]);
     setEditDeliveryNoteNumber('');
+    setEditReceivedBy('');
   };
 
   const handleUpdate = async () => {
@@ -231,6 +297,11 @@ export default function WaterDeliveryNotePage() {
         return;
       }
 
+      if (!editReceivedBy.trim()) {
+        showNotification('Please enter the Received By name', 'warning');
+        return;
+      }
+
       const validLines = editLines.filter(line => line.itemName && line.quantity > 0);
       if (validLines.length === 0) {
         showNotification('Please add at least one item with quantity', 'warning');
@@ -239,24 +310,34 @@ export default function WaterDeliveryNotePage() {
 
       setSaving(true);
 
-      const updateResponse = await fetch('/api/Waters', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          deliveryNoteNumber: editDeliveryNoteNumber,
-          date: editDate,
-          items: validLines.map(line => ({
-            itemName: line.itemName,
-            quantity: line.quantity
-          }))
-        }),
-      });
+      // First delete existing records for this delivery note
+      const { error: deleteError } = await bhs_supabas
+        .from('web_WATER_DB')
+        .delete()
+        .eq('TRANSCTION_ID', editDeliveryNoteNumber);
 
-      if (!updateResponse.ok) {
-        const errorData = await updateResponse.json();
-        console.error('Error updating:', errorData);
+      if (deleteError) {
+        console.error('Error deleting old records:', deleteError);
+        showNotification('Error updating delivery note. Please try again.', 'error');
+        setSaving(false);
+        return;
+      }
+
+      // Then insert new records
+      const insertData = validLines.map(line => ({
+        TRANSCTION_ID: editDeliveryNoteNumber,
+        DATE: editDate,
+        PRODUCT_NAME: line.itemName,
+        QUANTITY: line.quantity,
+        RECEIVED_BY: editReceivedBy.trim() || null
+      }));
+
+      const { error: insertError } = await bhs_supabas
+        .from('web_WATER_DB')
+        .insert(insertData);
+
+      if (insertError) {
+        console.error('Error inserting new records:', insertError);
         showNotification('Error updating delivery note. Please try again.', 'error');
         setSaving(false);
         return;
@@ -270,6 +351,7 @@ export default function WaterDeliveryNotePage() {
           companyName: 'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
           deliveryNoteNumber: editDeliveryNoteNumber,
           date: editDate,
+          receivedBy: editReceivedBy,
           lines: editLines,
           total: calculateEditTotal()
         });
@@ -301,6 +383,11 @@ export default function WaterDeliveryNotePage() {
         return;
       }
 
+      if (!receivedBy.trim()) {
+        showNotification('Please enter the Received By name', 'warning');
+        return;
+      }
+
       const validLines = lines.filter(line => line.itemName && line.quantity > 0);
       if (validLines.length === 0) {
         showNotification('Please add at least one item with quantity', 'warning');
@@ -309,34 +396,30 @@ export default function WaterDeliveryNotePage() {
 
       setSaving(true);
 
-      // Save to Google Sheets first
+      // Save to Supabase first
       try {
-        const saveResponse = await fetch('/api/Waters', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            date,
-            deliveryNoteNumber,
-            items: validLines.map(line => ({
-              itemName: line.itemName,
-              quantity: line.quantity
-            }))
-          }),
-        });
+        const insertData = validLines.map(line => ({
+          TRANSCTION_ID: deliveryNoteNumber,
+          DATE: date,
+          PRODUCT_NAME: line.itemName,
+          QUANTITY: line.quantity,
+          RECEIVED_BY: receivedBy.trim() || null
+        }));
 
-        if (!saveResponse.ok) {
-          const errorData = await saveResponse.json();
-          console.error('Error saving to sheets:', errorData);
-          showNotification('Error saving to Google Sheets. Please try again.', 'error');
+        const { error: insertError } = await bhs_supabas
+          .from('web_WATER_DB')
+          .insert(insertData);
+
+        if (insertError) {
+          console.error('Error saving to Supabase:', insertError);
+          showNotification('Error saving to database. Please try again.', 'error');
           setSaving(false);
           return;
         }
         showNotification('Delivery note saved successfully!', 'success');
       } catch (saveError) {
-        console.error('Error saving to sheets:', saveError);
-        showNotification('Error saving to Google Sheets. Please try again.', 'error');
+        console.error('Error saving to Supabase:', saveError);
+        showNotification('Error saving to database. Please try again.', 'error');
         setSaving(false);
         return;
       }
@@ -346,6 +429,7 @@ export default function WaterDeliveryNotePage() {
         companyName: 'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
         deliveryNoteNumber,
         date,
+        receivedBy,
         lines,
         total: calculateTotal()
       });
@@ -355,6 +439,7 @@ export default function WaterDeliveryNotePage() {
       // Clear form and get next number
       setLines([{ itemName: '', quantity: 0, unitType: 'Outer' }]);
       setDate(new Date().toISOString().split('T')[0]);
+      setReceivedBy('');
       await fetchNextDeliveryNoteNumber();
 
       setSaving(false);
@@ -365,464 +450,192 @@ export default function WaterDeliveryNotePage() {
     }
   };
 
+  const handleReprintTransaction = async (txNumber: string) => {
+    try {
+      const { data, error } = await bhs_supabas
+        .from('web_WATER_DB')
+        .select('*')
+        .eq('TRANSCTION_ID', txNumber);
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        showNotification('Delivery note not found for reprinting', 'error');
+        return;
+      }
+
+      const date = data[0].DATE;
+      const receivedBy = data[0].RECEIVED_BY || '';
+      const items = data.map(row => ({
+        itemName: row.PRODUCT_NAME,
+        quantity: Number(row.QUANTITY),
+        unitType: 'Outer' as const
+      }));
+
+      const total = items.reduce((acc, line) => {
+        acc.outer += line.quantity;
+        return acc;
+      }, { outer: 0, pcs: 0 });
+
+      await generateWaterDeliveryNotePDF({
+        companyName: 'Al Marai Al Arabia Trading Sole Proprietorship L.L.C',
+        deliveryNoteNumber: txNumber,
+        date,
+        receivedBy,
+        lines: items,
+        total
+      });
+      showNotification('PDF reprinted successfully!', 'success');
+    } catch (error) {
+      console.error('Error reprinting:', error);
+      showNotification('Failed to reprint.', 'error');
+    }
+  };
+
+  const handleDeleteTransaction = async (txNumber: string) => {
+    try {
+      const { error } = await bhs_supabas
+        .from('web_WATER_DB')
+        .delete()
+        .eq('TRANSCTION_ID', txNumber);
+
+      if (error) throw error;
+
+      setDailyData(prev => prev.filter(row => row.deliveryNoteNumber !== txNumber));
+      showNotification(`Delivery Note ${txNumber} deleted successfully.`, 'success');
+      
+      // Update next number just in case it was the latest
+      await fetchNextDeliveryNoteNumber();
+    } catch (error) {
+      console.error('Error deleting:', error);
+      showNotification('Failed to delete delivery note.', 'error');
+    }
+  };
+
   if (loading) {
     return <Loading message="Loading Water Delivery Note Data..." />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        {/* Modern Integrated Header */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-5 flex items-center justify-between gap-8">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => window.location.href = '/'}
-                className="group p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white rounded-xl transition-all border border-white/20 shadow-sm"
-                title="Back to Home"
-              >
-                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-              </button>
-            </div>
+    <div className="flex min-h-screen bg-[#F8F9FA] text-black">
+      {/* Sidebar - Desktop */}
+      <aside className={`hidden lg:flex flex-col ${isSidebarCollapsed ? 'w-20' : 'w-72'} bg-[#0d1e16] text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
+        <WaterSidebar
+          activeTab={activeTab}
+          onTabChange={(tab: string) => setActiveTab(tab as any)}
+          currentUser={currentUser}
+          isCollapsed={isSidebarCollapsed}
+          onToggleCollapse={toggleSidebar}
+        />
+      </aside>
 
-            <div className="flex bg-white/10 backdrop-blur-md p-1 rounded-xl border border-white/20 w-full max-w-xl">
-              {[
-                { id: 'entry', label: 'New Entry', icon: Plus },
-                { id: 'search', label: 'Search / Edit', icon: Search },
-                { id: 'daily', label: 'Daily Summary', icon: List }
-              ].filter(tab => {
-                if (!currentUser || currentUser.name === 'MED Sabry') return true;
-                try {
-                  const perms = JSON.parse(currentUser.role || '{}');
-                  if (perms['water-delivery-note']) {
-                    return perms['water-delivery-note'].includes(tab.id);
-                  }
-                } catch (e) { }
-                return true;
-              }).map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex-1 flex items-center justify-center gap-2 px-2 py-2 rounded-lg font-bold text-sm transition-all ${activeTab === tab.id
-                      ? 'bg-white text-blue-700 shadow-lg scale-[1.02]'
-                      : 'text-white/70 hover:text-white hover:bg-white/10'
-                      }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span className="truncate">{tab.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+      {/* Mobile Sidebar Overlay */}
+      {isMobileSidebarOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
 
-            <div className="hidden md:block w-12"></div> {/* Spacer for balance */}
+      {/* Mobile Sidebar */}
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1e16] text-white transition-transform duration-300 transform lg:hidden ${isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'} flex flex-col`}>
+        <WaterSidebar
+          activeTab={activeTab}
+          onTabChange={(tab: string) => setActiveTab(tab as any)}
+          currentUser={currentUser}
+          isCollapsed={false}
+          onToggleCollapse={() => {}}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      </aside>
+
+      {/* Main Content Area */}
+      <div className={`flex-1 flex flex-col min-w-0 ${isSidebarCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
+        {/* Header */}
+        <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-slate-200 shadow-sm transition-all duration-300">
+          <div className="max-w-[90%] mx-auto px-4 py-3 flex items-center justify-between min-h-[5rem]">
+            <button 
+              onClick={() => setIsMobileSidebarOpen(true)} 
+              className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <div className="flex-1 flex justify-center items-center">
+              <span className="text-lg font-extrabold text-slate-800 tracking-tight">
+                {activeTab === 'entry' && 'New Entry'}
+                {activeTab === 'search' && 'Search / Edit'}
+                {activeTab === 'history' && 'History'}
+                {activeTab === 'daily' && 'Daily Summary'}
+              </span>
+            </div>
+            <div className="w-11 lg:hidden"></div> {/* Spacer for mobile balance */}
           </div>
-        </div>
+        </header>
+
+        {/* Main Content */}
+        <div className="max-w-[90%] mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12 flex-1 w-full">
 
 
         {/* Entry Tab */}
         {activeTab === 'entry' && (
-          <>
-            {/* Form */}
-            <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-              <div className="grid grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Delivery Note Number
-                  </label>
-                  <input
-                    type="text"
-                    value={deliveryNoteNumber}
-                    readOnly
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
-                    placeholder="DN-001"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Date
-                  </label>
-                  <input
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-
-              {/* Lines */}
-              <div className="mb-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-xl font-bold text-gray-800">Items</h2>
-                  <button
-                    onClick={addLine}
-                    className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                    title="Add Item"
-                  >
-                    <Plus className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="space-y-4">
-                  {lines.map((line, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-4 items-end p-4 bg-gray-50 rounded-lg">
-                      <div className="col-span-7">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Item Name
-                        </label>
-                        <select
-                          value={line.itemName}
-                          onChange={(e) => updateLine(index, 'itemName', e.target.value)}
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-10"
-                        >
-                          <option value="">Select Item</option>
-                          {items.map((item, idx) => (
-                            <option key={idx} value={item.itemName}>
-                              {item.itemName}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="col-span-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Quantity (Outer)
-                        </label>
-                        <input
-                          type="number"
-                          value={line.quantity === 0 ? '' : line.quantity}
-                          onChange={(e) => updateLine(index, 'quantity', parseFloat(e.target.value) || 0)}
-                          min="0"
-                          step="0.01"
-                          className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-10"
-                        />
-                      </div>
-                      <div className="col-span-1">
-                        {lines.length > 1 && (
-                          <button
-                            onClick={() => removeLine(index)}
-                            className="w-full h-10 p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center"
-                            title="Remove line"
-                          >
-                            <Trash2 className="w-4 h-4 mx-auto" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Total */}
-              <div className="mb-6 p-4 bg-green-50 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-semibold text-gray-800">Total Outer:</span>
-                  <span className="text-2xl font-bold text-green-600">
-                    {calculateTotal().outer.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Actions */}
-              <div className="flex gap-4 justify-center">
-                <button
-                  onClick={handlePrint}
-                  disabled={saving}
-                  className="flex items-center justify-center gap-2 min-w-[220px] py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md active:scale-95 disabled:opacity-70 mx-auto"
-                >
-                  {saving ? (
-                    <>
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-5 h-5" />
-                      Save & Print
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </>
+          <WaterEntryTab
+            deliveryNoteNumber={deliveryNoteNumber}
+            date={date}
+            setDate={setDate}
+            receivedBy={receivedBy}
+            setReceivedBy={setReceivedBy}
+            lines={lines}
+            items={items}
+            addLine={addLine}
+            updateLine={updateLine}
+            removeLine={removeLine}
+            calculateTotal={calculateTotal}
+            handlePrint={handlePrint}
+            saving={saving}
+            uniqueReceivers={uniqueReceivers}
+          />
         )}
 
         {/* Search Tab */}
         {activeTab === 'search' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex-1">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search by Delivery Note Number
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={searchNumber}
-                    onChange={(e) => setSearchNumber(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                    placeholder="e.g., DN-001"
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    disabled={isSearching || isEditing}
-                  />
-                  <button
-                    onClick={handleSearch}
-                    disabled={isSearching || isEditing}
-                    className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSearching || isEditing
-                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                      : 'bg-blue-600 text-white hover:bg-blue-700'
-                      }`}
-                  >
-                    {isSearching ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Searching...
-                      </>
-                    ) : (
-                      <>
-                        <Search className="w-5 h-5" />
-                        Search
-                      </>
-                    )}
-                  </button>
-                  {isEditing && (
-                    <button
-                      onClick={handleCancelEdit}
-                      className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
-                    >
-                      <X className="w-5 h-5" />
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            </div>
+          <WaterSearchTab
+            searchNumber={searchNumber}
+            setSearchNumber={setSearchNumber}
+            isSearching={isSearching}
+            handleSearch={handleSearch}
+            isEditing={isEditing}
+            editDeliveryNoteNumber={editDeliveryNoteNumber}
+            editDate={editDate}
+            setEditDate={setEditDate}
+            editReceivedBy={editReceivedBy}
+            setEditReceivedBy={setEditReceivedBy}
+            editLines={editLines}
+            items={items}
+            addEditLine={addEditLine}
+            updateEditLine={updateEditLine}
+            removeEditLine={removeEditLine}
+            calculateEditTotal={calculateEditTotal}
+            handleUpdate={handleUpdate}
+            saving={saving}
+            handleCancelEdit={handleCancelEdit}
+            uniqueReceivers={uniqueReceivers}
+          />
+        )}
 
-            {/* Edit Form (shown when editing) */}
-            {isEditing && (
-              <div className="mt-6">
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Delivery Note Number
-                    </label>
-                    <input
-                      type="text"
-                      value={editDeliveryNoteNumber}
-                      readOnly
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
-                      placeholder="DN-001"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Date
-                    </label>
-                    <input
-                      type="date"
-                      value={editDate}
-                      onChange={(e) => setEditDate(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                {/* Lines */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold text-gray-800">Items</h2>
-                    <button
-                      onClick={addEditLine}
-                      className="p-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                      title="Add Item"
-                    >
-                      <Plus className="w-5 h-5" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-4">
-                    {editLines.map((line, index) => (
-                      <div key={index} className="grid grid-cols-12 gap-4 items-end p-4 bg-gray-50 rounded-lg">
-                        <div className="col-span-7">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Item Name
-                          </label>
-                          <select
-                            value={line.itemName}
-                            onChange={(e) => updateEditLine(index, 'itemName', e.target.value)}
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-10"
-                          >
-                            <option value="">Select Item</option>
-                            {items.map((item, idx) => (
-                              <option key={idx} value={item.itemName}>
-                                {item.itemName}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                        <div className="col-span-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Quantity (Outer)
-                          </label>
-                          <input
-                            type="number"
-                            value={line.quantity === 0 ? '' : line.quantity}
-                            onChange={(e) => updateEditLine(index, 'quantity', parseFloat(e.target.value) || 0)}
-                            min="0"
-                            step="0.01"
-                            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent h-10"
-                          />
-                        </div>
-                        <div className="col-span-1">
-                          {editLines.length > 1 && (
-                            <button
-                              onClick={() => removeEditLine(index)}
-                              className="w-full h-10 p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors flex items-center justify-center"
-                              title="Remove line"
-                            >
-                              <Trash2 className="w-4 h-4 mx-auto" />
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Total */}
-                <div className="mb-6 p-4 bg-green-50 rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-semibold text-gray-800">Total Outer:</span>
-                    <span className="text-2xl font-bold text-green-600">
-                      {calculateEditTotal().outer.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={handleUpdate}
-                    disabled={saving}
-                    className="flex items-center justify-center gap-2 min-w-[220px] py-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all text-sm font-bold shadow-md active:scale-95 disabled:opacity-70 mx-auto"
-                  >
-                    {saving ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        Updating...
-                      </>
-                    ) : (
-                      <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Update
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+        {/* History Tab */}
+        {activeTab === 'history' && (
+          <WaterHistoryTab 
+            dailyData={dailyData} 
+            handleReprint={handleReprintTransaction} 
+            handleDelete={handleDeleteTransaction} 
+          />
         )}
 
         {/* Daily Output Tab */}
         {activeTab === 'daily' && (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">Daily Output</h2>
-
-            {dailyData.length === 0 ? (
-              <p className="text-gray-600 text-center py-8">No delivery notes found.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-                      <th className="border border-gray-300 px-4 py-3 text-center font-bold sticky left-0 bg-blue-600 z-10">
-                        Date
-                      </th>
-                      {(() => {
-                        // Get unique product names and sort alphabetically
-                        const productNames = Array.from(new Set(dailyData.map(d => d.itemName))).sort();
-                        return productNames.map(product => (
-                          <th key={product} className="border border-gray-300 px-4 py-3 text-center font-bold min-w-[120px]">
-                            {product}
-                          </th>
-                        ));
-                      })()}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      // Group data by date
-                      const dateMap = new Map<string, Map<string, number>>();
-
-                      dailyData.forEach(entry => {
-                        if (!dateMap.has(entry.date)) {
-                          dateMap.set(entry.date, new Map());
-                        }
-                        const productMap = dateMap.get(entry.date)!;
-                        const currentQty = productMap.get(entry.itemName) || 0;
-                        productMap.set(entry.itemName, currentQty + entry.quantity);
-                      });
-
-                      // Sort dates (newest first)
-                      const sortedDates = Array.from(dateMap.keys()).sort((a, b) => {
-                        return new Date(b).getTime() - new Date(a).getTime();
-                      });
-
-                      // Get unique product names sorted alphabetically
-                      const productNames = Array.from(new Set(dailyData.map(d => d.itemName))).sort();
-
-                      return sortedDates.map((date, idx) => {
-                        const productMap = dateMap.get(date)!;
-                        return (
-                          <tr key={date} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                            <td className="border border-gray-300 px-4 py-3 font-bold text-gray-800 text-center sticky left-0 bg-inherit z-10">
-                              {date}
-                            </td>
-                            {productNames.map(product => {
-                              const qty = productMap.get(product) || 0;
-                              return (
-                                <td
-                                  key={product}
-                                  className={`border border-gray-300 px-4 py-3 text-center font-mono ${qty > 0 ? 'text-gray-800 font-bold' : 'text-gray-400'
-                                    }`}
-                                >
-                                  {qty > 0 ? qty.toLocaleString() : '-'}
-                                </td>
-                              );
-                            })}
-                          </tr>
-                        );
-                      });
-                    })()}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-gray-100 font-bold">
-                      <td className="border border-gray-300 px-4 py-3 text-gray-900 sticky left-0 bg-gray-100 z-10">
-                        TOTAL
-                      </td>
-                      {(() => {
-                        const productNames = Array.from(new Set(dailyData.map(d => d.itemName))).sort();
-                        return productNames.map(product => {
-                          const total = dailyData
-                            .filter(d => d.itemName === product)
-                            .reduce((sum, d) => sum + d.quantity, 0);
-                          return (
-                            <td key={product} className="border border-gray-300 px-4 py-3 text-center font-mono text-blue-700 font-bold">
-                              {total.toLocaleString()}
-                            </td>
-                          );
-                        });
-                      })()}
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
-          </div>
+          <WaterDailyTab dailyData={dailyData} />
         )}
+        </div>
       </div>
     </div>
   );
