@@ -24,7 +24,6 @@ const SYSTEMS = [
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'customers-documents', label: 'Customers Documents' },
-    { id: 'delivery-tracking', label: 'Delivery Tracking' },
     { id: 'documents-tracking', label: 'Documents Tracking' },
     { id: 'lpo-management', label: "LPO's" },
     { id: 'database', label: 'Database' }
@@ -88,10 +87,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'statements', label: 'Statements' },
         { id: 'matching', label: 'Matching' }
     ],
-    'delivery-tracking': [
-        { id: 'new_order', label: 'New LPO' },
-        { id: 'orders', label: 'All Orders' }
-    ],
     'documents-tracking': [
         { id: 'register', label: 'Register' },
         { id: 'list', label: 'All Documents' },
@@ -114,12 +109,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
 const SYSTEM_ACTIONS: Record<string, { id: string; label: string; icon: string }[]> = {
     'sales': [
         { id: 'view-costs', label: 'View Cost Columns', icon: '💰' }
-    ],
-    'delivery-tracking': [
-        { id: 'add', label: 'Add (New LPO)', icon: '➕' },
-        { id: 'edit', label: 'Edit Orders', icon: '✏️' },
-        { id: 'delete', label: 'Delete Orders', icon: '🗑️' },
-        { id: 'download', label: 'Download / Export', icon: '⬇️' }
     ],
     'lpo-management': [
         { id: 'view', label: 'Viewer (Read Only)', icon: '👁️' },
@@ -145,7 +134,6 @@ const getSystemIcon = (id: string) => {
         case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
         case 'customers-summaries': return <FileText className="w-5 h-5 text-teal-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;
-        case 'delivery-tracking': return <MapPin className="w-5 h-5 text-orange-500" />;
         case 'documents-tracking': return <ClipboardList className="w-5 h-5 text-violet-500" />;
         case 'lpo-management': return <ShoppingCart className="w-5 h-5 text-fuchsia-500" />;
         case 'database': return <Database className="w-5 h-5 text-slate-500" />;
