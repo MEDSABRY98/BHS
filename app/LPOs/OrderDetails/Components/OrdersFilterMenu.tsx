@@ -14,7 +14,6 @@ interface OrdersFilterMenuProps {
 export interface FilterCriteria {
   invoiceStatus: 'All' | 'Handed Over' | 'Confirmed' | 'Pending' | 'Returned' | 'ReturnedUnconfirmed';
   driverId: string;
-  prepStaffName: string;
 }
 
 export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffList }: OrdersFilterMenuProps) {
@@ -44,14 +43,12 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
   const handleClear = () => {
     onFilterChange({
       invoiceStatus: 'All',
-      driverId: 'All',
-      prepStaffName: 'All'
+      driverId: 'All'
     });
   };
 
   const hasActiveFilters = activeFilters.invoiceStatus !== 'All' ||
-    activeFilters.driverId !== 'All' ||
-    activeFilters.prepStaffName !== 'All';
+    activeFilters.driverId !== 'All';
 
   return (
     <>
@@ -131,24 +128,7 @@ export default function OrdersFilterMenu({ onFilterChange, activeFilters, staffL
                 />
               </div>
 
-              {/* 3. Prep Staff */}
-              <div className="space-y-3">
-                <div className="flex items-center gap-2 text-gray-400 mb-1">
-                  <User className="w-4 h-4" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">Prepared By</p>
-                </div>
-                <SearchSelect
-                  label=""
-                  placeholder="All Staff"
-                  options={[
-                    { id: 'All', label: 'All Staff' },
-                    ...staffList.map(s => ({ id: s.ID, label: s.NAME }))
-                  ]}
-                  value={activeFilters.prepStaffName}
-                  onChange={(val) => onFilterChange({ ...activeFilters, prepStaffName: val || 'All' })}
-                  direction="up"
-                />
-              </div>
+
 
               <div className="pt-6 flex gap-4">
                 <button

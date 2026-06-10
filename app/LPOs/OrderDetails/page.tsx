@@ -67,30 +67,11 @@ function OrderDetailsPageContent() {
 
       if (orderError) throw orderError;
       if (!orderData) throw new Error('Order not found');
-      // 3. Fetch items
-      const { data: itemsData, error: itemsError } = await bhs_supabas
-        .from('app_lpos_ORDERS_ITEMS')
-        .select(`
-          *,
-          bhs_PRODUCTS ( "PRODUCT NAME", "PRODUCT BARCODE" )
-        `)
-        .eq('ORDER_ID', orderData.ID);
-
-      if (itemsError) throw itemsError;
-
-      const initialItems = itemsData || [];
-      const noItems = initialItems.length === 0;
+      const initialItems: any[] = [];
+      const noItems = true;
       setIsNoItemsOrder(noItems);
 
-      let enrichedItems = [];
-      if (!noItems) {
-        enrichedItems = initialItems.map((item: any) => ({
-          ...item,
-          QTY_RECEIVED: (orderData.STATUS === 'Pending' && (!item.QTY_RECEIVED || item.QTY_RECEIVED === 0))
-            ? item.QTY_REQUEST
-            : item.QTY_RECEIVED
-        }));
-      }
+      let enrichedItems: any[] = [];
 
       setOrder(orderData);
       setItems(enrichedItems);
@@ -129,19 +110,8 @@ function OrderDetailsPageContent() {
     try {
       const targetTable = isNoItemsOrder ? 'app_lpos_ORDERS_NO_ITEMS' : 'app_lpos_ORDERS';
 
-      // 1. Delete items if it's a standard order
-      if (!isNoItemsOrder) {
-        const { error: itemsError } = await bhs_supabas
-          .from('app_lpos_ORDERS_ITEMS')
-          .delete()
-          .eq('ORDER_ID', order.ID);
-
-        if (itemsError) throw itemsError;
-      }
-
-      // 2. Delete Preparation & Delivery data (common for both types)
+      // 1. Delete Delivery data (common for both types)
       await Promise.all([
-        bhs_supabas.from('app_lpos_PREPARATION').delete().eq('ORDER_ID', order.ID),
         bhs_supabas.from('app_lpos_DRIVERS').delete().eq('ORDER_ID', order.ID)
       ]);
 
@@ -168,55 +138,7 @@ function OrderDetailsPageContent() {
       const targetTable = isNoItemsOrder ? 'app_lpos_ORDERS_NO_ITEMS' : 'app_lpos_ORDERS';
       let statusToSave = pendingStatus;
 
-      if (!isNoItemsOrder) {
-        // Prepare updates and determine final order status
-        const processedItems = items.map(item => {
-          let sentQty = parseFloat(item.QTY_RECEIVED) || 0;
-          let itemStatus = item.ITEMS_STATUS;
-
-          if (pendingStatus === 'Rejected') {
-            itemStatus = 'Rejected';
-            sentQty = 0;
-          } else if (itemStatus === 'Rejected' || sentQty === 0 || !item.QTY_RECEIVED) {
-            itemStatus = 'Rejected';
-            sentQty = 0;
-          } else if (pendingStatus === 'Approved') {
-            itemStatus = 'Approved';
-          }
-
-          return { ...item, finalQty: sentQty, finalStatus: itemStatus };
-        });
-
-        if (pendingStatus === 'Approved') {
-          const hasApprovedItems = processedItems.some(i => i.finalStatus === 'Approved');
-          const hasReducedOrRejected = processedItems.some(i => i.finalStatus === 'Rejected' || i.finalQty < i.QTY_REQUEST);
-
-          if (!hasApprovedItems) {
-            statusToSave = 'Rejected';
-          } else if (hasReducedOrRejected) {
-            statusToSave = 'Partially Approved';
-          }
-        }
-
-        // 1. Update order status and notes in the main table
-        const { error: orderError } = await bhs_supabas
-          .from('app_lpos_ORDERS')
-          .update({ STATUS: statusToSave, NOTES: adminNotes })
-          .eq('ID', order.ID);
-
-        if (orderError) throw orderError;
-
-        // 2. Update item quantities and statuses
-        for (const item of processedItems) {
-          await bhs_supabas
-            .from('app_lpos_ORDERS_ITEMS')
-            .update({
-              QTY_RECEIVED: item.finalQty,
-              ITEMS_STATUS: item.finalStatus
-            })
-            .eq('ID', item.ID);
-        }
-      } else {
+        // Removed items logic
         // Direct status update for orders without items
         const { error: orderError } = await bhs_supabas
           .from('app_lpos_ORDERS')
@@ -224,7 +146,6 @@ function OrderDetailsPageContent() {
           .eq('ID', order.ID);
 
         if (orderError) throw orderError;
-      }
 
       await fetchOrderDetails();
       setIsEditingStatus(false);

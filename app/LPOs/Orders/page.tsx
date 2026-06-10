@@ -117,9 +117,6 @@ export default function OrdersPage() {
             OFFICE_HANDOVER_STATUS,
             TRACKING_NOTES,
             STATUS
-          ),
-          app_lpos_PREPARATION (
-            PREPARATION_NAME
           )
         `)
         .order('CREATED_AT', { ascending: false });
@@ -127,8 +124,10 @@ export default function OrdersPage() {
       if (error) throw error;
 
       setOrders(data || []);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('Fetch orders error:', err?.message || err, err);
+      if (err?.details) console.error('Details:', err.details);
+      if (err?.hint) console.error('Hint:', err.hint);
     } finally {
       setIsLoading(false);
     }
@@ -139,69 +138,27 @@ export default function OrdersPage() {
     setIsBulkSaving(true);
     try {
       if (bulkActionType === 'Approve') {
-        // 1. Fetch items for selected orders
-        const { data: items } = await bhs_supabas
-          .from('app_lpos_ORDERS_ITEMS')
-          .select('ID, QTY_REQUEST, QTY_RECEIVED')
-          .in('ORDER_ID', selectedOrderIds);
-
-        // 2. Update status of the orders to Approved
         const { error: ordersError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .update({ STATUS: 'Approved' })
           .in('ID', selectedOrderIds);
 
         if (ordersError) throw ordersError;
-
-        // 3. Update items (set QTY_RECEIVED to QTY_REQUEST and ITEMS_STATUS to Approved)
-        if (items && items.length > 0) {
-          await Promise.all(
-            items.map((item: any) => {
-              const qty = item.QTY_RECEIVED || item.QTY_REQUEST || 0;
-              return bhs_supabas
-                .from('app_lpos_ORDERS_ITEMS')
-                .update({
-                  ITEMS_STATUS: 'Approved',
-                  QTY_RECEIVED: qty
-                })
-                .eq('ID', item.ID);
-            })
-          );
-        }
       } else if (bulkActionType === 'Reject') {
-        // 1. Update status of the orders to Rejected
         const { error: ordersError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .update({ STATUS: 'Rejected' })
           .in('ID', selectedOrderIds);
 
         if (ordersError) throw ordersError;
-
-        // 2. Update status of all items in these orders to Rejected and QTY_RECEIVED = 0
-        const { error: itemsError } = await bhs_supabas
-          .from('app_lpos_ORDERS_ITEMS')
-          .update({ ITEMS_STATUS: 'Rejected', QTY_RECEIVED: 0 })
-          .in('ORDER_ID', selectedOrderIds);
       } else if (bulkActionType === 'Delete') {
-        // 1. Delete items
-        await bhs_supabas
-          .from('app_lpos_ORDERS_ITEMS')
-          .delete()
-          .in('ORDER_ID', selectedOrderIds);
-
-        // 2. Delete Preparation
-        await bhs_supabas
-          .from('app_lpos_PREPARATION')
-          .delete()
-          .in('ORDER_ID', selectedOrderIds);
-
-        // 3. Delete Drivers/Logistics
+        // 1. Delete Drivers/Logistics
         await bhs_supabas
           .from('app_lpos_DRIVERS')
           .delete()
           .in('ORDER_ID', selectedOrderIds);
 
-        // 4. Delete the orders
+        // 3. Delete the orders
         const { error: ordersError } = await bhs_supabas
           .from('app_lpos_ORDERS')
           .delete()
@@ -253,8 +210,7 @@ export default function OrdersPage() {
         driver_id: drv?.DRIVERS_NAME,
         handover_status: drv?.OFFICE_HANDOVER_STATUS || 'Not Handed Over',
         tracking_notes: drv?.TRACKING_NOTES || '',
-        driver_status: drv?.STATUS || '',
-        prep_staff_ids: o.app_lpos_PREPARATION?.map((p: any) => p.PREPARATION_NAME) || []
+        driver_status: drv?.STATUS || ''
       };
     }).sort((a, b) => {
       const getNum = (id: string) => parseInt(id.split('-')[1] || '0');
@@ -313,10 +269,6 @@ export default function OrdersPage() {
 
       if (matchesAdvanced && advancedFilters.driverId !== 'All') {
         matchesAdvanced = order.driver_id === advancedFilters.driverId;
-      }
-
-      if (matchesAdvanced && advancedFilters.prepStaffName !== 'All') {
-        matchesAdvanced = order.prep_staff_ids.includes(advancedFilters.prepStaffName);
       }
 
       return matchesSearch && matchesStatus && matchesAdvanced;
