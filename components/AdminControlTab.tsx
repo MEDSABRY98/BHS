@@ -21,7 +21,6 @@ const SYSTEMS = [
     { id: 'inventory', label: 'Inventory' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
     { id: 'wh20-items', label: 'WarehouseS' },
-    { id: 'water-delivery-note', label: 'Water Delivery Note' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'customers-documents', label: 'Customers Documents' },
@@ -34,6 +33,7 @@ const SYSTEMS = [
 const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'debit': [
         { id: 'customers', label: 'Customers' },
+        { id: 'customers-group', label: 'Customers Group' },
         { id: 'all-transactions', label: 'All Transactions' },
         { id: 'customers-open-matches', label: 'Open Transactions' },
         { id: 'payment-tracker', label: 'Payment Tracker' },
@@ -45,11 +45,15 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'sales-overview', label: 'Sales Overview' },
         { id: 'sales-top10', label: 'Top 10' },
         { id: 'sales-customers', label: 'Customers' },
+        { id: 'sales-customers-comparison', label: 'Comparison' },
         { id: 'sales-inactive-customers', label: 'Inactive' },
         { id: 'sales-statistics', label: 'Statistics' },
         { id: 'sales-daily-sales', label: 'Daily Sales' },
+        { id: 'sales-categories', label: 'Product Category' },
         { id: 'sales-products', label: 'Products' },
-        { id: 'sales-download-form', label: 'Stock Report' }
+        { id: 'sales-new-listings', label: 'New Listings' },
+        { id: 'sales-download-form', label: 'Stock Report' },
+        { id: 'sales-my-customers', label: 'My Customers' }
     ],
     'inventory': [
         { id: 'orders', label: 'Products' },
@@ -83,11 +87,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'suppliers': [
         { id: 'statements', label: 'Statements' },
         { id: 'matching', label: 'Matching' }
-    ],
-    'water-delivery-note': [
-        { id: 'entry', label: 'Entry' },
-        { id: 'search', label: 'Search' },
-        { id: 'daily', label: 'Daily Output' }
     ],
     'delivery-tracking': [
         { id: 'new_order', label: 'New LPO' },
@@ -143,7 +142,6 @@ const getSystemIcon = (id: string) => {
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
         case 'wh20-items': return <Warehouse className="w-5 h-5 text-cyan-500" />;
-        case 'water-delivery-note': return <Droplet className="w-5 h-5 text-sky-500" />;
         case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
         case 'customers-summaries': return <FileText className="w-5 h-5 text-teal-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;

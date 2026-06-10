@@ -21,7 +21,6 @@ const nextConfig: NextConfig = {
       { source: '/api/suppliers', destination: '/api/Suppliers' },
       { source: '/api/suppliers-matching', destination: '/api/SuppliersMatching' },
       { source: '/api/vouchers', destination: '/api/Vouchers' },
-      { source: '/api/waters', destination: '/api/Waters' },
       { source: '/api/spi', destination: '/api/Spi' },
       
       // Page rewrites
@@ -33,7 +32,6 @@ const nextConfig: NextConfig = {
       { source: '/documents-tracking', destination: '/DocumentsTracking' },
       { source: '/inventory', destination: '/Inventory' },
       { source: '/warehouses', destination: '/Warehouses' },
-      { source: '/waters', destination: '/Waters' },
       { source: '/petty-cash', destination: '/PettyCash' },
       { source: '/sales', destination: '/Sales' },
       { source: '/suppliers', destination: '/Suppliers' },

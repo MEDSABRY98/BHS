@@ -16,16 +16,14 @@ interface UseCustomerDataProps {
 
 export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yearlySorting: any) => {
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
-  const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
   const [spiData, setSpiData] = useState<any[]>([]);
   const [luluEmails, setLuluEmails] = useState<any[]>([]);
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const [closedRes, semiRes, spiRes, emailsRes, luluRes] = await Promise.all([
+        const [closedRes, spiRes, emailsRes, luluRes] = await Promise.all([
           fetch('/api/ClosedCustomers'),
-          fetch('/api/SemiClosedCustomers'),
           fetch('/api/Spi'),
           fetch('/api/CustomerEmailsList'),
           fetch('/api/lulu-emails')
@@ -34,10 +32,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         if (closedRes.ok) {
           const d = await closedRes.json();
           setClosedCustomers(new Set(d.closedCustomers.map((n: string) => n.toLowerCase().trim().replace(/\s+/g, ' '))));
-        }
-        if (semiRes.ok) {
-          const d = await semiRes.json();
-          setSemiClosedCustomers(new Set(d.semiClosedCustomers.map((n: string) => n.toLowerCase().trim().replace(/\s+/g, ' '))));
         }
         if (spiRes.ok) {
           const d = await spiRes.json();
@@ -327,7 +321,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     let result = customerAnalysis;
     const {
       search, filterYear, filterMonth, dateRangeFrom, dateRangeTo, invoiceTypeFilter,
-      matchingFilter, selectedSalesRep, closedFilter, semiClosedFilter,
+      matchingFilter, selectedSalesRep, closedFilter,
       debtOperator, debtAmount, collectionRateOperator, collectionRateValue,
       collectionRateTypes, lastPaymentValue, lastPaymentUnit, lastPaymentStatus,
       lastPaymentAmountOperator, lastPaymentAmountValue, hasOB, overdueAmount,
@@ -354,9 +348,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     const normalize = (s: string) => s.toLowerCase().trim().replace(/\s+/g, ' ');
     if (closedFilter === 'HIDE') result = result.filter(c => !closedCustomers.has(normalize(c.customerName)));
     else if (closedFilter === 'ONLY') result = result.filter(c => closedCustomers.has(normalize(c.customerName)));
-
-    if (semiClosedFilter === 'HIDE') result = result.filter(c => !semiClosedCustomers.has(normalize(c.customerName)));
-    else if (semiClosedFilter === 'ONLY') result = result.filter(c => semiClosedCustomers.has(normalize(c.customerName)));
 
     if (debtOperator && debtAmount) {
       const amount = parseFloat(debtAmount);
@@ -427,7 +418,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     }
 
     return result;
-  }, [customerAnalysis, filters, closedCustomers, semiClosedCustomers, mode, customersWithEmails, spiData, luluEmails]);
+  }, [customerAnalysis, filters, closedCustomers, mode, customersWithEmails, spiData, luluEmails]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
@@ -514,7 +505,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     customerAnalysis,
     filteredData,
     closedCustomers,
-    semiClosedCustomers,
     spiData,
     customersWithEmails,
     luluEmails,

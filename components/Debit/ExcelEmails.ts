@@ -1,5 +1,5 @@
 import { InvoiceRow } from '@/types';
-import { getInvoiceType } from './CstomersUtils';
+import { getInvoiceType } from './CustomersTab/CstomersUtils';
 
 export const generateSingleCustomerExcelBlob = async (customerName: string, invoices: InvoiceRow[], isShortInvoiceId: boolean = true): Promise<Blob> => {
   const ExcelJS = (await import('exceljs')).default;

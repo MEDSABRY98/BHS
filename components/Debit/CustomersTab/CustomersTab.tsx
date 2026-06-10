@@ -41,7 +41,7 @@ import {
   exportToPDF,
   parseDate
 } from './CstomersUtils';
-import { generateSingleCustomerExcelBlob } from './ExcelEmails';
+import { generateSingleCustomerExcelBlob } from '../ExcelEmails';
 
 interface CustomersTabProps {
   data: InvoiceRow[];
@@ -84,7 +84,6 @@ export default function CustomersTab({
     matchingFilter: 'ALL',
     selectedSalesRep: 'ALL',
     closedFilter: 'ALL' as 'ALL' | 'HIDE' | 'ONLY',
-    semiClosedFilter: 'ALL' as 'ALL' | 'HIDE' | 'ONLY',
     debtOperator: 'GT',
     debtAmount: '',
     collectionRateOperator: 'GT',
@@ -114,7 +113,6 @@ export default function CustomersTab({
     customerAnalysis,
     filteredData,
     closedCustomers,
-    semiClosedCustomers,
     spiData,
     customersWithEmails,
     luluEmails,

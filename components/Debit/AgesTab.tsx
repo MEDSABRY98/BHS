@@ -66,27 +66,20 @@ export default function AgesTab({ data }: AgesTabProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedSalesRep, setSelectedSalesRep] = useState<string>('all');
 
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'semi-closed' | 'closed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'closed'>('all');
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
-  const [semiClosedCustomers, setSemiClosedCustomers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    // Fetch Closed and Semi-Closed lists
+    // Fetch Closed list
     const fetchLists = async () => {
       try {
-        const [closedRes, semiRes] = await Promise.all([
-          fetch('/api/ClosedCustomers'),
-          fetch('/api/SemiClosedCustomers')
+        const [closedRes] = await Promise.all([
+          fetch('/api/ClosedCustomers')
         ]);
 
         if (closedRes.ok) {
           const data = await closedRes.json();
           setClosedCustomers(new Set(data.closedCustomers.map((n: string) => n.toLowerCase().trim())));
-        }
-
-        if (semiRes.ok) {
-          const data = await semiRes.json();
-          setSemiClosedCustomers(new Set(data.semiClosedCustomers.map((n: string) => n.toLowerCase().trim())));
         }
       } catch (error) {
         console.error('Error fetching status lists:', error);
@@ -248,16 +241,12 @@ export default function AgesTab({ data }: AgesTabProps) {
       filtered = filtered.filter(customer => {
         const normalizedName = customer.customerName.toLowerCase().trim();
         const isClosed = closedCustomers.has(normalizedName);
-        const isSemiClosed = semiClosedCustomers.has(normalizedName);
 
         if (statusFilter === 'active') {
-          return !isClosed && !isSemiClosed;
+          return !isClosed;
         }
         if (statusFilter === 'closed') {
           return isClosed;
-        }
-        if (statusFilter === 'semi-closed') {
-          return isSemiClosed;
         }
         return true;
       });
@@ -275,7 +264,7 @@ export default function AgesTab({ data }: AgesTabProps) {
     filtered = filtered.filter(customer => customer.total >= 0);
 
     return filtered;
-  }, [agingData, searchQuery, selectedSalesRep, statusFilter, closedCustomers, semiClosedCustomers]);
+  }, [agingData, searchQuery, selectedSalesRep, statusFilter, closedCustomers]);
 
   const exportToExcel = () => {
     const headers = ['Customer Name', 'Sales Rep', '0 - 30', '31 - 60', '61 - 90', '91 - 120', 'OLDER', 'TOTAL'];
@@ -322,7 +311,6 @@ export default function AgesTab({ data }: AgesTabProps) {
       let filterDesc = 'All Customers';
       if (statusFilter === 'active') filterDesc = 'Active Customers Only';
       if (statusFilter === 'closed') filterDesc = 'Closed Customers Only';
-      if (statusFilter === 'semi-closed') filterDesc = 'Semi-Closed Customers Only';
 
       const pdfBlob = await generateAgesPDF(filteredData, filterDesc);
       if (pdfBlob) {
@@ -444,7 +432,6 @@ export default function AgesTab({ data }: AgesTabProps) {
         >
           <option value="all">All Status</option>
           <option value="active">Active Only</option>
-          <option value="semi-closed">Semi-Closed</option>
           <option value="closed">Closed</option>
         </select>
 

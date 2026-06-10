@@ -162,7 +162,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
     { id: 'inventory', title: "Inventory", icon: Package, path: '/Inventory', color: 'indigo' as const },
     { id: 'inventory-scrap', title: "Inventory Scrap", icon: Trash2, path: '/InventoryScrap', color: 'orange' as const },
     { id: 'wh20-items', title: "WarehouseS", icon: Package, path: '/Warehouses', color: 'emerald' as const },
-    { id: 'water-delivery-note', title: "Waters", icon: FileText, path: '/Waters', color: 'violet' as const },
+
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/Suppliers', color: 'emerald' as const },
     { id: 'lpo-management', title: "LPO's", icon: ShoppingCart, path: '/LPOs', color: 'yellow' as const },
     { id: 'database', title: "Database", icon: Database, path: '/DataBase', color: 'sky' as const },

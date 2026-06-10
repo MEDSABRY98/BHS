@@ -36,7 +36,6 @@ const FilterModal: React.FC<FilterModalProps> = ({
       matchingFilter: 'ALL',
       selectedSalesRep: 'ALL',
       closedFilter: 'HIDE',
-      semiClosedFilter: 'HIDE',
       debtOperator: 'GT',
       debtAmount: '',
       collectionRateOperator: 'GT',
@@ -203,18 +202,6 @@ const FilterModal: React.FC<FilterModalProps> = ({
                         <option value="ALL">Show All</option>
                         <option value="HIDE">Hide Closed</option>
                         <option value="ONLY">Only Closed</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase">Semi-Closed</label>
-                      <select
-                        value={filters.semiClosedFilter}
-                        onChange={(e) => updateFilter('semiClosedFilter', e.target.value)}
-                        className="w-full bg-white border border-gray-300 text-gray-700 text-sm py-2 px-3 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
-                      >
-                        <option value="ALL">Show All</option>
-                        <option value="HIDE">Hide Semi-Closed</option>
-                        <option value="ONLY">Only Semi-Closed</option>
                       </select>
                     </div>
                   </div>
