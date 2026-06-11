@@ -14,23 +14,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, message: 'No mapping data provided' });
     }
 
-    // تحويل الكائن (Object) إلى مصفوفة (Array) جاهزة للرفع للسيرفر
-    const rows = Object.keys(mapping).map((customerId, index) => {
-      const paddedIndex = String(index + 1).padStart(4, '0');
-      const data = mapping[customerId];
-      return {
-        "ID": `${userId}-R-${paddedIndex}`,
-        "USER_ID": userId,
-        "CUSTOMER ID": customerId,
-        "CUSTOMER MAIN NAME": data.customerMainName || '',
-        "CUSTOMER SUB NAME": data.customerName || '',
-        "AREA": data.area || '',
-        "MARKET": data.market || '',
-        "SALES_REP": data.salesRep || '',
-        "MERCHANDISER": data.merchandiser || '',
-      };
-    });
-
     // 1. مسح المابينج القديم الخاص بهذا المستخدم فقط
     const { error: deleteError } = await bhs_supabas
       .from('web_Sales_DB_CUSTOMERSMAPPING')
@@ -42,7 +25,47 @@ export async function POST(request: Request) {
       throw deleteError;
     }
 
-    // 2. رفع المابينج الجديد على دفعات (Chunks) لضمان عدم حدوث Timeout لو الشيت كبير
+    // 2. الحصول على أعلى رقم ID حالي لتجنب التكرار
+    const { data: existingRows, error: fetchError } = await bhs_supabas
+      .from('web_Sales_DB_CUSTOMERSMAPPING')
+      .select('ID');
+
+    if (fetchError) {
+      console.error('Error fetching existing IDs:', fetchError);
+      throw fetchError;
+    }
+
+    let highestNum = 0;
+    if (existingRows) {
+      existingRows.forEach((row: any) => {
+        const match = row.ID.match(/^R-(\d+)$/i);
+        if (match) {
+          const num = parseInt(match[1], 10);
+          if (num > highestNum) {
+            highestNum = num;
+          }
+        }
+      });
+    }
+
+    // تحويل الكائن (Object) إلى مصفوفة (Array) جاهزة للرفع للسيرفر
+    const rows = Object.keys(mapping).map((customerId, index) => {
+      const paddedIndex = String(highestNum + index + 1).padStart(4, '0');
+      const data = mapping[customerId];
+      return {
+        "ID": `R-${paddedIndex}`,
+        "USER_ID": userId,
+        "CUSTOMER ID": customerId,
+        "CUSTOMER MAIN NAME": data.customerMainName || '',
+        "CUSTOMER SUB NAME": data.customerName || '',
+        "AREA": data.area || '',
+        "MARKET": data.market || '',
+        "SALES_REP": data.salesRep || '',
+        "MERCHANDISER": data.merchandiser || '',
+      };
+    });
+
+    // 3. رفع المابينج الجديد على دفعات (Chunks) لضمان عدم حدوث Timeout لو الشيت كبير
     const chunkSize = 10000;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);

@@ -68,11 +68,33 @@ export async function POST(request: Request) {
       saveError = error;
     } else {
       // Insert new
-      const paddedIndex = String(Date.now() % 10000).padStart(4, '0');
+      const { data: existingRows, error: fetchError } = await bhs_supabas
+        .from('web_Sales_DB_CUSTOMERSMAPPING')
+        .select('ID');
+
+      if (fetchError) {
+        throw fetchError;
+      }
+
+      let highestNum = 0;
+      if (existingRows) {
+        existingRows.forEach((row: any) => {
+          const match = row.ID.match(/^R-(\d+)$/i);
+          if (match) {
+            const num = parseInt(match[1], 10);
+            if (num > highestNum) {
+              highestNum = num;
+            }
+          }
+        });
+      }
+
+      const nextId = `R-${String(highestNum + 1).padStart(4, '0')}`;
+
       const { error } = await bhs_supabas
         .from('web_Sales_DB_CUSTOMERSMAPPING')
         .insert({
-          "ID": `${userId.substring(0, 5)}-R-${paddedIndex}-${Math.floor(Math.random() * 1000)}`,
+          "ID": nextId,
           "USER_ID": userId,
           "CUSTOMER ID": mapping.customerId,
           "CUSTOMER MAIN NAME": mapping.customerMainName || '',
