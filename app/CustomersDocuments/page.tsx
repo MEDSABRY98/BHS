@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { ArrowLeft, Search, RefreshCw, FileCheck, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import Loading from '@/components/01-Unified/Loading';
-import Login from '@/components/01-Unified/Login';
-import CustomersDocumentsGrid from '@/components/CustomersDocuments/CustomersDocumentsGrid';
+import Loading from '@/app/Components/Loading';
+import Login from '@/app/Components/Login';
+import CustomersDocumentsGrid from './Components/CustomersDocumentsGrid';
 
 export default function CustomersDocumentsPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -71,11 +71,11 @@ export default function CustomersDocumentsPage() {
 
   const filteredData = useMemo(() => {
     let result = [...data];
-    
+
     // 1. Text Search Filter
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
-      result = result.filter(item => 
+      result = result.filter(item =>
         item.customerName.toLowerCase().includes(q)
       );
     }
@@ -92,7 +92,7 @@ export default function CustomersDocumentsPage() {
 
   const handleUpdate = async (rowIndex: string, field: any, value: string) => {
     try {
-      const newData = data.map(item => 
+      const newData = data.map(item =>
         item.rowIndex === rowIndex ? { ...item, [field]: value } : item
       );
       setData(newData);
@@ -139,7 +139,7 @@ export default function CustomersDocumentsPage() {
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Customer Documents');
-    const wscols = [{wch: 35}, {wch: 12}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 12}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 15}, {wch: 15}];
+    const wscols = [{ wch: 35 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 15 }, { wch: 15 }];
     worksheet['!cols'] = wscols;
     XLSX.writeFile(workbook, `Customers_Documents_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
@@ -184,9 +184,9 @@ export default function CustomersDocumentsPage() {
                 className="w-full pl-12 pr-6 py-3.5 bg-slate-100/50 border border-slate-100 focus:border-indigo-500 focus:bg-white rounded-[1.5rem] outline-none transition-all text-sm font-black shadow-inner placeholder:text-slate-400"
               />
             </div>
-            
+
             <div className="flex items-center gap-2.5">
-              <button 
+              <button
                 onClick={() => {
                   setRefreshTrigger(prev => prev + 1);
                   const btn = document.getElementById('refresh-btn-icon');
@@ -197,7 +197,7 @@ export default function CustomersDocumentsPage() {
                 <RefreshCw id="refresh-btn-icon" className="w-5 h-5 transition-transform duration-1000" />
               </button>
 
-              <button 
+              <button
                 onClick={exportToExcel}
                 className="p-3 bg-emerald-600 text-white rounded-2xl hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-95 flex items-center justify-center"
                 title="Export to Excel"
@@ -209,41 +209,40 @@ export default function CustomersDocumentsPage() {
 
           {/* Right: Meta Info - Flex 1 to balance center */}
           <div className="flex items-center justify-end gap-4 flex-1">
-             <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm" />
+            <div className="w-10 h-10 rounded-full bg-slate-200 border-2 border-white shadow-sm" />
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="w-full mx-auto px-6 lg:px-12 pt-10">
-        
+
         {/* Missing Documents Filter Bar */}
         <div className="mb-10 animate-in fade-in slide-in-from-top-4 duration-500">
-           <div className="flex flex-wrap gap-4 justify-center">
-              {[
-                { id: 'creditApp', label: 'Missing Credit App' },
-                { id: 'licence', label: 'Missing Licence' },
-                { id: 'trn', label: 'Missing TRN' },
-                { id: 'passport', label: 'Missing Passport' },
-                { id: 'id', label: 'Missing ID Card' }
-              ].map((filter) => (
-                <button
-                  key={filter.id}
-                  onClick={() => toggleFilter(filter.id)}
-                  className={`px-6 py-4 rounded-[1.5rem] text-xs font-black transition-all border shadow-sm flex items-center gap-4 w-[200px] justify-center ${
-                    missingFilters[filter.id]
-                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 scale-105 z-10'
-                    : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md'
+          <div className="flex flex-wrap gap-4 justify-center">
+            {[
+              { id: 'creditApp', label: 'Missing Credit App' },
+              { id: 'licence', label: 'Missing Licence' },
+              { id: 'trn', label: 'Missing TRN' },
+              { id: 'passport', label: 'Missing Passport' },
+              { id: 'id', label: 'Missing ID Card' }
+            ].map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => toggleFilter(filter.id)}
+                className={`px-6 py-4 rounded-[1.5rem] text-xs font-black transition-all border shadow-sm flex items-center gap-4 w-[200px] justify-center ${missingFilters[filter.id]
+                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-indigo-200 scale-105 z-10'
+                  : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-300 hover:text-indigo-600 hover:shadow-md'
                   }`}
-                >
-                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${missingFilters[filter.id] ? 'bg-white animate-pulse' : 'bg-slate-200'}`} />
-                  <span className="truncate">{filter.label}</span>
-                </button>
-              ))}
-           </div>
+              >
+                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${missingFilters[filter.id] ? 'bg-white animate-pulse' : 'bg-slate-200'}`} />
+                <span className="truncate">{filter.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
-        <CustomersDocumentsGrid 
+        <CustomersDocumentsGrid
           data={filteredData}
           loading={loading}
           onUpdate={handleUpdate}

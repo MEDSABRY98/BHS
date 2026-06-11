@@ -30,7 +30,7 @@ import OrderItemsTab from './Components/OrderItemsTab';
 
 import OrderDeliveryTab from './Components/OrderDeliveryTab';
 import InvoicesStatusTab from './Components/InvoicesStatusTab';
-import NoData from '@/components/01-Unified/NoDataTab';
+import NoData from '@/app/Components/NoDataTab';
 import * as XLSX from 'xlsx';
 
 function OrderDetailsPageContent() {
@@ -138,14 +138,14 @@ function OrderDetailsPageContent() {
       const targetTable = isNoItemsOrder ? 'app_lpos_ORDERS_NO_ITEMS' : 'app_lpos_ORDERS';
       let statusToSave = pendingStatus;
 
-        // Removed items logic
-        // Direct status update for orders without items
-        const { error: orderError } = await bhs_supabas
-          .from('app_lpos_ORDERS')
-          .update({ STATUS: statusToSave, NOTES: adminNotes })
-          .eq('ID', order.ID);
+      // Removed items logic
+      // Direct status update for orders without items
+      const { error: orderError } = await bhs_supabas
+        .from('app_lpos_ORDERS')
+        .update({ STATUS: statusToSave, NOTES: adminNotes })
+        .eq('ID', order.ID);
 
-        if (orderError) throw orderError;
+      if (orderError) throw orderError;
 
       await fetchOrderDetails();
       setIsEditingStatus(false);

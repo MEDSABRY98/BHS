@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { invalidateMappingCache } from '@/lib/SalesMappingCache';
+import { invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function GET(request: Request) {
   try {
@@ -51,7 +51,7 @@ export async function POST(request: Request) {
       .single();
 
     let saveError;
-    
+
     if (existing) {
       // Update existing
       const { error } = await bhs_supabas
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
       const { error } = await bhs_supabas
         .from('web_Sales_DB_CUSTOMERSMAPPING')
         .insert({
-          "ID": `${userId.substring(0, 5)}-R-${paddedIndex}-${Math.floor(Math.random()*1000)}`,
+          "ID": `${userId.substring(0, 5)}-R-${paddedIndex}-${Math.floor(Math.random() * 1000)}`,
           "USER_ID": userId,
           "CUSTOMER ID": mapping.customerId,
           "CUSTOMER MAIN NAME": mapping.customerMainName || '',

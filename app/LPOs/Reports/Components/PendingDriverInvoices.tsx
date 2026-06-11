@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar } from 'lucide-react';
-import { generatePendingDriverInvoicesPDF } from '@/lib/pdf/PendingDriverInvoicesPdf';
-import NoData from '@/components/01-Unified/NoDataTab';
+import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverInvoicesPdf';
+import NoData from '@/app/Components/NoDataTab';
 
 export default function PendingDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);
@@ -173,10 +173,10 @@ export default function PendingDriverInvoices() {
       });
 
       await generatePendingDriverInvoicesPDF(
-        driver.NAME, 
-        sortedDriverInvoices, 
-        action, 
-        fromDate, 
+        driver.NAME,
+        sortedDriverInvoices,
+        action,
+        fromDate,
         toDate,
         driverSignature,
         adminSignature
@@ -193,7 +193,7 @@ export default function PendingDriverInvoices() {
       {/* Search and Filters */}
       <div className="bg-white rounded-[3rem] p-8 md:p-10 shadow-sm border border-gray-100">
         <div className="flex flex-col lg:flex-row lg:items-end gap-6">
-          
+
           {/* Customer Search Input */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between ml-1 mb-2">

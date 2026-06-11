@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 
-import InventoryProductOrdersTab from '@/components/Inventory/MainInventory/InventoryCategoriesTab';
-import InventoryItemCodeTab from '@/components/Inventory/MainInventory/InventoryItemCodeTab';
-import InventoryCountingTab from '@/components/Inventory/Inventory-Counting/InventoryCountingTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import InventoryProductOrdersTab from './Components/MainInventory/InventoryCategoriesTab';
+import InventoryItemCodeTab from './Components/MainInventory/InventoryItemCodeTab';
+import InventoryCountingTab from './Components/Inventory-Counting/InventoryCountingTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import { ArrowLeft, Box } from 'lucide-react';
 
 export default function InventoryPage() {

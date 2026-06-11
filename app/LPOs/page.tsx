@@ -22,7 +22,7 @@ import {
   FileText
 } from 'lucide-react';
 import Link from 'next/link';
-import NoData from '@/components/01-Unified/NoDataTab';
+import NoData from '@/app/Components/NoDataTab';
 
 interface Stats {
   total: number;
@@ -82,7 +82,7 @@ export default function DashboardPage() {
 
         if (isCancelled) cancelled++;
         else if (isDelivered) delivered++;
-        
+
         if (isOfficeConfirmed) officeConfirmed++;
         if (isPending) pending++;
 
@@ -303,62 +303,61 @@ export default function DashboardPage() {
                   const isOfficeConfirmed = inv.OFFICE_HANDOVER_STATUS === 'Confirmed' && !isCancelled;
 
                   return (
-                  <tr key={inv.ID} className="group hover:bg-gray-50/50 transition-all">
-                    {/* 1. Order ID */}
-                    <td className="px-6 py-6 truncate">
-                      <span className="font-black text-black text-sm">{inv.ORDER_ID}</span>
-                    </td>
+                    <tr key={inv.ID} className="group hover:bg-gray-50/50 transition-all">
+                      {/* 1. Order ID */}
+                      <td className="px-6 py-6 truncate">
+                        <span className="font-black text-black text-sm">{inv.ORDER_ID}</span>
+                      </td>
 
-                    {/* 2. Date */}
-                    <td className="px-6 py-6">
-                      <p className="text-sm text-gray-500 font-bold">
-                        {inv.DISPATCH_TIME ? new Date(inv.DISPATCH_TIME).toLocaleDateString('en-GB') : '-'}
-                      </p>
-                    </td>
+                      {/* 2. Date */}
+                      <td className="px-6 py-6">
+                        <p className="text-sm text-gray-500 font-bold">
+                          {inv.DISPATCH_TIME ? new Date(inv.DISPATCH_TIME).toLocaleDateString('en-GB') : '-'}
+                        </p>
+                      </td>
 
-                    {/* 3. Driver */}
-                    <td className="px-6 py-6 overflow-hidden">
-                      <div className="flex items-center justify-center">
-                        <span className="text-sm font-bold text-gray-700 truncate">
-                          {inv.DRIVERS_NAME ? (driverPerformance.find(d => d.id === inv.DRIVERS_NAME)?.name || inv.DRIVERS_NAME) : 'Unassigned'}
-                        </span>
-                      </div>
-                    </td>
+                      {/* 3. Driver */}
+                      <td className="px-6 py-6 overflow-hidden">
+                        <div className="flex items-center justify-center">
+                          <span className="text-sm font-bold text-gray-700 truncate">
+                            {inv.DRIVERS_NAME ? (driverPerformance.find(d => d.id === inv.DRIVERS_NAME)?.name || inv.DRIVERS_NAME) : 'Unassigned'}
+                          </span>
+                        </div>
+                      </td>
 
-                    {/* 4. Status */}
-                    <td className="px-6 py-6">
-                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                        isCancelled ? 'bg-red-50 text-red-600' :
-                        isDelivered ? 'bg-emerald-50 text-emerald-600' :
-                        'bg-orange-50 text-orange-600'
-                        }`}>
-                        {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : inv.STATUS || 'Pending'}
-                      </div>
-                    </td>
+                      {/* 4. Status */}
+                      <td className="px-6 py-6">
+                        <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isCancelled ? 'bg-red-50 text-red-600' :
+                            isDelivered ? 'bg-emerald-50 text-emerald-600' :
+                              'bg-orange-50 text-orange-600'
+                          }`}>
+                          {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : inv.STATUS || 'Pending'}
+                        </div>
+                      </td>
 
-                    {/* 5. Office Handover */}
-                    <td className="px-6 py-6">
-                      <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${
-                        isOfficeConfirmed ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'
-                      }`}>
-                        {isOfficeConfirmed ? 'Confirmed' : 'Pending'}
-                      </div>
-                    </td>
+                      {/* 5. Office Handover */}
+                      <td className="px-6 py-6">
+                        <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isOfficeConfirmed ? 'bg-blue-50 text-blue-600' : 'bg-gray-100 text-gray-400'
+                          }`}>
+                          {isOfficeConfirmed ? 'Confirmed' : 'Pending'}
+                        </div>
+                      </td>
 
-                    {/* 6. Action (Icon Only) */}
-                    <td className="px-6 py-6">
-                      <div className="flex justify-center">
-                        <Link
-                          href={`/LPOs/OrderDetails?id=${inv.ORDER_ID}`}
-                          className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
-                          title="View Details"
-                        >
-                          <Eye className="w-5 h-5" />
-                        </Link>
-                      </div>
-                    </td>
-                  </tr>
-                )})
+                      {/* 6. Action (Icon Only) */}
+                      <td className="px-6 py-6">
+                        <div className="flex justify-center">
+                          <Link
+                            href={`/LPOs/OrderDetails?id=${inv.ORDER_ID}`}
+                            className="flex items-center justify-center w-10 h-10 bg-black text-[#D4AF37] rounded-xl hover:bg-gray-900 hover:scale-110 transition-all shadow-lg shadow-black/10"
+                            title="View Details"
+                          >
+                            <Eye className="w-5 h-5" />
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>

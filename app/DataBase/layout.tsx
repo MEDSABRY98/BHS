@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import {
   LayoutDashboard,
   Users,
@@ -157,8 +157,8 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
 
         {/* Toggle Button */}
         <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
-          <button 
-            onClick={toggleSidebar} 
+          <button
+            onClick={toggleSidebar}
             className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
@@ -188,7 +188,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
           <div className="lg:hidden fixed inset-0 z-50 flex">
             {/* Backdrop */}
             <div className="fixed inset-0 bg-black/50" onClick={() => setIsSidebarOpen(false)} />
-            
+
             {/* Menu */}
             <aside className="relative flex flex-col w-72 max-w-xs bg-black text-white h-full z-10 animate-in slide-in-from-left duration-300">
               <div className="p-4 flex justify-between items-center border-b border-white/10">

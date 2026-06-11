@@ -3,8 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, Search } from 'lucide-react';
-import { generatePendingCustomerInvoicesPDF } from '@/lib/pdf/PendingCustomerInvoicesPdf';
-import NoData from '@/components/01-Unified/NoDataTab';
+import { generatePendingCustomerInvoicesPDF } from '@/app/LPOs/Pdf/PendingCustomerInvoicesPdf';
+import NoData from '@/app/Components/NoDataTab';
 import SearchSelect from '../../Components/DropDownList';
 
 export default function PendingCustomerInvoices() {

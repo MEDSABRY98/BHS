@@ -20,9 +20,9 @@ import {
   Upload
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
-import NoData from '@/components/01-Unified/NoDataTab';
+import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
-import { toast } from '@/components/01-Unified/Notification';
+import { toast } from '@/app/Components/Notification';
 
 
 export default function ProductsPage() {
@@ -221,21 +221,21 @@ export default function ProductsPage() {
           .select('*')
           .order('PRODUCT NAME')
           .range(start, start + step - 1);
-          
+
         if (error) throw error;
-        
+
         if (data && data.length > 0) {
           allData = [...allData, ...data];
           start += step;
         } else {
           hasMore = false;
         }
-        
+
         if (data && data.length < step) {
           hasMore = false;
         }
       }
-      
+
       const exportData = allData.map((p: any) => ({
         'ID': p.ID,
         'PRODUCT ID': p['PRODUCT ID'],
@@ -295,7 +295,7 @@ export default function ProductsPage() {
         const { error } = await bhs_supabas
           .from('bhs_PRODUCTS')
           .upsert(chunk, { onConflict: 'ID' });
-          
+
         if (error) throw error;
       }
 
@@ -330,16 +330,16 @@ export default function ProductsPage() {
               >
                 <Download className="w-6 h-6" />
               </button>
-              
+
               <label
                 className={`p-4 bg-white border border-gray-200 text-blue-600 rounded-2xl shadow-sm hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 title="Import/Update from Excel"
               >
                 {isUploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
-                <input 
-                  type="file" 
-                  accept=".xlsx, .xls" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  accept=".xlsx, .xls"
+                  className="hidden"
                   onChange={handleImportExcel}
                   disabled={isUploading}
                 />
@@ -419,7 +419,7 @@ export default function ProductsPage() {
                       </div>
                     </td>
                     <td className="px-6 py-6 text-center overflow-hidden">
-                      <span 
+                      <span
                         className="text-xs font-bold text-gray-600 px-3 py-1 bg-gray-100 rounded-lg whitespace-nowrap truncate inline-block max-w-full"
                         title={product["PRODUCT CATEGORY"] || ''}
                       >
@@ -467,7 +467,7 @@ export default function ProductsPage() {
             </span>{" "}
             of <span className="text-black font-black">{totalCount}</span> products
           </div>
-          
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
@@ -489,11 +489,10 @@ export default function ProductsPage() {
                     {showEllipsis && <span className="text-xs text-gray-400 font-bold px-1">...</span>}
                     <button
                       onClick={() => setCurrentPage(p)}
-                      className={`w-10 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${
-                        currentPage === p
-                          ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
-                          : 'bg-gray-50 text-gray-400 hover:text-black border border-gray-100 hover:border-black'
-                      }`}
+                      className={`w-10 h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all ${currentPage === p
+                        ? 'bg-black text-[#D4AF37] shadow-lg shadow-black/10'
+                        : 'bg-gray-50 text-gray-400 hover:text-black border border-gray-100 hover:border-black'
+                        }`}
                     >
                       {p}
                     </button>

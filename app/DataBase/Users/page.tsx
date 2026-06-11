@@ -18,10 +18,10 @@ import {
   MapPin
 } from 'lucide-react';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
-import NoData from '@/components/01-Unified/NoDataTab';
+import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import SignatureModal from './components/SignatureModal';
-import { toast } from '@/components/01-Unified/Notification';
+import { toast } from '@/app/Components/Notification';
 
 export default function UsersPage() {
   const { canEdit, canDelete, isLoaded } = usePermissions();
@@ -360,7 +360,7 @@ export default function UsersPage() {
 
             <form onSubmit={handleSave} className="p-8 pt-4 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
-                
+
                 {/* NAME Field (Full Width) */}
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">NAME</label>

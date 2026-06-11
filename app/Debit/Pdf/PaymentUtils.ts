@@ -1,0 +1,2048 @@
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { InvoiceRow } from '@/types';
+import { getInvoiceType } from '@/lib/InvoiceType';
+
+interface FilterContext {
+    startDate?: Date;
+    endDate?: Date;
+    salesRep?: string;
+    searchQuery?: string;
+    sourceFilters?: Set<string>;
+    obMatchingIds?: Set<string>;
+    matchIdToDateMap?: Map<string, Date[]>;
+    sections?: {
+        summary?: boolean;
+        summaryPrevious?: boolean;
+        summaryLastYear?: boolean;
+        daily?: boolean;
+        weekly?: boolean;
+        monthly?: boolean;
+        customerList?: boolean;
+        gapAnalysis?: boolean;
+        salesRep?: boolean;
+    };
+    selectedCustomers?: Set<string>;
+}
+
+interface PeriodMetric {
+    label: string;
+    start: Date;
+    end: Date;
+    current: number;
+    previous: number;
+    lastYear: number;
+}
+
+const parseDate = (dateStr: string | undefined): Date | null => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) return d;
+    return null;
+};
+
+const getDiffMonths = (d1: Date, d2: Date) => {
+    return (d1.getFullYear() - d2.getFullYear()) * 12 + (d1.getMonth() - d2.getMonth());
+};
+
+// --- CHART UTILS ---
+const drawBarChart = (doc: jsPDF, x: number, y: number, w: number, h: number, data: PeriodMetric[], title: string) => {
+    if (data.length === 0) return;
+
+    // Chart Container Background
+    doc.setFillColor(250, 250, 252); // Very light blue/gray
+    doc.roundedRect(x, y, w, h + 15, 3, 3, 'F');
+
+    doc.setFontSize(14);
+    doc.setTextColor(30, 41, 59); // Slate 800
+    doc.setFont('helvetica', 'bold');
+    doc.text(title, x + 10, y + 10);
+
+    const chartTop = y + 25;
+    const chartBottom = y + h;
+    const chartLeft = x + 20; // Y-axis spacing
+    const chartRight = x + w - 10;
+    const chartWidth = chartRight - chartLeft;
+    const chartHeight = chartBottom - chartTop;
+
+    // Find max value for Y-scale
+    let maxVal = 0;
+    data.forEach(d => maxVal = Math.max(maxVal, d.current, d.previous, d.lastYear));
+    maxVal = maxVal * 1.15; // 15% headroom
+
+    // Draw Grid & Axes
+    doc.setDrawColor(226, 232, 240); // Slate 200
+    doc.setLineWidth(0.1);
+
+    // Y-axis lines (5 steps)
+    doc.setFontSize(8);
+    doc.setTextColor(100, 116, 139); // Slate 500
+    doc.setFont('helvetica', 'normal');
+
+    for (let i = 0; i <= 5; i++) {
+        const val = (maxVal / 5) * i;
+        const yPos = chartBottom - ((val / maxVal) * chartHeight);
+
+        // Grid line
+        doc.line(chartLeft, yPos, chartRight, yPos);
+
+        // Label
+        doc.text(new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(val), x + 5, yPos + 2.5);
+    }
+
+    // Draw Bars
+    const itemWidth = chartWidth / data.length;
+    const barGroupWidth = itemWidth * 0.7; // 70% of space for bars
+    const barWidth = barGroupWidth / 3; // 3 bars per group: Curr, Prev, LastYear
+    const spacing = (itemWidth - barGroupWidth) / 2;
+
+    data.forEach((d, i) => {
+        const xBase = chartLeft + (itemWidth * i) + spacing;
+
+        // Helper to draw single bar
+        const drawBar = (val: number, offsetX: number, color: [number, number, number]) => {
+            const barH = (val / maxVal) * chartHeight;
+            if (barH > 0) {
+                doc.setFillColor(...color);
+                // rounded top corners manually? doc.roundedRect rounds all. 
+                // Let's us roundedRect with small radius.
+                doc.roundedRect(xBase + offsetX, chartBottom - barH, barWidth, barH, 1, 1, 'F');
+            }
+        };
+
+        drawBar(d.current, 0, [59, 130, 246]); // Blue 500 (Current)
+        drawBar(d.previous, barWidth + 1, [148, 163, 184]); // Slate 400 (Prev)
+        drawBar(d.lastYear, (barWidth * 2) + 2, [16, 185, 129]); // Emerald 500 (LY)
+
+        // X-axis Label
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105); // Slate 600
+        const lines = doc.splitTextToSize(d.label, itemWidth);
+        doc.text(lines, xBase + (barGroupWidth / 2), chartBottom + 10, { align: 'center', maxWidth: itemWidth });
+    });
+
+    // Legend (Top Right inside box)
+    const legendY = y + 10;
+    const legendX = x + w - 80;
+
+    doc.setFontSize(9);
+
+    doc.setFillColor(59, 130, 246); doc.circle(legendX, legendY - 1, 2, 'F');
+    doc.text('Current', legendX + 4, legendY);
+
+    doc.setFillColor(148, 163, 184); doc.circle(legendX + 25, legendY - 1, 2, 'F');
+    doc.text('Prev', legendX + 29, legendY);
+
+    doc.setFillColor(16, 185, 129); doc.circle(legendX + 45, legendY - 1, 2, 'F');
+    doc.text('Last Year', legendX + 49, legendY);
+};
+
+
+const getBHSWeek = (date: Date) => {
+    const d = new Date(date.getTime());
+    d.setHours(0, 0, 0, 0);
+    const startOfYear = new Date(d.getFullYear(), 0, 1);
+    const diff = d.getTime() - startOfYear.getTime();
+    const oneWeekMs = 7 * 24 * 60 * 60 * 1000;
+    const week = Math.floor(diff / oneWeekMs) + 1;
+    return { week, year: d.getFullYear() };
+};
+
+// --- ARABIC FONT CONFIG ---
+const ARABIC_FONT = 'Amiri';
+
+// --- DONUT CHART UTIL ---
+const drawDonutChart = (
+    doc: jsPDF,
+    x: number,
+    y: number,
+    radius: number,
+    currentVal: number,
+    prevVal: number,
+    title: string,
+    color: [number, number, number]
+) => {
+    const centerX = x + radius;
+    const centerY = y + radius + 5;
+
+    // Performance Difference (Center Text)
+    // Formula: ((Current - Prev) / Prev) * 100
+    const diff = prevVal > 0 ? ((currentVal - prevVal) / prevVal) * 100 : 0;
+    const diffStr = `${diff >= 0 ? '+' : ''}${Math.round(diff)}%`;
+    const diffColor = diff >= 0 ? [22, 163, 74] : [220, 38, 38]; // Green 600 or Red 600
+
+    // Contribution Share (The donut split)
+    const total = currentVal + prevVal;
+    const curShare = total > 0 ? (currentVal / total) : 0;
+    const prevShare = total > 0 ? (prevVal / total) : 0;
+
+    // Draw Background Circle (Previous Share Part)
+    doc.setDrawColor(226, 232, 240); // Slate 200
+    doc.setLineWidth(radius * 0.28);
+    doc.ellipse(centerX, centerY, radius - (radius * 0.14), radius - (radius * 0.14), 'S');
+
+    // Draw Current Share Arc (Blue Part)
+    if (curShare > 0) {
+        doc.setDrawColor(...color);
+        doc.setLineWidth(radius * 0.28);
+
+        // Exact Arc drawing using segments
+        const segments = 60;
+        const curDeg = curShare * 360;
+        const step = curDeg / segments;
+
+        for (let i = 0; i < segments; i++) {
+            const a1 = (i * step - 90) * (Math.PI / 180);
+            const a2 = ((i + 1) * step - 90) * (Math.PI / 180);
+            const rOffset = radius - (radius * 0.14);
+            doc.line(
+                centerX + rOffset * Math.cos(a1),
+                centerY + rOffset * Math.sin(a1),
+                centerX + rOffset * Math.cos(a2),
+                centerY + rOffset * Math.sin(a2)
+            );
+        }
+    }
+
+    // Title
+    doc.setFontSize(10);
+    doc.setTextColor(30, 41, 59);
+    doc.setFont('helvetica', 'bold');
+    doc.text(title.toUpperCase(), centerX, y, { align: 'center' });
+
+    // Performance Difference Text (Middle)
+    doc.setFontSize(14);
+    doc.setTextColor(...(diffColor as [number, number, number]));
+    doc.setFont('helvetica', 'bold');
+    doc.text(diffStr, centerX, centerY + 2, { align: 'center' });
+};
+
+const getWeekDateRange = (year: number, week: number) => {
+    const startOfYear = new Date(year, 0, 1); // Jan 1
+    const start = new Date(startOfYear);
+    start.setDate(startOfYear.getDate() + (week - 1) * 7);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return { start, end };
+};
+
+
+const formatDate = (date: Date | null): string => {
+    if (!date) return '';
+    const d = date.getDate().toString().padStart(2, '0');
+    const m = (date.getMonth() + 1).toString().padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}/${m}/${y}`;
+};
+
+
+const preprocessAllocations = (rows: InvoiceRow[]) => {
+    const allocMap = new Map<InvoiceRow, { date: Date, amount: number, type: string }[]>();
+    const groups = new Map<string, InvoiceRow[]>();
+
+    // Group by Matching
+    rows.forEach(r => {
+        if (r.matching && r.matching !== 'Unmatched') {
+            const k = r.matching.toString().trim().toLowerCase();
+            if (!groups.has(k)) groups.set(k, []);
+            groups.get(k)!.push(r);
+        }
+    });
+
+    groups.forEach((group) => {
+        const invoices = group.filter(r => (r.debit || 0) > 0.01);
+        const payments = group.filter(r => (r.credit || 0) > 0.01);
+
+        if (invoices.length === 0 || payments.length === 0) return;
+
+        payments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+        let holderIdx = -1;
+        let maxDeb = -1;
+        invoices.forEach((inv, i) => {
+            if (inv.debit > maxDeb) {
+                maxDeb = inv.debit;
+                holderIdx = i;
+            }
+        });
+
+        const sortedInvoices = invoices.map((inv, i) => ({ inv, isHolder: i === holderIdx, originalIdx: i }));
+        sortedInvoices.sort((a, b) => {
+            if (a.isHolder && !b.isHolder) return 1;
+            if (!a.isHolder && b.isHolder) return -1;
+            return new Date(a.inv.date).getTime() - new Date(b.inv.date).getTime();
+        });
+
+        const paidSoFar = new Map<number, number>();
+
+        payments.forEach(pay => {
+            let rem = (pay.credit || 0) - (pay.debit || 0);
+            const rowAllocations: { date: Date, amount: number, type: string }[] = [];
+
+            for (const item of sortedInvoices) {
+                if (rem <= 0.001) break;
+
+                const inv = item.inv;
+                const already = paidSoFar.get(item.originalIdx) || 0;
+                const capacity = inv.debit - already;
+
+                if (capacity > 0.001 || item.isHolder) {
+                    let alloc = 0;
+                    if (item.isHolder) {
+                        alloc = rem;
+                    } else {
+                        alloc = Math.min(rem, capacity);
+                    }
+
+                    if (alloc > 0.001) {
+                        const d = parseDate(inv.date);
+                        if (d) {
+                            rowAllocations.push({ date: d, amount: alloc, type: getInvoiceType(inv) });
+                            paidSoFar.set(item.originalIdx, already + alloc);
+                            rem -= alloc;
+                        }
+                    }
+                }
+            }
+
+            if (rem > 0.001) {
+                const d = parseDate(pay.date);
+                if (d) rowAllocations.push({ date: d, amount: rem, type: 'Unmatched' });
+            }
+
+            allocMap.set(pay, rowAllocations);
+        });
+    });
+
+    return allocMap;
+};
+
+export const generatePaymentAnalysisPDF = (allData: InvoiceRow[], filters: FilterContext) => {
+    const doc = new jsPDF('l', 'mm', 'a4'); // Modern Landscape for Cover Page
+
+    const today = new Date();
+
+    // 1. Base Filter (Strictly align with PaymentTrackerTab logic + R-Payment fix)
+    const baseData = allData.filter(inv => {
+        const t = getInvoiceType(inv);
+        // User Logic: Include R-Payment (Returns) to reduce total collections
+        if (t !== 'Payment' && t !== 'R-Payment') return false;
+
+        // Filters
+        if (filters.selectedCustomers && filters.selectedCustomers.size > 0) {
+            // If specific customers are selected, ONLY filter by customer name (ignore salesRep/searchQuery)
+            if (!filters.selectedCustomers.has(inv.customerName.trim().toLowerCase())) return false;
+        } else {
+            // Standard filters if no specific customers selected
+            if (filters.salesRep && filters.salesRep !== 'All Sales Reps' && inv.salesRep?.trim() !== filters.salesRep) return false;
+            if (filters.searchQuery && !inv.customerName.toLowerCase().includes(filters.searchQuery.toLowerCase())) return false;
+        }
+
+        // Note: Source filter is now applied at allocation fragment level, not here
+
+        return true;
+    });
+
+    // 2. Determine Date Range
+    let startDate = filters.startDate;
+    let endDate = filters.endDate;
+
+    if (!startDate || !endDate) {
+        let min = new Date(8640000000000000); // max date
+        let max = new Date(0);
+        let hasData = false;
+        baseData.forEach(p => {
+            const d = parseDate(p.date);
+            if (d) {
+                if (d < min) min = d;
+                if (d > max) max = d;
+                hasData = true;
+            }
+        });
+
+        if (!hasData) {
+            endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
+        } else {
+            // Default to discovered range if no filter
+            if (!startDate) startDate = min;
+            if (!endDate) endDate = max;
+        }
+    }
+    // Ensure boundaries
+    if (startDate) startDate.setHours(0, 0, 0, 0);
+    if (endDate) endDate.setHours(23, 59, 59, 999);
+
+    // Preprocess Allocations (Distribute payments across invoices using Max Debit Holder logic)
+    const allocationMap = preprocessAllocations(allData);
+
+    // Filtered Amount Helper (Ensures consistency between Pages & UI Dashboard)
+    const getFilteredAmount = (p: InvoiceRow) => {
+        const val = (p.credit || 0) - (p.debit || 0);
+        if (!filters.sourceFilters || filters.sourceFilters.size === 0) return val;
+
+        const allocs = allocationMap.get(p);
+        if (allocs && allocs.length > 0) {
+            let total = 0;
+            allocs.forEach(frag => {
+                let label = 'Unmatched';
+                if (frag.type === 'OB') label = 'OB';
+                else if (frag.type === 'Unmatched') label = 'Unmatched';
+                else {
+                    const m = frag.date.toLocaleString('en-US', { month: 'short' });
+                    const y = frag.date.getFullYear().toString().slice(-2);
+                    label = `${m}${y}`;
+                }
+                if (filters.sourceFilters!.has(label)) {
+                    total += frag.amount;
+                }
+            });
+            return total;
+        }
+
+        // Fallback: Try to identify source via Matching ID (Critical for R-Payments/Refunds which might be skipped by alloc logic)
+        const matchId = (p.matching || '').toString().toLowerCase();
+        let derivedLabel = 'Unmatched';
+
+        if (matchId) {
+            if (filters.obMatchingIds && filters.obMatchingIds.has(matchId)) {
+                derivedLabel = 'OB';
+            } else if (filters.matchIdToDateMap && filters.matchIdToDateMap.has(matchId)) {
+                const dates = filters.matchIdToDateMap.get(matchId)!;
+                if (dates.length > 0) {
+                    // Use oldest date logic consistent with UI source identification
+                    const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+                    const d = sorted[0];
+                    const m = d.toLocaleString('en-US', { month: 'short' });
+                    const y = d.getFullYear().toString().slice(-2);
+                    derivedLabel = `${m}${y}`;
+                }
+            }
+        }
+
+        if (filters.sourceFilters.has(derivedLabel)) {
+            return val;
+        }
+
+        return 0;
+    };
+
+
+    // Helper to sum range
+    const sumRange = (start: Date, end: Date) => {
+        const s = new Date(start); s.setHours(0, 0, 0, 0);
+        const e = new Date(end); e.setHours(23, 59, 59, 999);
+
+        return baseData.reduce((sum, p) => {
+            const d = parseDate(p.date);
+            if (d && d >= s && d <= e) {
+                return sum + getFilteredAmount(p);
+            }
+            return sum;
+        }, 0);
+    };
+
+    // --- DAILY CALCULATOR ---
+    const days: PeriodMetric[] = [];
+    const dIter = new Date(startDate!.getTime());
+    const dEnd = new Date(endDate!.getTime());
+
+    let daySafety = 0;
+    while (dIter <= dEnd && daySafety < 5000) {
+        const dayStart = new Date(dIter); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(dIter); dayEnd.setHours(23, 59, 59, 999);
+
+        // Compare vs Same Day Previous Month
+        const prevDayStart = new Date(dayStart); prevDayStart.setMonth(prevDayStart.getMonth() - 1);
+        const prevDayEnd = new Date(dayEnd); prevDayEnd.setMonth(prevDayEnd.getMonth() - 1);
+
+        const lyDayStart = new Date(dayStart); lyDayStart.setFullYear(lyDayStart.getFullYear() - 1);
+        const lyDayEnd = new Date(dayEnd); lyDayEnd.setFullYear(lyDayEnd.getFullYear() - 1);
+
+        days.push({
+            label: formatDate(dayStart),
+            start: dayStart,
+            end: dayEnd,
+            current: sumRange(dayStart, dayEnd),
+            previous: sumRange(prevDayStart, prevDayEnd),
+            lastYear: sumRange(lyDayStart, lyDayEnd)
+        });
+
+        dIter.setDate(dIter.getDate() + 1);
+        daySafety++;
+    }
+
+    // --- WEEKLY CALCULATOR (Aligned to BHS fixed buckets) ---
+    const weeks: PeriodMetric[] = [];
+
+    // Determine Start Week and End Week based on date range
+    const startWeekInfo = getBHSWeek(startDate!);
+    const endWeekInfo = getBHSWeek(endDate!);
+
+    // Create a sequential week iterator
+    // Handle year crossing? "BHS Week" resets every year (Week 1 is always Jan 1). 
+    // This creates non-contiguous weeks at year end (Dec 31 might be Week 53, Jan 1 is Week 1).
+    // We will iterate mainly by year + week number.
+
+    let iterYear = startWeekInfo.year;
+    let iterWeek = startWeekInfo.week;
+
+    // Avoid infinite loops, limit to reasonable number of weeks (e.g. 100)
+    let safety = 0;
+    while (safety < 200) {
+        const { start: wStart, end: wEnd } = getWeekDateRange(iterYear, iterWeek);
+
+        // Break if we are completely past the endDate
+        if (wStart > endDate!) break;
+
+        // Include this week if it overlaps or is contained
+        if (wEnd >= startDate! && wStart <= endDate!) {
+
+            // Previous Week (simply week - 1, handle week 1 -> prev year week 52/53?)
+            // BHS Logic simplistically implies comparison to "Previous Sequential Block of 7 Days" OR "Same Week Index Previous"?
+            // User: "differences from last week".
+            // Since this is a custom week system, "Previous Week" should actually be the *previous 7 days*.
+            const prevStart = new Date(wStart); prevStart.setDate(prevStart.getDate() - 7);
+            const prevEnd = new Date(wEnd); prevEnd.setDate(prevEnd.getDate() - 7);
+
+            // Last Year: Same Week Index in Year-1
+            const { start: lyStart, end: lyEnd } = getWeekDateRange(iterYear - 1, iterWeek);
+
+            weeks.push({
+                label: `Week ${iterWeek} / ${iterYear}`,
+                start: wStart,
+                end: wEnd,
+                current: sumRange(wStart, wEnd),
+                previous: sumRange(prevStart, prevEnd),
+                lastYear: sumRange(lyStart, lyEnd)
+            });
+        }
+
+        // Next Week
+        iterWeek++;
+        // Check if we rolled over year (approx > 52)
+        // Check if next week start is in next year
+        const nextWStart = getWeekDateRange(iterYear, iterWeek).start;
+        if (nextWStart.getFullYear() > iterYear) {
+            iterYear++;
+            iterWeek = 1;
+        }
+        safety++;
+    }
+
+    // --- MONTHLY CALCULATOR ---
+    const months: PeriodMetric[] = [];
+    // Standard Month iteration
+    const mIter = new Date(startDate!.getFullYear(), startDate!.getMonth(), 1);
+    const mEndLimit = new Date(endDate!.getFullYear(), endDate!.getMonth() + 1, 0);
+
+    while (mIter < mEndLimit) { // Iterate until strictly after
+        const monthStart = new Date(mIter.getFullYear(), mIter.getMonth(), 1);
+        const monthEnd = new Date(mIter.getFullYear(), mIter.getMonth() + 1, 0);
+
+        // Only add if it overlaps the user's filtered range
+        if (monthEnd >= startDate! && monthStart <= endDate!) {
+
+            const prevYear = monthStart.getFullYear() - 1;
+            const prevMonthStart = new Date(monthStart); prevMonthStart.setMonth(prevMonthStart.getMonth() - 1);
+            const prevMonthEnd = new Date(monthStart); prevMonthEnd.setDate(0);
+
+            const lyMonthStart = new Date(prevYear, monthStart.getMonth(), 1);
+            const lyMonthEnd = new Date(prevYear, monthStart.getMonth() + 1, 0);
+
+            months.push({
+                label: monthStart.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+                start: monthStart,
+                end: monthEnd,
+                current: sumRange(monthStart, monthEnd),
+                previous: sumRange(prevMonthStart, prevMonthEnd),
+                lastYear: sumRange(lyMonthStart, lyMonthEnd)
+            });
+        }
+        mIter.setMonth(mIter.getMonth() + 1);
+    }
+
+    // --- FILTERING (If User Search is Active) ---
+    // If searching for a customer (or anything), hide days/weeks/months with zero value
+    if (filters.searchQuery && filters.searchQuery.trim().length > 0) {
+        // Filter in place? No, just re-assign.
+        // We really want to show moments where the customer paid.
+        // Usually filtering by customer means baseData is filtered.
+        // If we sum 0 for a day, it means that customer didn't pay that day.
+        // User wants to see only rows/bars with payments.
+
+        // Note: Filter based on 'current' value being non-zero
+        // We might also check 'previous' or 'lastYear' if we want to show comparison?
+        // User request: "appear rows that have payments only". Implies current > 0.
+        // Let's be safe and show if ANY value > 0? No, usually "payments only" means active.
+        // But let's stick to current > 0 to be precise.
+
+        const hasValue = (m: PeriodMetric) => m.current !== 0;
+
+        let i = days.length;
+        while (i--) {
+            if (!hasValue(days[i])) days.splice(i, 1);
+        }
+
+        i = weeks.length;
+        while (i--) {
+            if (!hasValue(weeks[i])) weeks.splice(i, 1);
+        }
+
+        i = months.length;
+        while (i--) {
+            if (!hasValue(months[i])) months.splice(i, 1);
+        }
+    }
+
+
+    // --- METRICS CALCULATION (Current vs Previous Period) ---
+    const durationMs = endDate!.getTime() - startDate!.getTime();
+    
+    const prevEndDate = new Date(startDate!.getTime() - 1); // 1ms before start
+    const prevStartDate = new Date(prevEndDate.getTime() - durationMs);
+
+    // Helper for specific range sums
+    const getMetrics = (s: Date, e: Date) => {
+        let total = 0;
+        let count = 0;
+        const customers = new Set<string>();
+
+        const sTime = s.setHours(0, 0, 0, 0);
+        const eTime = e.setHours(23, 59, 59, 999);
+
+        baseData.forEach(p => {
+            const d = parseDate(p.date);
+            if (d && d.getTime() >= sTime && d.getTime() <= eTime) {
+                const val = getFilteredAmount(p);
+                if (val !== 0) {
+                    total += val;
+                    // Match UI logic: Only count as transaction/customer if amount is positive
+                    if (val > 0.001) {
+                        count++;
+                        customers.add(p.customerName.trim());
+                    }
+                }
+            }
+        });
+
+        return { total, count, uniqueCustomers: customers.size };
+    };
+
+    const curMet = getMetrics(startDate, endDate!);
+    const prevMet = getMetrics(prevStartDate, prevEndDate);
+
+    const lyStartDate = new Date(startDate); lyStartDate.setFullYear(lyStartDate.getFullYear() - 1);
+    const lyEndDate = new Date(endDate!); lyEndDate.setFullYear(lyEndDate.getFullYear() - 1);
+    const lyMet = getMetrics(lyStartDate, lyEndDate);
+
+    const revenueTrend = prevMet.total > 0 ? ((curMet.total - prevMet.total) / prevMet.total) * 100 : 0;
+    const countTrend = prevMet.count > 0 ? ((curMet.count - prevMet.count) / prevMet.count) * 100 : 0;
+    const custTrend = prevMet.uniqueCustomers > 0 ? ((curMet.uniqueCustomers - prevMet.uniqueCustomers) / prevMet.uniqueCustomers) * 100 : 0;
+
+    const curAvg = curMet.count > 0 ? curMet.total / curMet.count : 0;
+    const prevAvg = prevMet.count > 0 ? prevMet.total / prevMet.count : 0;
+    const avgTrend = prevAvg > 0 ? ((curAvg - prevAvg) / prevAvg) * 100 : 0;
+
+    // Last Year Trends
+    const custTrendLY = lyMet.uniqueCustomers > 0 ? ((curMet.uniqueCustomers - lyMet.uniqueCustomers) / lyMet.uniqueCustomers) * 100 : 0;
+    const revenueTrendLY = lyMet.total > 0 ? ((curMet.total - lyMet.total) / lyMet.total) * 100 : 0;
+    const countTrendLY = lyMet.count > 0 ? ((curMet.count - lyMet.count) / lyMet.count) * 100 : 0;
+
+    const hasLYData = lyMet.total > 0 || lyMet.count > 0;
+
+
+    // ================= PDF RENDERING =================
+
+    // --- DATA PREP: DAILY & TOP CUSTOMERS ---
+
+    // Daily Data for Chart
+    const dailyMap = new Map<string, number>();
+    const startMs = startDate!.getTime();
+    const endMs = endDate!.getTime();
+    const oneDay = 86400000;
+
+    for (let t = startMs; t <= endMs; t += oneDay) {
+        const dStr = formatDate(new Date(t));
+        dailyMap.set(dStr, 0);
+    }
+
+    // Customer Data for Ranking
+    const custMap = new Map<string, number>();
+
+    baseData.forEach(p => {
+        const d = parseDate(p.date);
+        if (d && d.getTime() >= startMs && d.getTime() <= endMs) {
+            const val = getFilteredAmount(p);
+            if (val !== 0) {
+                // Daily
+                const dStr = formatDate(d);
+                if (dailyMap.has(dStr)) dailyMap.set(dStr, (dailyMap.get(dStr) || 0) + val);
+
+                // Cust
+                custMap.set(p.customerName, (custMap.get(p.customerName) || 0) + val);
+            }
+        }
+    });
+
+    const dailyData = Array.from(dailyMap.entries()).map(([label, val]) => ({ label, value: val }));
+    const topCustomers = Array.from(custMap.entries())
+        .map(([label, val]) => ({ label, value: val }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 5);
+
+
+    // --- MODERN UI HELPERS ---
+
+    const drawModernCard = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        title: string,
+        value: string,
+        trendInfo: { prev: number, ly: number } | null,
+        accentColor: [number, number, number]
+    ) => {
+        // Shadow effect (subtle)
+        doc.setFillColor(241, 245, 249); // Slate 100
+        doc.roundedRect(x + 1, y + 1, w, h, 2, 2, 'F');
+
+        // Main Card
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(226, 232, 240); // Slate 200
+        doc.setLineWidth(0.1);
+        doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+
+        // Accent Bar
+        doc.setFillColor(...accentColor);
+        doc.rect(x, y + 5, 1.5, 12, 'F'); // Left accent mark
+
+        // Title
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139); // Slate 500
+        doc.setFont('helvetica', 'normal');
+        doc.text(title, x + 8, y + 10);
+
+        // Value
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text(value, x + 8, y + 20);
+
+        if (trendInfo) {
+            // Draw Line separator
+            doc.setDrawColor(226, 232, 240); // Slate 200
+            doc.setLineWidth(0.1);
+            doc.line(x + 5, y + 23, x + w - 5, y + 23);
+
+            // --- LEFT: PREV ---
+            doc.setFontSize(8); // Increased from 7
+            doc.setTextColor(100, 116, 139); // Slate 500 (Darker for clarity)
+            doc.setFont('helvetica', 'normal');
+            doc.text('Vs Prev', x + 5, y + 27); // Moved left slightly
+
+            const prevText = `${trendInfo.prev > 0 ? '+' : ''}${trendInfo.prev.toFixed(1)}%`;
+            if (trendInfo.prev > 0) doc.setTextColor(22, 163, 74);
+            else if (trendInfo.prev < 0) doc.setTextColor(220, 38, 38);
+            else doc.setTextColor(148, 163, 184);
+
+            doc.setFontSize(10); // Increased from default/implicit small
+            doc.setFont('helvetica', 'bold');
+            doc.text(prevText, x + 5, y + 32);
+
+            // --- RIGHT: LAST YEAR ---
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8); // Increased from 7
+            doc.setTextColor(100, 116, 139); // Slate 500
+            // Position roughly at 55% of width
+            const rightX = x + (w * 0.55);
+            doc.text('Vs Last Year', rightX, y + 27);
+
+            const lyText = `${trendInfo.ly > 0 ? '+' : ''}${trendInfo.ly.toFixed(1)}%`;
+            if (trendInfo.ly > 0) doc.setTextColor(22, 163, 74);
+            else if (trendInfo.ly < 0) doc.setTextColor(220, 38, 38);
+            else doc.setTextColor(148, 163, 184);
+
+            doc.setFontSize(10); // Increased
+            doc.setFont('helvetica', 'bold');
+            doc.text(lyText, rightX, y + 32);
+        }
+    };
+
+    const drawHorizontalBarChart = (x: number, y: number, w: number, h: number, data: { label: string, value: number }[], title: string) => {
+        // Container
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+
+        // Title
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, x + 5, y + 8);
+
+        const maxVal = Math.max(...data.map(d => d.value), 1);
+        let curY = y + 15;
+        const barHeight = 8;
+        const gap = 6;
+
+        data.forEach((d, i) => {
+            if (curY + barHeight > y + h) return;
+
+            // Label (truncate)
+            doc.setFontSize(8);
+            doc.setTextColor(71, 85, 105);
+            doc.setFont('helvetica', 'normal');
+            const safeLabel = d.label.length > 15 ? d.label.substring(0, 14) + '..' : d.label;
+            doc.text(safeLabel, x + 5, curY + 5);
+
+            // Bar
+            const barMaxW = w - 60;
+            const barW = (d.value / maxVal) * barMaxW;
+            const barX = x + 35; // Space for label
+
+            doc.setFillColor(59, 130, 246); // Blue
+            doc.roundedRect(barX, curY, barW, barHeight, 1, 1, 'F');
+
+            // Value
+            doc.setTextColor(100, 116, 139);
+            doc.text(`${d.value.toLocaleString(undefined, { notation: 'compact' })}`, barX + barW + 2, curY + 5);
+
+            curY += barHeight + gap;
+        });
+    };
+
+    // Simple Line/Area Chart for Daily Trend
+    const drawDailyAreaChart = (x: number, y: number, w: number, h: number, data: { label: string, value: number }[], title: string) => {
+        doc.setFillColor(255, 255, 255);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(x, y, w, h, 2, 2, 'FD');
+
+        doc.setFontSize(10);
+        doc.setTextColor(30, 41, 59);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, x + 5, y + 8);
+
+        if (data.length < 2) return;
+
+        const chartX = x + 10;
+        const chartY = y + 15;
+        const chartW = w - 15;
+        const chartH = h - 25; // Space for x-labels
+        const chartBottom = chartY + chartH;
+
+        const maxVal = Math.max(...data.map(d => d.value), 1);
+
+        // Draw Area
+        const stepX = chartW / (data.length - 1);
+
+        doc.setDrawColor(59, 130, 246);
+        doc.setLineWidth(0.3);
+        doc.setFillColor(219, 234, 254); // Light Blue Fill
+
+        const points: [number, number][] = [];
+        data.forEach((d, i) => {
+            const px = chartX + (i * stepX);
+            const py = chartBottom - ((d.value / maxVal) * chartH);
+            points.push([px, py]);
+        });
+
+        // Fill path
+        doc.lines(points.map((p, i) => {
+            if (i === 0) return [0, 0]; // Start implicit? No, lines needs segment vectors. 
+            // Better to purely iterate and draw lines for JSpdf
+            return [p[0] - points[i - 1][0], p[1] - points[i - 1][1]];
+        }), points[0][0], points[0][1], [1, 1]); // Scale 1,1
+        // Note: `lines` in jspdf is tricky for filling polygons properly without closePath. 
+        // Let's stick to simple Line visualization.
+
+        points.forEach((p, i) => {
+            if (i === 0) return;
+            const prev = points[i - 1];
+            doc.line(prev[0], prev[1], p[0], p[1]);
+        });
+
+        // X-Axis Labels (Show only 5 or so)
+        doc.setFontSize(7);
+        doc.setTextColor(148, 163, 184);
+        const skip = Math.ceil(data.length / 5);
+        data.forEach((d, i) => {
+            if (i % skip === 0 || i === data.length - 1) {
+                const px = chartX + (i * stepX);
+                doc.text(d.label.split('/')[0] + '/' + d.label.split('/')[1], px, chartBottom + 5, { align: 'center' });
+            }
+        });
+    };
+
+    // --- COVER PAGE (Modern Landscape) ---
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+
+    // Background Gradient-like effect
+    doc.setFillColor(15, 23, 42); // Very Dark Slate (Slate 950)
+    doc.rect(0, 0, pageW, pageH, 'F');
+
+    // Decorative Geometric Shapes
+    doc.setFillColor(30, 41, 59); // Slate 900
+    doc.circle(pageW, 0, 140, 'F');
+    doc.setFillColor(51, 65, 85); // Slate 700
+    doc.circle(pageW, 0, 90, 'F');
+
+    // Left Accent Bar (Blue)
+    doc.setFillColor(59, 130, 246); // Blue 500
+    doc.rect(0, 0, 6, pageH, 'F');
+
+    // Branding / Company Name
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Al Marai Al Arabia Trading', 25, 30);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(148, 163, 184); // Slate 400
+    doc.text('Sole Proprietorship L.L.C', 25, 36);
+
+    // Main Hero Title
+    doc.setFontSize(56);
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Collections', 25, pageH / 2 - 12);
+
+    doc.setTextColor(59, 130, 246); // Accent Blue
+    doc.text('Analysis Report', 25, pageH / 2 + 16);
+
+    // Decorative Divider
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(2.5);
+    doc.line(25, pageH / 2 + 28, 120, pageH / 2 + 28);
+
+    // Report Metadata Box
+    const infoY = pageH - 65;
+    const infoW = 160;
+    doc.setFillColor(30, 41, 59); // Slate 900
+    doc.setDrawColor(51, 65, 85); // Slate 700
+    doc.setLineWidth(0.5);
+    doc.roundedRect(25, infoY, infoW, 45, 3, 3, 'FD');
+
+    doc.setFontSize(10);
+    doc.setTextColor(59, 130, 246);
+    doc.setFont('helvetica', 'bold');
+    doc.text('REPORT INFORMATION', 35, infoY + 12);
+
+    // Metadata Rows
+    doc.setFontSize(9);
+    doc.setTextColor(148, 163, 184); // Slate 400
+    doc.setFont('helvetica', 'normal');
+    doc.text('DATE RANGE:', 35, infoY + 22);
+    doc.text('SALES REPRESENTATIVE:', 35, infoY + 29);
+    doc.text('GENERATED ON:', 35, infoY + 36);
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${formatDate(startDate!)} - ${formatDate(endDate!)}`, 85, infoY + 22);
+    doc.text(`${filters.salesRep || 'All Sales Reps'}`, 85, infoY + 29);
+    doc.text(`${formatDate(new Date())}`, 85, infoY + 36);
+
+
+
+    // Resetting y for sections
+    let y = 40;
+    if (filters.sections?.summary !== false) {
+        doc.addPage('a4', 'landscape');
+
+
+        const PW = doc.internal.pageSize.width;   // 210
+        const PH = doc.internal.pageSize.height;  // 297
+        const mg = 14;                             // margin
+        const iW = PW - mg * 2;                    // inner width
+
+        // ── White background ──
+        doc.setFillColor(255, 255, 255);
+        doc.rect(0, 0, PW, PH, 'F');
+
+        // ── Header: "Performance Dashboard" centered ──
+        let curY = mg + 10;
+
+        doc.setFontSize(18);
+        doc.setTextColor(17, 17, 17);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Dashboard Stats', PW / 2, curY, { align: 'center' });
+
+        curY += 10; // gap after header
+
+
+        // ── Section 1: Period Tab Cards ──
+        const showPrev = filters.sections?.summaryPrevious !== false;
+        const showLY = filters.sections?.summaryLastYear !== false && hasLYData;
+
+        const curDays = Math.ceil((endDate!.getTime() - startDate!.getTime()) / 86400000);
+        const prevDays = Math.ceil((prevEndDate.getTime() - prevStartDate.getTime()) / 86400000);
+        const lyDays = Math.ceil((lyEndDate.getTime() - lyStartDate.getTime()) / 86400000);
+
+        const periodDefs = [
+            {
+                show: true,
+                title: 'CURRENT',
+                range: `${formatDate(startDate!)} – ${formatDate(endDate!)} (${curDays} Days)`,
+                amount: curMet.total,
+                accent: [58, 127, 232] as [number, number, number],
+                border: [58, 127, 232] as [number, number, number],
+                bg: [240, 246, 255] as [number, number, number],
+            },
+            {
+                show: showPrev,
+                title: 'PREVIOUS',
+                range: `${formatDate(prevStartDate)} – ${formatDate(prevEndDate)} (${prevDays} Days)`,
+                amount: prevMet.total,
+                accent: [136, 136, 136] as [number, number, number],
+                border: [187, 187, 187] as [number, number, number],
+                bg: [247, 247, 247] as [number, number, number],
+            },
+            {
+                show: showLY,
+                title: 'LAST YEAR',
+                range: `${formatDate(lyStartDate)} – ${formatDate(lyEndDate)} (${lyDays} Days)`,
+                amount: lyMet.total,
+                accent: [90, 173, 46] as [number, number, number],
+                border: [90, 173, 46] as [number, number, number],
+                bg: [242, 251, 236] as [number, number, number],
+            },
+        ].filter(c => c.show);
+
+        const tabGap = 5;
+        const tabW = (iW - tabGap * (periodDefs.length - 1)) / periodDefs.length;
+        const tabH = 28;
+        const tabsY = curY;
+
+        periodDefs.forEach((pd, idx) => {
+            const tx = mg + idx * (tabW + tabGap);
+            const ty = tabsY;
+
+            // Background + colored border
+            doc.setFillColor(...pd.bg);
+            doc.setDrawColor(...pd.border);
+            doc.setLineWidth(0.7);
+            doc.roundedRect(tx, ty, tabW, tabH, 3, 3, 'FD');
+
+            // Title (e.g. CURRENT)
+            doc.setFontSize(7.5);
+            doc.setTextColor(...pd.accent);
+            doc.setFont('helvetica', 'bold');
+            doc.text(pd.title, tx + 6, ty + 7);
+
+            // Date range
+            doc.setFontSize(6.5);
+            doc.setTextColor(170, 170, 170);
+            doc.setFont('helvetica', 'normal');
+            doc.text(pd.range, tx + 6, ty + 13);
+
+            // Amount (big, accent colored)
+            doc.setFontSize(14);
+            doc.setTextColor(...pd.accent);
+            doc.setFont('helvetica', 'bold');
+            const amtStr = pd.amount.toLocaleString('en-US', { maximumFractionDigits: 0 });
+            doc.text(amtStr, tx + 6, ty + 23);
+        });
+
+        curY = tabsY + tabH + 7;
+
+        // ── Section 2: KPI Growth Cards (dual: Last Year | Previous) ──
+        const kpiDefs = [
+            {
+                label: 'Collections growth',
+                lyPct: revenueTrendLY,
+                prevPct: revenueTrend,
+                lyStr: `${curMet.total.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })} vs ${lyMet.total.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`,
+                prevStr: `vs ${prevMet.total.toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 })}`,
+                bg: [240, 246, 255] as [number, number, number],
+                accent: [58, 127, 232] as [number, number, number],
+            },
+            {
+                label: 'Customer growth',
+                lyPct: custTrendLY,
+                prevPct: custTrend,
+                lyStr: `${curMet.uniqueCustomers} active vs ${lyMet.uniqueCustomers}`,
+                prevStr: `vs ${prevMet.uniqueCustomers}`,
+                bg: [242, 251, 236] as [number, number, number],
+                accent: [90, 173, 46] as [number, number, number],
+            },
+            {
+                label: 'Transaction growth',
+                lyPct: countTrendLY,
+                prevPct: countTrend,
+                lyStr: `${curMet.count} txns vs ${lyMet.count}`,
+                prevStr: `vs ${prevMet.count}`,
+                bg: [255, 248, 240] as [number, number, number],
+                accent: [224, 123, 32] as [number, number, number],
+            },
+        ];
+
+        const kpiGap = 5;
+        const kpiW = (iW - kpiGap * 2) / 3;
+        const kpiH = 36;
+        const kpiY = curY;
+        const halfW = kpiW / 2;
+
+        kpiDefs.forEach((kpi, idx) => {
+            const kx = mg + idx * (kpiW + kpiGap);
+            const ky = kpiY;
+
+            // Card background
+            doc.setFillColor(...kpi.bg);
+            doc.setDrawColor(...kpi.bg);
+            doc.setLineWidth(0.1);
+            doc.roundedRect(kx, ky, kpiW, kpiH, 3, 3, 'FD');
+
+            // Card title (top, full width)
+            doc.setFontSize(7);
+            doc.setTextColor(...kpi.accent);
+            doc.setFont('helvetica', 'bold');
+            doc.text(kpi.label.toUpperCase(), kx + 6, ky + 7);
+
+            // ── LEFT HALF: Previous Period ──
+            const prevColor: [number, number, number] = kpi.prevPct >= 0 ? [22, 163, 74] : [220, 38, 38];
+            const prevStr = `${kpi.prevPct >= 0 ? '+' : ''}${kpi.prevPct.toFixed(0)}%`;
+
+            doc.setFontSize(16);
+            doc.setTextColor(...prevColor);
+            doc.setFont('helvetica', 'bold');
+            doc.text(prevStr, kx + 6, ky + 22);
+
+            doc.setFontSize(6.5);
+            doc.setTextColor(120, 120, 120);
+            doc.setFont('helvetica', 'normal');
+            doc.text('vs previous', kx + 6, ky + 28);
+
+            // Vertical divider
+            doc.setDrawColor(220, 220, 220);
+            doc.setLineWidth(0.3);
+            doc.line(kx + halfW, ky + 10, kx + halfW, ky + kpiH - 4);
+
+            // ── RIGHT HALF: Last Year ──
+            const lyColor: [number, number, number] = kpi.lyPct >= 0 ? [22, 163, 74] : [220, 38, 38];
+            const lyStr = `${kpi.lyPct >= 0 ? '+' : ''}${kpi.lyPct.toFixed(0)}%`;
+
+            doc.setFontSize(16);
+            doc.setTextColor(...lyColor);
+            doc.setFont('helvetica', 'bold');
+            doc.text(lyStr, kx + halfW + 6, ky + 22);
+
+            doc.setFontSize(6.5);
+            doc.setTextColor(120, 120, 120);
+            doc.setFont('helvetica', 'normal');
+            doc.text('vs last year', kx + halfW + 6, ky + 28);
+        });
+
+        curY = kpiY + kpiH + 10;
+
+        // ── Section 3: Bar Chart ──
+
+        // Thin separator line
+        doc.setDrawColor(238, 238, 238);
+        doc.setLineWidth(0.4);
+        doc.line(mg, curY, mg + iW, curY);
+        curY += 8;
+
+
+
+        // Legend row — square dots (10×10 in HTML → ~3mm in PDF)
+        const legItems = [
+            { label: 'Current Period', color: [58, 127, 232] as [number, number, number] },
+            { label: 'Previous Period', color: [181, 212, 244] as [number, number, number] },
+            { label: 'Last Year', color: [221, 221, 221] as [number, number, number] },
+        ];
+        let legX = mg;
+        legItems.forEach(li => {
+            doc.setFillColor(...li.color);
+            doc.roundedRect(legX, curY - 3, 3.5, 3.5, 0.5, 0.5, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(85, 85, 85);
+            doc.setFont('helvetica', 'normal');
+            doc.text(li.label, legX + 5, curY);
+            legX += doc.getTextWidth(li.label) + 12;
+        });
+        curY += 6;
+
+        // Bar chart area — fill all remaining page height
+        const chartAreaX = mg + 20;
+        const chartAreaW = iW - 22;
+        const chartAreaH = PH - curY - mg - 14;  // full remaining height
+        const chartBottom = curY + chartAreaH;
+
+
+        const groups = [
+            { label: 'Collections', cur: curMet.total, prev: prevMet.total, ly: lyMet.total },
+            { label: 'Customer Distribution', cur: curMet.uniqueCustomers, prev: prevMet.uniqueCustomers, ly: lyMet.uniqueCustomers },
+            { label: 'Transaction Volume', cur: curMet.count, prev: prevMet.count, ly: lyMet.count },
+        ];
+
+        // Each group uses its OWN max scale so small values (customers/txns) are visible
+        const groupW = chartAreaW / groups.length;
+        const barGroupW = groupW * 0.75;   // wider bars
+        const barW = barGroupW / 3 - 1;
+
+        const barColors: [number, number, number][] = [
+            [58, 127, 232],   // Current  → blue
+            [181, 212, 244],  // Previous → light blue
+            [221, 221, 221],  // LastYear → gray
+        ];
+
+        // Horizontal grid lines (global scale for reference)
+        const globalMax = Math.max(...groups.flatMap(g => [g.cur, g.prev, g.ly]), 1) * 1.15;
+        const steps = 5;
+        doc.setFontSize(7);
+        doc.setTextColor(204, 204, 204);
+        doc.setFont('helvetica', 'normal');
+        doc.setLineWidth(0.15);
+        for (let step = 0; step <= steps; step++) {
+            const val = (globalMax / steps) * step;
+            const yg = chartBottom - (val / globalMax) * chartAreaH;
+            doc.setDrawColor(240, 240, 240);
+            doc.line(chartAreaX, yg, chartAreaX + chartAreaW, yg);
+            doc.setTextColor(204, 204, 204);
+            doc.text(
+                new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(val),
+                chartAreaX - 2, yg + 1.5, { align: 'right' }
+            );
+        }
+
+        // Draw bars — per-group scale + larger value labels
+        groups.forEach((g, gi) => {
+            const gBase = chartAreaX + gi * groupW + (groupW - barGroupW) / 2;
+            const vals = [g.cur, g.prev, g.ly];
+            const groupMax = Math.max(...vals, 1) * 1.15;
+
+            vals.forEach((val, bi) => {
+                if (val <= 0) return;
+                const bh = (val / groupMax) * chartAreaH;
+                if (bh < 0.5) return;
+
+                const bx = gBase + bi * (barW + 1);
+                const by = chartBottom - bh;
+
+                doc.setFillColor(...barColors[bi]);
+                doc.roundedRect(bx, by, barW, bh, 2, 2, 'F');
+
+                // Value label above bar — larger font
+                const fmtVal = new Intl.NumberFormat('en-US', {
+                    notation: 'compact',
+                    compactDisplay: 'short',
+                    maximumFractionDigits: 1,
+                }).format(val);
+                doc.setFontSize(9);
+                doc.setTextColor(51, 51, 51);
+                doc.setFont('helvetica', 'bold');
+                doc.text(fmtVal, bx + barW / 2, by - 2, { align: 'center' });
+            });
+
+            // X-axis label
+            doc.setFontSize(8.5);
+            doc.setTextColor(153, 153, 153);
+            doc.setFont('helvetica', 'normal');
+            doc.text(g.label, gBase + barGroupW / 2, chartBottom + 7, { align: 'center' });
+        });
+    }
+
+    // --- DAILY ANALYSIS PAGE ---
+    if (filters.sections?.daily !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
+
+
+
+
+        // (Redundant addPage removed)
+
+
+        // --- DAILY ANALYSIS PAGE ---
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Daily Stats', 105, y, { align: 'center' });
+        y += 8;
+
+        if (days.length > 0) {
+            // Chart removed
+
+            // 2. Table
+            const tableData = days.map(d => {
+                const diffPrev = d.previous > 0 ? ((d.current - d.previous) / d.previous) * 100 : 0;
+                const diffLy = d.lastYear > 0 ? ((d.current - d.lastYear) / d.lastYear) * 100 : 0;
+
+                return [
+                    d.label,
+                    `${d.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${d.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                    `${d.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+                ];
+            });
+
+            autoTable(doc, {
+                startY: y,
+                margin: { left: 22 },
+                head: [['Date', 'Current', 'Same Date Previous Month', 'MoM %', 'Last Year', 'YoY %']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 25 },
+                    1: { halign: 'center', cellWidth: 30 },
+                    2: { halign: 'center', cellWidth: 30 },
+                    3: { halign: 'center', cellWidth: 25 },
+                    4: { halign: 'center', cellWidth: 30 },
+                    5: { halign: 'center', cellWidth: 25 }
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body') {
+                        // Check for Sunday Highlight
+                        const dateStr = String((data.row.raw as any)[0]);
+                        const parts = dateStr.split('/');
+                        if (parts.length === 3) {
+                            const dt = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                            if (dt.getDay() === 0) {
+                                data.cell.styles.fillColor = [255, 237, 213]; // Orange 100
+                            }
+                        }
+
+                        // Existing Color Logic for Trends
+                        if (data.column.index === 3 || data.column.index === 5) {
+                            const txt = String(data.cell.raw);
+                            if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
+                            else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
+                            else data.cell.styles.textColor = [100, 116, 139];
+                        }
+                    }
+                }
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFillColor(255, 237, 213); // Orange 100
+            doc.rect(14, finalY, 4, 4, 'F');
+            doc.setFontSize(8);
+            doc.setTextColor(100, 116, 139); // Slate 500
+            doc.text('Orange highlighted rows indicate Sundays', 20, finalY + 3);
+        }
+
+    } // End Daily Table
+
+    // --- WEEKLY ANALYSIS PAGE ---
+    if (filters.sections?.weekly !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
+
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Weekly Stats', 105, y, { align: 'center' });
+        y += 8;
+
+        if (weeks.length > 0) {
+            // 1. Chart
+            // Show latest 8 weeks if period is long
+            const weeksForChart = weeks.length > 8 ? weeks.slice(-8) : weeks;
+            const chartTitleW = weeks.length > 8 ? 'Collections Trend (Last 8 Weeks)' : 'Collections Trend (Weekly)';
+
+            // Clone and format labels for Chart (Year under Week)
+            const chartWeeks = weeksForChart.map(w => ({
+                ...w,
+                label: w.label.replace(' / ', '\n')
+            }));
+            drawBarChart(doc, 15, y, 180, 80, chartWeeks, chartTitleW);
+            y += 110; // Increased spacing to avoid overlap with x-axis labels
+
+            // 2. Table
+            const tableData = weeks.map(w => {
+                const diffPrev = w.previous > 0 ? ((w.current - w.previous) / w.previous) * 100 : 0;
+                const diffLy = w.lastYear > 0 ? ((w.current - w.lastYear) / w.lastYear) * 100 : 0;
+
+                return [
+                    `${w.label}\n(${formatDate(w.start)} - ${formatDate(w.end)})`,
+                    `${w.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${w.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                    `${w.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                    `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+                ];
+            });
+
+            autoTable(doc, {
+                startY: y,
+                head: [['Week', 'Current', 'Previous', 'WoW %', 'Last Year', 'YoY %']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                columnStyles: {
+                    0: { halign: 'center', cellWidth: 30 },
+                    1: { halign: 'center', cellWidth: 30 },
+                    2: { halign: 'center', cellWidth: 30 },
+                    3: { halign: 'center', cellWidth: 30 },
+                    4: { halign: 'center', cellWidth: 30 },
+                    5: { halign: 'center', cellWidth: 30 }
+                },
+                didParseCell: (data) => {
+                    if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
+                        const txt = String(data.cell.raw);
+                        if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
+                        else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
+                        else data.cell.styles.textColor = [100, 116, 139];
+                    }
+                }
+            });
+        }
+    }
+
+    // --- MONTHLY ANALYSIS PAGE ---
+    if (filters.sections?.monthly !== false && months.length > 0) {
+        doc.addPage('a4', 'portrait');
+
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Monthly Stats', 105, 20, { align: 'center' });
+
+        // 1. Chart
+        // Show latest 8 months if period is long
+        const monthsForChart = months.length > 8 ? months.slice(-8) : months;
+        const chartTitleM = months.length > 8 ? 'Collections Trend (Last 8 Months)' : 'Collections Trend (Monthly)';
+
+        drawBarChart(doc, 15, 28, 180, 80, monthsForChart, chartTitleM);
+
+        // 2. Table
+        const tableDataM = months.map(m => {
+            const diffPrev = m.previous > 0 ? ((m.current - m.previous) / m.previous) * 100 : 0;
+            const diffLy = m.lastYear > 0 ? ((m.current - m.lastYear) / m.lastYear) * 100 : 0;
+
+            return [
+                m.label,
+                `${m.current.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${m.previous.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${diffPrev >= 0 ? '+' : ''}${diffPrev.toFixed(1)}%`,
+                `${m.lastYear.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                `${diffLy >= 0 ? '+' : ''}${diffLy.toFixed(1)}%`
+            ];
+        });
+
+        autoTable(doc, {
+            startY: 140, // Increased spacing for Monthly table (Chart at 30 + 80 + 30 buffer)
+            head: [['Month', 'Current', 'Previous', 'MoM %', 'Last Year', 'YoY %']],
+            body: tableDataM,
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+            bodyStyles: { halign: 'center', valign: 'middle' },
+            columnStyles: {
+                0: { halign: 'center' }
+            },
+            didParseCell: (data) => {
+                if (data.section === 'body' && (data.column.index === 3 || data.column.index === 5)) {
+                    const txt = String(data.cell.raw);
+                    if (txt.includes('+')) data.cell.styles.textColor = [22, 163, 74];
+                    else if (txt.includes('-')) data.cell.styles.textColor = [220, 38, 38];
+                    else data.cell.styles.textColor = [100, 116, 139];
+                }
+            }
+        });
+    }
+
+    // --- ALL CUSTOMERS PAGE ---
+    // --- ALL CUSTOMERS PAGE / DATA PREP ---
+    const showCustomerList = (filters.sections?.customerList ?? true) !== false;
+    const showGapAnalysis = (filters.sections?.gapAnalysis ?? true) !== false;
+
+    if (showCustomerList || showGapAnalysis) {
+        if (showCustomerList) {
+            doc.addPage('a4', 'landscape');
+            y = 20;
+
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42); // Slate 900
+            doc.setFont('helvetica', 'bold');
+            const pageW = doc.internal.pageSize.width;
+            doc.text('Customer Stats', pageW / 2, 20, { align: 'center' });
+        }
+
+        // Removed specific period text as requested
+
+        // Build Matching Map for Invoice Lookups (for Active Months)
+        const matchingMapC = new Map<string, { date: Date, type: string }>();
+        allData.forEach(row => {
+            if (row.matching && (row.debit || 0) > 0) {
+                const d = parseDate(row.date);
+                const t = getInvoiceType(row);
+                if (d) {
+                    const current = matchingMapC.get(row.matching);
+                    if (!current || d < current.date) {
+                        matchingMapC.set(row.matching, { date: d, type: t });
+                    }
+                }
+            }
+        });
+
+        const historyMap = new Map<string, number[]>();
+        baseData.forEach(p => {
+            const d = parseDate(p.date);
+            if (d) {
+                const list = historyMap.get(p.customerName) || [];
+                list.push(d.getTime());
+                historyMap.set(p.customerName, list);
+            }
+        });
+        // Sort histories descending
+        historyMap.forEach(list => list.sort((a, b) => b - a));
+
+        const customerMap = new Map<string, { total: number, count: number, dates: number[], breakdown: Map<string, number> }>();
+
+        // Process filtered payments and build detailed breakdown
+        baseData.forEach(p => {
+            const d = parseDate(p.date);
+            if (d && d >= startDate! && d <= endDate!) {
+                // Use allocation map to get precise breakdown
+                const allocs = allocationMap.get(p);
+
+                let totalForThisPayment = 0;
+                const breakdownForThisPayment = new Map<string, number>();
+
+                if (allocs && allocs.length > 0) {
+                    allocs.forEach(frag => {
+                        let label = 'Unmatched';
+                        if (frag.type === 'OB') label = 'OB';
+                        else if (frag.type === 'Unmatched') label = 'Unmatched';
+                        else {
+                            const m = frag.date.toLocaleString('en-US', { month: 'short' });
+                            const y = frag.date.getFullYear().toString().slice(-2);
+                            label = `${m}${y}`;
+                        }
+
+                        // Apply source filter: only include this fragment if its source is selected (or no filter active)
+                        if (filters.sourceFilters && filters.sourceFilters.size > 0 && !filters.sourceFilters.has(label)) {
+                            return; // Skip this fragment
+                        }
+
+                        totalForThisPayment += frag.amount;
+                        const currentAmt = breakdownForThisPayment.get(label) || 0;
+                        breakdownForThisPayment.set(label, currentAmt + frag.amount);
+                    });
+                } else {
+                    // Fallback for unmatched
+                    const val = (p.credit || 0) - (p.debit || 0);
+                    if (val !== 0) {
+                        // Only include if Unmatched is in filter or no filter
+                        if (!filters.sourceFilters || filters.sourceFilters.size === 0 || filters.sourceFilters.has('Unmatched')) {
+                            totalForThisPayment = val;
+                            breakdownForThisPayment.set('Unmatched', val);
+                        }
+                    }
+                }
+
+                // Only add to customer stats if we have any amount after filtering
+                if (Math.abs(totalForThisPayment) > 0.001) {
+                    const curr = customerMap.get(p.customerName) || {
+                        total: 0,
+                        count: 0,
+                        dates: [] as number[],
+                        breakdown: new Map(),
+                        repName: (p as any).salesRep || (p as any).repName || 'Unknown'
+                    };
+
+                    curr.total += totalForThisPayment;
+                    curr.count += 1;
+                    curr.dates.push(d.getTime());
+
+                    // Merge breakdown
+                    breakdownForThisPayment.forEach((amt, label) => {
+                        const currentAmt = curr.breakdown.get(label) || 0;
+                        curr.breakdown.set(label, currentAmt + amt);
+                    });
+
+                    customerMap.set(p.customerName, curr);
+                }
+            }
+        });
+
+        // --- PREVIOUS PERIOD CALCULATION ---
+        const gapBucketsPrev: Record<string, { count: number, totalAmount: number }> = {
+            '0-30 Days': { count: 0, totalAmount: 0 },
+            '31-60 Days': { count: 0, totalAmount: 0 },
+            '61-90 Days': { count: 0, totalAmount: 0 },
+            '90+ Days': { count: 0, totalAmount: 0 },
+            'No Payment Before': { count: 0, totalAmount: 0 }
+        };
+
+        const showPrevComparison = (filters.sections?.summaryPrevious ?? false) && startDate && endDate;
+        if (showPrevComparison) {
+            const duration = endDate!.getTime() - startDate!.getTime();
+            const prevEndDate = new Date(startDate!.getTime() - 1); // 1ms before start
+            const prevStartDate = new Date(prevEndDate.getTime() - duration);
+
+            // Find customers active in previous period
+            const prevCustomerMap = new Map<string, number>(); // Name -> Total in Prev Period
+            baseData.forEach(p => {
+                const d = parseDate(p.date);
+                if (d && d >= prevStartDate && d <= prevEndDate) {
+                    const currTotal = prevCustomerMap.get(p.customerName) || 0;
+                    const net = (p.credit || 0) - (p.debit || 0);
+                    prevCustomerMap.set(p.customerName, currTotal + net);
+                }
+            });
+
+            prevCustomerMap.forEach((totalAmt, name) => {
+                const allHistory = historyMap.get(name);
+                if (allHistory) {
+                    const paymentsInPrev = allHistory.filter(t => t >= prevStartDate.getTime() && t <= prevEndDate.getTime());
+                    paymentsInPrev.sort((a, b) => a - b);
+
+                    if (paymentsInPrev.length > 0) {
+                        const latestInPrev = paymentsInPrev[paymentsInPrev.length - 1];
+                        const prevPayment = allHistory.find(t => t < latestInPrev);
+
+                        let bucketKey = 'No Payment Before';
+                        if (prevPayment) {
+                            const diffMs = latestInPrev - prevPayment;
+                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                            if (diffDays <= 30) bucketKey = '0-30 Days';
+                            else if (diffDays <= 60) bucketKey = '31-60 Days';
+                            else if (diffDays <= 90) bucketKey = '61-90 Days';
+                            else bucketKey = '90+ Days';
+                        }
+
+                        if (gapBucketsPrev[bucketKey]) {
+                            gapBucketsPrev[bucketKey].count++;
+                            gapBucketsPrev[bucketKey].totalAmount += totalAmt;
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- LAST YEAR CALCULATION ---
+        const gapBucketsLY: Record<string, { count: number, totalAmount: number }> = {
+            '0-30 Days': { count: 0, totalAmount: 0 },
+            '31-60 Days': { count: 0, totalAmount: 0 },
+            '61-90 Days': { count: 0, totalAmount: 0 },
+            '90+ Days': { count: 0, totalAmount: 0 },
+            'No Payment Before': { count: 0, totalAmount: 0 }
+        };
+
+        const hasLYData = (filters.sections?.summaryLastYear ?? true) && startDate && endDate;
+        if (hasLYData) {
+            const lyCustomerMap = new Map<string, number>();
+            baseData.forEach(p => {
+                const d = parseDate(p.date);
+                if (d && d >= lyStartDate && d <= lyEndDate) {
+                    const currTotal = lyCustomerMap.get(p.customerName) || 0;
+                    const net = (p.credit || 0) - (p.debit || 0);
+                    lyCustomerMap.set(p.customerName, currTotal + net);
+                }
+            });
+
+            lyCustomerMap.forEach((totalAmt, name) => {
+                const allHistory = historyMap.get(name);
+                if (allHistory) {
+                    const paymentsInLY = allHistory.filter(t => t >= lyStartDate.getTime() && t <= lyEndDate.getTime());
+                    paymentsInLY.sort((a, b) => a - b);
+
+                    if (paymentsInLY.length > 0) {
+                        const latestInLY = paymentsInLY[paymentsInLY.length - 1];
+                        const prevPayment = allHistory.find(t => t < latestInLY);
+
+                        let bucketKey = 'No Payment Before';
+                        if (prevPayment) {
+                            const diffMs = latestInLY - prevPayment;
+                            const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+                            if (diffDays <= 30) bucketKey = '0-30 Days';
+                            else if (diffDays <= 60) bucketKey = '31-60 Days';
+                            else if (diffDays <= 90) bucketKey = '61-90 Days';
+                            else bucketKey = '90+ Days';
+                        }
+
+                        if (gapBucketsLY[bucketKey]) {
+                            gapBucketsLY[bucketKey].count++;
+                            gapBucketsLY[bucketKey].totalAmount += totalAmt;
+                        }
+                    }
+                }
+            });
+        }
+
+        // Retention / Gap Buckets
+        const gapBuckets: Record<string, { count: number, totalAmount: number }> = {
+            '0-30 Days': { count: 0, totalAmount: 0 },
+            '31-60 Days': { count: 0, totalAmount: 0 },
+            '61-90 Days': { count: 0, totalAmount: 0 },
+            '90+ Days': { count: 0, totalAmount: 0 },
+            'No Payment Before': { count: 0, totalAmount: 0 }
+        };
+
+        // First, group by rep and calculate rep totals for sorting
+        const repTotals = new Map<string, number>();
+        customerMap.forEach((stats) => {
+            const rep = (stats as any).repName || 'Unknown';
+            repTotals.set(rep, (repTotals.get(rep) || 0) + stats.total);
+        });
+
+        const custRows = Array.from(customerMap.entries())
+            .filter(([_, stats]) => stats.total > 0.01)
+            .sort((a, b) => {
+                const repA = (a[1] as any).repName || 'Unknown';
+                const repB = (b[1] as any).repName || 'Unknown';
+                const repTotalA = repTotals.get(repA) || 0;
+                const repTotalB = repTotals.get(repB) || 0;
+
+                // First sort by rep total (descending)
+                if (repTotalB !== repTotalA) {
+                    return repTotalB - repTotalA;
+                }
+                // Then sort by customer total within same rep (descending)
+                return b[1].total - a[1].total;
+            })
+            .map(([name, s], i) => {
+
+
+                // Calculate Gap (Using Full History)
+                let gapStr = 'No Payment Before';
+                const sortedPeriodDates = s.dates.sort((a, b) => a - b); // Ascending (Oldest First)
+                const earliestInPeriodMs = sortedPeriodDates[0];
+                const latestInPeriodMs = sortedPeriodDates[sortedPeriodDates.length - 1];
+
+                const allHistory = historyMap.get(name);
+                if (allHistory) {
+                    let prevMs: number | undefined;
+                    let anchorMs: number;
+
+                    // Check if user specifically filtered by date
+                    const isDateFiltered = !!filters.startDate;
+
+                    if (isDateFiltered && filters.startDate) {
+                        // NEW LOGIC: Gap between FIRST payment in filter AND last payment BEFORE filter
+                        anchorMs = earliestInPeriodMs;
+                        const startFilterMs = filters.startDate.getTime();
+                        // allHistory is sorted Descending, so find() gets the largest date < startFilterMs
+                        prevMs = allHistory.find(t => t < startFilterMs);
+                    } else {
+                        // DEFAULT LOGIC: Gap between Latest payment AND the one before it
+                        anchorMs = latestInPeriodMs;
+                        prevMs = allHistory.find(t => t < anchorMs);
+                    }
+
+                    if (prevMs) {
+                        const diffMs = anchorMs - prevMs;
+                        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+                        gapStr = `${diffDays} Days`;
+
+                        let bucketKey = '90+ Days';
+                        if (diffDays <= 30) bucketKey = '0-30 Days';
+                        else if (diffDays <= 60) bucketKey = '31-60 Days';
+                        else if (diffDays <= 90) bucketKey = '61-90 Days';
+
+                        gapBuckets[bucketKey].count++;
+                        gapBuckets[bucketKey].totalAmount += s.total;
+                    } else {
+                        gapBuckets['No Payment Before'].count++;
+                        gapBuckets['No Payment Before'].totalAmount += s.total;
+                    }
+                }
+
+                const uniqueDates = Array.from(new Set(sortedPeriodDates.map(ms => formatDate(new Date(ms)))));
+                const paymentDatesStr = uniqueDates.join(', ');
+
+                const repName = (s as any).repName || 'Unknown';
+
+                return [
+                    i + 1,
+                    name,
+                    repName,
+                    `${s.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                    s.count,
+                    paymentDatesStr,
+                    gapStr
+                ];
+            });
+
+        if (showCustomerList) {
+            autoTable(doc, {
+                startY: 28,
+                head: [['#', 'Customer Name', 'Sales Rep', 'Total Paid', 'Count', 'Payment Dates', 'Gap']],
+                body: custRows,
+                theme: 'striped',
+                headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+                bodyStyles: { halign: 'center', valign: 'middle' },
+                margin: { left: 8, right: 8 },
+                columnStyles: {
+                    1: { halign: 'center', cellWidth: 80 }, // Customer Name (Increased)
+                    2: { halign: 'center', cellWidth: 35 }, // Sales Rep
+                    5: { halign: 'center', cellWidth: 50 }  // Payment Dates (Fixed Width to prevent expansion)
+                }
+            });
+
+            const finalY = (doc as any).lastAutoTable.finalY + 10;
+            doc.setFontSize(10);
+            doc.setTextColor(100, 116, 139); // Slate 500
+            doc.setFont('helvetica', 'italic');
+            doc.text("Note: 'Gap' represents the number of days between the latest payment in this period and the previous payment.", 14, finalY);
+        }
+
+        // --- NEW PAGE: CUSTOMER RETENTION (GAP ANALYSIS) ---
+        if ((filters.sections?.gapAnalysis ?? true) !== false) {
+            doc.addPage('a4', 'landscape'); // Use landscape for better charts
+            y = 20;
+
+            // HEADER
+            doc.setFontSize(20);
+            doc.setTextColor(15, 23, 42); // Slate 900
+            doc.setFont('helvetica', 'bold');
+            doc.text('Customer Retention Stats (Gap)', doc.internal.pageSize.width / 2, y, { align: 'center' });
+
+            y += 10;
+
+            y += 10;
+
+            // --- VERTICAL BAR CHART SETTINGS ---
+            const chartW = 240;
+            const chartH = 100;
+            const chartX = (pageW - chartW) / 2;
+            const chartY = y + 15;
+            const chartBottom = chartY + chartH;
+
+            // Scale for Y Axis (Based on Amount)
+            const allAmounts = [
+                ...Object.values(gapBuckets).map(b => b.totalAmount),
+                ...Object.values(gapBucketsPrev).map(b => b.totalAmount),
+                ...Object.values(gapBucketsLY).map(b => b.totalAmount)
+            ];
+            const maxAmount = Math.max(...allAmounts, 1);
+            const yStep = chartH / maxAmount;
+
+            // X Axis Buckets
+            const bucketLabels = Object.keys(gapBuckets);
+            const groupW = chartW / bucketLabels.length;
+            const barW = groupW * 0.22;
+            const barGap = 2;
+
+            // Draw Y-Axis Grid Lines
+            doc.setDrawColor(241, 245, 249);
+            doc.setLineWidth(0.2);
+            for (let i = 0; i <= 4; i++) {
+                const gy = chartBottom - (i * (chartH / 4));
+                doc.line(chartX, gy, chartX + chartW, gy);
+
+                // Y-Axis Label (Formatted Amount)
+                doc.setFontSize(8);
+                doc.setTextColor(148, 163, 184);
+                const val = maxAmount * (i / 4);
+                const labelStr = val > 0 ? val.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 0 }) : '0';
+                doc.text(labelStr, chartX - 5, gy + 1, { align: 'right' });
+            }
+
+            bucketLabels.forEach((label, idx) => {
+                const groupX = chartX + (idx * groupW);
+                const centerX = groupX + (groupW / 2);
+
+                const data = gapBuckets[label];
+                const prevData = gapBucketsPrev[label] || { count: 0, totalAmount: 0 };
+                const lyData = gapBucketsLY[label] || { count: 0, totalAmount: 0 };
+
+                // --- Bar 1: Current ---
+                const h1 = data.totalAmount * yStep;
+                const bx1 = centerX - (barW * 1.5 + barGap);
+                doc.setFillColor(58, 127, 232); // Unified Current color (Blue)
+                doc.roundedRect(bx1, chartBottom - h1, barW, h1, 1, 1, 'F');
+
+                // --- Bar 2: Previous ---
+                const h2 = prevData.totalAmount * yStep;
+                const bx2 = centerX - (barW / 2);
+                doc.setFillColor(181, 212, 244); // Light Blue (dashboard prev color)
+                doc.roundedRect(bx2, chartBottom - h2, barW, h2, 1, 1, 'F');
+
+                // --- Bar 3: Last Year ---
+                const h3 = lyData.totalAmount * yStep;
+                const bx3 = centerX + (barW / 2 + barGap);
+                doc.setFillColor(221, 221, 221); // Light Gray (dashboard ly color)
+                doc.roundedRect(bx3, chartBottom - h3, barW, h3, 1, 1, 'F');
+
+                // X-Axis Label
+                doc.setFontSize(9);
+                doc.setTextColor(30, 41, 59);
+                doc.setFont('helvetica', 'bold');
+                const labelLines = doc.splitTextToSize(label.toUpperCase(), groupW - 4);
+                doc.text(labelLines, centerX, chartBottom + 6, { align: 'center' });
+
+                // Values on top of bars (Always visible)
+                const drawBarValue = (bx: number, h: number, count: number, amount: number) => {
+                    const labelY = chartBottom - h;
+                    doc.setFontSize(8.5);
+                    doc.setFont('helvetica', 'bold');
+                    doc.setTextColor(30, 41, 59);
+                    doc.text(`${count}`, bx + barW / 2, labelY - 6.5, { align: 'center' });
+                    
+                    doc.setFontSize(7.5);
+                    doc.setFont('helvetica', 'normal');
+                    doc.setTextColor(100, 116, 139);
+                    const amtStr = amount.toLocaleString(undefined, { notation: 'compact', maximumFractionDigits: 0 });
+                    doc.text(amtStr, bx + barW / 2, labelY - 1.5, { align: 'center' });
+                };
+
+                drawBarValue(bx1, h1, data.count, data.totalAmount);
+                drawBarValue(bx2, h2, prevData.count, prevData.totalAmount);
+                drawBarValue(bx3, h3, lyData.count, lyData.totalAmount);
+            });
+
+            // LEGEND
+            const legendY = chartBottom + 25;
+            const legendItems: { label: string, color: [number, number, number] }[] = [
+                { label: 'Current Period', color: [58, 127, 232] },
+                { label: 'Previous Period', color: [181, 212, 244] },
+                { label: 'Last Year', color: [221, 221, 221] }
+            ];
+
+            let lx = (pageW - 120) / 2;
+            legendItems.forEach(item => {
+                doc.setFillColor(...item.color);
+                doc.rect(lx, legendY, 4, 4, 'F');
+                doc.setFontSize(9);
+                doc.setTextColor(100, 116, 139);
+                doc.text(item.label, lx + 6, legendY + 3.5);
+                lx += 45;
+            });
+
+        }
+
+
+
+
+    }
+
+
+
+    // --- SALES REPRESENTATIVE ANALYSIS ---
+    if (filters.sections?.salesRep !== false) {
+        doc.addPage('a4', 'portrait');
+        y = 20;
+
+        doc.setFontSize(20);
+        doc.setTextColor(15, 23, 42); // Slate 900
+        doc.setFont('helvetica', 'bold');
+        doc.text('Sales Representative Stats', 105, y, { align: 'center' });
+        y += 10;
+
+        // 1. Data Aggregation
+        const repMap = new Map<string, { total: number, count: number, customers: Set<string> }>();
+
+        baseData.forEach(p => {
+            // Check Date Range
+            const d = parseDate(p.date);
+            if (!d) return;
+            // Respect Start/End Date derived earlier
+            if (startDate && d < startDate) return;
+            if (endDate && d > endDate) return;
+
+            const rep = p.salesRep && p.salesRep.trim() ? p.salesRep.trim() : 'Unknown';
+            const val = (p.credit || 0) - (p.debit || 0);
+
+            if (!repMap.has(rep)) repMap.set(rep, { total: 0, count: 0, customers: new Set() });
+            const stat = repMap.get(rep)!;
+            stat.total += val;
+            stat.count++;
+            stat.customers.add(p.customerName);
+        });
+
+        const repData = Array.from(repMap.entries())
+            .map(([name, s]) => ({
+                name,
+                total: s.total,
+                count: s.count,
+                uniqueCust: s.customers.size,
+                avgVal: s.count > 0 ? s.total / s.count : 0
+            }))
+            .filter(d => d.total > 0.1) // Filter out zero/negative
+            .sort((a, b) => b.total - a.total);
+
+        // 2. Top Performers Cards Removed as per request
+
+        // 3. Horizontal Chart (Top 10)
+        if (repData.length > 0) {
+            // 3. Horizontal Chart (Top 10)
+            const chartData = repData.map(r => ({ label: r.name, value: r.total }));
+            const chartH = Math.min(250, chartData.length * 15 + 20); // Dynamic height (15 unit/item to fit 8mm bar + 6mm gap)
+            drawHorizontalBarChart(15, y, 180, chartH, chartData, '');
+
+            y += chartH + 15;
+        }
+
+        // 4. Detailed Table
+        const grandTotalRep = repData.reduce((acc, curr) => acc + curr.total, 0); // Total from filtered data
+
+        const repRows = repData.map((r, i) => {
+            const share = grandTotalRep > 0 ? (r.total / grandTotalRep) * 100 : 0;
+            return [
+                i + 1,
+                r.name,
+                `${r.total.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+                r.count,
+                r.uniqueCust,
+                // Removed Avg/Txn
+                `${share.toFixed(1)}%`
+            ];
+        });
+
+        const totalTxns = repData.reduce((acc, curr) => acc + curr.count, 0);
+        const totalClients = repData.reduce((acc, curr) => acc + curr.uniqueCust, 0);
+
+        // Add Total Row
+        repRows.push([
+            '',
+            'Total',
+            `${grandTotalRep.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+            totalTxns,
+            totalClients,
+            '100.0%'
+        ]);
+
+        autoTable(doc, {
+            startY: y,
+            head: [['#', 'Sales Rep', 'Total Collected', 'Txns', 'Clients', 'Share %']],
+            body: repRows,
+            theme: 'grid',
+            headStyles: { fillColor: [59, 130, 246], halign: 'center', valign: 'middle' },
+            bodyStyles: { halign: 'center', valign: 'middle' },
+            columnStyles: {},
+            didParseCell: (data) => {
+                if (data.section === 'body') {
+                    // Highlight Top 3 (if not Total row)
+                    if (data.row.index < repRows.length - 1 && data.row.index < 3) {
+                        if (data.column.index === 0) {
+                            data.cell.styles.fontStyle = 'bold';
+                            if (data.row.index === 0) data.cell.styles.textColor = [217, 119, 6]; // Dark Gold
+                        }
+                    }
+
+                    // Total Row Styling
+                    if (data.row.index === repRows.length - 1) {
+                        data.cell.styles.fontStyle = 'bold';
+                        data.cell.styles.fillColor = [241, 245, 249]; // Slate 50
+                        if (data.column.index === 1) data.cell.styles.halign = 'center'; // Center "Total" text
+                    }
+                }
+            }
+        });
+
+    }
+
+    // Footer / Page Numbers
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        const pWidth = doc.internal.pageSize.width;
+        const pHeight = doc.internal.pageSize.height;
+        doc.setFontSize(8);
+        doc.setTextColor(150);
+        doc.text(`Page ${i} of ${pageCount}`, pWidth - 15, pHeight - 7, { align: 'right' });
+    }
+
+    doc.save(`Collections_Analysis_${new Date().toISOString().split('T')[0]}.pdf`);
+};

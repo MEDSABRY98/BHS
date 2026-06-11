@@ -1,10 +1,10 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import SuppliersTab from '@/components/Suppliers/SuppliersTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
-import SuppliersSidebar from '@/components/Suppliers/SuppliersSidebar';
+import SuppliersTab from './Components/SuppliersTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
+import SuppliersSidebar from './Components/SuppliersSidebar';
 import { Menu } from 'lucide-react';
 
 interface SupplierTransaction {
@@ -131,7 +131,7 @@ export default function SuppliersPage() {
                     onTabChange={setActiveTab}
                     currentUser={currentUser}
                     isCollapsed={false}
-                    onToggleCollapse={() => {}}
+                    onToggleCollapse={() => { }}
                     onCloseMobile={() => setIsMobileSidebarOpen(false)}
                 />
             </aside>
@@ -143,8 +143,8 @@ export default function SuppliersPage() {
                     <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
                         {/* Left section: Hamburger for Mobile */}
                         <div className="flex items-center gap-4">
-                            <button 
-                                onClick={() => setIsMobileSidebarOpen(true)} 
+                            <button
+                                onClick={() => setIsMobileSidebarOpen(true)}
                                 className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
                                 title="Open Navigation Menu"
                             >

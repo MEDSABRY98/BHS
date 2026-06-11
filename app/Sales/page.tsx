@@ -1,26 +1,26 @@
 'use client';
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import SalesOverviewTab from '@/components/Sales/SalesOverviewTab';
-import SalesTop10Tab from '@/components/Sales/SalesTop10Tab';
-import SalesCustomersTab from '@/components/Sales/SalesCustomersTab';
-import SalesCustomersComparisonTab from '@/components/Sales/SalesCustomersComparisonTab';
-import SalesInactiveCustomersTab from '@/components/Sales/SalesInactiveCustomersTab';
-import SalesStatisticsTab from '@/components/Sales/SalesStatisticsTab';
-import SalesDailySalesTab from '@/components/Sales/SalesDailySalesTab';
-import SalesProductsTab from '@/components/Sales/SalesProductsTab';
-import SalesCategoriesTab from '@/components/Sales/SalesCategoriesTab';
-import SalesStockReportTab from '@/components/Sales/SalesStockReportTab';
-import SalesSidebar from '@/components/Sales/SalesSidebar';
-import SalesMyCustomersTab from '@/components/Sales/SalesMyCustomersTab';
-import SalesNewListingsTab from '@/components/Sales/SalesNewListingsTab';
+import SalesOverviewTab from './Components/SalesOverviewTab';
+import SalesTop10Tab from './Components/SalesTop10Tab';
+import SalesCustomersTab from './Components/SalesCustomersTab';
+import SalesCustomersComparisonTab from './Components/SalesCustomersComparisonTab';
+import SalesInactiveCustomersTab from './Components/SalesInactiveCustomersTab';
+import SalesStatisticsTab from './Components/SalesStatisticsTab';
+import SalesDailySalesTab from './Components/SalesDailySalesTab';
+import SalesProductsTab from './Components/SalesProductsTab';
+import SalesCategoriesTab from './Components/SalesCategoriesTab';
+import SalesStockReportTab from './Components/SalesStockReportTab';
+import SalesSidebar from './Components/SalesSidebar';
+import SalesMyCustomersTab from './Components/SalesMyCustomersTab';
+import SalesNewListingsTab from './Components/SalesNewListingsTab';
 
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import { SalesInvoice } from '@/lib/googleSheets';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { toast } from '@/components/01-Unified/Notification';
+import { toast } from '@/app/Components/Notification';
 
 // Modern Select Component
 const ModernSelect = ({
@@ -230,7 +230,7 @@ export default function SalesPage() {
       if (perms['sales-actions'] !== undefined) {
         return perms['sales-actions'].includes('view-costs');
       }
-    } catch (e) {}
+    } catch (e) { }
     return true; // default to true
   }, [currentUser]);
 
@@ -270,7 +270,7 @@ export default function SalesPage() {
     try {
       if (silent) setIsRefreshing(true);
       else setLoading(true);
-      
+
       const currentUserObj = localStorage.getItem('currentUser');
       const userId = currentUserObj ? JSON.parse(currentUserObj).name : 'ADMIN';
 
@@ -287,7 +287,7 @@ export default function SalesPage() {
 
       setUniqueValues(result.uniqueValues);
       setLastUpdated(result.lastUpdated);
-      
+
       if (silent) {
         setRefreshTrigger(prev => prev + 1);
         toast.success('Data refreshed! Rebuilding cache in background...');
@@ -410,7 +410,7 @@ export default function SalesPage() {
       await handleUploadMapping(mapping);
       toast.dismiss('mapping_upload');
       toast.success('Customer data uploaded and synced successfully!');
-      
+
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
@@ -625,7 +625,7 @@ export default function SalesPage() {
           currentUser={currentUser}
           lastUpdated={lastUpdated}
           isCollapsed={false}
-          onToggleCollapse={() => {}}
+          onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
       </aside>
@@ -637,8 +637,8 @@ export default function SalesPage() {
           <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
             {/* Left section: Hamburger for Mobile, Upload/Refresh for Desktop */}
             <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setIsMobileSidebarOpen(true)} 
+              <button
+                onClick={() => setIsMobileSidebarOpen(true)}
                 className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
                 title="Open Navigation Menu"
               >
@@ -654,7 +654,7 @@ export default function SalesPage() {
                 >
                   <BarChart3 className="w-6 h-6" />
                 </div>
-                
+
                 {/* Refresh Data Button */}
                 {currentUser?.name === 'MED Sabry' && (
                   <button

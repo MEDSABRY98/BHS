@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import HomeSelection from '@/components/01-Unified/HomeSelection';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import HomeSelection from '@/app/Components/HomeSelection';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

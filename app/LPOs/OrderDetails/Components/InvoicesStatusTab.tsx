@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 import { FileCheck, UserCheck, Clock, ShieldCheck, AlertCircle, Save, Loader2, CheckCircle2, XCircle, Lock, Truck } from 'lucide-react';
-import NoData from '@/components/01-Unified/NoDataTab';
+import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../../Hooks/usePermissions';
 
 interface InvoicesStatusTabProps {

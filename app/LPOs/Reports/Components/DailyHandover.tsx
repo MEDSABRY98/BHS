@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
-import { generateDailyHandoverPDF } from '@/lib/pdf/DailyHandoverPdf';
-import NoData from '@/components/01-Unified/NoDataTab';
+import { generateDailyHandoverPDF } from '@/app/LPOs/Pdf/DailyHandoverPdf';
+import NoData from '@/app/Components/NoDataTab';
 
 interface HandoverGroup {
   key: string;

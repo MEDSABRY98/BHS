@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import DocumentsTrackingTab from '@/components/DocumentsTracking/DocumentsTrackingTab';
+import DocumentsTrackingTab from './Components/DocumentsTrackingTab';
 import { ChevronLeft } from 'lucide-react';
-import Loading from '@/components/01-Unified/Loading';
+import Loading from '@/app/Components/Loading';
 
 export default function DocumentsTrackingPage() {
     const [currentUser, setCurrentUser] = useState<any>(null);

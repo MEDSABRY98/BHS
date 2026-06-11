@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
-import { getSalesDataServer } from '@/lib/SalesCache';
+import { getMappingServer, applyMapping } from '@/app/Sales/Utils/SalesMappingCache';
+import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
 const calculateMode = (numbers: number[]): number => {
   if (!numbers || numbers.length === 0) return 0;

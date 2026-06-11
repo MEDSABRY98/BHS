@@ -12,7 +12,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import Link from 'next/link';
-import NoData from '@/components/01-Unified/NoDataTab';
+import NoData from '@/app/Components/NoDataTab';
 import { usePermissions } from '../Hooks/usePermissions';
 import OrdersFilterMenu, { FilterCriteria } from '../OrderDetails/Components/OrdersFilterMenu';
 import { ConfirmModal } from '../Components/ConfirmModal';
@@ -519,8 +519,8 @@ export default function OrdersPage() {
 
                         return (
                           <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isCancelled ? 'bg-red-50 text-red-600' :
-                              isDelivered ? 'bg-emerald-50 text-emerald-600' :
-                                'bg-orange-50 text-orange-600'
+                            isDelivered ? 'bg-emerald-50 text-emerald-600' :
+                              'bg-orange-50 text-orange-600'
                             }`}>
                             {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : order.driver_status || 'Pending'}
                           </div>

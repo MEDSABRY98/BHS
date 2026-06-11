@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { bhs_supabas } from '@/lib/supabase';
 import SearchSelect from '../../Components/DropDownList';
 import { FileText, Loader2, Download, Printer, AlertCircle } from 'lucide-react';
-import { generateDeliveredDriverInvoicesPDF } from '@/lib/pdf/DeliveredDriverInvoicesPdf';
-import NoData from '@/components/01-Unified/NoDataTab';
+import { generateDeliveredDriverInvoicesPDF } from '@/app/LPOs/Pdf/DeliveredDriverInvoicesPdf';
+import NoData from '@/app/Components/NoDataTab';
 
 export default function DeliveredDriverInvoices() {
   const [drivers, setDrivers] = useState<any[]>([]);

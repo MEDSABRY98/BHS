@@ -2,20 +2,20 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-import CustomersTab from '@/components/Debit/CustomersTab/CustomersTab';
-import CustomersLandingTab from '@/components/Debit/CustomersTab/CustomersSwitchsTab';
-import CustomersGroupTab from '@/components/Debit/CustomersGroupTab';
-import OpenTransactionsTab from '@/components/Debit/OpenTransactionsTab';
-import AllTransactionsTab from '@/components/Debit/AllTransactionsTab';
-import PaymentTrackerTab from '@/components/Payment-Tracker/PaymentTrackerTab';
-import SalesRepsTab from '@/components/Debit/SalesRepsTab';
-import HistoryTab from '@/components/Debit/HistoryTab';
-import AgesTab from '@/components/Debit/AgesTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import CustomersTab from './Components/CustomersTab/CustomersTab';
+import CustomersLandingTab from './Components/CustomersTab/CustomersSwitchsTab';
+import CustomersGroupTab from './Components/CustomersGroupTab';
+import OpenTransactionsTab from './Components/OpenTransactionsTab';
+import AllTransactionsTab from './Components/AllTransactionsTab';
+import PaymentTrackerTab from './Components/Payment-Tracker/PaymentTrackerTab';
+import SalesRepsTab from './Components/SalesRepsTab';
+import HistoryTab from './Components/HistoryTab';
+import AgesTab from './Components/AgesTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import { InvoiceRow } from '@/types';
 import { ArrowLeft, Wallet, LogOut, User, RefreshCcw, Menu } from 'lucide-react';
-import DebitSidebar from '@/components/Debit/DebitSidebar';
+import DebitSidebar from './Components/DebitSidebar';
 
 import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -272,7 +272,7 @@ function DebitPageContent() {
           currentUser={currentUser}
           lastUpdated={lastUpdated}
           isCollapsed={false}
-          onToggleCollapse={() => {}}
+          onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
       </aside>
@@ -284,8 +284,8 @@ function DebitPageContent() {
           <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
             {/* Left section: Hamburger for Mobile, Logo/Refresh/Upload for Desktop */}
             <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setIsMobileSidebarOpen(true)} 
+              <button
+                onClick={() => setIsMobileSidebarOpen(true)}
                 className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
                 title="Open Navigation Menu"
               >

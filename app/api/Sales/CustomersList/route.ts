@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSalesDataServer } from '@/lib/SalesCache';
+import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
 export async function GET() {
   try {

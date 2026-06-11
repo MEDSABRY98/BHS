@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import CashReceiptTab from '@/components/CashReceipt/CashReceiptTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
-import CashReceiptSidebar from '@/components/CashReceipt/CashReceiptSidebar';
+import CashReceiptTab from './Components/CashReceiptTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
+import CashReceiptSidebar from './Components/CashReceiptSidebar';
 import { Menu, Search } from 'lucide-react';
 
 export default function CashReceiptPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
   const [activeTab, setActiveTab] = useState<'new' | 'saved'>('new');
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -122,7 +122,7 @@ export default function CashReceiptPage() {
           onTabChange={setActiveTab}
           currentUser={currentUser}
           isCollapsed={false}
-          onToggleCollapse={() => {}}
+          onToggleCollapse={() => { }}
           onCloseMobile={() => setIsMobileSidebarOpen(false)}
         />
       </aside>
@@ -134,8 +134,8 @@ export default function CashReceiptPage() {
           <div className="max-w-[98%] mx-auto px-4 py-3 flex items-center justify-between gap-4 min-h-[5rem]">
             {/* Left section: Hamburger for Mobile */}
             <div className="flex items-center gap-4 w-10 md:w-32">
-              <button 
-                onClick={() => setIsMobileSidebarOpen(true)} 
+              <button
+                onClick={() => setIsMobileSidebarOpen(true)}
                 className="p-2.5 text-slate-600 hover:text-slate-900 lg:hidden rounded-xl hover:bg-slate-100 transition-all"
                 title="Open Navigation Menu"
               >

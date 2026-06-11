@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import InventoryScrapTab from '@/components/Inventory/InventoryScrap/InventoryScrapTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import InventoryScrapTab from '@/app/Inventory/Components/InventoryScrap/InventoryScrapTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import {
   ArrowLeft,
   Trash2,
@@ -24,7 +24,7 @@ export default function InventoryScrapPage() {
   const [isAllowed, setIsAllowed] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [activeSubTab, setActiveSubTab] = useState<'record' | 'sessions' | 'report' | 'history'>('record');
-  
+
   // Sidebar Collapse states
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -40,7 +40,7 @@ export default function InventoryScrapPage() {
         if (parsed.name) {
           setUserInitial(parsed.name.charAt(0).toUpperCase());
         }
-        
+
         // Check permission for inventory-scrap
         const userName = parsed.name?.toLowerCase() || '';
         if (userName === 'med sabry') {
@@ -92,7 +92,7 @@ export default function InventoryScrapPage() {
       setUserInitial(user.name.charAt(0).toUpperCase());
     }
     localStorage.setItem('currentUser', JSON.stringify(user));
-    
+
     // Check permission for inventory-scrap on login
     const userName = user.name?.toLowerCase() || '';
     if (userName === 'med sabry') {
@@ -147,10 +147,10 @@ export default function InventoryScrapPage() {
 
   return (
     <div className="flex min-h-screen bg-[#F8F9FA] text-black font-sans selection:bg-blue-100 selection:text-blue-900">
-      
+
       {/* Desktop Sidebar */}
       <aside className={`hidden lg:flex flex-col ${isCollapsed ? 'w-20' : 'w-72'} bg-black text-white shadow-2xl fixed h-screen left-0 top-0 z-50 transition-all duration-300`}>
-        
+
         {/* Back Home Button wrapper */}
         <div className={`px-4 ${isCollapsed ? 'lg:px-4' : 'lg:px-8'} pt-6 pb-2 bg-black/50 backdrop-blur-md transition-all duration-300`}>
           <button
@@ -183,14 +183,13 @@ export default function InventoryScrapPage() {
 
         {/* Navigation Sidebar Options */}
         <nav className="flex-1 mt-4 overflow-y-auto no-scrollbar">
-          
+
           <button
             onClick={() => setActiveSubTab('record')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${
-              activeSubTab === 'record'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'record'
+              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             title={isCollapsed ? "Log Scrap" : undefined}
           >
             <Plus className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'record' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
@@ -202,11 +201,10 @@ export default function InventoryScrapPage() {
 
           <button
             onClick={() => setActiveSubTab('sessions')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${
-              activeSubTab === 'sessions'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'sessions'
+              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             title={isCollapsed ? "View Sessions" : undefined}
           >
             <Layers className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'sessions' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
@@ -218,11 +216,10 @@ export default function InventoryScrapPage() {
 
           <button
             onClick={() => setActiveSubTab('report')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${
-              activeSubTab === 'report'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'report'
+              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             title={isCollapsed ? "Scrap Report" : undefined}
           >
             <FileText className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'report' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
@@ -234,11 +231,10 @@ export default function InventoryScrapPage() {
 
           <button
             onClick={() => setActiveSubTab('history')}
-            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${
-              activeSubTab === 'history'
-                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                : 'text-gray-400 hover:text-white hover:bg-white/5'
-            }`}
+            className={`w-full flex items-center ${isCollapsed ? 'justify-center px-4' : 'px-6'} py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'history'
+              ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+              : 'text-gray-400 hover:text-white hover:bg-white/5'
+              }`}
             title={isCollapsed ? "Saved Reports" : undefined}
           >
             <History className={`w-5 h-5 transition-colors ${isCollapsed ? '' : 'mr-4'} ${activeSubTab === 'history' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
@@ -252,8 +248,8 @@ export default function InventoryScrapPage() {
 
         {/* Expand/Collapse Trigger */}
         <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
-          <button 
-            onClick={toggleSidebar} 
+          <button
+            onClick={toggleSidebar}
             className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37] cursor-pointer"
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
@@ -264,7 +260,7 @@ export default function InventoryScrapPage() {
 
       {/* Main Content Area - Shifted by Sidebar Width on Desktop */}
       <div className={`flex-grow flex flex-col min-w-0 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-72'} transition-all duration-300`}>
-        
+
         {/* Header - Mobile */}
         <header className="lg:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200 sticky top-0 z-30 shadow-sm">
           <button onClick={() => setIsSidebarOpen(true)} className="p-2 text-black cursor-pointer">
@@ -301,7 +297,7 @@ export default function InventoryScrapPage() {
             </button>
           </div>
           <div className="px-8 pt-2 pb-6 shrink-0 relative flex flex-col items-center justify-center">
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(false)}
               className="absolute right-4 top-2 p-2 text-gray-400 hover:text-white cursor-pointer"
             >
@@ -315,18 +311,17 @@ export default function InventoryScrapPage() {
               <p className="text-[10px] text-[#D4AF37] font-bold tracking-[0.2em] uppercase">Inventory Loss</p>
             </div>
           </div>
-          
+
           <nav className="flex-1 overflow-y-auto no-scrollbar">
             <button
               onClick={() => {
                 setActiveSubTab('record');
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${
-                activeSubTab === 'record'
-                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'record'
+                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <Plus className={`w-5 h-5 mr-4 ${activeSubTab === 'record' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
               <span className="text-sm tracking-wide">Log Scrap</span>
@@ -337,11 +332,10 @@ export default function InventoryScrapPage() {
                 setActiveSubTab('sessions');
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${
-                activeSubTab === 'sessions'
-                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'sessions'
+                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <Layers className={`w-5 h-5 mr-4 ${activeSubTab === 'sessions' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
               <span className="text-sm tracking-wide">View Sessions</span>
@@ -352,11 +346,10 @@ export default function InventoryScrapPage() {
                 setActiveSubTab('report');
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${
-                activeSubTab === 'report'
-                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'report'
+                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <FileText className={`w-5 h-5 mr-4 ${activeSubTab === 'report' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
               <span className="text-sm tracking-wide">Scrap Report</span>
@@ -367,11 +360,10 @@ export default function InventoryScrapPage() {
                 setActiveSubTab('history');
                 setIsSidebarOpen(false);
               }}
-              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${
-                activeSubTab === 'history'
-                  ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
-                  : 'text-gray-400 hover:text-white hover:bg-white/5'
-              }`}
+              className={`w-full flex items-center px-6 py-4 transition-all duration-200 group cursor-pointer ${activeSubTab === 'history'
+                ? 'bg-gradient-to-r from-black/10 to-transparent border-l-4 border-[#D4AF37] text-white font-bold'
+                : 'text-gray-400 hover:text-white hover:bg-white/5'
+                }`}
             >
               <History className={`w-5 h-5 mr-4 ${activeSubTab === 'history' ? 'text-[#D4AF37]' : 'group-hover:text-white'}`} />
               <span className="text-sm tracking-wide">Saved Reports</span>

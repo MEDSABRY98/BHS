@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/lib/SalesMappingCache';
-import { getSalesDataServer } from '@/lib/SalesCache';
+import { getMappingServer, applyMapping } from '@/app/Sales/Utils/SalesMappingCache';
+import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
 
 export async function POST(request: Request) {
   try {
@@ -35,18 +35,18 @@ export async function POST(request: Request) {
     for (const item of preFilteredData) {
       // ONLY consider SALES invoices
       if (!item.invoiceNumber || typeof item.invoiceNumber !== 'string') continue;
-      
+
       const invNum = item.invoiceNumber;
       // Fast check for 'SAL' prefix (ignoring case, avoiding trim/toUpperCase for speed)
       if (!(invNum[0] === 'S' || invNum[0] === 's') || !(invNum[1] === 'A' || invNum[1] === 'a') || !(invNum[2] === 'L' || invNum[2] === 'l')) {
         continue;
       }
-      
+
       if (!item.invoiceDate) continue;
 
-      const customerId = item.customerId || item.customerName; 
+      const customerId = item.customerId || item.customerName;
       const productId = item.productId || item.product;
-      
+
       if (!customerId || !productId) continue;
 
       const key = `${customerId}|||${productId}`;
@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     for (const [key, data] of firstPurchaseMap.entries()) {
       const { time, invoiceItem } = data;
       const date = new Date(time);
-      
+
       // Apply date filters to the "First Purchase Event"
       if (filters) {
         const { year, month, dateFrom, dateTo } = filters;
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
         if (dateFrom && time < Date.parse(dateFrom)) continue;
         if (dateTo) {
           const tDate = new Date(dateTo);
-          tDate.setHours(23,59,59,999);
+          tDate.setHours(23, 59, 59, 999);
           if (time > tDate.getTime()) continue;
         }
       }

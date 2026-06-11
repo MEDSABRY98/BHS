@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import PettyCashTab from '@/components/PettyCash/PettyCashTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import PettyCashTab from './Components/PettyCashTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 
 export default function PettyCashPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

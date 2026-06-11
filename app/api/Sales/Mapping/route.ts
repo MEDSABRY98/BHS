@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { invalidateMappingCache } from '@/lib/SalesMappingCache';
+import { invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function POST(request: Request) {
   try {

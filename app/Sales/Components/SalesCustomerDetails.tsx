@@ -1,0 +1,1816 @@
+'use client';
+
+import { useState, useMemo, useEffect } from 'react';
+import { SalesInvoice } from '@/lib/googleSheets';
+import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download, Percent, X, ShoppingBag, FileSpreadsheet } from 'lucide-react';
+import NoData from '@/app/Components/NoDataTab';
+import SalesCustomerCategoriesTab from './SalesCustomerDetailsCategoriesTab';
+import * as XLSX from 'xlsx';
+import {
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+  LabelList,
+  Line,
+} from 'recharts';
+
+interface SalesCustomerDetailsProps {
+  customerName: string;
+  customerId?: string;
+  customerType?: 'main' | 'sub';
+  filters?: any;
+  userId?: string;
+  onBack: () => void;
+  initialTab?: 'dashboard' | 'monthly' | 'products' | 'invoices';
+  showCosts?: boolean;
+}
+
+export default function SalesCustomerDetails({
+  customerName,
+  customerId,
+  customerType = 'sub',
+  filters,
+  userId,
+  onBack,
+  initialTab = 'dashboard',
+  showCosts = true
+}: SalesCustomerDetailsProps) {
+  const [data, setData] = useState<SalesInvoice[]>([]);
+  const [allData, setAllData] = useState<SalesInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'monthly' | 'categories' | 'products' | 'invoices'>(initialTab);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  const [invoicesData, setInvoicesData] = useState<Array<{ number: string; debit: number; credit: number; customerName: string; date: string }>>([]);
+  const [loadingInvoices, setLoadingInvoices] = useState(false);
+  const [showDiscountsModal, setShowDiscountsModal] = useState(false);
+  const [invoiceTypeFilter, setInvoiceTypeFilter] = useState<'all' | 'sales' | 'returns'>('all');
+  const [invoicesPage, setInvoicesPage] = useState(1);
+  const invoicesPerPage = 50;
+  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch customer details from API
+  useEffect(() => {
+    const fetchCustomerDetails = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch('/api/Sales/CustomerDetails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, filters, customerName, customerId, customerType })
+        });
+        if (!response.ok) throw new Error('Failed to fetch customer details');
+        const result = await response.json();
+        setData(result.data || []);
+        setAllData(result.allData || []);
+      } catch (err) {
+        console.error('Error fetching Customer Details:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCustomerDetails();
+  }, [userId, filters, customerName, customerId, customerType]);
+
+  // Fetch invoices data for discounts calculation
+  useEffect(() => {
+    const fetchInvoices = async () => {
+      setLoadingInvoices(true);
+      try {
+        const response = await fetch('/api/Sheets');
+        if (response.ok) {
+          const result = await response.json();
+          setInvoicesData(result.data || []);
+        }
+      } catch (error) {
+        console.error('Error fetching invoices:', error);
+      } finally {
+        setLoadingInvoices(false);
+      }
+    };
+    fetchInvoices();
+  }, []);
+
+  // Get unfiltered customer data (for lastInvoiceDate calculation)
+  const unfilteredCustomerData = useMemo(() => {
+    if (customerType === 'main') {
+      return data.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
+    }
+
+    // Use the passed customerId directly if available, otherwise fall back to name lookup
+    if (customerId) {
+      return data.filter(item => item.customerId === customerId);
+    }
+    // Fallback: find by name (single customer, no ambiguity)
+    return data.filter(item => item.customerName === customerName);
+  }, [data, customerName, customerId, customerType]);
+
+  // Filter data for this customer with search and date filters
+  // Note: customerName is used for display, but we need to find by customerId if available
+  const customerData = useMemo(() => {
+    let filtered = [...unfilteredCustomerData];
+
+    // Search filter
+    if (debouncedSearchQuery.trim()) {
+      const query = debouncedSearchQuery.toLowerCase().trim();
+      filtered = filtered.filter(item =>
+        item.product?.toLowerCase().includes(query) ||
+        item.barcode?.toLowerCase().includes(query) ||
+        item.merchandiser?.toLowerCase().includes(query) ||
+        item.salesRep?.toLowerCase().includes(query) ||
+        item.invoiceNumber?.toLowerCase().includes(query)
+      );
+    }
+
+    return filtered;
+  }, [unfilteredCustomerData, debouncedSearchQuery]);
+
+  // Monthly sales data
+  const monthlySales = useMemo(() => {
+    const monthMap = new Map<string, { month: string; monthKey: string; amount: number; qty: number; invoiceNumbers: Set<string> }>();
+
+    customerData.forEach(item => {
+      if (!item.invoiceDate) return;
+
+      try {
+        const date = new Date(item.invoiceDate);
+        if (isNaN(date.getTime())) return;
+
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const monthKey = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthLabel = `${monthNames[month]} ${String(year).slice(-2)}`;
+
+        const existing = monthMap.get(monthKey) || {
+          month: monthLabel,
+          monthKey,
+          amount: 0,
+          qty: 0,
+          invoiceNumbers: new Set<string>()
+        };
+
+        existing.amount += item.amount;
+        existing.qty += item.qty;
+
+        // Add invoice number for transaction count (only invoices starting with "SAL")
+        if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+          existing.invoiceNumbers.add(item.invoiceNumber);
+        }
+
+        monthMap.set(monthKey, existing);
+      } catch (e) {
+        // Skip invalid dates
+      }
+    });
+
+    // Sort by date descending (newest first)
+    const sorted = Array.from(monthMap.values()).map(item => ({
+      month: item.month,
+      monthKey: item.monthKey,
+      amount: item.amount,
+      qty: item.qty,
+      count: item.invoiceNumbers.size
+    })).sort((a, b) => {
+      return b.monthKey.localeCompare(a.monthKey);
+    });
+
+    // Fill in missing months from first purchase month to current month
+    if (sorted.length > 0) {
+      // Find first month (oldest) and last month (newest)
+      const firstMonthKey = sorted[sorted.length - 1].monthKey; // Oldest (last in descending order)
+      const lastMonthKey = sorted[0].monthKey; // Newest (first in descending order)
+
+      // Parse first month
+      const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+
+      // Get current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 1-based
+      const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, '0')}`;
+
+      // Use current month or last purchase month, whichever is newer
+      const endMonthKey = currentMonthKey > lastMonthKey ? currentMonthKey : lastMonthKey;
+      const [endYear, endMonth] = endMonthKey.split('-').map(Number);
+
+      // Create a map for quick lookup
+      const monthDataMap = new Map(sorted.map(item => [item.monthKey, item]));
+
+      // Generate all months from first to end
+      const allMonths: Array<{
+        month: string;
+        monthKey: string;
+        amount: number;
+        qty: number;
+        count: number;
+        isZeroMonth: boolean;
+      }> = [];
+
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+      let year = firstYear;
+      let month = firstMonth;
+
+      while (year < endYear || (year === endYear && month <= endMonth)) {
+        const monthKey = `${year}-${String(month).padStart(2, '0')}`;
+        const monthLabel = `${monthNames[month - 1]} ${String(year).slice(-2)}`;
+
+        const existingData = monthDataMap.get(monthKey);
+
+        if (existingData) {
+          allMonths.push({
+            ...existingData,
+            isZeroMonth: false
+          });
+        } else {
+          // Zero month - no purchases
+          allMonths.push({
+            month: monthLabel,
+            monthKey,
+            amount: 0,
+            qty: 0,
+            count: 0,
+            isZeroMonth: true
+          });
+        }
+
+        // Move to next month
+        month++;
+        if (month > 12) {
+          month = 1;
+          year++;
+        }
+      }
+
+      // Sort by date descending (newest first)
+      allMonths.sort((a, b) => b.monthKey.localeCompare(a.monthKey));
+
+      // Calculate amount change from previous month
+      return allMonths.map((item, index) => {
+        const previousAmount = index < allMonths.length - 1 ? allMonths[index + 1].amount : null;
+        const amountChange = previousAmount !== null ? item.amount - previousAmount : null;
+
+        return {
+          ...item,
+          amountChange
+        };
+      });
+    }
+
+    return [];
+  }, [customerData]);
+
+  // Products data
+  const productsData = useMemo(() => {
+    const productMap = new Map<string, {
+      barcode: string;
+      product: string;
+      amount: number;
+      qty: number;
+      totalCost: number;
+      totalPrice: number;
+      costCount: number;
+      priceCount: number;
+      invoiceNumbers: Set<string>;
+      lastInvoiceDate: string | null;
+    }>();
+    const productIdCount = new Map<string, number>();
+
+    customerData.forEach(item => {
+      const key = item.productId || item.barcode || item.product;
+      const existing = productMap.get(key) || {
+        barcode: item.barcode || '-',
+        product: item.product || '-',
+        amount: 0,
+        qty: 0,
+        totalCost: 0,
+        totalPrice: 0,
+        costCount: 0,
+        priceCount: 0,
+        invoiceNumbers: new Set<string>(),
+        lastInvoiceDate: null
+      };
+
+      if (!existing.barcode || existing.barcode === '-') {
+        existing.barcode = item.barcode || '-';
+      }
+      if (!existing.product || existing.product === '-') {
+        existing.product = item.product || '-';
+      }
+
+      existing.amount += item.amount;
+      existing.qty += item.qty;
+      if (item.productCost) {
+        existing.totalCost += item.productCost;
+        existing.costCount += 1;
+      }
+      if (item.productPrice) {
+        existing.totalPrice += item.productPrice;
+        existing.priceCount += 1;
+      }
+
+      // Add invoice number if available (only invoices starting with "SAL")
+      if (item.invoiceNumber && item.invoiceNumber.trim().toUpperCase().startsWith('SAL')) {
+        existing.invoiceNumbers.add(item.invoiceNumber);
+      }
+
+      // Update last invoice date
+      if (item.invoiceDate) {
+        try {
+          const itemDate = new Date(item.invoiceDate);
+          if (!isNaN(itemDate.getTime())) {
+            if (!existing.lastInvoiceDate) {
+              existing.lastInvoiceDate = item.invoiceDate;
+            } else {
+              const existingDate = new Date(existing.lastInvoiceDate);
+              if (itemDate > existingDate) {
+                existing.lastInvoiceDate = item.invoiceDate;
+              }
+            }
+          }
+        } catch (e) {
+          // Invalid date, skip
+        }
+      }
+
+      productMap.set(key, existing);
+
+      // Count productId occurrences for duplicate detection
+      const productId = item.productId || item.barcode || item.product;
+      productIdCount.set(productId, (productIdCount.get(productId) || 0) + 1);
+    });
+
+    // Sort by amount descending and mark duplicates
+    const result = Array.from(productMap.values()).sort((a, b) => b.amount - a.amount);
+
+    // Mark duplicates based on productId and format invoice numbers
+    return result.map(item => {
+      const productId = item.barcode || item.product;
+      const invoiceNumbersArray = Array.from(item.invoiceNumbers).sort();
+      const avgCost = item.costCount > 0 ? item.totalCost / item.costCount : 0;
+      const avgPrice = item.priceCount > 0 ? item.totalPrice / item.priceCount : 0;
+      return {
+        ...item,
+        isDuplicate: productId ? (productIdCount.get(productId) || 0) > 1 : false,
+        invoiceCount: item.invoiceNumbers.size,
+        invoiceNumbers: invoiceNumbersArray.join(', '),
+        lastInvoiceDate: item.lastInvoiceDate,
+        avgCost,
+        avgPrice
+      };
+    });
+  }, [customerData]);
+
+  // Invoices data - grouped by invoiceNumber
+  const groupedInvoicesData = useMemo(() => {
+    const invoiceMap = new Map<string, {
+      invoiceDate: string;
+      invoiceNumber: string;
+      amount: number;
+      qty: number;
+      products: Set<string>;
+      totalCost: number;
+      totalPrice: number;
+      costCount: number;
+      priceCount: number;
+      subCustomers: Set<string>;
+      items: SalesInvoice[];
+    }>();
+
+    customerData.forEach(item => {
+      if (!item.invoiceNumber) return;
+
+      const existing = invoiceMap.get(item.invoiceNumber) || {
+        invoiceDate: item.invoiceDate || '',
+        invoiceNumber: item.invoiceNumber,
+        amount: 0,
+        qty: 0,
+        products: new Set<string>(),
+        totalCost: 0,
+        totalPrice: 0,
+        costCount: 0,
+        priceCount: 0,
+        subCustomers: new Set<string>(),
+        items: [] as SalesInvoice[]
+      };
+
+      existing.items.push(item);
+      existing.amount += item.amount;
+      existing.qty += item.qty;
+
+      // Add product to set
+      const productKey = item.productId || item.barcode || item.product;
+      existing.products.add(productKey);
+
+      // Add sub-customer
+      if (item.customerName) {
+        existing.subCustomers.add(item.customerName);
+      }
+
+      // Add cost and price
+      if (item.productCost) {
+        existing.totalCost += item.productCost;
+        existing.costCount += 1;
+      }
+      if (item.productPrice) {
+        existing.totalPrice += item.productPrice;
+        existing.priceCount += 1;
+      }
+
+      invoiceMap.set(item.invoiceNumber, existing);
+    });
+
+    // Convert to array and calculate averages
+    const allInvoices = Array.from(invoiceMap.values()).map(invoice => {
+      const avgCost = invoice.costCount > 0 ? invoice.totalCost / invoice.costCount : 0;
+      const avgPrice = invoice.priceCount > 0 ? invoice.totalPrice / invoice.priceCount : 0;
+
+      return {
+        ...invoice,
+        productCount: invoice.products.size,
+        subCustomerNames: Array.from(invoice.subCustomers).join(', '),
+        avgCost,
+        avgPrice
+      };
+    });
+
+    // Apply type filter
+    const filteredByFilter = allInvoices.filter(inv => {
+      if (invoiceTypeFilter === 'all') return true;
+      const num = inv.invoiceNumber.trim().toUpperCase();
+      if (invoiceTypeFilter === 'sales') return num.startsWith('SAL');
+      if (invoiceTypeFilter === 'returns') return num.startsWith('RSAL');
+      return true;
+    });
+
+    return filteredByFilter.sort((a, b) => {
+      // Sort by date descending (newest first)
+      const dateA = new Date(a.invoiceDate).getTime();
+      const dateB = new Date(b.invoiceDate).getTime();
+      if (dateA !== dateB) {
+        return dateB - dateA;
+      }
+      // If dates are equal, sort by invoice number
+      return b.invoiceNumber.localeCompare(a.invoiceNumber);
+    });
+  }, [customerData, invoiceTypeFilter]);
+
+  // Dashboard metrics
+  const dashboardMetrics = useMemo(() => {
+    const totalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
+    const totalQty = customerData.reduce((sum, item) => sum + item.qty, 0);
+    const uniqueProducts = new Set(customerData.map(item => item.productId || item.barcode || item.product)).size;
+
+    // Calculate months from first month to current month (not just active months)
+    let totalMonths = 1;
+    if (monthlySales.length > 0) {
+      // Find earliest month from monthlySales
+      const sortedMonths = [...monthlySales].sort((a, b) => a.monthKey.localeCompare(b.monthKey));
+      const firstMonthKey = sortedMonths[0].monthKey;
+      const [firstYear, firstMonth] = firstMonthKey.split('-').map(Number);
+
+      // Get current date
+      const currentDate = new Date();
+      const currentYear = currentDate.getFullYear();
+      const currentMonth = currentDate.getMonth() + 1; // 1-based for comparison
+
+      // Calculate months from first month to current month (inclusive)
+      const firstDate = new Date(firstYear, firstMonth - 1, 1);
+      const lastDate = new Date(currentYear, currentMonth - 1, 1);
+
+      // Calculate difference in months
+      const yearsDiff = lastDate.getFullYear() - firstDate.getFullYear();
+      const monthsDiff = lastDate.getMonth() - firstDate.getMonth();
+      totalMonths = (yearsDiff * 12) + monthsDiff + 1; // +1 to include both start and end months
+    }
+
+    const avgMonthlyAmount = totalMonths > 0 ? totalAmount / totalMonths : 0;
+    const avgMonthlyQty = totalMonths > 0 ? totalQty / totalMonths : 0;
+
+    // Count only months where customer actually made purchases (not zero months)
+    const activeMonths = monthlySales.filter(month => !month.isZeroMonth && month.count > 0).length;
+
+    // Calculate last invoice date and days since (from unfiltered data)
+    let lastInvoiceDate: Date | null = null;
+    let daysSinceLastInvoice: number | null = null;
+
+    if (unfilteredCustomerData.length > 0) {
+      const dates = unfilteredCustomerData
+        .map(item => {
+          if (!item.invoiceDate) return null;
+          try {
+            const date = new Date(item.invoiceDate);
+            return isNaN(date.getTime()) ? null : date;
+          } catch {
+            return null;
+          }
+        })
+        .filter((date): date is Date => date !== null);
+
+      if (dates.length > 0) {
+        lastInvoiceDate = new Date(Math.max(...dates.map(d => d.getTime())));
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        lastInvoiceDate.setHours(0, 0, 0, 0);
+        const diffTime = today.getTime() - lastInvoiceDate.getTime();
+        daysSinceLastInvoice = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+      }
+    }
+
+    // Calculate discounts based on sales ratio
+    // 1. Get CUSTOMER MAIN NAME from customerData
+    const customerMainName = customerData.length > 0 && customerData[0].customerMainName
+      ? customerData[0].customerMainName
+      : customerName; // Fallback to customerName if customerMainName not available
+
+    // 2. Calculate total sales amount for sub-customer
+    const subCustomerTotalAmount = customerData.reduce((sum, item) => sum + item.amount, 0);
+
+    // 3. Calculate total sales amount for main customer (all sub-customers with same customerMainName)
+    const normalizeCustomerName = (name: string) => name.toLowerCase().trim().replace(/\s+/g, ' ');
+    const normalizedMainName = normalizeCustomerName(customerMainName);
+
+    const mainCustomerTotalAmount = data.reduce((sum, item) => {
+      const itemMainName = item.customerMainName || item.customerName;
+      const normalizedItemMainName = normalizeCustomerName(itemMainName);
+      if (normalizedItemMainName === normalizedMainName) {
+        return sum + item.amount;
+      }
+      return sum;
+    }, 0);
+
+    // 4. Calculate sales ratio
+    const salesRatio = mainCustomerTotalAmount > 0
+      ? subCustomerTotalAmount / mainCustomerTotalAmount
+      : 0;
+
+    // 5. Find the date range in sales data (already filtered by parent/sidebar)
+    let earliestSalesDate: Date | null = null;
+    let latestSalesDate: Date | null = null;
+    if (data.length > 0) {
+      const salesDates = data
+        .map(item => {
+          if (!item.invoiceDate) return null;
+          try {
+            const date = new Date(item.invoiceDate);
+            return isNaN(date.getTime()) ? null : date;
+          } catch {
+            return null;
+          }
+        })
+        .filter((date): date is Date => date !== null);
+
+      if (salesDates.length > 0) {
+        const timestamps = salesDates.map(d => d.getTime());
+        earliestSalesDate = new Date(Math.min(...timestamps));
+        latestSalesDate = new Date(Math.max(...timestamps));
+
+        earliestSalesDate.setHours(0, 0, 0, 0);
+        latestSalesDate.setHours(23, 59, 59, 999);
+      }
+    }
+
+    // 6. Calculate total discounts for main customer from Invoices sheet
+    // Filter by customer name and ensure invoice date is within the sales date range
+    const mainCustomerInvoices = invoicesData.filter(inv => {
+      if (!inv.customerName) return false;
+      const normalizedInvName = normalizeCustomerName(inv.customerName);
+      if (normalizedInvName !== normalizedMainName) return false;
+
+      // Filter by date range: respect the same period as sales data
+      if (inv.date) {
+        try {
+          const invDate = new Date(inv.date);
+          if (!isNaN(invDate.getTime())) {
+            invDate.setHours(0, 0, 0, 0);
+
+            if (earliestSalesDate && invDate < earliestSalesDate) return false;
+            if (latestSalesDate && invDate > latestSalesDate) return false;
+          }
+        } catch {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    const mainCustomerTotalDiscountsWithTax = mainCustomerInvoices.reduce((sum, inv) => {
+      const num = (inv.number?.toString() || '').toUpperCase();
+      if (num.startsWith('BIL') || num.startsWith('JV')) {
+        // Calculate net discount: (credit - debit)
+        const netDiscount = (inv.credit || 0) - (inv.debit || 0);
+        return sum + netDiscount;
+      }
+      return sum;
+    }, 0);
+
+    // Remove 5% tax from discounts (discounts in invoices sheet include tax, but sales amounts are without tax)
+    // If discount includes 5% tax: discount_with_tax = discount_without_tax * 1.05
+    // Therefore: discount_without_tax = discount_with_tax / 1.05
+    const mainCustomerTotalDiscounts = mainCustomerTotalDiscountsWithTax / 1.05;
+
+    // 7. Distribute discount based on sales ratio
+    const distributedDiscount = mainCustomerTotalDiscountsWithTax * salesRatio;
+
+    return {
+      totalAmount,
+      totalQty,
+      uniqueProducts,
+      uniqueMonths: activeMonths, // Only months with actual purchases
+      totalMonths, // Total months from start to now
+      avgMonthlyAmount,
+      avgMonthlyQty,
+      lastInvoiceDate,
+      daysSinceLastInvoice,
+      discountsAmount: distributedDiscount,
+      // Additional data for discounts explanation modal
+      customerMainName,
+      subCustomerTotalAmount,
+      mainCustomerTotalAmount,
+      salesRatio,
+      mainCustomerTotalDiscountsWithTax,
+      mainCustomerTotalDiscounts,
+      latestSalesDate
+    };
+  }, [customerData, monthlySales, invoicesData, customerName, data]);
+
+  // Get unfiltered customer data from ALL data (for comparison chart)
+  const customerAllData = useMemo(() => {
+    const source = allData.length > 0 ? allData : data;
+    if (customerType === 'main') {
+      return source.filter(item => (item.customerMainName || item.customerName || 'Unknown') === customerName);
+    }
+    if (customerId) {
+      return source.filter(item => item.customerId === customerId);
+    }
+    return source.filter(item => item.customerName === customerName);
+  }, [allData, data, customerName, customerId, customerType]);
+
+  // Chart data for monthly sales - Jan-Dec comparison
+  const chartData = useMemo(() => {
+    if (customerAllData.length === 0) return [];
+
+    const monthMap = new Map<string, { amount: number; qty: number }>();
+    customerAllData.forEach(item => {
+      if (!item.invoiceDate) return;
+      const date = new Date(item.invoiceDate);
+      if (isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const existing = monthMap.get(key) || { amount: 0, qty: 0 };
+      existing.amount += item.amount;
+      existing.qty += item.qty;
+      monthMap.set(key, existing);
+    });
+
+    // Determine target year (latest available in data)
+    const allKeys = Array.from(monthMap.keys()).sort();
+    const latestKey = allKeys[allKeys.length - 1];
+    const targetYear = latestKey ? parseInt(latestKey.split('-')[0], 10) : new Date().getFullYear();
+
+    const prevYear = targetYear - 1;
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const now = new Date();
+    const nowYear = now.getFullYear();
+    const nowMonth = now.getMonth() + 1;
+    const result = [];
+
+    for (let m = 1; m <= 12; m++) {
+      const currKey = `${targetYear}-${String(m).padStart(2, '0')}`;
+      const prevKey = `${prevYear}-${String(m).padStart(2, '0')}`;
+
+      const currData = monthMap.get(currKey) || { amount: 0, qty: 0 };
+      const prevData = monthMap.get(prevKey) || { amount: 0, qty: 0 };
+
+      const diff = currData.amount - prevData.amount;
+      const percent = prevData.amount !== 0 ? (diff / Math.abs(prevData.amount)) * 100 : (currData.amount !== 0 ? 100 : 0);
+
+      const isFuture = (targetYear > nowYear) || (targetYear === nowYear && m > nowMonth);
+
+      result.push({
+        month: monthNames[m - 1],
+        year: String(targetYear).slice(-2),
+        prevYear: String(prevYear).slice(-2),
+        currentAmount: currData.amount,
+        prevAmount: prevData.amount,
+        diff,
+        percent,
+        isPositive: diff >= 0,
+        isFuture,
+        legendCurr: String(targetYear),
+        legendPrev: String(prevYear)
+      });
+    }
+
+    const maxAmount = Math.max(...result.map(r => Math.max(r.currentAmount, r.prevAmount)));
+    result.forEach(r => {
+      // @ts-ignore
+      r.topBaseline = maxAmount * 1.25;
+    });
+
+    return result;
+  }, [customerAllData]);
+
+
+  const exportProductsToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = showCosts
+      ? ['#', 'Barcode', 'Product', 'Amount', 'Avg Cost', 'Avg Price', 'Quantity', 'Purchase Count', 'LID']
+      : ['#', 'Barcode', 'Product', 'Amount', 'Avg Price', 'Quantity', 'Purchase Count', 'LID'];
+
+    const rows = productsData.map((item: any, index: number) => {
+      const row = [
+        index + 1,
+        item.barcode || '-',
+        item.product,
+        item.amount.toFixed(2),
+      ];
+      if (showCosts) {
+        row.push(item.avgCost % 1 === 0 ? item.avgCost.toFixed(0) : item.avgCost.toFixed(2));
+      }
+      row.push(
+        item.avgPrice % 1 === 0 ? item.avgPrice.toFixed(0) : item.avgPrice.toFixed(2),
+        item.qty.toFixed(0),
+        item.invoiceCount || 0,
+        item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }) : '-',
+      );
+      return row;
+    });
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Products');
+
+    const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
+    const filename = `sales_customer_products_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  const exportInvoicesToExcel = () => {
+    const workbook = XLSX.utils.book_new();
+
+    const headers = customerType === 'main'
+      ? ['Invoice Date', 'Sub Customer', 'Invoice Number', 'Amount', 'Quantity', 'Products Count']
+      : ['Invoice Date', 'Invoice Number', 'Amount', 'Quantity', 'Products Count'];
+
+    const rows = groupedInvoicesData.map((item: any) => {
+      const row = [
+        item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric'
+        }) : '-',
+      ];
+
+      if (customerType === 'main') {
+        row.push(item.subCustomerNames || '');
+      }
+
+      row.push(
+        item.invoiceNumber,
+        item.amount.toFixed(2),
+        item.qty.toFixed(0),
+        item.productCount
+      );
+
+      return row;
+    });
+
+    const sheetData = [headers, ...rows];
+    const sheet = XLSX.utils.aoa_to_sheet(sheetData);
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Invoices');
+
+    const safeCustomer = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim() || 'customer';
+    const filename = `sales_customer_invoices_${safeCustomer}_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  // Format date as DD/MM/YYYY
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '';
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      return `${day}/${month}/${year}`;
+    } catch (e) {
+      return '';
+    }
+  };
+
+  // Export Single Invoice to Excel
+  const exportSingleInvoiceToExcel = (invoice: any) => {
+    const header = [
+      ['Customer Name:', invoice.customerName],
+      ['Invoice Number:', invoice.invoiceNumber],
+      ['Date:', formatDate(invoice.invoiceDate)],
+      [],
+      showCosts
+        ? ['Barcode', 'Product', 'Quantity', 'Cost', 'Price', 'Total']
+        : ['Barcode', 'Product', 'Quantity', 'Price', 'Total']
+    ];
+
+    const rows = invoice.items.map((item: SalesInvoice) => {
+      const row = [
+        item.barcode || '-',
+        item.product || '-',
+        item.qty || 0,
+      ];
+      if (showCosts) {
+        row.push(item.productCost || 0);
+      }
+      row.push(
+        item.productPrice || 0,
+        item.amount || 0
+      );
+      return row;
+    });
+
+    const footer = [
+      [],
+      [...Array(showCosts ? 4 : 3).fill(''), 'Total Amount:', invoice.amount]
+    ];
+
+    const worksheetData = [...header, ...rows, ...footer];
+    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+    const workbook = XLSX.utils.book_new();
+    const sheetName = String(invoice.invoiceNumber).replace(/[:\\/?*[\]]/g, '_').slice(0, 31);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, `Invoice_${invoice.invoiceNumber}.xlsx`);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-start justify-center pt-24 min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="w-full">
+        {/* Header */}
+        <div className="mb-6 flex items-center gap-4">
+          <button
+            onClick={onBack}
+            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+            title="Back to Customers"
+          >
+            <ArrowLeft className="w-5 h-5 text-gray-600" />
+          </button>
+          <h1 className="text-3xl font-bold text-gray-800">{customerName}</h1>
+        </div>
+
+        {/* Search Filter */}
+        <div className="mb-6">
+          <div className="relative max-w-xl mx-auto">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <input
+              type="text"
+              placeholder="Search by product, barcode, merchandiser, sales rep, invoice..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 bg-white rounded-xl border-2 border-gray-200 focus:border-green-500 focus:outline-none shadow-sm text-base"
+            />
+          </div>
+        </div>
+
+        {/* Tabs Navigation */}
+        <div className="mb-6 flex border-b border-gray-200">
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'dashboard'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+          >
+            Dashboard
+          </button>
+          <button
+            onClick={() => setActiveTab('monthly')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'monthly'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+          >
+            Sales by Month
+          </button>
+          <button
+            onClick={() => setActiveTab('categories')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'categories'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+          >
+            Categories
+          </button>
+          <button
+            onClick={() => setActiveTab('products')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'products'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+          >
+            Products
+          </button>
+          <button
+            onClick={() => setActiveTab('invoices')}
+            className={`flex-1 py-3 font-semibold transition-colors border-b-2 text-center ${activeTab === 'invoices'
+              ? 'text-green-600 border-green-600'
+              : 'text-gray-500 border-transparent hover:text-gray-700'
+              }`}
+          >
+            Invoices / LPO
+          </button>
+        </div>
+
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div className="space-y-6">
+            {/* Key Metrics Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Last Invoice Date Card */}
+              <div className={`bg-white rounded-xl shadow-md p-6 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                ? 'border-2 border-red-500 bg-red-50'
+                : ''
+                }`}>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Last Invoice Date</h3>
+                  <Calendar className={`w-6 h-6 ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                    ? 'text-red-600'
+                    : 'text-gray-600'
+                    }`} />
+                </div>
+                {dashboardMetrics.lastInvoiceDate ? (
+                  <div>
+                    <p className="text-xl font-bold text-gray-800 mb-1">
+                      {dashboardMetrics.lastInvoiceDate.toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric'
+                      })}
+                    </p>
+                    <p className={`text-sm font-medium ${dashboardMetrics.daysSinceLastInvoice !== null && dashboardMetrics.daysSinceLastInvoice > 5
+                      ? 'text-red-600 font-bold'
+                      : 'text-gray-600'
+                      }`}>
+                      {dashboardMetrics.daysSinceLastInvoice !== null
+                        ? `${dashboardMetrics.daysSinceLastInvoice} days ago`
+                        : '-'}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-2xl font-bold text-gray-400">-</p>
+                )}
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Total Sales Amount</h3>
+                  <DollarSign className="w-6 h-6 text-green-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {dashboardMetrics.totalAmount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </p>
+              </div>
+
+              <div
+                className="bg-white rounded-xl shadow-md p-6 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => setShowDiscountsModal(true)}
+                title="Click to see calculation details"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Discounts</h3>
+                  <Percent className="w-6 h-6 text-yellow-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {loadingInvoices ? (
+                    <span className="text-gray-400">Loading...</span>
+                  ) : (
+                    dashboardMetrics.discountsAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })
+                  )}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Total Quantity</h3>
+                  <Package className="w-6 h-6 text-blue-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {dashboardMetrics.totalQty.toLocaleString('en-US', {
+                    minimumFractionDigits: 0,
+                    maximumFractionDigits: 0
+                  })}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Avg Monthly Amount</h3>
+                  <TrendingUp className="w-6 h-6 text-purple-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {dashboardMetrics.avgMonthlyAmount.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Avg Monthly Quantity</h3>
+                  <TrendingUp className="w-6 h-6 text-orange-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {dashboardMetrics.avgMonthlyQty.toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                  })}
+                </p>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Total Products</h3>
+                  <Package className="w-6 h-6 text-indigo-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">{dashboardMetrics.uniqueProducts}</p>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-md p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Active Months</h3>
+                  <BarChart3 className="w-6 h-6 text-teal-600" />
+                </div>
+                <p className="text-2xl font-bold text-gray-800">{dashboardMetrics.uniqueMonths}</p>
+              </div>
+            </div>
+
+            {/* Monthly Sales Performance Comparison */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <h2 className="text-xl font-bold text-gray-800 mb-6">Monthly Sales Performance Comparison</h2>
+              {chartData.length > 0 ? (
+                <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 shadow-md overflow-hidden">
+                  <div className="relative w-full" style={{ height: '550px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <ComposedChart
+                        data={chartData}
+                        margin={{ top: 80, right: 30, left: 40, bottom: 20 }}
+                        barGap={8}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                        <XAxis
+                          dataKey="month"
+                          stroke="#475569"
+                          style={{ fontSize: '15px', fontWeight: 900 }}
+                          tickLine={false}
+                          axisLine={false}
+                          dy={10}
+                        />
+                        <YAxis hide={true} domain={[0, 'auto']} />
+                        <Tooltip
+                          content={(props: any) => {
+                            const { active, payload, label } = props;
+                            if (active && payload && payload.length > 0) {
+                              const data = payload[0].payload;
+                              const isPositive = data.isPositive;
+                              return (
+                                <div className="bg-white p-4 rounded-xl shadow-xl border border-gray-100 min-w-[180px]">
+                                  <p className="text-sm font-bold text-gray-500 mb-3 uppercase tracking-wider">{label}</p>
+                                  <div className="space-y-2 text-sm">
+                                    <div>
+                                      <span className="text-gray-500 font-medium w-20 inline-block">{data.legendPrev}:</span>
+                                      <span className="font-bold text-slate-700">
+                                        {data.prevAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500 font-medium w-20 inline-block">{data.legendCurr}:</span>
+                                      <span className="font-bold text-emerald-600">
+                                        {data.currentAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500 font-medium w-20 inline-block">Diff:</span>
+                                      <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {isPositive ? '+' : '-'}{Math.abs(data.diff).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <span className="text-gray-500 font-medium w-20 inline-block">Growth:</span>
+                                      <span className={`font-black ${isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {isPositive ? '+' : '-'}{data.percent.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            }
+                            return null;
+                          }}
+                        />
+                        <Legend verticalAlign="top" height={36} />
+
+                        {/* Previous Year Bar */}
+                        <Bar
+                          dataKey="prevAmount"
+                          name={chartData[0]?.legendPrev || "Last Year"}
+                          fill="#cbd5e1"
+                          radius={[4, 4, 0, 0]}
+                          barSize={45}
+                        >
+                          <LabelList
+                            dataKey="prevAmount"
+                            position="top"
+                            formatter={(val: any) => val ? Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }) : ''}
+                            style={{ fontSize: '13px', fontWeight: '900', fill: '#64748b' }}
+                            offset={10}
+                          />
+                        </Bar>
+
+                        {/* Current Year Bar */}
+                        <Bar
+                          dataKey="currentAmount"
+                          name={chartData[0]?.legendCurr || "Current Year"}
+                          fill="#10b981"
+                          radius={[4, 4, 0, 0]}
+                          barSize={45}
+                        >
+                          <LabelList
+                            dataKey="currentAmount"
+                            position="top"
+                            formatter={(val: any) => val ? Number(val).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }) : ''}
+                            style={{ fontSize: '13px', fontWeight: '900', fill: '#059669' }}
+                            offset={10}
+                          />
+
+                          {/* Performance Indicators Above Bars */}
+                          {chartData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.isPositive ? '#10b981' : '#f43f5e'} />
+                          ))}
+                        </Bar>
+
+                        {/* Top Row Performance Labels */}
+                        <Line
+                          type="monotone"
+                          dataKey="topBaseline"
+                          stroke="none"
+                          dot={false}
+                          activeDot={false}
+                          legendType="none"
+                        >
+                          <LabelList
+                            dataKey="diff"
+                            content={(props: any) => {
+                              const { x, index } = props;
+                              const entry = chartData[index];
+                              if (!entry) return null;
+
+                              const isPositive = entry.isPositive;
+                              const isFuture = entry.isFuture && entry.currentAmount === 0;
+                              const color = isFuture ? '#94a3b8' : (isPositive ? '#059669' : '#e11d48');
+
+                              const diffStr = isFuture ? '-' : ((isPositive ? '▲ +' : '▼ ') + Math.abs(entry.diff).toLocaleString('en-US', { notation: 'compact', maximumFractionDigits: 1 }));
+                              const percentStr = isFuture ? '' : (entry.percent.toFixed(1) + '%');
+
+                              return (
+                                <g style={{ pointerEvents: 'none' }}>
+                                  {/* Card Background */}
+                                  <rect
+                                    x={x - 45}
+                                    y={10}
+                                    width={90}
+                                    height={55}
+                                    rx={12}
+                                    fill={isFuture ? '#f8fafc' : (isPositive ? '#f0fdf4' : '#fef2f2')}
+                                    stroke={isFuture ? '#e2e8f0' : (isPositive ? '#bcf0da' : '#fecaca')}
+                                    strokeWidth={1.5}
+                                    className="shadow-sm"
+                                  />
+                                  {/* Difference Text */}
+                                  <text
+                                    x={x}
+                                    y={isFuture ? 42 : 35}
+                                    fill={color}
+                                    textAnchor="middle"
+                                    style={{ fontSize: isFuture ? '20px' : '14px', fontWeight: '900' }}
+                                  >
+                                    {diffStr}
+                                  </text>
+                                  {/* Percentage Text */}
+                                  {!isFuture && (
+                                    <text
+                                      x={x}
+                                      y={55}
+                                      fill={color}
+                                      textAnchor="middle"
+                                      style={{ fontSize: '12px', fontWeight: '800', opacity: 0.8 }}
+                                    >
+                                      {percentStr}
+                                    </text>
+                                  )}
+                                </g>
+                              );
+                            }}
+                          />
+                        </Line>
+                      </ComposedChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-96 text-gray-500">
+                  <p>No sales data available for chart</p>
+                </div>
+              )}
+            </div>          </div>
+        )}
+
+        {/* Categories Tab */}
+        {activeTab === 'categories' && (
+          <SalesCustomerCategoriesTab
+            data={customerData}
+            customerName={customerName}
+            searchQuery={debouncedSearchQuery}
+          />
+        )}
+
+        {/* Monthly Sales Tab */}
+        {activeTab === 'monthly' && (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Sales by Month</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Month</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Change</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Transactions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlySales.map((item, index) => (
+                    <tr
+                      key={index}
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${item.isZeroMonth ? 'bg-gray-50 opacity-60' : ''
+                        }`}
+                    >
+                      <td className={`py-3 px-4 text-base font-medium text-center ${item.isZeroMonth ? 'text-gray-500 line-through' : 'text-gray-800'
+                        }`}>
+                        {item.month}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                        }`}>
+                        {item.amount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-base font-semibold text-center">
+                        {item.amountChange !== null ? (
+                          <span className={item.amountChange >= 0 ? 'text-green-600' : 'text-red-600'}>
+                            {item.amountChange >= 0 ? '+' : ''}
+                            {item.amountChange.toLocaleString('en-US', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                        }`}>
+                        {item.qty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
+                        })}
+                      </td>
+                      <td className={`py-3 px-4 text-base font-semibold text-center ${item.isZeroMonth ? 'text-gray-400 line-through' : 'text-gray-800'
+                        }`}>
+                        {item.count}
+                      </td>
+                    </tr>
+                  ))}
+                  {monthlySales.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-12">
+                        <NoData />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Products Tab */}
+        {activeTab === 'products' && (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Products Sales</h2>
+              <button
+                onClick={exportProductsToExcel}
+                className="p-2 rounded-full bg-green-600 text-white hover:bg-green-700 transition-colors"
+                title="Export Products to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-16">#</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-36">Barcode</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-64">Product</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Amount</th>
+                    {showCosts && <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Avg Cost</th>}
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Avg Price</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-24">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">Purchase Count</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-28">LID</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {productsData.map((item, index) => (
+                    <tr
+                      key={index}
+                      className={`border-b border-gray-100 hover:bg-gray-50 ${item.isDuplicate ? 'bg-yellow-50 hover:bg-yellow-100' : ''
+                        }`}
+                    >
+                      <td className="py-3 px-4 text-base text-gray-600 font-medium text-center">{index + 1}</td>
+                      <td className={`py-3 px-4 text-base font-medium text-center ${item.isDuplicate ? 'text-red-600 font-bold' : 'text-gray-800'
+                        }`}>
+                        {item.barcode || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center w-64 truncate" title={item.product}>{item.product}</td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.amount.toLocaleString('en-US', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2
+                        })}
+                      </td>
+                      {showCosts && (
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.avgCost % 1 === 0
+                            ? item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                            : item.avgCost.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                          }
+                        </td>
+                      )}
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.avgPrice % 1 === 0
+                          ? item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+                          : item.avgPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        }
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.qty.toLocaleString('en-US', {
+                          minimumFractionDigits: 0,
+                          maximumFractionDigits: 0
+                        })}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                        {item.invoiceCount || 0}
+                      </td>
+                      <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
+                        {item.lastInvoiceDate ? new Date(item.lastInvoiceDate).toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        }) : '-'}
+                      </td>
+                    </tr>
+                  ))}
+                  {productsData.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="py-12">
+                        <NoData />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Invoices / LPO Tab */}
+        {activeTab === 'invoices' && (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+              <div className="flex items-center gap-4">
+                <h2 className="text-xl font-bold text-gray-800">Invoices / LPO</h2>
+                <div className="flex bg-gray-100 p-1 rounded-xl">
+                  <button
+                    onClick={() => setInvoiceTypeFilter('all')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'all'
+                      ? 'bg-white text-gray-800 shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    All
+                  </button>
+                  <button
+                    onClick={() => setInvoiceTypeFilter('sales')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'sales'
+                      ? 'bg-green-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Sales
+                  </button>
+                  <button
+                    onClick={() => setInvoiceTypeFilter('returns')}
+                    className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${invoiceTypeFilter === 'returns'
+                      ? 'bg-red-600 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700'
+                      }`}
+                  >
+                    Returns
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={exportInvoicesToExcel}
+                className="p-2.5 rounded-xl bg-green-600 text-white hover:bg-green-700 transition-all shadow-md active:scale-95"
+                title="Export Invoices to Excel"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Invoice Date</th>
+                    {customerType === 'main' && (
+                      <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-64">Sub Customer</th>
+                    )}
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-40">Invoice Number</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Amount</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-24">Quantity</th>
+                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 w-32">Products Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {groupedInvoicesData.slice((invoicesPage - 1) * invoicesPerPage, invoicesPage * invoicesPerPage).map((item, index) => {
+                    const isRSAL = item.invoiceNumber.trim().toUpperCase().startsWith('RSAL');
+                    return (
+                      <tr
+                        key={index}
+                        className={`border-b border-gray-100 hover:bg-gray-50 ${isRSAL ? 'bg-red-50 hover:bg-red-100' : ''
+                          }`}
+                      >
+                        <td className="py-3 px-4 text-base text-gray-800 font-medium text-center">
+                          {item.invoiceDate ? new Date(item.invoiceDate).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'short',
+                            day: 'numeric'
+                          }) : '-'}
+                        </td>
+                        {customerType === 'main' && (
+                          <td className="py-3 px-4 text-sm text-gray-600 font-medium text-center w-56 truncate" title={item.subCustomerNames}>
+                            {item.subCustomerNames}
+                          </td>
+                        )}
+                        <td className="py-3 px-4 text-base text-green-600 font-semibold text-center">
+                          <button
+                            onClick={() => setSelectedInvoice({
+                              ...item,
+                              customerName: customerType === 'main' ? (item.subCustomerNames || customerName) : customerName
+                            })}
+                            className="hover:underline font-bold"
+                          >
+                            {item.invoiceNumber}
+                          </button>
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.amount.toLocaleString('en-US', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">
+                          {item.qty.toLocaleString('en-US', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 0
+                          })}
+                        </td>
+                        <td className="py-3 px-4 text-base text-gray-800 font-semibold text-center">{item.productCount}</td>
+                      </tr>
+                    );
+                  })}
+                  {groupedInvoicesData.length === 0 && (
+                    <tr>
+                      <td colSpan={customerType === 'main' ? 6 : 5} className="py-12">
+                        <NoData />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Pagination Controls */}
+            {groupedInvoicesData.length > invoicesPerPage && (
+              <div className="mt-6 flex items-center justify-between border-t border-gray-200 pt-4">
+                <div className="text-sm text-gray-500">
+                  Showing <span className="font-semibold text-gray-900">{Math.min((invoicesPage - 1) * invoicesPerPage + 1, groupedInvoicesData.length)}</span> to <span className="font-semibold text-gray-900">{Math.min(invoicesPage * invoicesPerPage, groupedInvoicesData.length)}</span> of <span className="font-semibold text-gray-900">{groupedInvoicesData.length}</span> invoices
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setInvoicesPage(prev => Math.max(prev - 1, 1))}
+                    disabled={invoicesPage === 1}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, Math.ceil(groupedInvoicesData.length / invoicesPerPage)) }, (_, i) => {
+                      const totalPages = Math.ceil(groupedInvoicesData.length / invoicesPerPage);
+                      let pageNum;
+                      if (totalPages <= 5) pageNum = i + 1;
+                      else if (invoicesPage <= 3) pageNum = i + 1;
+                      else if (invoicesPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                      else pageNum = invoicesPage - 2 + i;
+
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setInvoicesPage(pageNum)}
+                          className={`w-10 h-10 flex items-center justify-center text-sm font-medium rounded-lg transition-all ${invoicesPage === pageNum
+                            ? 'bg-green-600 text-white shadow-md'
+                            : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button
+                    onClick={() => setInvoicesPage(prev => Math.min(prev + 1, Math.ceil(groupedInvoicesData.length / invoicesPerPage)))}
+                    disabled={invoicesPage === Math.ceil(groupedInvoicesData.length / invoicesPerPage)}
+                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Discounts Calculation Modal */}
+        {showDiscountsModal && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full">
+              <div className="border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+                <h2 className="text-xl font-bold text-gray-800">Discounts Calculation Explanation</h2>
+                <button
+                  onClick={() => setShowDiscountsModal(false)}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Close"
+                >
+                  <X className="w-5 h-5 text-gray-600" />
+                </button>
+              </div>
+
+              <div className="p-5">
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <h3 className="text-sm font-semibold text-blue-900 mb-1">Customer Information</h3>
+                    <p className="text-xs text-gray-700"><span className="font-medium">Sub:</span> {customerName}</p>
+                    <p className="text-xs text-gray-700"><span className="font-medium">Main:</span> {dashboardMetrics.customerMainName || customerName}</p>
+                  </div>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                    <h3 className="text-sm font-semibold text-gray-800 mb-1">Date Filter</h3>
+                    <p className="text-xs text-gray-600">
+                      {dashboardMetrics.latestSalesDate ? (
+                        <>Up to: <span className="font-medium">{dashboardMetrics.latestSalesDate.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}</span></>
+                      ) : (
+                        'No date filter'
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 1: Sub-Customer Sales</h3>
+                    <p className="text-xs text-gray-500 mb-1">Sum of AMOUNT from Sales sheet</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {dashboardMetrics.subCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 2: Main Customer Total Sales</h3>
+                    <p className="text-xs text-gray-500 mb-1">Sum of AMOUNT for all sub-customers</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {dashboardMetrics.mainCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 3: Sales Ratio</h3>
+                    <p className="text-xs text-gray-500 mb-1">
+                      {dashboardMetrics.subCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })} ÷ {dashboardMetrics.mainCustomerTotalAmount.toLocaleString('en-US', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 0
+                      })}
+                    </p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {dashboardMetrics.mainCustomerTotalAmount > 0 ? (
+                        <>{(dashboardMetrics.salesRatio * 100).toFixed(2)}%</>
+                      ) : (
+                        '0%'
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="bg-gray-50 rounded-lg p-3 border border-gray-200">
+                    <h3 className="text-xs font-semibold text-gray-700 mb-1">Step 4: Main Customer Discounts (with tax)</h3>
+                    <p className="text-xs text-gray-500 mb-1">Sum of (DEBIT - CREDIT) for BIL from Invoices sheet</p>
+                    <p className="text-lg font-bold text-gray-800">
+                      {((dashboardMetrics as any).mainCustomerTotalDiscountsWithTax || dashboardMetrics.mainCustomerTotalDiscounts * 1.05).toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                      })}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-1">(includes 5% tax)</p>
+                  </div>
+                </div>
+
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-green-900 mb-2">Final: Distributed Discount (Inc. Tax)</h3>
+                  <p className="text-xs text-gray-600 mb-2">
+                    {dashboardMetrics.mainCustomerTotalDiscountsWithTax.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })} × {(dashboardMetrics.salesRatio * 100).toFixed(2)}%
+                  </p>
+                  <p className="text-2xl font-bold text-green-700">
+                    = {dashboardMetrics.discountsAmount.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2
+                    })}
+                  </p>
+                </div>
+              </div>
+
+              <div className="border-t border-gray-200 px-6 py-3 flex justify-end">
+                <button
+                  onClick={() => setShowDiscountsModal(false)}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Invoice Details Modal */}
+        {selectedInvoice && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+              {/* Modal Header */}
+              <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                    <ShoppingBag className="w-5 h-5 text-green-600" />
+                    Invoice Details: {selectedInvoice.invoiceNumber}
+                  </h3>
+                  <p className="text-sm text-gray-500 font-medium">
+                    {selectedInvoice.customerName} | {formatDate(selectedInvoice.invoiceDate)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => exportSingleInvoiceToExcel(selectedInvoice)}
+                    className="p-2 hover:bg-emerald-50 text-emerald-600 rounded-lg transition-colors flex items-center justify-center border border-emerald-100 shadow-sm group"
+                    title="Export Invoice to Excel"
+                  >
+                    <FileSpreadsheet className="w-5 h-5 transition-transform group-hover:scale-110" />
+                  </button>
+                  <button
+                    onClick={() => setSelectedInvoice(null)}
+                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors text-gray-500"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Body - Items Table */}
+              <div className="flex-1 overflow-auto p-6">
+                <table className="w-full">
+                  <thead className="bg-gray-50 sticky top-0 z-10">
+                    <tr className="border-b border-gray-200">
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Barcode</th>
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Product</th>
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-20">Qty</th>
+                      {showCosts && <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Cost</th>}
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-28">Price</th>
+                      <th className="py-3 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {selectedInvoice.items?.map((item: SalesInvoice, idx: number) => (
+                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                        <td className="py-3 px-4 text-center font-mono text-[11px] text-gray-500">{item.barcode || '-'}</td>
+                        <td className="py-3 px-4 text-center">
+                          <div className="font-bold text-gray-800">{item.product}</div>
+                        </td>
+                        <td className="py-3 px-4 text-center font-semibold text-gray-700">{item.qty}</td>
+                        {showCosts && (
+                          <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                            {item.productCost?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                        )}
+                        <td className="py-3 px-4 text-center font-semibold text-gray-700">
+                          {item.productPrice?.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td className="py-3 px-4 text-center font-bold text-gray-900">
+                          {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Modal Footer - Totals Breakdown */}
+              <div className="px-8 py-6 bg-gray-50 border-t border-gray-200">
+                <div className="flex flex-col items-end gap-2">
+                  <div className="flex justify-between w-full max-w-[240px] text-green-700 mt-1">
+                    <span className="text-lg font-black uppercase tracking-wider">Total Amount:</span>
+                    <span className="text-2xl font-black">
+                      {selectedInvoice.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      <span className="text-xs ml-1 font-bold">AED</span>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+

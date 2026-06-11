@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { buildAndSaveCache } from '@/lib/SalesCache';
+import { buildAndSaveCache } from '@/app/Sales/Utils/SalesCache';
 
 // Allow up to 60s for the build (Vercel Pro/Hobby limit)
 export const maxDuration = 60;

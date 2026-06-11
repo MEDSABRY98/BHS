@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import CustomersSummariesTab from '@/components/Debit/CustomersSummariesTab';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import CustomersSummariesTab from '@/app/Debit/Components/CustomersSummariesTab';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import { ArrowLeft, RefreshCcw, FileSpreadsheet } from 'lucide-react';
 import { InvoiceRow } from '@/types';
 

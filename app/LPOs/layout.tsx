@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import Login from '@/components/01-Unified/Login';
-import Loading from '@/components/01-Unified/Loading';
+import Login from '@/app/Components/Login';
+import Loading from '@/app/Components/Loading';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -191,8 +191,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Toggle Button */}
         <div className="p-4 border-t border-white/10 mt-auto flex justify-center">
-          <button 
-            onClick={toggleSidebar} 
+          <button
+            onClick={toggleSidebar}
             className="flex items-center justify-center w-10 h-10 hover:bg-white/10 rounded-xl transition-all duration-200 text-[#D4AF37]"
             title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
           >
@@ -239,7 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </button>
           </div>
           <div className="px-8 pt-2 pb-6 shrink-0 relative flex flex-col items-center justify-center">
-            <button 
+            <button
               onClick={() => setIsSidebarOpen(false)}
               className="absolute right-4 top-2 p-2 text-gray-400 hover:text-white"
             >
