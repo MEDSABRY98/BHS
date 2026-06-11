@@ -28,8 +28,7 @@ export default function OrdersPage() {
   const [staffList, setStaffList] = useState<any[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState<FilterCriteria>({
     invoiceStatus: 'All',
-    driverId: 'All',
-    prepStaffName: 'All'
+    driverId: 'All'
   });
   const [isFiltersLoaded, setIsFiltersLoaded] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
