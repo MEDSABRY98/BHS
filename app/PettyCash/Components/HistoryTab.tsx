@@ -4,7 +4,6 @@ import NoData from '@/app/Components/NoDataTab';
 
 interface HistoryRecord {
   id: string;
-  rowIndex: number;
   liquidationDate: string;
   date: string;
   type: string;

@@ -2,13 +2,12 @@ import React, { useState } from 'react';
 import { Search, Calendar, TrendingUp, TrendingDown, Clock, BarChart3, Wallet, Eye, EyeOff } from 'lucide-react';
 
 interface Entry {
-  id: number;
+  id: string;
   date: string;
   amount: number;
   source: string;
   description: string;
   paid: string;
-  rowIndex?: number;
 }
 
 interface PendingPayment {

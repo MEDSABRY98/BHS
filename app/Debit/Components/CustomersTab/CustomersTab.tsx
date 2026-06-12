@@ -67,7 +67,7 @@ export default function CustomersTab({
   const [selectedRatingCustomer, setSelectedRatingCustomer] = useState<CustomerAnalysis | null>(null);
   const [ratingBreakdown, setRatingBreakdown] = useState<any | null>(null);
   const [selectedCustomerForMonths, setSelectedCustomerForMonths] = useState<string | null>(null);
-  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | 'EMAIL_SPI' | null>(null);
+  const [statementModalAction, setStatementModalAction] = useState<'EMAIL' | 'ZIP' | 'EMAIL_LULU' | null>(null);
   const [emailStatementDate, setEmailStatementDate] = useState(new Date().toISOString().split('T')[0]);
   const [yearlySorting, setYearlySorting] = useState<{ id: string; desc: boolean }>({ id: 'totalNetDebt', desc: true });
   const [isFiltersOpen, setIsFiltersOpen] = useState(false);
@@ -110,7 +110,6 @@ export default function CustomersTab({
     customerAnalysis,
     filteredData,
     closedCustomers,
-    spiData,
     customersWithEmails,
     luluEmails,
     yearlyPivotData,
@@ -490,157 +489,6 @@ export default function CustomersTab({
       }
     } catch (error) {
       console.error('Error in Lulu email generation:', error);
-      alert('Error generating emails.');
-    } finally {
-      setIsDownloading(false);
-      setStatementModalAction(null);
-    }
-  };
-
-  const handleBulkSpiEmail = async (overrideDate?: string, isShort?: boolean) => {
-    if (selectedCustomersForDownload.size === 0) {
-      alert('Please select customers to email');
-      return;
-    }
-
-    if (!overrideDate && statementModalAction !== 'EMAIL_SPI') {
-      setStatementModalAction('EMAIL_SPI');
-      return;
-    }
-
-    const effectiveDate = overrideDate || emailStatementDate;
-    setIsDownloading(true);
-    try {
-      const JSZip = (await import('jszip')).default;
-      const { saveAs } = await import('file-saver');
-      const zip = new JSZip();
-      let count = 0;
-
-      for (const customerName of selectedCustomersForDownload) {
-        const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-        const hasSpi = spiData.some(s => normalize(s.customerName) === normalize(customerName));
-
-        if (!hasSpi) {
-          console.warn(`No SPI data found for: ${customerName}`);
-          continue;
-        }
-
-        const email = customersWithEmails.get(normalize(customerName));
-        if (!email) {
-          console.warn(`No email found for customer: ${customerName}`);
-          continue;
-        }
-
-        console.log(`Processing SPI email for: ${customerName}`, email);
-
-        const customerInvoices = data.filter(row => row.customerName === customerName);
-        if (customerInvoices.length === 0) continue;
-
-        const invoicesWithNetDebt = buildInvoicesWithNetDebtForExport(customerInvoices);
-        let netOnlyInvoices = invoicesWithNetDebt
-          .filter(inv => !inv.matching || (inv.residual !== undefined && Math.abs(inv.residual) > 0.01))
-          .map(inv => inv.matching && inv.residual !== undefined ? { ...inv, credit: inv.debit - inv.residual, netDebt: inv.residual } : inv);
-
-        if (effectiveDate) {
-          const limitDate = new Date(effectiveDate);
-          limitDate.setHours(23, 59, 59, 999);
-          netOnlyInvoices = netOnlyInvoices.filter(inv => {
-            const rowDate = parseDate(inv.date);
-            return !rowDate || rowDate <= limitDate;
-          });
-        }
-
-        if (netOnlyInvoices.length === 0) continue;
-
-        const netDebt = netOnlyInvoices.reduce((sum, inv) => sum + (inv.netDebt || 0), 0);
-        const dateLabel = effectiveDate ? `Up To ${formatDmy(new Date(effectiveDate))}` : 'All Months (Net Only)';
-
-        // Generate PDF
-        const pdfBlob = await generateAccountStatementPDF(customerName, netOnlyInvoices, true, dateLabel, isShort ?? true);
-        if (!pdfBlob) continue;
-
-        const pdfBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(pdfBlob as Blob);
-        });
-
-        // Generate Excel
-        const excelBlob = await generateSingleCustomerExcelBlob(customerName, netOnlyInvoices, isShort ?? true);
-        const excelBase64 = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.readAsDataURL(excelBlob);
-        });
-
-        const cleanName = customerName.replace(/[^a-zA-Z0-9\u0600-\u06FF \-_]/g, '').trim();
-        const boundary = "----=_NextPart_000_0001_01C2A9A1.12345678";
-        const subject = 'Statement of Account - Al Marai Al Arabia Trading Sole Proprietorship L.L.C';
-        const htmlBody = `
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.6;">
-  <p>Dear Team,</p>
-  <p>We hope this message finds you well.</p>
-  <p>Please find attached your account statement.</p>
-  <p><strong style="color: #dc2626; font-size: 15px;">Your current balance ${effectiveDate ? 'as of ' + formatDmy(new Date(effectiveDate)) : ''} is: ${netDebt.toLocaleString('en-US')} AED</strong></p>
-  <p>Kindly provide us with your statement of account and any Tax-Rebeat invoices for reconciliation.</p>
-  <p>Best regards,<br><br>Accounts<br>Al Marai Al Arabia Trading Sole Proprietorship L.L.C</p>
-</div>
-        `.trim();
-
-        const cleanEmails = (str: string) => str.replace(/;/g, ',').split(',').map(e => e.trim()).filter(Boolean).join(', ');
-        const toEmail = cleanEmails(email || '');
-        const ccEmail = '';
-
-        let emlHeaders = [
-          `Date: ${new Date().toUTCString()}`,
-          `To: ${toEmail}`,
-          ccEmail ? `Cc: ${ccEmail}` : null,
-          'From: accounting@marae.ae',
-          'Subject: ' + subject,
-          'MIME-Version: 1.0',
-          'X-Unsent: 1',
-          'Content-Type: multipart/mixed; boundary="' + boundary + '"',
-        ].filter(line => line !== null).join('\r\n');
-
-        const emlContent = [
-          emlHeaders,
-          '',
-          '--' + boundary,
-          'Content-Type: text/html; charset="UTF-8"',
-          'Content-Transfer-Encoding: 7bit',
-          '',
-          htmlBody,
-          '',
-          '--' + boundary,
-          `Content-Type: application/pdf; name="${cleanName}.pdf"`,
-          'Content-Transfer-Encoding: base64',
-          `Content-Disposition: attachment; filename="${cleanName}.pdf"`,
-          '',
-          pdfBase64,
-          '',
-          '--' + boundary,
-          `Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; name="${cleanName}.xlsx"`,
-          'Content-Transfer-Encoding: base64',
-          `Content-Disposition: attachment; filename="${cleanName}.xlsx"`,
-          '',
-          excelBase64,
-          '',
-          '--' + boundary + '--'
-        ].join('\r\n');
-
-        zip.file(`${cleanName}.eml`, emlContent);
-        count++;
-      }
-
-      if (count > 0) {
-        const content = await zip.generateAsync({ type: 'blob' });
-        saveAs(content, `SPI_Emails_${new Date().toISOString().split('T')[0]}.zip`);
-        setStatementModalAction(null);
-      } else {
-        alert('No matching SPI customers found in selection.');
-      }
-    } catch (error) {
-      console.error('Error in SPI email generation:', error);
       alert('Error generating emails.');
     } finally {
       setIsDownloading(false);
@@ -1039,7 +887,6 @@ export default function CustomersTab({
           if (action === 'EMAIL') handleBulkEmail(date, isShort);
           else if (action === 'ZIP') handleBulkZIPDownload(date, isShort);
           else if (action === 'EMAIL_LULU') handleBulkLuluEmail(date, isShort);
-          else if (action === 'EMAIL_SPI') handleBulkSpiEmail(date, isShort);
         }}
         isProcessing={isDownloading}
       />

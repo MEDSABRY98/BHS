@@ -20,7 +20,6 @@ const nextConfig: NextConfig = {
       { source: '/api/suppliers', destination: '/api/Suppliers' },
       { source: '/api/suppliers-matching', destination: '/api/SuppliersMatching' },
       { source: '/api/vouchers', destination: '/api/Vouchers' },
-      { source: '/api/spi', destination: '/api/Spi' },
       
       // Page rewrites
       { source: '/cash-receipt', destination: '/CashReceipt' },

@@ -16,15 +16,13 @@ interface UseCustomerDataProps {
 
 export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yearlySorting: any) => {
   const [closedCustomers, setClosedCustomers] = useState<Set<string>>(new Set());
-  const [spiData, setSpiData] = useState<any[]>([]);
   const [luluEmails, setLuluEmails] = useState<any[]>([]);
   const [customersWithEmails, setCustomersWithEmails] = useState<Map<string, string>>(new Map());
   useEffect(() => {
     const fetchDependencies = async () => {
       try {
-        const [closedRes, spiRes, emailsRes, luluRes] = await Promise.all([
+        const [closedRes, emailsRes, luluRes] = await Promise.all([
           fetch('/api/ClosedCustomers'),
-          fetch('/api/Spi'),
           fetch('/api/CustomerEmailsList'),
           fetch('/api/lulu-emails')
         ]);
@@ -32,10 +30,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         if (closedRes.ok) {
           const d = await closedRes.json();
           setClosedCustomers(new Set(d.closedCustomers.map((n: string) => n.toLowerCase().trim().replace(/\s+/g, ' '))));
-        }
-        if (spiRes.ok) {
-          const d = await spiRes.json();
-          setSpiData(d.data || []);
         }
         if (luluRes.ok) {
           const d = await luluRes.json();
@@ -234,15 +228,8 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         let groupNetDebt = group.reduce((sum, inv) => sum + (inv.debit - inv.credit), 0);
         if (Math.abs(groupNetDebt) <= 0.01) return;
         let residualHolder = group[0];
-        let foundOverride = false;
-        if (spiData && spiData.length > 0) {
-          const override = group.find(inv => spiData.some(s => s.matching.toString().trim().toLowerCase() === (inv.matching || '').toString().trim().toLowerCase() && s.number.toString().trim().toLowerCase() === (inv.number || '').toString().trim().toLowerCase()));
-          if (override) { residualHolder = override; foundOverride = true; }
-        }
-        if (!foundOverride) {
-          let maxDebit = -1;
-          group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; residualHolder = inv; } });
-        }
+        let maxDebit = -1;
+        group.forEach(inv => { if (inv.debit > maxDebit) { maxDebit = inv.debit; residualHolder = inv; } });
         matchingResiduals.set(matchingKey, residualHolder);
       });
 
@@ -315,7 +302,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         creditReturns: c.creditReturns, creditDiscounts: c.creditDiscounts, totalSalesDebit: c.totalSalesDebit, avgPaymentInterval: avgInterval
       };
     }).sort((a, b) => b.netDebt - a.netDebt);
-  }, [data, spiData]);
+  }, [data]);
 
   const filteredData = useMemo(() => {
     let result = customerAnalysis;
@@ -396,7 +383,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
 
     if (matchingFilter !== 'ALL') {
       const normalize = (s: string) => (s || '').toLowerCase().trim().replace(/\s+/g, ' ');
-      const spiNames = new Set(spiData.map(s => normalize(s.customerName)).filter(Boolean));
       const luluNames = new Set(luluEmails.map(l => normalize(l.customerName)).filter(Boolean));
 
       if (matchingFilter === 'WITH_EMAIL') {
@@ -406,8 +392,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
         result = result.filter(c => customersWithEmails.has(normalize(c.customerName)) && !luluNames.has(normalize(c.customerName)));
       } else if (matchingFilter === 'EMAIL_LULU') {
         result = result.filter(c => luluNames.has(normalize(c.customerName)));
-      } else if (matchingFilter === 'EMAIL_SPI') {
-        result = result.filter(c => spiNames.has(normalize(c.customerName)));
       } else if (matchingFilter === 'RATING_GOOD') {
         result = result.filter(c => calculateDebtRating(c, closedCustomers) === 'Good');
       } else if (matchingFilter === 'RATING_MEDIUM') {
@@ -418,7 +402,7 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     }
 
     return result;
-  }, [customerAnalysis, filters, closedCustomers, mode, customersWithEmails, spiData, luluEmails]);
+  }, [customerAnalysis, filters, closedCustomers, mode, customersWithEmails, luluEmails]);
 
   const yearlyPivotData = useMemo(() => {
     const customerPivotMap = new Map<string, { customerName: string; region: string; totalNetDebt: number; yearlyAmounts: Record<string, number>; }>();
@@ -505,7 +489,6 @@ export const useCustomerData = (data: InvoiceRow[], filters: any, mode: any, yea
     customerAnalysis,
     filteredData,
     closedCustomers,
-    spiData,
     customersWithEmails,
     luluEmails,
     yearlyPivotData,

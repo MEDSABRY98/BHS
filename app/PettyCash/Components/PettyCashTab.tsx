@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw } from 'lucide-react';
+import { Menu, X, ArrowLeft, FileSpreadsheet, RefreshCcw, Archive } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 import Sidebar, { tabs } from './PettyCashSidebar';
@@ -14,23 +14,21 @@ import EditEntryModal from './EditEntryModal';
 import VoucherDocument from './VoucherDocument';
 
 interface Receipt {
-  id: number;
+  id: string;
   amount: number;
   source: string;
   description: string;
   date: string;
   paid: string;
-  rowIndex?: number;
 }
 
 interface Expense {
-  id: number;
+  id: string;
   amount: number;
   source: string;
   description: string;
   date: string;
   paid: string;
-  rowIndex?: number;
 }
 
 export default function PettyCashTab() {
@@ -82,6 +80,13 @@ export default function PettyCashTab() {
   // History States
   const [historyRecords, setHistoryRecords] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  // Settle Period Modal States
+  const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
+  const [settleDate, setSettleDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [openingAmount, setOpeningAmount] = useState('');
+  const [openingDescription, setOpeningDescription] = useState('Opening Balance / رصيد افتتاحي للدورة الجديدة');
+  const [settleLoading, setSettleLoading] = useState(false);
 
   // Voucher Printing States
   const [nextVoucherNumber, setNextVoucherNumber] = useState('V-0001');
@@ -145,16 +150,20 @@ export default function PettyCashTab() {
           return;
         }
 
-        // Get the last voucher number
-        const lastVoucher = data.vouchers[data.vouchers.length - 1];
-        const lastNum = lastVoucher.number; // e.g., "V-0001"
-        if (lastNum && lastNum.includes('-')) {
-          const numPart = parseInt(lastNum.split('-')[1]);
-          if (!isNaN(numPart)) {
-            const nextNum = (numPart + 1).toString().padStart(4, '0');
-            setNextVoucherNumber(`V-${nextNum}`);
+        // Get the maximum voucher number parsed from all entries
+        let maxNum = 0;
+        data.vouchers.forEach((v: any) => {
+          if (v.number && v.number.includes('-')) {
+            const parts = v.number.split('-');
+            const numPart = parseInt(parts[parts.length - 1]);
+            if (!isNaN(numPart) && numPart > maxNum) {
+              maxNum = numPart;
+            }
           }
-        }
+        });
+
+        const nextNum = (maxNum + 1).toString().padStart(4, '0');
+        setNextVoucherNumber(`V-${nextNum}`);
       }
     } catch (error) {
       console.error('Error fetching next voucher number:', error);
@@ -173,13 +182,12 @@ export default function PettyCashTab() {
 
         data.records.forEach((record: any) => {
           const entry = {
-            id: record.rowIndex,
+            id: record.id,
             amount: record.amount,
             source: record.name,
             description: record.description,
             date: record.date,
             paid: record.paid || 'No',
-            rowIndex: record.rowIndex
           };
 
           if (record.type === 'Receipt') {
@@ -222,6 +230,7 @@ export default function PettyCashTab() {
           name: formData.source,
           description: formData.description,
           paid: formData.paid,
+          createdBy: currentUser?.name || 'Custodian',
         }),
       });
 
@@ -261,6 +270,7 @@ export default function PettyCashTab() {
               name: row.source,
               description: row.description,
               paid: row.paid,
+              createdBy: currentUser?.name || 'Custodian',
             }),
           });
           if (response.ok) successCount++;
@@ -314,7 +324,7 @@ export default function PettyCashTab() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          rowIndex: selectedEntry.rowIndex,
+          id: selectedEntry.id,
           date: updatedFormData.date,
           type: entryType === 'receipt' ? 'Receipt' : 'Expense',
           amount: parseFloat(updatedFormData.amount),
@@ -355,7 +365,7 @@ export default function PettyCashTab() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          rowIndex: selectedEntry.rowIndex,
+          id: selectedEntry.id,
         }),
       });
 
@@ -372,6 +382,43 @@ export default function PettyCashTab() {
       alert('Failed to delete entry');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Handler for closing/settling active petty cash period
+  const handleSettlePeriod = async () => {
+    try {
+      setSettleLoading(true);
+      const response = await fetch('/api/PettyCash', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          action: 'settle',
+          liquidationDate: settleDate,
+          openingAmount: openingAmount ? parseFloat(openingAmount) : 0,
+          openingDescription: openingDescription || 'Opening Balance / رصيد افتتاحي للدورة الجديدة',
+          userName: currentUser?.name || 'Custodian'
+        })
+      });
+
+      if (response.ok) {
+        // Reset states
+        setOpeningAmount('');
+        setIsSettleModalOpen(false);
+        // Refresh records
+        await fetchRecords();
+        alert('Period closed and archived successfully!');
+      } else {
+        const errData = await response.json();
+        alert(errData.error || 'Failed to settle current period');
+      }
+    } catch (error) {
+      console.error('Error settling period:', error);
+      alert('Failed to settle current period');
+    } finally {
+      setSettleLoading(false);
     }
   };
 
@@ -614,16 +661,9 @@ export default function PettyCashTab() {
               </button>
             </div>
 
-            {/* Middle Section: Display Active Tab Label */}
-            <div className="hidden md:flex items-center gap-2">
-              <span className="text-lg font-extrabold text-slate-800 tracking-tight">
-                {tabs.find(t => t.id === activeTab)?.name || 'Petty Cash'}
-              </span>
-            </div>
-
-            {/* Right Section: Export or Voucher actions */}
-            <div className="flex items-center gap-3">
-              {activeTab === 'voucher' && (
+            {/* Middle Section: Display Active Tab Label or Voucher Sub-tabs */}
+            <div className="flex items-center gap-2">
+              {activeTab === 'voucher' ? (
                 <div className="flex gap-1.5 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-inner">
                   <button
                     onClick={() => setVoucherSubTab('add')}
@@ -641,15 +681,35 @@ export default function PettyCashTab() {
                     Reprint
                   </button>
                 </div>
+              ) : (
+                <span className="hidden md:inline text-lg font-extrabold text-slate-800 tracking-tight">
+                  {tabs.find(t => t.id === activeTab)?.name || 'Petty Cash'}
+                </span>
               )}
+            </div>
+
+            {/* Right Section: Export or Voucher actions */}
+            <div className="flex items-center gap-3">
               {activeTab === 'stats' && (
-                <button
-                  onClick={exportToExcel}
-                  className="flex items-center justify-center h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
-                  title="Export to Excel"
-                >
-                  <FileSpreadsheet className="w-5 h-5" />
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => {
+                      setSettleDate(new Date().toISOString().split('T')[0]);
+                      setIsSettleModalOpen(true);
+                    }}
+                    className="flex items-center justify-center h-10 w-10 bg-cyan-700 hover:bg-cyan-800 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
+                    title="Close current active period and archive records"
+                  >
+                    <Archive className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={exportToExcel}
+                    className="flex items-center justify-center h-10 w-10 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-md transition-all hover:scale-105 active:scale-95"
+                    title="Export to Excel"
+                  >
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -753,6 +813,94 @@ export default function PettyCashTab() {
         onDelete={handleDeleteEntry}
         loading={loading}
       />
+
+      {/* Settle Period Modal */}
+      {isSettleModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 no-print animate-in fade-in duration-200">
+          <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[90vh]">
+            <header className="px-6 py-4 bg-gradient-to-r from-cyan-800 to-slate-900 text-white flex justify-between items-center">
+              <h3 className="text-lg font-black tracking-wide uppercase">Close Period & Archive</h3>
+              <button 
+                onClick={() => setIsSettleModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </header>
+
+            <div className="p-6 space-y-6 overflow-y-auto">
+              <div className="bg-amber-50 border-2 border-amber-100 rounded-xl p-4 text-sm text-amber-800 space-y-1 font-semibold">
+                <p className="font-bold text-amber-900">⚠️ Warning:</p>
+                <p>This will move all current active receipts and expenses into the History archive and clear the active Petty Cash tracking sheet. This action cannot be undone.</p>
+              </div>
+
+              <div className="space-y-4">
+                {/* Date Input */}
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
+                    Liquidation Date
+                  </label>
+                  <input
+                    type="date"
+                    value={settleDate}
+                    onChange={(e) => setSettleDate(e.target.value)}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 focus:border-cyan-500 rounded-xl focus:outline-none font-bold"
+                  />
+                </div>
+
+                {/* Opening Balance Amount */}
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
+                    Opening Balance Amount (AED)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={openingAmount}
+                    onChange={(e) => setOpeningAmount(e.target.value)}
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 focus:border-cyan-500 rounded-xl focus:outline-none font-bold"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Leave blank or enter 0 to start next period with a zero balance.</p>
+                </div>
+
+                {/* Opening Balance Description */}
+                <div>
+                  <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">
+                    Opening Balance Description
+                  </label>
+                  <input
+                    type="text"
+                    value={openingDescription}
+                    onChange={(e) => setOpeningDescription(e.target.value)}
+                    placeholder="Opening Balance"
+                    className="w-full px-4 py-2.5 border-2 border-gray-200 focus:border-cyan-500 rounded-xl focus:outline-none font-bold"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <footer className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex justify-end gap-3 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsSettleModalOpen(false)}
+                disabled={settleLoading}
+                className="px-5 py-2.5 text-sm font-bold text-gray-600 hover:text-gray-900 border-2 border-gray-200 rounded-xl hover:bg-gray-100 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSettlePeriod}
+                disabled={settleLoading}
+                className="px-5 py-2.5 text-sm font-black text-white bg-cyan-700 hover:bg-cyan-800 rounded-xl transition-all shadow-md disabled:opacity-50 flex items-center gap-2"
+              >
+                {settleLoading ? 'Processing...' : 'Confirm & Close'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
