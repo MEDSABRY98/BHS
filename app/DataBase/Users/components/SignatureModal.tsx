@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { X, Loader2, Save, FilePenLine } from 'lucide-react';
 import SignaturePad from '@/app/DataBase/Users/components/SignaturePad';
 import SearchSelect from '../../../LPOs/Components/DropDownList';

@@ -8,7 +8,7 @@ import Header from './Header';
 import NewReceiptForm from './NewReceiptForm';
 import SavedReceiptsTab from './SavedReceiptsTab';
 import ReceiptDocument from './ReceiptDocument';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 
 function convertColorsToRgb(element: HTMLElement) {
   const properties = [

@@ -1,4 +1,4 @@
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { getSalesDataServer } from './SalesCache';
 
 // ─────────────────────────────────────────────────────────────

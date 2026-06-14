@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   Layers,
   RefreshCw,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import {
   ArrowLeft,
   CheckCircle2,

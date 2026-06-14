@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabase } from '@/lib/Supabase';
+import { bhs_supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 

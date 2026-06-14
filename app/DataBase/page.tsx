@@ -63,7 +63,7 @@ export default function DatabaseDashboard() {
     async function fetchCounts() {
       setIsLoading(true);
       try {
-        const { bhs_supabas } = await import('@/lib/Supabase');
+        const { bhs_supabas } = await import('@/lib/supabase');
 
         const [custRes, prodRes, userRes] = await Promise.all([
           bhs_supabas.from('bhs_CUSTOMERS').select('ID', { count: 'exact', head: true }),

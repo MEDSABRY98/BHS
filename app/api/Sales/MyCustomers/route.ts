@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
 
 // Helper to check if a user is a manager

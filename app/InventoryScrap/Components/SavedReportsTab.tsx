@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { Printer, Trash2, Calendar, FileText, Search, Loader2, AlertTriangle, AlertCircle } from 'lucide-react';
 import { generateInventoryScrapReportPDF } from '@/app/InventoryScrap/Pdf/InventoryScrapReportPdf';
 import NoData from '@/app/Components/NoDataTab';

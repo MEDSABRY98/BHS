@@ -1,10 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import RecordScrapTab from './RecordScrapTab';
 import SessionsHistoryTab from './SessionsHistoryScrapTab';
-import InventoryScrapReportTab from '../../../InventoryScrap/Components/InventoryScrapReportTab';
+import InventoryScrapReportTab from './ReportTab';
 import SavedReportsTab from './SavedReportsTab';
 
 interface ScrapEntry {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/Supabase';
+import { bhs_supabas } from '@/lib/supabase';
 import { FileText, Loader2, Download, Printer, AlertCircle, Search, Calendar } from 'lucide-react';
 import { generatePendingDriverInvoicesPDF } from '@/app/LPOs/Pdf/PendingDriverInvoicesPdf';
 import NoData from '@/app/Components/NoDataTab';
