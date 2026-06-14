@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import InventoryScrapTab from '@/app/Inventory/Components/InventoryScrap/InventoryScrapTab';
+import InventoryScrapTab from '@/app/InventoryScrap/Components/InventoryScrapTab';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import {
