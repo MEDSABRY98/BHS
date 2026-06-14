@@ -1,6 +1,5 @@
-﻿import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/app/Sales/Utils/SalesMappingCache';
-import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
+import { NextResponse } from 'next/server';
+import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
 
 function calculateStatsForDimension(data: any[], dimensionKey: string) {
   const dimensionMap = new Map<string, { amount: number; qty: number; count: number }>();
@@ -90,16 +89,7 @@ export async function POST(request: Request) {
   try {
     const { userId, filters } = await request.json();
 
-    const rawData = await getSalesDataServer();
-    if (!rawData || rawData.length === 0) {
-      return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
-    }
-
-    // Mapping (memory cache — no DB call after first request)
-    const mappingMap = userId ? await getMappingServer(userId) : new Map();
-    const augmentedData = mappingMap.size > 0
-      ? rawData.map((item: any) => applyMapping(item, mappingMap))
-      : rawData;
+    const augmentedData = await getFilteredSalesData(userId);
 
     // Apply Global Filters
     let globallyFilteredData = augmentedData;

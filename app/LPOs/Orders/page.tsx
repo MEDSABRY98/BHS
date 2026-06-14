@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 import {
   Search,
   Eye,

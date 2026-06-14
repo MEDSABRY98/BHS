@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { Users, Tag, BarChart2 } from 'lucide-react';
 import SalesST_ByCustomers from './SalesST_ByCustomersTab';
 import SalesST_ByProduct from './SalesST_ByProductTab';
+import Loading from '@/app/Components/Loading';
 
 interface SalesStockReportTabProps {
   refreshTrigger?: number;
@@ -41,6 +42,10 @@ export default function SalesStockReportTab({ filters, userId, refreshTrigger }:
     };
     fetchStockData();
   }, [filters, userId, refreshTrigger]);
+
+  if (loading) {
+    return <Loading fullScreen={false} />;
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-700">

@@ -1,10 +1,10 @@
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 
 // ─────────────────────────────────────────────────────────────
 //  CONSTANTS
 // ─────────────────────────────────────────────────────────────
 const STORAGE_BUCKET = 'sales-cache';
-const STORAGE_FILE   = 'sales_cache.json';
+const STORAGE_FILE = 'sales_cache.json';
 
 // ─────────────────────────────────────────────────────────────
 //  MEMORY LAYER (warm Vercel instances)
@@ -137,30 +137,30 @@ async function buildFromDB(): Promise<any[]> {
 
   const prodMap = new Map<string, any>();
   (productsData || []).forEach((p: any) => {
-    const pId      = norm(p['PRODUCT ID']);
+    const pId = norm(p['PRODUCT ID']);
     const pBarcode = norm(p['PRODUCT BARCODE']);
-    if (pId)                     prodMap.set(pId, p);
+    if (pId) prodMap.set(pId, p);
     if (pBarcode && pBarcode !== pId) prodMap.set(pBarcode, p);
   });
 
   return (salesData || []).map((s: any) => {
     const c = custMap.get(norm(s['CUSTOMER ID'])) || {};
-    const p = prodMap.get(norm(s['PRODUCT ID']))  || {};
+    const p = prodMap.get(norm(s['PRODUCT ID'])) || {};
     return {
-      id:              s['ID'],
-      invoiceDate:     s['INVOICE DATE'],
-      invoiceNumber:   s['INVOICE NUMBER'],
-      customerId:      s['CUSTOMER ID'],
-      productId:       s['PRODUCT ID'],
-      productTag:      p['PRODUCT CATEGORY'] || 'Uncategorized',
-      productCost:     s['PRODUCT COST'],
-      productPrice:    s['PRODUCT PRICE'],
-      amount:          s['AMOUNT'],
-      qty:             s['QTY'],
-      customerName:     c['CUSTOMER SUB NAME'],
+      id: s['ID'],
+      invoiceDate: s['INVOICE DATE'],
+      invoiceNumber: s['INVOICE NUMBER'],
+      customerId: s['CUSTOMER ID'],
+      productId: s['PRODUCT ID'],
+      productTag: p['PRODUCT CATEGORY'] || 'Uncategorized',
+      productCost: s['PRODUCT COST'],
+      productPrice: s['PRODUCT PRICE'],
+      amount: s['AMOUNT'],
+      qty: s['QTY'],
+      customerName: c['CUSTOMER SUB NAME'],
       customerMainName: c['CUSTOMER MAIN NAME'],
-      product:         p['PRODUCT NAME'],
-      barcode:         p['PRODUCT BARCODE'],
+      product: p['PRODUCT NAME'],
+      barcode: p['PRODUCT BARCODE'],
     };
   });
 }

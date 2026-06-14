@@ -12,12 +12,12 @@ import SalesProductsTab from './Components/SalesProductsTab';
 import SalesCategoriesTab from './Components/SalesCategoriesTab';
 import SalesStockReportTab from './Components/SalesStockReportTab';
 import SalesSidebar from './Components/SalesSidebar';
-import SalesMyCustomersTab from './Components/SalesMyCustomersTab';
+import SalesSetCustomersTab from './Components/SalesSetCustomersTab';
 import SalesNewListingsTab from './Components/SalesNewListingsTab';
 
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { ArrowLeft, BarChart3, LogOut, User, FileUp, FileSpreadsheet, ChevronDown, CheckCircle2, AlertCircle, Filter, RefreshCcw, LayoutGrid, Calendar, Users, MoreVertical, Layers, TrendingUp, X, RotateCcw, ShoppingBag, Tag, Search, Menu } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { toast } from '@/app/Components/Notification';
@@ -203,25 +203,29 @@ export default function SalesPage() {
 
   // Enforce subtab permissions
   useEffect(() => {
-    if (currentUser && currentUser.name !== 'MED Sabry') {
-      try {
-        const perms = JSON.parse(currentUser.role || '{}');
-        const allowedTabs = perms.sales;
+    if (currentUser) {
+      const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true;
+      if (!isManager) {
+        try {
+          const perms = JSON.parse(currentUser.role || '{}');
+          const allowedTabs = perms.sales;
 
-        if (allowedTabs && Array.isArray(allowedTabs)) {
-          if (!allowedTabs.includes(activeTab)) {
-            if (allowedTabs.length > 0) {
-              setActiveTab(allowedTabs[0]);
+          if (allowedTabs && Array.isArray(allowedTabs)) {
+            if (!allowedTabs.includes(activeTab)) {
+              if (allowedTabs.length > 0) {
+                setActiveTab(allowedTabs[0]);
+              }
             }
           }
-        }
-      } catch (e) { }
+        } catch (e) { }
+      }
     }
   }, [currentUser, activeTab]);
 
   const showCosts = useMemo(() => {
     const userName = currentUser?.name?.toLowerCase() || '';
-    if (userName === 'med sabry') return true;
+    const isManager = userName === 'med sabry' || currentUser?.isSalesManager === true;
+    if (isManager) return true;
     try {
       const roleStr = currentUser?.role || '';
       if (!roleStr) return true;
@@ -272,7 +276,7 @@ export default function SalesPage() {
       else setLoading(true);
 
       const currentUserObj = localStorage.getItem('currentUser');
-      const userId = currentUserObj ? JSON.parse(currentUserObj).name : 'ADMIN';
+      const userId = currentUserObj ? JSON.parse(currentUserObj).id : 'ADMIN';
 
       const response = await fetch('/api/Sales/Metadata', {
         method: 'POST',
@@ -311,7 +315,7 @@ export default function SalesPage() {
     localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
 
     const currentUserStr = localStorage.getItem('currentUser');
-    const userId = currentUserStr ? JSON.parse(currentUserStr).name : 'ADMIN';
+    const userId = currentUserStr ? JSON.parse(currentUserStr).id : 'ADMIN';
 
     try {
       const response = await fetch('/api/Sales/Mapping', {
@@ -469,16 +473,12 @@ export default function SalesPage() {
     { id: 'sales-products', label: 'Products' },
     { id: 'sales-new-listings', label: 'New Listings' },
     { id: 'sales-download-form', label: 'Stock Report' },
-    { id: 'sales-my-customers', label: 'My Customers' },
+    { id: 'sales-my-customers', label: 'Set Customers' },
   ];
 
   const renderTabContent = () => {
     if (loading) {
-      return (
-        <div className="flex justify-center pt-10 min-h-[400px] w-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
-        </div>
-      );
+      return <Loading fullScreen={false} />;
     }
 
     if (error) {
@@ -500,10 +500,13 @@ export default function SalesPage() {
 
     // Check for dynamic JSON permission structure
     try {
-      const perms = JSON.parse(currentUser?.role || '{}');
-      if (perms.sales && Array.isArray(perms.sales) && currentUser?.name !== 'MED Sabry') {
-        if (!perms.sales.includes(activeTab)) {
-          return <div className="p-20 text-center text-slate-400 font-bold">You don't have permission to view this section.</div>;
+      const isManager = currentUser?.name === 'MED Sabry' || currentUser?.isSalesManager === true;
+      if (!isManager && currentUser?.role) {
+        const perms = JSON.parse(currentUser.role);
+        if (perms.sales && Array.isArray(perms.sales)) {
+          if (!perms.sales.includes(activeTab)) {
+            return <div className="p-20 text-center text-slate-400 font-bold">You don't have permission to view this section.</div>;
+          }
         }
       }
     } catch (e) { }
@@ -525,62 +528,62 @@ export default function SalesPage() {
       <div className="relative w-full">
         {visitedTabs.has('sales-overview') && (
           <div className={activeTab === 'sales-overview' ? 'block' : 'hidden'}>
-            <SalesOverviewTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesOverviewTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-top10') && (
           <div className={activeTab === 'sales-top10' ? 'block' : 'hidden'}>
-            <SalesTop10Tab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesTop10Tab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-customers') && (
           <div className={activeTab === 'sales-customers' ? 'block' : 'hidden'}>
-            <SalesCustomersTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+            <SalesCustomersTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-customers-comparison') && (
           <div className={activeTab === 'sales-customers-comparison' ? 'block' : 'hidden'}>
-            <SalesCustomersComparisonTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesCustomersComparisonTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-inactive-customers') && (
           <div className={activeTab === 'sales-inactive-customers' ? 'block' : 'hidden'}>
-            <SalesInactiveCustomersTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
+            <SalesInactiveCustomersTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-statistics') && (
           <div className={activeTab === 'sales-statistics' ? 'block' : 'hidden'}>
-            <SalesStatisticsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesStatisticsTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-daily-sales') && (
           <div className={activeTab === 'sales-daily-sales' ? 'block' : 'hidden'}>
-            <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={currentUser?.name || 'ADMIN'} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+            <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={currentUser?.id || 'ADMIN'} showCosts={showCosts} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-products') && (
           <div className={activeTab === 'sales-products' ? 'block' : 'hidden'}>
-            <SalesProductsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesProductsTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-new-listings') && (
           <div className={activeTab === 'sales-new-listings' ? 'block' : 'hidden'}>
-            <SalesNewListingsTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesNewListingsTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-categories') && (
           <div className={activeTab === 'sales-categories' ? 'block' : 'hidden'}>
-            <SalesCategoriesTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesCategoriesTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-download-form') && (
           <div className={activeTab === 'sales-download-form' ? 'block' : 'hidden'}>
-            <SalesStockReportTab filters={commonFilters} userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesStockReportTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-my-customers') && (
           <div className={activeTab === 'sales-my-customers' ? 'block' : 'hidden'}>
-            <SalesMyCustomersTab userId={currentUser?.name || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesSetCustomersTab userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
           </div>
         )}
       </div>
@@ -663,7 +666,7 @@ export default function SalesPage() {
                     className={`p-2.5 rounded-xl border border-slate-200 text-slate-500 hover:text-green-600 hover:border-green-200 hover:bg-green-50 transition-all ${loading || isRefreshing ? 'opacity-50' : 'hover:scale-105 active:scale-95'}`}
                     title="Refresh Data"
                   >
-                    <RefreshCcw className={`w-5 h-5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <RefreshCcw className="w-5 h-5" />
                   </button>
                 )}
               </div>
@@ -905,11 +908,8 @@ export default function SalesPage() {
 
                       {/* Loading Overlay inside the tab content area */}
                       {isFiltering && (
-                        <div className="absolute inset-0 bg-white/50 backdrop-blur-[2px] z-[50] flex items-center justify-center rounded-[40px] animate-in fade-in duration-200">
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="w-12 h-12 border-4 border-green-600/20 border-t-green-600 rounded-full animate-spin"></div>
-                            <p className="text-[10px] font-black text-green-600 uppercase tracking-[0.2em]">Applying Mode...</p>
-                          </div>
+                        <div className="absolute inset-0 z-[50] rounded-[40px] overflow-hidden">
+                          <Loading fullScreen={false} message="Applying Mode..." className="!absolute !inset-0 !min-h-0" />
                         </div>
                       )}
                     </div>
@@ -1024,20 +1024,20 @@ export default function SalesPage() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Merchandiser</label>
-                          <ModernSelect
-                            value={filterMerchandiser}
-                            onChange={setFilterMerchandiser}
-                            options={[{ label: "All", value: "" }, ...uniqueValues.merchandisers.map(v => ({ label: v, value: v }))]}
-                            placeholder="All"
-                          />
-                        </div>
-                        <div className="space-y-2">
                           <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Sales Rep</label>
                           <ModernSelect
                             value={filterSalesRep}
                             onChange={setFilterSalesRep}
                             options={[{ label: "All", value: "" }, ...uniqueValues.salesReps.map(v => ({ label: v, value: v }))]}
+                            placeholder="All"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-black text-slate-400 uppercase tracking-widest ml-1">Merchandiser</label>
+                          <ModernSelect
+                            value={filterMerchandiser}
+                            onChange={setFilterMerchandiser}
+                            options={[{ label: "All", value: "" }, ...uniqueValues.merchandisers.map(v => ({ label: v, value: v }))]}
                             placeholder="All"
                           />
                         </div>

@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { MapPin, ShoppingBag, UserCircle, DollarSign, Package, Store } from 'lucide-react';
+import Loading from '@/app/Components/Loading';
 
 interface SalesStatisticsTabProps {
   refreshTrigger?: number;
@@ -13,7 +14,7 @@ interface SalesStatisticsTabProps {
 export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: SalesStatisticsTabProps) {
   const [loading, setLoading] = useState(true);
   const [activeSubTab, setActiveSubTab] = useState<'area' | 'market' | 'merchandiser' | 'salesrep'>('area');
-  
+
   const [areaStats, setAreaStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
   const [marketStats, setMarketStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
   const [merchandiserStats, setMerchandiserStats] = useState<{ stats: any[], monthlyData: any }>({ stats: [], monthlyData: {} });
@@ -31,7 +32,7 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
         });
         if (!response.ok) throw new Error('Failed to fetch statistics data');
         const result = await response.json();
-        
+
         // Helper to convert plain object back to Map for monthlyData
         const convertMonthlyDataToMap = (monthlyDataObj: any) => {
           if (!monthlyDataObj) return new Map();
@@ -136,11 +137,7 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
   };
 
   if (loading) {
-    return (
-      <div className="flex items-start justify-center pt-24 min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-      </div>
-    );
+    return <Loading fullScreen={false} />;
   }
 
   const totals = getTotalStats();
@@ -148,176 +145,176 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
 
   return (
     <div className="w-full space-y-6">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-2xl font-medium text-slate-800">Sales Statistics</h1>
-        </div>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-medium text-slate-800">Sales Statistics</h1>
+      </div>
 
 
-        {/* Sub-tabs */}
-        <div className="bg-white rounded-xl shadow-md p-4">
-          <div className="flex gap-3">
-            <button
-              onClick={() => setActiveSubTab('area')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'area'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              <MapPin className="w-5 h-5" />
-              Area
-            </button>
-            <button
-              onClick={() => setActiveSubTab('market')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'market'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              <Store className="w-5 h-5" />
-              Market
-            </button>
-            <button
-              onClick={() => setActiveSubTab('salesrep')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'salesrep'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              <UserCircle className="w-5 h-5" />
-              Sales Rep
-            </button>
-            <button
-              onClick={() => setActiveSubTab('merchandiser')}
-              className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'merchandiser'
-                ? 'bg-green-600 text-white shadow-md'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-            >
-              <ShoppingBag className="w-5 h-5" />
-              Merchandiser
-            </button>
-          </div>
-        </div>
-
-        {/* Total Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total {activeSubTab === 'area' ? 'Areas' : activeSubTab === 'merchandiser' ? 'Merchandisers' : 'Sales Reps'}</p>
-                <p className="text-2xl font-bold text-gray-800">{totals.count}</p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                {activeSubTab === 'area' ? (
-                  <MapPin className="w-6 h-6 text-blue-600" />
-                ) : activeSubTab === 'merchandiser' ? (
-                  <ShoppingBag className="w-6 h-6 text-blue-600" />
-                ) : (
-                  <UserCircle className="w-6 h-6 text-blue-600" />
-                )}
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Amount</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-green-600" />
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Average Monthly Sales</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {totals.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                <DollarSign className="w-6 h-6 text-orange-600" />
-              </div>
-            </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 mb-1">Total Quantity</p>
-                <p className="text-2xl font-bold text-gray-800">
-                  {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Package className="w-6 h-6 text-purple-600" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Statistics Table */}
-        <div className="bg-white rounded-xl shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
-            {activeSubTab === 'area' ? 'Area' : activeSubTab === 'merchandiser' ? 'Merchandiser' : 'Sales Rep'} Statistics
-          </h2>
-          {current.stats.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">No data available for the selected date range</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b-2 border-gray-200">
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 min-w-[200px]">
-                      {activeSubTab === 'area' ? 'Area' : activeSubTab === 'merchandiser' ? 'Merchandiser' : 'Sales Rep'}
-                    </th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Total Amount</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Average Monthly Sales</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Average Monthly Growth</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">% of Total Sales</th>
-                    <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Total Quantity</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {current.stats.map((stat, index) => (
-                    <tr key={stat.name} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
-                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800 min-w-[200px]">{stat.name}</td>
-                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                        {stat.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                        {stat.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </td>
-                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                        {stat.averageMonthlyGrowth !== 0 ? (
-                          <span className={stat.averageMonthlyGrowth > 0 ? 'text-green-600' : 'text-red-600'}>
-                            {stat.averageMonthlyGrowth > 0 ? '+' : ''}
-                            {stat.averageMonthlyGrowth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
-                      </td>
-                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                        {stat.percentageOfTotal.toFixed(2)}%
-                      </td>
-                      <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
-                        {stat.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+      {/* Sub-tabs */}
+      <div className="bg-white rounded-xl shadow-md p-4">
+        <div className="flex gap-3">
+          <button
+            onClick={() => setActiveSubTab('area')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'area'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            <MapPin className="w-5 h-5" />
+            Area
+          </button>
+          <button
+            onClick={() => setActiveSubTab('market')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'market'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            <Store className="w-5 h-5" />
+            Market
+          </button>
+          <button
+            onClick={() => setActiveSubTab('salesrep')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'salesrep'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            <UserCircle className="w-5 h-5" />
+            Sales Rep
+          </button>
+          <button
+            onClick={() => setActiveSubTab('merchandiser')}
+            className={`flex-1 px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${activeSubTab === 'merchandiser'
+              ? 'bg-green-600 text-white shadow-md'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+          >
+            <ShoppingBag className="w-5 h-5" />
+            Merchandiser
+          </button>
         </div>
       </div>
+
+      {/* Total Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Total {activeSubTab === 'area' ? 'Areas' : activeSubTab === 'merchandiser' ? 'Merchandisers' : 'Sales Reps'}</p>
+              <p className="text-2xl font-bold text-gray-800">{totals.count}</p>
+            </div>
+            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+              {activeSubTab === 'area' ? (
+                <MapPin className="w-6 h-6 text-blue-600" />
+              ) : activeSubTab === 'merchandiser' ? (
+                <ShoppingBag className="w-6 h-6 text-blue-600" />
+              ) : (
+                <UserCircle className="w-6 h-6 text-blue-600" />
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {totals.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-green-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Average Monthly Sales</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {totals.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+              <DollarSign className="w-6 h-6 text-orange-600" />
+            </div>
+          </div>
+        </div>
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Total Quantity</p>
+              <p className="text-2xl font-bold text-gray-800">
+                {totals.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+              </p>
+            </div>
+            <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Package className="w-6 h-6 text-purple-600" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Statistics Table */}
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <h2 className="text-xl font-bold text-gray-800 mb-4">
+          {activeSubTab === 'area' ? 'Area' : activeSubTab === 'merchandiser' ? 'Merchandiser' : 'Sales Rep'} Statistics
+        </h2>
+        {current.stats.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-gray-500 text-lg">No data available for the selected date range</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-200">
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700 min-w-[200px]">
+                    {activeSubTab === 'area' ? 'Area' : activeSubTab === 'merchandiser' ? 'Merchandiser' : 'Sales Rep'}
+                  </th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Total Amount</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Average Monthly Sales</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Average Monthly Growth</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">% of Total Sales</th>
+                  <th className="text-center py-3 px-4 text-base font-semibold text-gray-700">Total Quantity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {current.stats.map((stat, index) => (
+                  <tr key={stat.name} className={`border-b border-gray-100 hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800 min-w-[200px]">{stat.name}</td>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      {stat.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      {stat.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      {stat.averageMonthlyGrowth !== 0 ? (
+                        <span className={stat.averageMonthlyGrowth > 0 ? 'text-green-600' : 'text-red-600'}>
+                          {stat.averageMonthlyGrowth > 0 ? '+' : ''}
+                          {stat.averageMonthlyGrowth.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">-</span>
+                      )}
+                    </td>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      {stat.percentageOfTotal.toFixed(2)}%
+                    </td>
+                    <td className="text-center py-3 px-4 text-base font-semibold text-gray-800">
+                      {stat.totalQty.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

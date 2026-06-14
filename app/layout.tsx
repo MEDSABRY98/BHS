@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { NotificationContainer } from "@/app/Components/Notification";
+import MobileBlocker from "@/lib/MobileBlocker";
 
 
 const geistSans = Geist({
@@ -30,8 +31,11 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        {children}
-        <NotificationContainer />
+        <div className="app-main-wrapper">
+          {children}
+          <NotificationContainer />
+        </div>
+        <MobileBlocker />
       </body>
     </html>
   );

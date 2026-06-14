@@ -1,11 +1,12 @@
 'use client';
 
 import { useState, useMemo, useEffect, memo, useRef } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { Search, Users, ChevronLeft, ChevronRight, Download, ArrowUpDown, ArrowUp, ArrowDown, X, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import SalesCustomerDetails from './SalesCustomerDetails';
 import NoData from '@/app/Components/NoDataTab';
+import Loading from '@/app/Components/Loading';
 
 interface SalesInactiveCustomersTabProps {
   refreshTrigger?: number;
@@ -71,7 +72,7 @@ const InactiveCustomerRow = memo(({ item, rowNumber, onCustomerClick, onExclude,
           className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all opacity-0 group-hover:opacity-100 disabled:opacity-30"
           title="Exclude from list"
         >
-          {isExcluding ? <div className="w-4 h-4 border-2 border-red-600 border-t-transparent animate-spin rounded-full" /> : <X className="w-4 h-4" />}
+          {isExcluding ? <span className="text-[10px] text-red-600 font-bold">...</span> : <X className="w-4 h-4" />}
         </button>
       </td>
     </tr>
@@ -250,11 +251,7 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
   };
 
   if (loading) {
-    return (
-      <div className="flex items-start justify-center pt-24 min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-      </div>
-    );
+    return <Loading fullScreen={false} />;
   } if (selectedCustomer) return (
     <SalesCustomerDetails customerName={selectedCustomer} filters={filters} userId={userId} onBack={() => setSelectedCustomer(null)} initialTab="dashboard" />
   );

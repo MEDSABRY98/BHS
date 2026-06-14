@@ -113,9 +113,7 @@ export default function RegisterTab({
                 receivedFrom: draft.bank,
                 documentAmount: parseFloat(draft.amount),
                 documentNotes: draft.notes,
-                documentStatus: 'مستلمة',
-                datedReceived: now,
-                datedRecord: '',
+                documentStatus: 'registered',
                 datedSendToOffice: '',
                 whoDeliveryForOffice: '',
                 whoTakeFromOffice: ''

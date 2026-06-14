@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
-import { getMappingServer, applyMapping } from '@/app/Sales/Utils/SalesMappingCache';
+import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
 
 export const maxDuration = 60;
 
@@ -9,19 +8,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { userId, filters } = body;
 
-    // 1. Sales data (memory → storage → DB fallback)
-    const rawData = await getSalesDataServer();
-    if (!rawData || rawData.length === 0) {
-      return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
-    }
-
-    // 2. Mapping (memory cache — no DB call after first request)
-    const mappingMap = userId ? await getMappingServer(userId) : new Map();
-
-    // 3. Apply Mapping
-    let augmentedData = mappingMap.size > 0
-      ? rawData.map(item => applyMapping(item, mappingMap))
-      : rawData;
+    // 1. Get filtered and mapped sales data
+    const augmentedData = await getFilteredSalesData(userId);
 
 
     // 4. Pre-parse dates and Apply Global Filters

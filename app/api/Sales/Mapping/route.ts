@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 import { invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
+
+// Helper to check if a user is a manager
+async function checkIsManager(userId: string): Promise<boolean> {
+  if (userId === 'ADMIN') return true;
+  const { data: user } = await bhs_supabas
+    .from('bhs_USERS')
+    .select('NAME, ROLE, IS_SALESMANAGER')
+    .eq('ID', userId)
+    .maybeSingle();
+
+  if (!user) return false;
+  return user.NAME === 'MED Sabry' || user.ROLE?.toLowerCase() === 'admin' || user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE';
+}
 
 export async function POST(request: Request) {
   try {
@@ -10,63 +23,58 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
+    // Authorization check
+    const isManager = await checkIsManager(userId);
+    if (!isManager) {
+      return NextResponse.json({ error: 'Unauthorized. Only sales managers can upload mappings.' }, { status: 403 });
+    }
+
     if (!mapping || Object.keys(mapping).length === 0) {
       return NextResponse.json({ success: true, message: 'No mapping data provided' });
     }
 
-    // 1. مسح المابينج القديم الخاص بهذا المستخدم فقط
+    // 1. Delete all old mappings since mappings are now global
     const { error: deleteError } = await bhs_supabas
       .from('web_Sales_DB_CUSTOMERSMAPPING')
       .delete()
-      .eq('USER_ID', userId);
+      .gt('ID', '');
 
     if (deleteError) {
-      console.error('Error deleting old mapping:', deleteError);
+      console.error('Error deleting old mappings:', deleteError);
       throw deleteError;
     }
 
-    // 2. الحصول على أعلى رقم ID حالي لتجنب التكرار
-    const { data: existingRows, error: fetchError } = await bhs_supabas
-      .from('web_Sales_DB_CUSTOMERSMAPPING')
-      .select('ID');
-
-    if (fetchError) {
-      console.error('Error fetching existing IDs:', fetchError);
-      throw fetchError;
+    // 2. Fetch all users to map sheet-provided representative names to their IDs
+    const { data: users, error: userErr } = await bhs_supabas
+      .from('bhs_USERS')
+      .select('ID, NAME');
+    
+    const userMapByName = new Map<string, string>();
+    if (!userErr && users) {
+      users.forEach(u => userMapByName.set(u.NAME.trim().toUpperCase(), u.ID));
     }
 
-    let highestNum = 0;
-    if (existingRows) {
-      existingRows.forEach((row: any) => {
-        const match = row.ID.match(/^R-(\d+)$/i);
-        if (match) {
-          const num = parseInt(match[1], 10);
-          if (num > highestNum) {
-            highestNum = num;
-          }
-        }
-      });
-    }
-
-    // تحويل الكائن (Object) إلى مصفوفة (Array) جاهزة للرفع للسيرفر
+    // 3. Convert mapping object to database rows
     const rows = Object.keys(mapping).map((customerId, index) => {
-      const paddedIndex = String(highestNum + index + 1).padStart(4, '0');
+      const paddedIndex = String(index + 1).padStart(4, '0');
       const data = mapping[customerId];
+
+      // Resolve rep name to their user ID
+      const repName = (data.salesRep || '').trim().toUpperCase();
+      const repId = userMapByName.get(repName) || '';
+
       return {
         "ID": `R-${paddedIndex}`,
-        "USER_ID": userId,
+        "SALES_REP": repId, // Store representative ID directly in SALES_REP column
         "CUSTOMER ID": customerId,
-        "CUSTOMER MAIN NAME": data.customerMainName || '',
-        "CUSTOMER SUB NAME": data.customerName || '',
         "AREA": data.area || '',
         "MARKET": data.market || '',
-        "SALES_REP": data.salesRep || '',
         "MERCHANDISER": data.merchandiser || '',
       };
     });
 
-    // 3. رفع المابينج الجديد على دفعات (Chunks) لضمان عدم حدوث Timeout لو الشيت كبير
-    const chunkSize = 10000;
+    // 4. Bulk insert mappings in chunks
+    const chunkSize = 1000;
     for (let i = 0; i < rows.length; i += chunkSize) {
       const chunk = rows.slice(i, i + chunkSize);
       const { error: insertError } = await bhs_supabas
@@ -79,10 +87,10 @@ export async function POST(request: Request) {
       }
     }
 
-    // 3. Invalidate Memory Cache
-    invalidateMappingCache(userId);
+    // 5. Invalidate mapping cache
+    invalidateMappingCache();
 
-    return NextResponse.json({ success: true, message: `Inserted ${rows.length} mappings successfully` });
+    return NextResponse.json({ success: true, message: `Uploaded ${rows.length} mappings successfully` });
   } catch (error: any) {
     console.error('API Error saving mapping:', error);
     return NextResponse.json(

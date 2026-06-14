@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { ArrowLeft, DollarSign, Package, TrendingUp, BarChart3, Search, Calendar, Download } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import NoData from '@/app/Components/NoDataTab';
+import Loading from '@/app/Components/Loading';
 import {
   ComposedChart,
   Bar,
@@ -474,11 +475,7 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
   };
 
   if (loading) {
-    return (
-      <div className="flex items-start justify-center pt-24 min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-      </div>
-    );
+    return <Loading fullScreen={false} />;
   }
 
   return (

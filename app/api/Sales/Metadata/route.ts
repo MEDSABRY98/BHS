@@ -1,22 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/app/Sales/Utils/SalesMappingCache';
-import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
+import { getFilteredSalesData, getMappingServer } from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function POST(request: Request) {
   try {
     const { userId, forceRefresh } = await request.json();
 
-    // 1. Fetch cached sales data from Vercel Memory (Super fast)
-    const rawData = await getSalesDataServer();
+    // 1. Get filtered and mapped sales data & mappings for the user
+    const augmentedData = await getFilteredSalesData(userId);
+    const myMappings = await getMappingServer(userId);
 
-    if (!rawData || rawData.length === 0) {
-      return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
-    }
-
-    // 2. Mapping (memory cache)
-    const mappingMap = userId ? await getMappingServer(userId) : new Map();
-
-    // 3. Apply Mapping to extract unique values
+    // 2. Extract unique values
     const areas = new Set<string>();
     const markets = new Set<string>();
     const merchandisers = new Set<string>();
@@ -24,19 +17,21 @@ export async function POST(request: Request) {
     const productTags = new Set<string>();
     const years = new Set<string>();
 
+    // Populate filters from customer assignments (ensures they show up even without sales)
+    myMappings.forEach(m => {
+      if (m.area) areas.add(m.area);
+      if (m.market) markets.add(m.market);
+      if (m.merchandiser) merchandisers.add(m.merchandiser);
+      if (m.salesRep) salesReps.add(m.salesRep);
+    });
+
     let latestDate = 0;
 
-    rawData.forEach(item => {
-      const mapping = mappingMap.get(item.customerId);
-      const area = mapping?.["AREA"] || item.area;
-      const market = mapping?.["MARKET"] || item.market;
-      const merchandiser = mapping?.["MERCHANDISER"] || item.merchandiser;
-      const salesRep = mapping?.["SALES_REP"] || item.salesRep;
-
-      if (area) areas.add(area);
-      if (market) markets.add(market);
-      if (merchandiser) merchandisers.add(merchandiser);
-      if (salesRep) salesReps.add(salesRep);
+    augmentedData.forEach(item => {
+      if (item.area) areas.add(item.area);
+      if (item.market) markets.add(item.market);
+      if (item.merchandiser) merchandisers.add(item.merchandiser);
+      if (item.salesRep) salesReps.add(item.salesRep);
       if (item.productTag) productTags.add(item.productTag);
 
       if (item.invoiceDate) {

@@ -52,23 +52,30 @@ export default function SalesSidebar({
     { id: 'sales-products', label: 'Products', icon: Package },
     { id: 'sales-new-listings', label: 'New Listings', icon: Sparkles },
     { id: 'sales-download-form', label: 'Stock Report', icon: FileText },
-    { id: 'sales-my-customers', label: 'My Customers', icon: User },
+    { id: 'sales-my-customers', label: 'Set Customers', icon: User },
   ];
 
   // Filter tabs based on user permissions
   const getFilteredTabs = () => {
     if (!currentUser) return [];
-    if (currentUser.name === 'MED Sabry') return allTabs;
+
+    const isManager = currentUser.name === 'MED Sabry' || currentUser.isSalesManager === true;
+    let allowedTabs = allTabs;
+    if (!isManager) {
+      allowedTabs = allTabs.filter(tab => tab.id !== 'sales-my-customers');
+    }
+
+    if (currentUser.name === 'MED Sabry') return allowedTabs;
 
     try {
       const perms = JSON.parse(currentUser.role || '{}');
       if (perms.sales && Array.isArray(perms.sales)) {
-        return allTabs.filter(tab => perms.sales.includes(tab.id));
+        return allowedTabs.filter(tab => perms.sales.includes(tab.id));
       }
     } catch (e) {
-      // Default to all if permission role parsing fails
+      // Default to allowedTabs if permission role parsing fails
     }
-    return allTabs;
+    return allowedTabs;
   };
 
   const tabs = getFilteredTabs();

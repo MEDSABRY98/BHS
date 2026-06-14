@@ -259,8 +259,8 @@ export default function ReceiversTab({
                                                             color: '#64748b'
                                                         }}
                                                     >
-                                                        <span>{dateGroup.count} شيك</span>
-                                                        <span style={{ color: 'var(--gold-dark)' }}>
+                                                        <span style={{ width: '60px', textAlign: 'left' }}>{dateGroup.count} شيك</span>
+                                                        <span style={{ color: 'var(--gold-dark)', width: '130px', textAlign: 'left' }}>
                                                             {dateGroup.totalAmount?.toLocaleString('en-US', { minimumFractionDigits: 2 })} د.إ
                                                         </span>
                                                     </div>
@@ -326,7 +326,6 @@ export default function ReceiversTab({
                                                                     key={idx}
                                                                     onClick={() => onTrackingModal(item)}
                                                                     style={{
-                                                                        background: 'white',
                                                                         display: 'flex',
                                                                         alignItems: 'center',
                                                                         marginBottom: '4px',

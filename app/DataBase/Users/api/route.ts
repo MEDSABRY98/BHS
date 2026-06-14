@@ -1,19 +1,21 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 
 export async function GET() {
   try {
     const { data: dbUsers, error } = await bhs_supabas
       .from('bhs_USERS')
-      .select('NAME, ROLE, AUTHORITY')
+      .select('ID, NAME, ROLE, AUTHORITY, IS_SALESMANAGER')
       .order('NAME');
 
     if (error) throw error;
 
     const userNames = dbUsers.map(u => ({
+      id: u.ID,
       name: u.NAME,
       role: u.AUTHORITY || '',
-      userAdmin: u.ROLE
+      userAdmin: u.ROLE,
+      isSalesManager: u.IS_SALESMANAGER === true || u.IS_SALESMANAGER === 'TRUE'
     }));
 
     return NextResponse.json({ users: userNames });
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
 
     const { data: user, error } = await bhs_supabas
       .from('bhs_USERS')
-      .select('NAME, ROLE, AUTHORITY')
+      .select('ID, NAME, ROLE, AUTHORITY, IS_SALESMANAGER')
       .eq('NAME', name)
       .eq('PASSWORD', password)
       .maybeSingle();
@@ -80,9 +82,11 @@ export async function POST(request: Request) {
       return NextResponse.json({
         success: true,
         user: {
+          id: user.ID,
           name: user.NAME,
           role: user.AUTHORITY || '',
-          userAdmin: user.ROLE
+          userAdmin: user.ROLE,
+          isSalesManager: user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE'
         }
       });
     } else {

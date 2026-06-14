@@ -1,25 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
+import { bhs_supabas } from '@/lib/Supabase';
 
 export async function GET() {
   try {
-    const rawData = await getSalesDataServer();
-    if (!rawData || rawData.length === 0) {
-      return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
-    }
+    const { data, error } = await bhs_supabas
+      .from('bhs_CUSTOMERS')
+      .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"')
+      .order('CUSTOMER MAIN NAME', { ascending: true });
 
-    const customersMap = new Map<string, { id: string, mainName: string, subName: string }>();
-    rawData.forEach(item => {
-      if (item.customerId && !customersMap.has(item.customerId)) {
-        customersMap.set(item.customerId, {
-          id: item.customerId,
-          mainName: item.customerMainName || '',
-          subName: item.customerName || ''
-        });
-      }
-    });
+    if (error) throw error;
 
-    const uniqueCustomers = Array.from(customersMap.values()).sort((a, b) => a.id.localeCompare(b.id));
+    const uniqueCustomers = (data || []).map((c: any) => ({
+      id: c['CUSTOMER ID'],
+      mainName: c['CUSTOMER MAIN NAME'] || '',
+      subName: c['CUSTOMER SUB NAME'] || ''
+    }));
 
     return NextResponse.json({ uniqueCustomers });
 

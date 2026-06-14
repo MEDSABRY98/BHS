@@ -1,49 +1,125 @@
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
+import { getSalesDataServer } from './SalesCache';
 
 // ─────────────────────────────────────────────────────────────
-//  Mapping Cache — per userId, memory-level, 1-hour TTL
+//  Mapping Cache — Global, memory-level
 //  Eliminates the per-request DB hit for customer mapping
 //  across ALL Sales API routes (Overview, Products, Customers…)
 // ─────────────────────────────────────────────────────────────
 
-// { userId → { map: Map<customerId, mapping> } }
-const cache = new Map<string, { map: Map<string, any> }>();
+let globalMappingCache: Map<string, any> | null = null;
 
 /**
- * Returns the customer mapping Map for a given userId.
- * First call fetches from DB; subsequent calls return from memory indefinitely until invalidated.
+ * Fetches and builds the global customer mappings.
+ * Joins mapping rows with user names from bhs_USERS and customer names from bhs_CUSTOMERS in-memory.
  */
-export async function getMappingServer(userId: string): Promise<Map<string, any>> {
-  const cached = cache.get(userId);
-
-  if (cached) {
-    return cached.map;
+export async function getGlobalMappings(): Promise<Map<string, any>> {
+  if (globalMappingCache) {
+    return globalMappingCache;
   }
 
-  // Fetch from DB
-  const { data, error } = await bhs_supabas
+  // 1. Fetch mappings
+  const { data: mappings, error: mapErr } = await bhs_supabas
     .from('web_Sales_DB_CUSTOMERSMAPPING')
-    .select('*')
-    .eq('USER_ID', userId);
+    .select('*');
 
-  const mappingMap = new Map<string, any>();
-  if (!error && data) {
-    data.forEach((m: any) => mappingMap.set(m['CUSTOMER ID'], m));
+  if (mapErr) {
+    console.error('Error fetching mappings:', mapErr);
+    return new Map();
   }
 
-  cache.set(userId, { map: mappingMap });
-  console.log(`🗺️ Mapping cached for "${userId}": ${mappingMap.size} entries`);
+  // 2. Fetch users
+  const { data: users, error: userErr } = await bhs_supabas
+    .from('bhs_USERS')
+    .select('ID, NAME');
 
+  const userMap = new Map<string, string>();
+  if (!userErr && users) {
+    users.forEach(u => userMap.set(u.ID, u.NAME));
+  }
+
+  // 3. Fetch customers
+  const { data: customers, error: custErr } = await bhs_supabas
+    .from('bhs_CUSTOMERS')
+    .select('"CUSTOMER ID", "CUSTOMER MAIN NAME", "CUSTOMER SUB NAME"');
+
+  const custMap = new Map<string, { mainName: string; subName: string }>();
+  if (!custErr && customers) {
+    customers.forEach(c => {
+      const cId = String(c['CUSTOMER ID']).trim().toUpperCase();
+      custMap.set(cId, {
+        mainName: c['CUSTOMER MAIN NAME'] || '',
+        subName: c['CUSTOMER SUB NAME'] || '',
+      });
+    });
+  }
+
+  // 4. Merge mapping records
+  const mappingMap = new Map<string, any>();
+  if (mappings) {
+    mappings.forEach((m: any) => {
+      const cId = String(m['CUSTOMER ID']).trim().toUpperCase();
+      mappingMap.set(cId, {
+        id: m.ID,
+        customerId: m['CUSTOMER ID'],
+        userId: m['SALES_REP'],
+        salesRep: userMap.get(m['SALES_REP']) || '',
+        area: m['AREA'] || '',
+        market: m['MARKET'] || '',
+        merchandiser: m['MERCHANDISER'] || '',
+        customerMainName: custMap.get(cId)?.mainName || '',
+        customerSubName: custMap.get(cId)?.subName || '',
+      });
+    });
+  }
+
+  globalMappingCache = mappingMap;
+  console.log(`🗺️ Global mappings cached: ${mappingMap.size} entries`);
   return mappingMap;
 }
 
 /**
- * Invalidates the mapping cache for a user.
- * Call this after uploading a new mapping file.
+ * Returns mappings filtered by user permissions.
+ * Manager sees all, representatives see only their assignments.
  */
-export function invalidateMappingCache(userId: string) {
-  cache.delete(userId);
-  console.log(`🗑️ Mapping cache cleared for "${userId}"`);
+export async function getMappingServer(userId: string): Promise<Map<string, any>> {
+  const allMappings = await getGlobalMappings();
+  const cleanUserId = String(userId || '').trim().toUpperCase();
+
+  if (cleanUserId === 'ADMIN') {
+    return allMappings;
+  }
+
+  // Fetch requester info
+  const { data: user } = await bhs_supabas
+    .from('bhs_USERS')
+    .select('NAME, ROLE, IS_SALESMANAGER')
+    .eq('ID', cleanUserId)
+    .maybeSingle();
+
+  const isManager = user?.NAME === 'MED Sabry' || user?.ROLE?.toLowerCase() === 'admin' || user?.IS_SALESMANAGER === true || user?.IS_SALESMANAGER === 'TRUE';
+
+  if (isManager) {
+    return allMappings;
+  }
+
+  // Filter mappings to user assignments
+  const filtered = new Map<string, any>();
+  allMappings.forEach((val, key) => {
+    if (String(val.userId || '').trim().toUpperCase() === cleanUserId) {
+      filtered.set(key, val);
+    }
+  });
+
+  return filtered;
+}
+
+/**
+ * Invalidates the global mapping cache.
+ */
+export function invalidateMappingCache(userId?: string) {
+  globalMappingCache = null;
+  console.log('🗑️ Global mapping cache invalidated');
 }
 
 /**
@@ -51,15 +127,68 @@ export function invalidateMappingCache(userId: string) {
  */
 export function applyMapping(item: any, mappingMap: Map<string, any>): any {
   if (mappingMap.size === 0) return item;
-  const mapping = mappingMap.get(item.customerId);
+  const cId = String(item.customerId || '').trim().toUpperCase();
+  const mapping = mappingMap.get(cId);
   if (!mapping) return item;
   return {
     ...item,
-    customerMainName: mapping['CUSTOMER MAIN NAME'] || item.customerMainName,
-    customerName:     mapping['CUSTOMER SUB NAME']  || item.customerName,
-    area:             mapping['AREA']               || item.area,
-    market:           mapping['MARKET']             || item.market,
-    merchandiser:     mapping['MERCHANDISER']        || item.merchandiser,
-    salesRep:         mapping['SALES_REP']           || item.salesRep,
+    customerMainName: mapping.customerMainName || item.customerMainName,
+    customerName: mapping.customerSubName || item.customerName,
+    area: mapping.area || item.area,
+    market: mapping.market || item.market,
+    merchandiser: mapping.merchandiser || item.merchandiser,
+    salesRep: mapping.salesRep || item.salesRep,
+    salesRepId: mapping.userId || '',
   };
+}
+
+/**
+ * Fetch, augment, and filter sales data for a specific user ID.
+ * Managers get all data, representatives only see their assigned customers.
+ */
+export async function getFilteredSalesData(userId: string): Promise<any[]> {
+  const rawSales = await getSalesDataServer();
+  const allMappings = await getGlobalMappings();
+  const cleanUserId = String(userId || '').trim().toUpperCase();
+
+  const isManager = cleanUserId === 'ADMIN' ? true : await checkIsManager(cleanUserId);
+
+  const processed: any[] = [];
+  rawSales.forEach((item: any) => {
+    const cId = String(item.customerId || '').trim().toUpperCase();
+    const mapping = allMappings.get(cId);
+
+    const isAssigned = mapping && String(mapping.userId || '').trim().toUpperCase() === cleanUserId;
+
+    if (isManager || isAssigned) {
+      const mappedItem = {
+        ...item,
+        customerMainName: mapping?.customerMainName || item.customerMainName,
+        customerName: mapping?.customerSubName || item.customerName,
+        area: mapping?.area || '',
+        market: mapping?.market || '',
+        merchandiser: mapping?.merchandiser || '',
+        salesRep: mapping?.salesRep || '',
+        salesRepId: mapping?.userId || '',
+      };
+      processed.push(mappedItem);
+    }
+  });
+
+  return processed;
+}
+
+/**
+ * Internal helper to check manager rights
+ */
+async function checkIsManager(userId: string): Promise<boolean> {
+  const cleanUserId = String(userId || '').trim().toUpperCase();
+  const { data: user } = await bhs_supabas
+    .from('bhs_USERS')
+    .select('NAME, ROLE, IS_SALESMANAGER')
+    .eq('ID', cleanUserId)
+    .maybeSingle();
+
+  if (!user) return false;
+  return user.NAME === 'MED Sabry' || user.ROLE?.toLowerCase() === 'admin' || user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE';
 }

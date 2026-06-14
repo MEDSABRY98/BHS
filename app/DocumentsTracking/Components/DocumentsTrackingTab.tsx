@@ -75,17 +75,13 @@ export default function DocumentsTrackingTab() {
             if (data.records) {
                 const mappedChecks: Check[] = data.records.map((r: any) => {
                     const timeline = [];
-                    if (r.datedReceived) timeline.push({ event: 'تم الاستلام', time: r.datedReceived });
-                    if (r.datedRecord) timeline.push({ event: 'مسجلة في السيستم', time: r.datedRecord });
                     if (r.datedSendToOffice) timeline.push({ event: 'مسلّمة للمكتب الرئيسي', time: r.datedSendToOffice });
 
                     let status: 'received' | 'registered' | 'delivered' = 'received';
                     const s = (r.documentStatus || '').toString().trim();
                     if (s === 'مسلّمة للمكتب الرئيسي') status = 'delivered';
                     else if (s === 'مسجلة في السيستم') status = 'registered';
-                    else if (s === 'مستلمة') status = 'received';
                     else if (r.datedSendToOffice) status = 'delivered';
-                    else if (r.datedRecord) status = 'registered';
 
                     return {
                         id: r.documentId,
@@ -212,10 +208,6 @@ export default function DocumentsTrackingTab() {
             const now = new Date().toLocaleString('ar-AE');
             const updateFields: any = {
                 documentStatus: STATUS_LABELS[next],
-                datedRecord:
-                    currentStatus === 'received'
-                        ? now
-                        : currentCheck.timeline.find(t => t.event === 'مسجلة في السيستم')?.time || '',
                 datedSendToOffice: next === 'delivered' ? now : ''
             };
 
@@ -252,12 +244,10 @@ export default function DocumentsTrackingTab() {
 
         setIsLoading(true);
         try {
-            const now = new Date().toLocaleString('ar-AE');
             const updates = receivedChecks.map(c => ({
                 rowIndex: c.rowIndex,
                 data: {
-                    documentStatus: STATUS_LABELS.registered,
-                    datedRecord: now
+                    documentStatus: STATUS_LABELS.registered
                 }
             }));
 

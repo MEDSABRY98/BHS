@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { User, Lock, ChevronDown, Check, Loader2, ArrowRight } from 'lucide-react';
 
+import Loading from '@/app/Components/Loading';
+
 interface LoginProps {
   onLogin: (user: any) => void;
 }
@@ -120,65 +122,7 @@ export default function Login({ onLogin }: LoginProps) {
   };
 
   if (fetchingUsers) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white overflow-hidden relative" dir="rtl">
-        {/* Soft Modern Background Decor - Subtle & Premium */}
-        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-[-10%] left-[-5%] w-[40%] h-[40%] bg-indigo-50/50 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '10s' }} />
-          <div className="absolute bottom-[-10%] right-[-5%] w-[40%] h-[40%] bg-blue-50/50 rounded-full blur-[120px] animate-pulse" style={{ animationDuration: '12s', animationDelay: '2s' }} />
-        </div>
-
-        <div className="relative z-10 flex flex-col items-center gap-14">
-          {/* Larger Logo Container - Premium & Strong */}
-          <div className="relative group scale-110">
-            <div className="w-32 h-32 rounded-[2.5rem] bg-white border border-slate-100 shadow-[0_30px_70px_rgba(0,0,0,0.08)] flex items-center justify-center animate-in zoom-in-95 fade-in duration-1000">
-              <span className="text-5xl font-black text-slate-900 tracking-tighter">BH</span>
-            </div>
-            {/* Premium Static Halo - Full Circle Pulsing */}
-            <div className="absolute -inset-4">
-              <svg className="w-40 h-40">
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="76"
-                  fill="transparent"
-                  stroke="#E2E8F0"
-                  strokeWidth="1.5"
-                  className="opacity-50"
-                />
-                <circle
-                  cx="80"
-                  cy="80"
-                  r="76"
-                  fill="transparent"
-                  stroke="#4F46E5"
-                  strokeWidth="2.5"
-                  className="animate-[breathe_3s_ease-in-out_infinite]"
-                  style={{ filter: 'drop-shadow(0 0 12px rgba(79, 70, 229, 0.4))' }}
-                />
-              </svg>
-            </div>
-          </div>
-
-          {/* Text Section */}
-          <div className="flex flex-col items-center gap-4">
-            <h2 className="text-base font-black text-slate-900 tracking-[0.4em] uppercase opacity-90">BHS Analysis</h2>
-            <div className="flex items-center gap-3">
-              <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-              <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-              <span className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
-            </div>
-          </div>
-        </div>
-
-        <style jsx>{`
-        @keyframes breathe {
-          0%, 100% { opacity: 0.3; transform: scale(0.98); }
-          50% { opacity: 1; transform: scale(1); }
-        }
-      `}</style>
-      </div>
-    );
+    return <Loading message="Loading Accounts..." />;
   }
 
   return (

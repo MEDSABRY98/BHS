@@ -1,5 +1,5 @@
 import React from 'react';
-import { Hash, Calendar, User, DollarSign, FileText, CheckCircle2 } from 'lucide-react';
+import { Hash, Calendar, User, DollarSign, FileText, CheckCircle2, X } from 'lucide-react';
 
 interface FormData {
   receiptNumber: string;
@@ -17,6 +17,8 @@ interface NewReceiptFormProps {
   handleAmountChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   loading: boolean;
   onPrint: () => void;
+  isEditing?: boolean;
+  onCancel?: () => void;
 }
 
 export default function NewReceiptForm({
@@ -25,6 +27,8 @@ export default function NewReceiptForm({
   handleAmountChange,
   loading,
   onPrint,
+  isEditing,
+  onCancel,
 }: NewReceiptFormProps) {
   return (
     <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -33,23 +37,35 @@ export default function NewReceiptForm({
           <div>
             <h2 className="text-3xl font-black text-gray-900 tracking-tight uppercase">CASH RECEIPT</h2>
           </div>
-          <button
-            onClick={onPrint}
-            disabled={loading}
-            className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
-          >
-            {loading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                <span>Saving...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className="w-5 h-5" />
-                <span>Save & Print</span>
-              </>
+          <div className="flex items-center gap-3">
+            {isEditing && (
+              <button
+                onClick={onCancel}
+                disabled={loading}
+                title="Cancel Edit"
+                className="flex items-center justify-center p-3.5 bg-gray-100 text-gray-500 rounded-xl hover:bg-red-50 hover:text-red-600 transition-all disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
             )}
-          </button>
+            <button
+              onClick={onPrint}
+              disabled={loading}
+              className="flex items-center justify-center gap-2 bg-slate-900 text-white min-w-[220px] py-3 rounded-xl font-bold text-base hover:bg-black hover:translate-y-[-1px] transition-all disabled:opacity-50 shadow-lg shadow-slate-200"
+            >
+              {loading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-5 h-5" />
+                  <span>{isEditing ? 'Update Receipt' : 'Save & Print'}</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">

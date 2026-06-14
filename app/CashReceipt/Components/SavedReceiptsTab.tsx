@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, FileText, Printer, Hash, Calendar } from 'lucide-react';
+import { ArrowLeft, FileText, Printer, Hash, Calendar, Edit2, Trash2 } from 'lucide-react';
 import ReceiptDocument from './ReceiptDocument';
 
 interface Receipt {
@@ -18,6 +18,8 @@ interface SavedReceiptsTabProps {
   selectedReceipt: Receipt | null;
   setSelectedReceipt: (receipt: Receipt | null) => void;
   onReprint: (receipt: Receipt) => void;
+  onEdit: (receipt: Receipt) => void;
+  onDelete: (receipt: Receipt) => void;
   searchQuery: string;
   receivedBySignature?: string;
 }
@@ -28,6 +30,8 @@ export default function SavedReceiptsTab({
   selectedReceipt,
   setSelectedReceipt,
   onReprint,
+  onEdit,
+  onDelete,
   searchQuery,
   receivedBySignature,
 }: SavedReceiptsTabProps) {
@@ -53,13 +57,29 @@ export default function SavedReceiptsTab({
               </p>
             </div>
           </div>
-          <button
-            onClick={() => onReprint(selectedReceipt)}
-            className="flex items-center gap-2.5 bg-black text-white px-6 py-3 rounded-xl font-black hover:bg-gray-800 transition-all shadow-lg text-sm"
-          >
-            <Printer className="w-4 h-4" />
-            Reprint Receipt
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => onEdit(selectedReceipt)}
+              title="Edit Receipt"
+              className="p-3 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 hover:text-black transition-all shadow-sm"
+            >
+              <Edit2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => onDelete(selectedReceipt)}
+              title="Delete Receipt"
+              className="p-3 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 hover:text-red-700 transition-all shadow-sm"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => onReprint(selectedReceipt)}
+              title="Reprint Receipt"
+              className="p-3 bg-black text-white rounded-xl hover:bg-gray-800 transition-all shadow-lg"
+            >
+              <Printer className="w-5 h-5" />
+            </button>
+          </div>
         </div>
         <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
           <ReceiptDocument data={selectedReceipt} receivedBySignature={receivedBySignature} />

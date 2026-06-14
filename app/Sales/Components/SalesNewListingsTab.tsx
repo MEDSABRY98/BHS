@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, Calendar, Package, Users, Search } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
 import SalesNewListingsProducts from './SalesNewListingsProducts';
+import Loading from '@/app/Components/Loading';
 import SalesNewListingsCustomers from './SalesNewListingsCustomers';
 
 interface SalesNewListingsTabProps {
@@ -44,11 +45,7 @@ export default function SalesNewListingsTab({ userId, filters, refreshTrigger }:
   }, [userId, filters, refreshTrigger]);
 
   if (loading) {
-    return (
-      <div className="flex items-start justify-center pt-24 min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-      </div>
-    );
+    return <Loading fullScreen={false} />;
   }
 
   return (

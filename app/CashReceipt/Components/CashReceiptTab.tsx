@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { PlusCircle, List } from 'lucide-react';
+import { PlusCircle, List, AlertTriangle } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import Header from './Header';
 import NewReceiptForm from './NewReceiptForm';
 import SavedReceiptsTab from './SavedReceiptsTab';
 import ReceiptDocument from './ReceiptDocument';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 
 function convertColorsToRgb(element: HTMLElement) {
   const properties = [
@@ -156,9 +156,14 @@ export default function CashReceiptTab({
   const [savedReceipts, setSavedReceipts] = useState<any[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [isFetchingSaved, setIsFetchingSaved] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [receiptToDelete, setReceiptToDelete] = useState<any>(null);
 
   useEffect(() => {
     setSelectedReceipt(null);
+    if (activeTab === 'new' && !isEditing) {
+      fetchNextReceiptNumber();
+    }
   }, [activeTab]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -205,10 +210,11 @@ export default function CashReceiptTab({
     }));
   };
 
-  const saveToGoogleSheets = async () => {
+  const saveToDatabase = async () => {
     try {
+      const method = isEditing ? 'PUT' : 'POST';
       const response = await fetch('/api/CashReceipt', {
-        method: 'POST',
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -225,7 +231,7 @@ export default function CashReceiptTab({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to save to Google Sheets');
+        throw new Error(errorData.error || 'Failed to save to database');
       }
       return true;
     } catch (error: any) {
@@ -243,9 +249,9 @@ export default function CashReceiptTab({
 
     setLoading(true);
 
-    const saved = await saveToGoogleSheets();
+    const saved = await saveToDatabase();
     if (!saved) {
-      if (!confirm('Failed to save to Google Sheets. This receipt number might already exist or there was a connection error. Do you want to continue printing anyway without saving?')) {
+      if (!confirm('Failed to save to Database. This receipt number might already exist or there was a connection error. Do you want to continue printing anyway without saving?')) {
         setLoading(false);
         return;
       }
@@ -298,6 +304,7 @@ export default function CashReceiptTab({
 
       // If saved successfully, clear the form
       if (saved) {
+        setIsEditing(false);
         const nextId = await fetchNextReceiptNumber();
         setFormData({
           receivedFrom: '',
@@ -345,7 +352,7 @@ export default function CashReceiptTab({
 
   const fetchNextReceiptNumber = async () => {
     try {
-      const response = await fetch('/api/CashReceipt');
+      const response = await fetch('/api/CashReceipt?t=' + Date.now());
       if (response.ok) {
         const data = await response.json();
         if (data.nextId) {
@@ -362,7 +369,7 @@ export default function CashReceiptTab({
   const fetchSavedReceipts = async () => {
     setIsFetchingSaved(true);
     try {
-      const response = await fetch('/api/CashReceipt?all=true');
+      const response = await fetch('/api/CashReceipt?all=true&t=' + Date.now());
       if (response.ok) {
         const data = await response.json();
         setSavedReceipts(data.receipts || []);
@@ -416,6 +423,61 @@ export default function CashReceiptTab({
     }, 100);
   };
 
+  const handleEdit = (receipt: any) => {
+    setFormData({
+      date: receipt.date,
+      receiptNumber: receipt.receiptNumber,
+      receivedFrom: receipt.receivedFrom,
+      sendBy: receipt.sendBy,
+      amount: receipt.amount?.toString() || '',
+      amountInWords: receipt.amountInWords,
+      reason: receipt.reason
+    });
+    setIsEditing(true);
+    setActiveTab('new');
+  };
+
+  const handleDelete = (receipt: any) => {
+    setReceiptToDelete(receipt);
+  };
+
+  const confirmDelete = async () => {
+    if (!receiptToDelete) return;
+    
+    try {
+      const response = await fetch(`/api/CashReceipt?receiptNumber=${receiptToDelete.receiptNumber}`, {
+        method: 'DELETE'
+      });
+      if (response.ok) {
+        fetchSavedReceipts();
+        setSelectedReceipt(null);
+      } else {
+        const errorData = await response.json();
+        alert('Failed to delete: ' + errorData.error);
+      }
+    } catch (err) {
+      console.error('Error deleting:', err);
+      alert('An error occurred while deleting.');
+    } finally {
+      setReceiptToDelete(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    fetchNextReceiptNumber().then(nextId => {
+      setFormData({
+        receivedFrom: '',
+        sendBy: '',
+        amount: '',
+        amountInWords: '',
+        reason: '',
+        date: new Date().toISOString().split('T')[0],
+        receiptNumber: nextId || ''
+      });
+    });
+  };
+
   return (
     <>
       {/* Main Content Area */}
@@ -428,6 +490,8 @@ export default function CashReceiptTab({
               handleAmountChange={handleAmountChange}
               loading={loading}
               onPrint={handlePrint}
+              isEditing={isEditing}
+              onCancel={handleCancelEdit}
             />
           )}
 
@@ -438,6 +502,8 @@ export default function CashReceiptTab({
               selectedReceipt={selectedReceipt}
               setSelectedReceipt={setSelectedReceipt}
               onReprint={handleReprint}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
               searchQuery={searchQuery}
               receivedBySignature={medSabrySignature}
             />
@@ -454,6 +520,37 @@ export default function CashReceiptTab({
           <ReceiptDocument data={formData} isCopy={true} receivedBySignature={medSabrySignature} />
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {receiptToDelete && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-8 max-w-md w-full shadow-2xl border border-gray-100 animate-in zoom-in-95 duration-300">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-6">
+                <AlertTriangle className="w-8 h-8 text-red-500" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Delete Receipt?</h3>
+              <p className="text-gray-500 font-medium mb-8">
+                Are you sure you want to delete receipt <span className="text-gray-900 font-bold">{receiptToDelete.receiptNumber}</span>? This action cannot be undone.
+              </p>
+              <div className="flex w-full gap-3">
+                <button
+                  onClick={() => setReceiptToDelete(null)}
+                  className="flex-1 py-3.5 px-4 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmDelete}
+                  className="flex-1 py-3.5 px-4 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 hover:shadow-lg hover:shadow-red-600/20 transition-all"
+                >
+                  Yes, Delete
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }

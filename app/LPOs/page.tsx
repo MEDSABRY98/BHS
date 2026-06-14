@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 import {
   TrendingUp,
   Clock,
@@ -328,8 +328,8 @@ export default function DashboardPage() {
                       {/* 4. Status */}
                       <td className="px-6 py-6">
                         <div className={`inline-flex items-center px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider ${isCancelled ? 'bg-red-50 text-red-600' :
-                            isDelivered ? 'bg-emerald-50 text-emerald-600' :
-                              'bg-orange-50 text-orange-600'
+                          isDelivered ? 'bg-emerald-50 text-emerald-600' :
+                            'bg-orange-50 text-orange-600'
                           }`}>
                           {isCancelled ? 'Cancelled' : isDelivered ? 'Delivered' : inv.STATUS || 'Pending'}
                         </div>

@@ -1,29 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getMappingServer, applyMapping } from '@/app/Sales/Utils/SalesMappingCache';
-import { getSalesDataServer } from '@/app/Sales/Utils/SalesCache';
+import { getFilteredSalesData } from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function POST(request: Request) {
   try {
     const { userId, filters, productId } = await request.json();
 
-    const rawData = await getSalesDataServer();
-    if (!rawData || rawData.length === 0) {
-      return NextResponse.json({ error: 'Sales cache is empty' }, { status: 500 });
-    }
+    const augmentedData = await getFilteredSalesData(userId);
 
     // First filter down to just THIS PRODUCT to save loop operations!
-    let productRawData = rawData.filter(item => {
+    let productRawData = augmentedData.filter(item => {
       return (item.productId || item.barcode || item.product) === productId;
     });
 
-    // Mapping (memory cache — no DB call after first request)
-    const mappingMap = userId ? await getMappingServer(userId) : new Map();
-    const augmentedData = mappingMap.size > 0
-      ? productRawData.map((item: any) => applyMapping(item, mappingMap))
-      : productRawData;
-
     // Apply Global Filters (except date) -> to get `allData`
-    let allData = augmentedData;
+    let allData = productRawData;
     if (filters) {
       const { invoiceType, area, market, merchandiser, salesRep, productTag } = filters;
 

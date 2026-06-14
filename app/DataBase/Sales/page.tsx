@@ -6,7 +6,7 @@ import { usePermissions } from '../../LPOs/Hooks/usePermissions';
 import { ConfirmModal } from '../../LPOs/Components/ConfirmModal';
 import NoData from '@/app/Components/NoDataTab';
 import { toast } from '@/app/Components/Notification';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 import * as XLSX from 'xlsx';
 
 const englishMonths: Record<number, string> = {
@@ -90,7 +90,7 @@ export default function SalesDBPage() {
       'AMOUNT',
       'QTY'
     ];
-    
+
     // Create a worksheet with headers and a sample row
     const sampleRow = {
       'INVOICE DATE': '2026-06-12',
@@ -392,9 +392,8 @@ export default function SalesDBPage() {
 
                 {/* Upload Label Button */}
                 <label
-                  className={`w-full py-4 px-6 bg-black text-[#D4AF37] rounded-2xl font-bold flex items-center justify-center gap-3 shadow-xl shadow-black/10 transition-all hover:scale-[1.01] cursor-pointer ${
-                    isUploading ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
+                  className={`w-full py-4 px-6 bg-black text-[#D4AF37] rounded-2xl font-bold flex items-center justify-center gap-3 shadow-xl shadow-black/10 transition-all hover:scale-[1.01] cursor-pointer ${isUploading ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                 >
                   {isUploading ? (
                     <Loader2 className="w-5 h-5 animate-spin" />

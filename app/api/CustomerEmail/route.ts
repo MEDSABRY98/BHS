@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { resolveCustomerEmailTargets } from '@/lib/googleSheets';
+import { resolveCustomerEmailTargets } from '@/lib/Sheets/GoogleSheets';
 
 export async function GET(request: Request) {
   try {

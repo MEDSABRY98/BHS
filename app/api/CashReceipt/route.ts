@@ -1,10 +1,8 @@
 import { NextResponse } from 'next/server';
-import { google } from 'googleapis';
-import { getServiceAccountCredentials, SPREADSHEET_ID } from '@/lib/googleSheets';
+import { bhs_supabase } from '@/lib/Supabase';
 
 /**
- * Saves a cash receipt to the 'Cash Receipt' sheet.
- * Columns: DATE, RECEIPT NUMBER, RECEIVED FROM, SEND BY, AMOUNT, AMOUNT IN WORDS, PAYMENT REASON
+ * Saves a cash receipt to the Supabase table 'web_Cash_Receipt'
  */
 async function saveCashReceipt(data: {
   date: string;
@@ -16,34 +14,19 @@ async function saveCashReceipt(data: {
   reason: string;
 }): Promise<{ success: boolean }> {
   try {
-    const credentials = getServiceAccountCredentials();
+    const { error } = await bhs_supabase
+      .from('web_Cash_Receipt')
+      .insert([{
+        "DATE": data.date,
+        "RECEIPT NUMBER": data.receiptNumber,
+        "RECEIVED FROM": data.receivedFrom,
+        "SEND BY": data.sendBy,
+        "AMOUNT": data.amount,
+        "AMOUNT IN WORDS": data.amountInWords,
+        "PAYMENT REASON": data.reason
+      }]);
 
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const rowValues = [
-      data.date,           // A: DATE
-      data.receiptNumber,  // B: RECEIPT NUMBER
-      data.receivedFrom,   // C: RECEIVED FROM
-      data.sendBy,         // D: SEND BY
-      data.amount.toString(), // E: AMOUNT
-      data.amountInWords,  // F: AMOUNT IN WORDS
-      data.reason          // G: PAYMENT REASON
-    ];
-
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Cash Receipt'!A:G`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [rowValues],
-      },
-    });
-
+    if (error) throw error;
     return { success: true };
   } catch (error) {
     console.error('Error saving cash receipt:', error);
@@ -52,71 +35,52 @@ async function saveCashReceipt(data: {
 }
 
 /**
- * Gets the last receipt number from the 'Cash Receipt' sheet.
+ * Gets the last receipt number to preview the next one
  */
 async function getLastReceiptNumber(): Promise<string> {
   try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
+    const { data, error } = await bhs_supabase
+      .from('web_Cash_Receipt')
+      .select('"RECEIPT NUMBER"')
+      .order('ID', { ascending: false })
+      .limit(1);
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Cash Receipt'!B:B`, // RECEIPT NUMBER column
-    });
+    if (error) throw error;
 
-    const values = response.data.values;
-    if (!values || values.length <= 1) {
-      return 'CAH-000'; // Default if no data or only header
+    if (!data || data.length === 0 || !data[0]['RECEIPT NUMBER']) {
+      return 'R-0000'; // Default start so next is R-0001
     }
 
-    // Filter out empty or non-ID rows and get the last one
-    const idRows = values.filter((row: string[]) => row[0] && row[0].includes('-'));
-    if (idRows.length === 0) return 'CAH-000';
-
-    return idRows[idRows.length - 1][0];
+    return data[0]['RECEIPT NUMBER'];
   } catch (error) {
     console.error('Error getting last receipt number:', error);
-    return 'CAH-000';
+    return 'R-0000';
   }
 }
 
 /**
- * Fetches all cash receipts from the 'Cash Receipt' sheet.
+ * Fetches all cash receipts
  */
 async function getAllReceipts() {
   try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
+    const { data, error } = await bhs_supabase
+      .from('web_Cash_Receipt')
+      .select('*')
+      .order('ID', { ascending: false });
 
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Cash Receipt'!A:G`,
-    });
+    if (error) throw error;
+    if (!data) return [];
 
-    const rows = response.data.values;
-    if (!rows || rows.length <= 1) {
-      return [];
-    }
-
-    // Header Row: DATE, RECEIPT NUMBER, RECEIVED FROM, SEND BY, AMOUNT, AMOUNT IN WORDS, PAYMENT REASON
-    return rows.slice(1).map((row, index) => ({
-      rowIndex: index + 2, // 1-based index + header offset
-      date: row[0] || '',
-      receiptNumber: row[1] || '',
-      receivedFrom: row[2] || '',
-      sendBy: row[3] || '',
-      amount: parseFloat(row[4]?.toString().replace(/,/g, '') || '0'),
-      amountInWords: row[5] || '',
-      reason: row[6] || '',
-    })).filter(r => r.receiptNumber);
+    return data.map((row) => ({
+      rowIndex: row['ID'], // Using ID instead of index
+      date: row['DATE'] || '',
+      receiptNumber: row['RECEIPT NUMBER'] || '',
+      receivedFrom: row['RECEIVED FROM'] || '',
+      sendBy: row['SEND BY'] || '',
+      amount: parseFloat(row['AMOUNT']?.toString() || '0'),
+      amountInWords: row['AMOUNT IN WORDS'] || '',
+      reason: row['PAYMENT REASON'] || '',
+    }));
   } catch (error) {
     console.error('Error fetching all receipts:', error);
     throw error;
@@ -138,13 +102,13 @@ export async function GET(request: Request) {
     let nextNum = 1;
 
     if (parts.length > 1) {
-      const numPart = parseInt(parts[1]);
+      const numPart = parseInt(parts[1], 10);
       if (!isNaN(numPart)) {
         nextNum = numPart + 1;
       }
     }
 
-    const nextId = `CAH-${nextNum.toString().padStart(3, '0')}`;
+    const nextId = `R-${nextNum.toString().padStart(4, '0')}`;
     return NextResponse.json({ nextId });
   } catch (error: any) {
     console.error('API Error:', error);
@@ -168,9 +132,13 @@ export async function POST(request: Request) {
     }
 
     // Check if receipt number already exists
-    const allReceipts = await getAllReceipts();
-    const exists = allReceipts.some((r: any) => r.receiptNumber.toLowerCase() === receiptNumber.toLowerCase());
-    if (exists) {
+    const { data: existing, error: searchError } = await bhs_supabase
+      .from('web_Cash_Receipt')
+      .select('"RECEIPT NUMBER"')
+      .ilike('"RECEIPT NUMBER"', receiptNumber)
+      .limit(1);
+      
+    if (existing && existing.length > 0) {
       return NextResponse.json(
         { error: `Receipt number ${receiptNumber} already exists in the system.` },
         { status: 409 }
@@ -192,6 +160,71 @@ export async function POST(request: Request) {
     console.error('API Error:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to save cash receipt' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const body = await request.json();
+    const { date, receiptNumber, receivedFrom, sendBy, amount, amountInWords, reason } = body;
+
+    if (!receiptNumber) {
+      return NextResponse.json(
+        { error: 'Missing receipt number for update' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await bhs_supabase
+      .from('web_Cash_Receipt')
+      .update({
+        "DATE": date,
+        "RECEIVED FROM": receivedFrom,
+        "SEND BY": sendBy,
+        "AMOUNT": parseFloat(amount),
+        "AMOUNT IN WORDS": amountInWords,
+        "PAYMENT REASON": reason
+      })
+      .eq('"RECEIPT NUMBER"', receiptNumber);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update cash receipt' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const receiptNumber = searchParams.get('receiptNumber');
+
+    if (!receiptNumber) {
+      return NextResponse.json(
+        { error: 'Missing receipt number for deletion' },
+        { status: 400 }
+      );
+    }
+
+    const { error } = await bhs_supabase
+      .from('web_Cash_Receipt')
+      .delete()
+      .eq('"RECEIPT NUMBER"', receiptNumber);
+
+    if (error) throw error;
+
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to delete cash receipt' },
       { status: 500 }
     );
   }

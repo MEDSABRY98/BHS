@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getLuluEmails } from '@/lib/googleSheets';
+import { getLuluEmails } from '@/lib/Sheets/GoogleSheets';
 
 export const dynamic = 'force-dynamic';
 

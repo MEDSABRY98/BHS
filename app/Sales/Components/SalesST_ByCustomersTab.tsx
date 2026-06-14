@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { Search, ChevronLeft, ChevronRight, Loader2, DollarSign, FileText, FileSpreadsheet, FileDown } from 'lucide-react';
 import { generateSalesPricelistPDF } from '@/app/Sales/Pdf/SalesPricelist';
 import { generateSalesStockFormPDF } from '@/app/Sales/Pdf/SalesStockForm';
 import { generateSalesAnalysisComparisonPDF } from '@/app/Sales/Pdf/SalesAnalysisComparison';;
 import NoData from '@/app/Components/NoDataTab';
+import Loading from '@/app/Components/Loading';
 import JSZip from 'jszip';
 import { saveAs } from 'file-saver';
 import * as XLSX from 'xlsx';
@@ -159,11 +160,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
     } catch (error) { console.error(error); } finally { setIsGenerating(false); setGenerationProgress({ current: 0, total: 0 }); }
   };
 
-  if (loading) return (
-    <div className="flex items-start justify-center pt-24 min-h-[400px]">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-    </div>
-  );
+  if (loading) return <Loading fullScreen={false} />;
 
   return (
     <div className="space-y-6">
@@ -186,7 +183,7 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
               className="h-10 w-10 flex items-center justify-center bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-sm group disabled:opacity-30 shrink-0"
               title="Bulk Export"
             >
-              {isGenerating ? <Loader2 className="h-5 w-5 animate-spin" /> : <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />}
+              <FileSpreadsheet className={`h-5 w-5 ${isGenerating ? 'opacity-50' : 'transition-transform group-hover:scale-110'}`} />
             </button>
             {isGenerating && (
               <span className="text-[8px] font-black text-green-600 uppercase animate-pulse">{generationProgress.current}/{generationProgress.total}</span>

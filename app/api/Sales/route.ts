@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 
 export async function GET(request: Request) {
   try {
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
     // -------------------------------------------------------------
     // مسار جلب المبيعات بالكامل (All Sales Data)
     // -------------------------------------------------------------
-    
+
     if (!refresh) {
       const { data: cacheRow, error: cacheErr } = await bhs_supabas
         .from('web_Sales_DB_Cache')

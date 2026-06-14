@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabase } from '@/lib/supabase';
+import { bhs_supabase } from '@/lib/Supabase';
 
 // GET: Fetch all voucher records
 export async function GET() {

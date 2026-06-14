@@ -20,7 +20,6 @@ const SYSTEMS = [
     { id: 'sales', label: 'Sales Analysis' },
     { id: 'inventory', label: 'Inventory' },
     { id: 'inventory-scrap', label: 'Inventory Scrap' },
-    { id: 'wh20-items', label: 'WarehouseS' },
     { id: 'suppliers', label: 'Suppliers' },
     { id: 'customers-summaries', label: 'Customers Summaries' },
     { id: 'customers-documents', label: 'Customers Documents' },
@@ -77,12 +76,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'checklist', label: 'Checklist' },
         { id: 'expiration', label: 'Expiration Tracker' }
     ],
-    'wh20-items': [
-        { id: 'entry', label: 'Entry' },
-        { id: 'edit', label: 'Edit Transaction' },
-        { id: 'history', label: 'History' },
-        { id: 'people', label: 'People Inventory' }
-    ],
     'suppliers': [
         { id: 'statements', label: 'Statements' },
         { id: 'matching', label: 'Matching' }
@@ -130,7 +123,6 @@ const getSystemIcon = (id: string) => {
         case 'sales': return <TrendingUp className="w-5 h-5 text-blue-500" />;
         case 'inventory': return <Package className="w-5 h-5 text-amber-500" />;
         case 'inventory-scrap': return <Trash2 className="w-5 h-5 text-orange-500" />;
-        case 'wh20-items': return <Warehouse className="w-5 h-5 text-cyan-500" />;
         case 'suppliers': return <Truck className="w-5 h-5 text-purple-500" />;
         case 'customers-summaries': return <FileText className="w-5 h-5 text-teal-500" />;
         case 'customers-documents': return <FileCheck className="w-5 h-5 text-pink-500" />;

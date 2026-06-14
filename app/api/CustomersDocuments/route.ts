@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +9,7 @@ async function syncCustomersFromBhs() {
     const { data: bhsCustomers, error: bhsError } = await bhs_supabas
       .from('bhs_CUSTOMERS')
       .select('"CUSTOMER MAIN NAME"');
-      
+
     if (bhsError) {
       console.error('Error fetching bhs_CUSTOMERS for sync:', bhsError);
       return;
@@ -45,7 +45,7 @@ async function syncCustomersFromBhs() {
       const { error: insertError } = await bhs_supabas
         .from('web_CUSTOMERSDOCUMENTS')
         .insert(newCustomersToInsert);
-      
+
       if (insertError) {
         console.error('Error inserting synced customers:', insertError);
       } else {
@@ -120,7 +120,7 @@ export async function POST(req: Request) {
     if (data.passportDate !== undefined) updateFields.PASSPORT_DATE = data.passportDate;
     if (data.id !== undefined) updateFields.ID_CARD = data.id;
     if (data.idDate !== undefined) updateFields.ID_DATE = data.idDate;
-    
+
     updateFields.UPDATED_AT = new Date().toISOString();
 
     const { data: result, error } = await bhs_supabas

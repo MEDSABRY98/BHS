@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getProductMovementsData } from '@/lib/googleSheets';
+import { getProductMovementsData } from '@/lib/Sheets/GoogleSheets';
 
 export async function GET() {
     try {

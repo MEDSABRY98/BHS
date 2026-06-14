@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { SalesInvoice } from '@/lib/googleSheets';
+import { SalesInvoice } from '@/lib/Sheets/GoogleSheets';
 import { Search, Loader2, DollarSign, User, TrendingUp, FileSpreadsheet, BarChart2, X } from 'lucide-react';
 import NoData from '@/app/Components/NoDataTab';
+import Loading from '@/app/Components/Loading';
 import * as XLSX from 'xlsx';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, LabelList } from 'recharts';
 
@@ -83,11 +84,7 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
     XLSX.writeFile(wb, `Pricing_Analysis_By_Product_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  if (loading) return (
-    <div className="flex items-start justify-center pt-24 min-h-[400px]">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
-    </div>
-  );
+  if (loading) return <Loading fullScreen={false} />;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
@@ -312,8 +309,8 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
                         <div
                           key={idx}
                           className={`relative p-4 rounded-2xl flex flex-col items-center justify-center text-center gap-2 border-2 transition-all hover:-translate-y-1 ${isMostFrequent
-                              ? 'bg-gradient-to-br from-amber-50 via-amber-100/30 to-amber-50 border-amber-400 shadow-md shadow-amber-200/40 z-10'
-                              : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/50'
+                            ? 'bg-gradient-to-br from-amber-50 via-amber-100/30 to-amber-50 border-amber-400 shadow-md shadow-amber-200/40 z-10'
+                            : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/50'
                             }`}
                         >
                           {isMostFrequent && (

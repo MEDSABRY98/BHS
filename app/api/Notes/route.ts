@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getNotes, addNote, updateNote } from '@/lib/googleSheets';
+import { getNotes, addNote, updateNote } from '@/lib/Sheets/GoogleSheets';
 
 export async function GET(request: Request) {
   try {
@@ -88,7 +88,7 @@ export async function DELETE(request: Request) {
     }
 
     // Dynamically import to avoid circular dependency issues if any, though here it's fine
-    const { deleteNoteRow } = await import('@/lib/googleSheets');
+    const { deleteNoteRow } = await import('@/lib/Sheets/GoogleSheets');
     await deleteNoteRow(rowIndex);
 
     return NextResponse.json({ success: true });

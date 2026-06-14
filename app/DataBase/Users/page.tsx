@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabas } from '@/lib/Supabase';
 import {
   Users,
   Search,
@@ -46,6 +46,7 @@ export default function UsersPage() {
   const [IS_IN_OFFICE, setIS_IN_OFFICE] = useState(false);
   const [CANCEL_AUTHORITY, setCANCEL_AUTHORITY] = useState(false);
   const [CITY, setCITY] = useState('');
+  const [IS_SALESMANAGER, setIS_SALESMANAGER] = useState(false);
 
   useEffect(() => {
     const mainUserStr = localStorage.getItem('currentUser');
@@ -101,6 +102,7 @@ export default function UsersPage() {
     setIS_IN_OFFICE(user ? user.IS_IN_OFFICE : false);
     setCANCEL_AUTHORITY(user ? (user.CANCEL_AUTHORITY === true || user.CANCEL_AUTHORITY === 'TRUE') : false);
     setCITY(user ? user.CITY || '' : '');
+    setIS_SALESMANAGER(user ? (user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE') : false);
     setIsModalOpen(true);
   };
 
@@ -115,7 +117,7 @@ export default function UsersPage() {
       if (editingUser) {
         const { error } = await bhs_supabas
           .from('bhs_USERS')
-          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY })
+          .update({ NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY, IS_SALESMANAGER })
           .eq('ID', editingUser.ID);
         if (error) throw error;
       } else {
@@ -139,7 +141,7 @@ export default function UsersPage() {
 
         const { error } = await bhs_supabas
           .from('bhs_USERS')
-          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY });
+          .insert({ ID: nextId, NAME, ROLE, USER_TYPE, PASSWORD, IS_IN_OFFICE, CANCEL_AUTHORITY, CITY, IS_SALESMANAGER });
         if (error) throw error;
       }
       setIsConfirmOpen(false);
@@ -289,6 +291,11 @@ export default function UsersPage() {
                     {user.CITY && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-600 rounded-xl text-[9px] font-black uppercase tracking-widest">
                         <MapPin className="w-2.5 h-2.5" /> {user.CITY}
+                      </span>
+                    )}
+                    {(user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE') && (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-600 rounded-xl text-[9px] font-black uppercase tracking-widest border border-amber-100">
+                        <Shield className="w-2.5 h-2.5" /> Sales Manager
                       </span>
                     )}
                   </div>
@@ -483,6 +490,35 @@ export default function UsersPage() {
                         }`}
                     >
                       {!CANCEL_AUTHORITY && <Check className="w-4 h-4" />}
+                      FALSE
+                    </button>
+                  </div>
+                </div>
+
+                {/* IS_SALESMANAGER Toggle */}
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-[#D4AF37] uppercase tracking-[0.2em] ml-1">SALES MANAGER</label>
+                  <div className="grid grid-cols-2 gap-3 p-1.5 bg-gray-50 rounded-2xl border border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => setIS_SALESMANAGER(true)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${IS_SALESMANAGER
+                        ? 'bg-emerald-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {IS_SALESMANAGER && <Check className="w-4 h-4" />}
+                      TRUE
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIS_SALESMANAGER(false)}
+                      className={`flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs font-black transition-all ${!IS_SALESMANAGER
+                        ? 'bg-red-500 text-white shadow-xl'
+                        : 'text-gray-400 hover:text-gray-600'
+                        }`}
+                    >
+                      {!IS_SALESMANAGER && <Check className="w-4 h-4" />}
                       FALSE
                     </button>
                   </div>
