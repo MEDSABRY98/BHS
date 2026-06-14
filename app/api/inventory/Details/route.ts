@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getSingleProductAnalysis } from '@/lib/Sheets/GoogleSheets';
 
-export async function GET(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request) {
     try {
-        const { id } = await params;
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get('id');
         if (!id) {
             return NextResponse.json({ error: 'Product ID is required' }, { status: 400 });
         }
-
-        const { searchParams } = new URL(request.url);
         const filters = {
             year: searchParams.get('year') || undefined,
             month: searchParams.get('month') || undefined,

@@ -63,8 +63,9 @@ export default function ProductDetails({ productId, productName, barcode, onBack
                 if (fromDate) params.append('from', fromDate);
                 if (toDate) params.append('to', toDate);
                 if (preset !== 'all') params.append('preset', preset);
+                params.append('id', productId);
 
-                const res = await fetch(`/api/Inventory/Details/${encodeURIComponent(productId)}?${params.toString()}`);
+                const res = await fetch(`/api/Inventory/Details?${params.toString()}`);
                 const json = await res.json();
                 if (res.ok) {
                     setData(json.data);
