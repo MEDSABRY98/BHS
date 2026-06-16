@@ -282,9 +282,9 @@ export default function InventoryProductOrdersDetailsTab({
                                                 title={product.productName}
                                                 onClick={() => setSelectedProduct({ id: product.productId, name: product.productName, barcode: product.barcode })}
                                             >
-                                                <div className="flex items-center justify-center gap-3">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-amber-400 transition-colors" />
-                                                    <span className="truncate max-w-[250px]">{product.productName}</span>
+                                                <div className="flex items-center gap-3 w-full">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-amber-400 transition-colors shrink-0" />
+                                                    <span className="flex-1 min-w-0 whitespace-normal break-words leading-snug">{product.productName}</span>
                                                 </div>
                                             </td>
 
