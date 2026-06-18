@@ -59,7 +59,8 @@ export async function POST(request: Request) {
 
     // Grouping Products & Customers
     const productMap = new Map<string, any>();
-    const customerMap = new Map<string, any>();
+    const mainCustomerMap = new Map<string, any>();
+    const subCustomerMap = new Map<string, any>();
 
     globallyFilteredData.forEach(item => {
       // Product
@@ -72,13 +73,23 @@ export async function POST(request: Request) {
       if (item.invoiceNumber) exP.invoiceNumbers.add(item.invoiceNumber);
       productMap.set(pKey, exP);
 
-      // Customer
-      const cName = item.customerMainName || item.customerName || 'Unknown';
-      const exC = customerMap.get(cName) || { customer: cName, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
-      exC.totalAmount += Number(item.amount) || 0;
-      exC.totalQty += Number(item.qty) || 0;
-      if (item.invoiceNumber) exC.invoiceNumbers.add(item.invoiceNumber);
-      customerMap.set(cName, exC);
+      // Main Customer
+      const mainKey = item.customerMainName || item.customerName || 'Unknown';
+      const mainDisplay = item.customerMainName || item.customerName || 'Unknown';
+      const exMain = mainCustomerMap.get(mainKey) || { customer: mainDisplay, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+      exMain.totalAmount += Number(item.amount) || 0;
+      exMain.totalQty += Number(item.qty) || 0;
+      if (item.invoiceNumber) exMain.invoiceNumbers.add(item.invoiceNumber);
+      mainCustomerMap.set(mainKey, exMain);
+
+      // Sub Customer
+      const subKey = item.customerId || item.customerName || 'Unknown';
+      const subDisplay = item.customerName || 'Unknown';
+      const exSub = subCustomerMap.get(subKey) || { customer: subDisplay, totalAmount: 0, totalQty: 0, invoiceNumbers: new Set() };
+      exSub.totalAmount += Number(item.amount) || 0;
+      exSub.totalQty += Number(item.qty) || 0;
+      if (item.invoiceNumber) exSub.invoiceNumbers.add(item.invoiceNumber);
+      subCustomerMap.set(subKey, exSub);
     });
 
     const productsData = Array.from(productMap.values()).map(p => ({
@@ -90,14 +101,18 @@ export async function POST(request: Request) {
       transactions: p.invoiceNumbers.size
     }));
 
-    const customersData = Array.from(customerMap.values()).map(c => ({
-      customer: c.customer,
-      totalAmount: c.totalAmount,
-      totalQty: c.totalQty,
-      transactions: c.invoiceNumbers.size
-    }));
+    const mapCustomers = (map: Map<string, any>) =>
+      Array.from(map.values()).map(c => ({
+        customer: c.customer,
+        totalAmount: c.totalAmount,
+        totalQty: c.totalQty,
+        transactions: c.invoiceNumbers.size
+      }));
 
-    return NextResponse.json({ productsData, customersData });
+    const mainCustomersData = mapCustomers(mainCustomerMap);
+    const subCustomersData = mapCustomers(subCustomerMap);
+
+    return NextResponse.json({ productsData, mainCustomersData, subCustomersData });
 
   } catch (error: any) {
     console.error('API Error Top10:', error);

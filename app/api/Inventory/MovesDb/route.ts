@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { bhs_supabas } from '@/lib/supabase';
+import { bhs_supabase } from '@/lib/supabase';
 
 interface MoveMonthSummary {
   year: number;
@@ -13,39 +13,77 @@ export interface MoveDaySummary {
   count: number;
 }
 
-async function fetchMoveMonthsSummary(): Promise<MoveMonthSummary[]> {
-  const counts = new Map<string, MoveMonthSummary>();
+async function fetchAllMoveDates(
+  applyFilters?: (query: ReturnType<typeof bhs_supabase.from>) => ReturnType<typeof bhs_supabase.from>
+): Promise<{ DATE: string | null }[]> {
   const pageSize = 1000;
   let from = 0;
+  const allRows: { DATE: string | null }[] = [];
 
   while (true) {
-    const { data, error } = await bhs_supabas
+    let query = bhs_supabase
       .from('web_INVENTORY_MOVES')
       .select('DATE')
-      .order('DATE', { ascending: true })
-      .range(from, from + pageSize - 1);
+      .order('DATE', { ascending: true });
 
+    if (applyFilters) {
+      query = applyFilters(query);
+    }
+
+    const { data, error } = await query.range(from, from + pageSize - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
 
-    for (const row of data) {
-      if (!row.DATE) continue;
-      const d = new Date(row.DATE);
-      if (Number.isNaN(d.getTime())) continue;
-
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      const key = `${year}-${month}`;
-      const existing = counts.get(key);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        counts.set(key, { year, month, count: 1 });
-      }
-    }
-
+    allRows.push(...data);
     if (data.length < pageSize) break;
     from += pageSize;
+  }
+
+  return allRows;
+}
+
+async function deleteMatchingMoves(
+  applyFilters: (query: ReturnType<typeof bhs_supabase.from>) => ReturnType<typeof bhs_supabase.from>
+): Promise<void> {
+  const pageSize = 1000;
+
+  while (true) {
+    let selectQuery = bhs_supabase.from('web_INVENTORY_MOVES').select('ID');
+    selectQuery = applyFilters(selectQuery);
+    const { data, error } = await selectQuery.limit(pageSize);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    const ids = data.map((row) => row.ID).filter(Boolean);
+    if (ids.length === 0) break;
+
+    const { error: deleteError } = await bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .delete()
+      .in('ID', ids);
+    if (deleteError) throw deleteError;
+
+    if (data.length < pageSize) break;
+  }
+}
+
+function aggregateMonthsFromDates(rows: { DATE: string | null }[]): MoveMonthSummary[] {
+  const counts = new Map<string, MoveMonthSummary>();
+
+  for (const row of rows) {
+    if (!row.DATE) continue;
+    const d = new Date(row.DATE);
+    if (Number.isNaN(d.getTime())) continue;
+
+    const year = d.getUTCFullYear();
+    const month = d.getUTCMonth() + 1;
+    const key = `${year}-${month}`;
+    const existing = counts.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(key, { year, month, count: 1 });
+    }
   }
 
   return Array.from(counts.values()).sort((a, b) => {
@@ -54,43 +92,57 @@ async function fetchMoveMonthsSummary(): Promise<MoveMonthSummary[]> {
   });
 }
 
-async function fetchMoveDaysSummary(year: number, month: number): Promise<MoveDaySummary[]> {
-  const { start, end } = monthDateRange(year, month);
+function aggregateDaysFromDates(rows: { DATE: string | null }[]): MoveDaySummary[] {
   const counts = new Map<string, MoveDaySummary>();
-  const pageSize = 1000;
-  let from = 0;
 
-  while (true) {
-    const { data, error } = await bhs_supabas
-      .from('web_INVENTORY_MOVES')
-      .select('DATE')
-      .gte('DATE', start)
-      .lt('DATE', end)
-      .order('DATE', { ascending: true })
-      .range(from, from + pageSize - 1);
+  for (const row of rows) {
+    if (!row.DATE) continue;
+    const d = new Date(row.DATE);
+    if (Number.isNaN(d.getTime())) continue;
 
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-
-    for (const row of data) {
-      if (!row.DATE) continue;
-      const d = new Date(row.DATE);
-      if (Number.isNaN(d.getTime())) continue;
-
-      const date = d.toISOString().split('T')[0];
-      const existing = counts.get(date);
-      if (existing) {
-        existing.count += 1;
-      } else {
-        counts.set(date, { date, day: d.getUTCDate(), count: 1 });
-      }
+    const date = d.toISOString().split('T')[0];
+    const existing = counts.get(date);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      counts.set(date, { date, day: d.getUTCDate(), count: 1 });
     }
-
-    if (data.length < pageSize) break;
-    from += pageSize;
   }
 
   return Array.from(counts.values()).sort((a, b) => b.date.localeCompare(a.date));
+}
+
+async function fetchMoveMonthsSummary(): Promise<MoveMonthSummary[]> {
+  const { data, error } = await bhs_supabase.rpc('get_inventory_moves_months_summary');
+  if (!error && Array.isArray(data)) {
+    return data.map((row: { year: number; month: number; count: number }) => ({
+      year: Number(row.year),
+      month: Number(row.month),
+      count: Number(row.count),
+    }));
+  }
+
+  const rows = await fetchAllMoveDates();
+  return aggregateMonthsFromDates(rows);
+}
+
+async function fetchMoveDaysSummary(year: number, month: number): Promise<MoveDaySummary[]> {
+  const { data, error } = await bhs_supabase.rpc('get_inventory_moves_days_summary', {
+    p_year: year,
+    p_month: month,
+  });
+
+  if (!error && Array.isArray(data)) {
+    return data.map((row: { date: string; day: number; count: number }) => ({
+      date: String(row.date),
+      day: Number(row.day),
+      count: Number(row.count),
+    }));
+  }
+
+  const { start, end } = monthDateRange(year, month);
+  const rows = await fetchAllMoveDates((query) => query.gte('DATE', start).lt('DATE', end));
+  return aggregateDaysFromDates(rows);
 }
 
 function dayDateRange(dateKey: string) {
@@ -148,12 +200,7 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
       }
       const { start, end } = dayDateRange(date);
-      const { error } = await bhs_supabas
-        .from('web_INVENTORY_MOVES')
-        .delete()
-        .gte('DATE', start)
-        .lt('DATE', end);
-      if (error) throw error;
+      await deleteMatchingMoves((query) => query.gte('DATE', start).lt('DATE', end));
       return NextResponse.json({ success: true });
     }
 
@@ -165,13 +212,7 @@ export async function DELETE(request: Request) {
     }
 
     const { start, end } = monthDateRange(year, month);
-    const { error } = await bhs_supabas
-      .from('web_INVENTORY_MOVES')
-      .delete()
-      .gte('DATE', start)
-      .lt('DATE', end);
-
-    if (error) throw error;
+    await deleteMatchingMoves((query) => query.gte('DATE', start).lt('DATE', end));
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {

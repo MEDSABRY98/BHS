@@ -2,102 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { PlusCircle, List, AlertTriangle } from 'lucide-react';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 import Header from './Header';
+import { generateReceiptPdf } from '../Utils/ReceiptPdf';
 import NewReceiptForm from './NewReceiptForm';
 import SavedReceiptsTab from './SavedReceiptsTab';
 import ReceiptDocument from './ReceiptDocument';
 import { bhs_supabas } from '@/lib/supabase';
-
-function convertColorsToRgb(element: HTMLElement) {
-  const properties = [
-    'color',
-    'backgroundColor',
-    'borderColor',
-    'borderTopColor',
-    'borderRightColor',
-    'borderBottomColor',
-    'borderLeftColor',
-    'fill',
-    'stroke'
-  ];
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 1;
-  canvas.height = 1;
-  const ctx = canvas.getContext('2d');
-
-  function toRgb(colorStr: string) {
-    if (!colorStr) return colorStr;
-    const lower = colorStr.toLowerCase();
-    if (
-      lower.includes('lab(') ||
-      lower.includes('oklch(') ||
-      lower.includes('oklab(') ||
-      lower.includes('lch(')
-    ) {
-      if (ctx) {
-        try {
-          ctx.fillStyle = colorStr;
-          return ctx.fillStyle;
-        } catch (e) {
-          return colorStr;
-        }
-      }
-    }
-    return colorStr;
-  }
-
-  function processNode(node: Node) {
-    if (node.nodeType === Node.ELEMENT_NODE) {
-      const el = node as HTMLElement;
-      const computed = window.getComputedStyle(el);
-      properties.forEach(prop => {
-        const val = computed[prop as any];
-        if (
-          val &&
-          (val.includes('lab(') ||
-            val.includes('oklch(') ||
-            val.includes('oklab(') ||
-            val.includes('lch('))
-        ) {
-          el.style[prop as any] = toRgb(val);
-        }
-      });
-
-      const bg = computed.background;
-      if (
-        bg &&
-        (bg.includes('lab(') ||
-          bg.includes('oklch(') ||
-          bg.includes('oklab(') ||
-          bg.includes('lch('))
-      ) {
-        const regex = /(?:oklch|oklab|lab|lch)\([^)]+\)/g;
-        el.style.background = bg.replace(regex, (match) => toRgb(match));
-      }
-
-      const shadow = computed.boxShadow;
-      if (
-        shadow &&
-        (shadow.includes('lab(') ||
-          shadow.includes('oklch(') ||
-          shadow.includes('oklab(') ||
-          shadow.includes('lch('))
-      ) {
-        const regex = /(?:oklch|oklab|lab|lch)\([^)]+\)/g;
-        el.style.boxShadow = shadow.replace(regex, (match) => toRgb(match));
-      }
-    }
-
-    for (let i = 0; i < node.childNodes.length; i++) {
-      processNode(node.childNodes[i]);
-    }
-  }
-
-  processNode(element);
-}
+import { toast } from '@/app/Components/Notification';
 
 interface CashReceiptTabProps {
   activeTab: 'new' | 'saved';
@@ -234,16 +145,17 @@ export default function CashReceiptTab({
         throw new Error(errorData.error || 'Failed to save to database');
       }
       return true;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving:', error);
-      alert('Error: ' + error.message);
+      const message = error instanceof Error ? error.message : 'Failed to save receipt';
+      toast.error(message);
       return false;
     }
   };
 
   const handlePrint = async () => {
     if (!formData.receivedFrom || !formData.amount || !formData.receiptNumber) {
-      alert('Please fill at least: Receipt Number, Received From, and Amount');
+      toast.warning('Please fill at least: Receipt Number, Received From, and Amount');
       return;
     }
 
@@ -257,52 +169,25 @@ export default function CashReceiptTab({
       }
     }
 
-    const originalElement = document.getElementById('receipt-original');
-    const copyElement = document.getElementById('receipt-copy');
-    if (!originalElement || !copyElement) {
-      setLoading(false);
-      return;
-    }
-
     try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const imgWidth = 210;
-
-      // Page 1: Original
-      const canvas1 = await html2canvas(originalElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          const el = clonedDoc.getElementById('receipt-original');
-          if (el) convertColorsToRgb(el);
-        }
-      });
-      const imgHeight1 = (canvas1.height * imgWidth) / canvas1.width;
-      const imgData1 = canvas1.toDataURL('image/png');
-      pdf.addImage(imgData1, 'PNG', 0, 0, imgWidth, imgHeight1);
-
-      // Page 2: Copy
-      pdf.addPage();
-      const canvas2 = await html2canvas(copyElement, {
-        scale: 2,
-        useCORS: true,
-        logging: false,
-        backgroundColor: '#ffffff',
-        onclone: (clonedDoc) => {
-          const el = clonedDoc.getElementById('receipt-copy');
-          if (el) convertColorsToRgb(el);
-        }
-      });
-      const imgHeight2 = (canvas2.height * imgWidth) / canvas2.width;
-      const imgData2 = canvas2.toDataURL('image/png');
-      pdf.addImage(imgData2, 'PNG', 0, 0, imgWidth, imgHeight2);
-
       const cleanFilename = `${formData.receiptNumber}_${formData.date}`.replace(/[^a-z0-9]/gi, '_');
-      pdf.save(`${cleanFilename}.pdf`);
+      await generateReceiptPdf({
+        data: {
+          receiptNumber: formData.receiptNumber,
+          date: formData.date,
+          receivedFrom: formData.receivedFrom,
+          sendBy: formData.sendBy,
+          amount: formData.amount,
+          amountInWords: formData.amountInWords,
+          reason: formData.reason,
+          receivedBySignature: medSabrySignature,
+        },
+        filename: cleanFilename,
+      });
 
       // If saved successfully, clear the form
+      const wasEditing = isEditing;
+
       if (saved) {
         setIsEditing(false);
         const nextId = await fetchNextReceiptNumber();
@@ -315,10 +200,19 @@ export default function CashReceiptTab({
           date: new Date().toISOString().split('T')[0],
           receiptNumber: nextId || ''
         });
-        alert('Receipt saved and PDF generated successfully!');
       }
+
+      toast.success(
+        !saved
+          ? 'PDF generated successfully!'
+          : wasEditing
+            ? 'Receipt updated and PDF generated successfully!'
+            : 'Receipt saved and PDF generated successfully!'
+      );
     } catch (error) {
       console.error('Error generating PDF:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to generate PDF: ${message}`);
       window.print();
     } finally {
       setLoading(false);
@@ -355,13 +249,15 @@ export default function CashReceiptTab({
       const response = await fetch('/api/CashReceipt?t=' + Date.now());
       if (response.ok) {
         const data = await response.json();
-        if (data.nextId) {
-          setFormData(prev => ({ ...prev, receiptNumber: data.nextId }));
-          return data.nextId as string;
+        const nextNumber = data.nextReceiptNumber || data.nextId;
+        if (nextNumber) {
+          setFormData(prev => ({ ...prev, receiptNumber: nextNumber }));
+          return nextNumber as string;
         }
       }
     } catch (error) {
       console.error('Error fetching next receipt number:', error);
+      toast.error('Failed to load next receipt number');
     }
     return '';
   };
@@ -376,6 +272,7 @@ export default function CashReceiptTab({
       }
     } catch (error) {
       console.error('Error fetching saved receipts:', error);
+      toast.error('Failed to load saved receipts');
     } finally {
       setIsFetchingSaved(false);
     }
@@ -412,15 +309,27 @@ export default function CashReceiptTab({
   });
 
   const handleReprint = async (receipt: any) => {
-    const originalFormData = { ...formData };
-    setFormData({
-      ...receipt,
-      amount: (receipt.amount ?? 0).toString()
-    });
-    setTimeout(async () => {
-      window.print();
-      setFormData(originalFormData);
-    }, 100);
+    try {
+      const cleanFilename = `${receipt.receiptNumber}_${receipt.date}`.replace(/[^a-z0-9]/gi, '_');
+      await generateReceiptPdf({
+        data: {
+          receiptNumber: receipt.receiptNumber,
+          date: receipt.date,
+          receivedFrom: receipt.receivedFrom,
+          sendBy: receipt.sendBy || '',
+          amount: receipt.amount ?? 0,
+          amountInWords: receipt.amountInWords || '',
+          reason: receipt.reason || '',
+          receivedBySignature: medSabrySignature,
+        },
+        filename: cleanFilename,
+      });
+      toast.success('Receipt PDF downloaded successfully');
+    } catch (error) {
+      console.error('Error reprinting receipt:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(`Failed to reprint receipt: ${message}`);
+    }
   };
 
   const handleEdit = (receipt: any) => {
@@ -449,15 +358,16 @@ export default function CashReceiptTab({
         method: 'DELETE'
       });
       if (response.ok) {
+        toast.success('Receipt deleted successfully');
         fetchSavedReceipts();
         setSelectedReceipt(null);
       } else {
         const errorData = await response.json();
-        alert('Failed to delete: ' + errorData.error);
+        toast.error(errorData.error || 'Failed to delete receipt');
       }
     } catch (err) {
       console.error('Error deleting:', err);
-      alert('An error occurred while deleting.');
+      toast.error('An error occurred while deleting the receipt');
     } finally {
       setReceiptToDelete(null);
     }
@@ -559,11 +469,18 @@ export default function CashReceiptTab({
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
         
         @media screen {
-          .hidden-print { position: absolute; left: -9999px; }
+          .hidden-print {
+            display: none !important;
+          }
         }
         @media print {
           .no-print { display: none !important; }
-          .hidden-print { display: block !important; position: static !important; }
+          .hidden-print {
+            display: block !important;
+            position: static !important;
+            opacity: 1 !important;
+            visibility: visible !important;
+          }
           body { background: white !important; padding: 0 !important; margin: 0 !important; }
           #receipt { border: none !important; box-shadow: none !important; }
           @page { size: auto; margin: 0mm; }

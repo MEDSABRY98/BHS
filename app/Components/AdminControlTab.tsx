@@ -40,18 +40,18 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'ages', label: 'Ages' }
     ],
     'sales': [
-        { id: 'sales-overview', label: 'Sales Overview' },
+        { id: 'sales-overview', label: 'Overview' },
         { id: 'sales-top10', label: 'Top 10' },
         { id: 'sales-customers', label: 'Customers' },
         { id: 'sales-customers-comparison', label: 'Comparison' },
-        { id: 'sales-inactive-customers', label: 'Inactive' },
+        { id: 'sales-inactive-customers', label: 'Inactive Customers' },
         { id: 'sales-statistics', label: 'Statistics' },
         { id: 'sales-daily-sales', label: 'Daily Sales' },
         { id: 'sales-categories', label: 'Product Category' },
         { id: 'sales-products', label: 'Products' },
         { id: 'sales-new-listings', label: 'New Listings' },
         { id: 'sales-download-form', label: 'Stock Report' },
-        { id: 'sales-my-customers', label: 'My Customers' }
+        { id: 'sales-my-customers', label: 'Set Customers' },
     ],
     'inventory': [
         { id: 'orders', label: 'Products' },
@@ -60,7 +60,13 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'normal_total', label: 'Normal Count' },
         { id: 'normal_record', label: 'Normal Record' },
         { id: 'damage_total', label: 'Damage & Expire Count' },
-        { id: 'damage_record', label: 'Damage & Expire Record' }
+        { id: 'damage_record', label: 'Damage & Expire Record' },
+    ],
+    'inventory-scrap': [
+        { id: 'record', label: 'Log Scrap' },
+        { id: 'sessions', label: 'View Sessions' },
+        { id: 'report', label: 'Scrap Report' },
+        { id: 'history', label: 'Saved Reports' },
     ],
     'cash-receipt': [
         { id: 'new', label: 'New Receipt' },
@@ -70,20 +76,17 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'receipts', label: 'Receipts' },
         { id: 'expenses', label: 'Expenses' },
         { id: 'voucher', label: 'Voucher' },
-        { id: 'stats', label: 'Statistics' }
-    ],
-    'customers-documents': [
-        { id: 'checklist', label: 'Checklist' },
-        { id: 'expiration', label: 'Expiration Tracker' }
+        { id: 'stats', label: 'Statistics' },
+        { id: 'history', label: 'History' },
     ],
     'suppliers': [
         { id: 'statements', label: 'Statements' },
-        { id: 'matching', label: 'Matching' }
+        { id: 'matching', label: 'Matching' },
     ],
     'documents-tracking': [
-        { id: 'register', label: 'Register' },
-        { id: 'list', label: 'All Documents' },
-        { id: 'receivers', label: 'Receivers' }
+        { id: 'register', label: 'Register Check' },
+        { id: 'list', label: 'View Checks' },
+        { id: 'receivers', label: 'Office Receivers' },
     ],
     'lpo-management': [
         { id: 'lpo-dashboard', label: 'Dashboard' },
@@ -94,7 +97,11 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
     'database': [
         { id: 'db-customers', label: 'Customers DB' },
         { id: 'db-products', label: 'Products DB' },
-        { id: 'db-users', label: 'Users DB' }
+        { id: 'db-inv-products', label: 'Inventory Products' },
+        { id: 'db-inv-moves', label: 'Inventory Moves' },
+        { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
+        { id: 'db-users', label: 'Users DB' },
+        { id: 'db-sales', label: 'Sales DB' },
     ]
 };
 

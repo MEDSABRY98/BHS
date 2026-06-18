@@ -17,14 +17,27 @@ export function formatInventoryRecordId(num: number): string {
 }
 
 export async function getNextInventoryRecordId(table: InventoryTableName): Promise<string> {
-  const { data, error } = await bhs_supabas.from(table).select('ID');
-  if (error) throw error;
-
+  const pageSize = 1000;
+  let from = 0;
   let maxNum = 0;
-  (data || []).forEach((row) => {
-    const num = parseRecordNum(row.ID || '');
-    if (num !== null && num > maxNum) maxNum = num;
-  });
+
+  while (true) {
+    const { data, error } = await bhs_supabas
+      .from(table)
+      .select('ID')
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    data.forEach((row) => {
+      const num = parseRecordNum(row.ID || '');
+      if (num !== null && num > maxNum) maxNum = num;
+    });
+
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
 
   return formatInventoryRecordId(maxNum + 1);
 }

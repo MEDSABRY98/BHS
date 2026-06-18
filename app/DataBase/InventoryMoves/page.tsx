@@ -122,12 +122,26 @@ export default function InventoryMovesPage() {
 
   async function fetchProductOptions() {
     try {
-      const { data, error } = await bhs_supabas
-        .from('web_INVENTORY_PRODUCTS')
-        .select('"PRODUCT ID","PRODUCT NAME"')
-        .order('PRODUCT NAME');
-      if (error) throw error;
-      setProductOptions((data || []) as { 'PRODUCT ID': string; 'PRODUCT NAME': string }[]);
+      const pageSize = 1000;
+      let from = 0;
+      const allProducts: { 'PRODUCT ID': string; 'PRODUCT NAME': string }[] = [];
+
+      while (true) {
+        const { data, error } = await bhs_supabas
+          .from('web_INVENTORY_PRODUCTS')
+          .select('"PRODUCT ID","PRODUCT NAME"')
+          .order('PRODUCT NAME')
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allProducts.push(...(data as { 'PRODUCT ID': string; 'PRODUCT NAME': string }[]));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      setProductOptions(allProducts);
     } catch (err) {
       console.error(err);
     }
@@ -427,12 +441,25 @@ export default function InventoryMovesPage() {
         return;
       }
 
-      const { data: products, error: productsError } = await bhs_supabas
-        .from('web_INVENTORY_PRODUCTS')
-        .select('"PRODUCT ID"');
-      if (productsError) throw productsError;
+      const pageSize = 1000;
+      let from = 0;
+      const allProducts: { 'PRODUCT ID': string }[] = [];
 
-      const productIds = new Set((products || []).map((p) => p['PRODUCT ID'] as string));
+      while (true) {
+        const { data, error } = await bhs_supabas
+          .from('web_INVENTORY_PRODUCTS')
+          .select('"PRODUCT ID"')
+          .range(from, from + pageSize - 1);
+
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+
+        allProducts.push(...(data as { 'PRODUCT ID': string }[]));
+        if (data.length < pageSize) break;
+        from += pageSize;
+      }
+
+      const productIds = new Set(allProducts.map((p) => p['PRODUCT ID'] as string));
 
       const nextId = await getNextInventoryRecordId('web_INVENTORY_MOVES');
       let nextNum = parseInt(nextId.substring(2), 10);

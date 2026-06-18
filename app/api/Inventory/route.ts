@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getProductOrdersData, updateProductColumn } from '@/lib/Sheets/GoogleSheets';
 
+export const maxDuration = 120;
+
 export async function GET() {
   try {
     const data = await getProductOrdersData();

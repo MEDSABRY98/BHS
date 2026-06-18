@@ -82,7 +82,7 @@ export default function SavedReceiptsTab({
           </div>
         </div>
         <div className="bg-white rounded-3xl shadow-2xl border border-gray-100 overflow-hidden">
-          <ReceiptDocument data={selectedReceipt} receivedBySignature={receivedBySignature} />
+          <ReceiptDocument data={selectedReceipt} receivedBySignature={receivedBySignature} mode="preview" />
         </div>
       </div>
     );
@@ -99,46 +99,57 @@ export default function SavedReceiptsTab({
       ) : filteredReceipts.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {filteredReceipts.map((receipt) => (
-            <button
+            <div
               key={receipt.receiptNumber}
-              onClick={() => setSelectedReceipt(receipt)}
-              className="group text-left bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-gray-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden w-full"
+              className="group relative bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:border-gray-300 hover:-translate-y-0.5 transition-all duration-200 overflow-hidden w-full"
             >
-              {/* Card Top Accent */}
-              <div className="h-1.5 bg-gradient-to-r from-gray-700 to-black" />
-              <div className="p-5">
-                {/* Receipt # Badge */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg">
-                    <Hash className="w-3 h-3" />
-                    {receipt.receiptNumber}
-                  </span>
-                  <div className="w-8 h-8 bg-gray-50 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all">
-                    <Printer className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors" />
+              <button
+                type="button"
+                onClick={() => setSelectedReceipt(receipt)}
+                className="w-full text-left"
+              >
+                {/* Card Top Accent */}
+                <div className="h-1.5 bg-gradient-to-r from-gray-700 to-black" />
+                <div className="p-5 pr-16">
+                  {/* Receipt # Badge */}
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="inline-flex items-center gap-1.5 bg-gray-100 text-gray-600 text-xs font-bold px-2.5 py-1 rounded-lg">
+                      <Hash className="w-3 h-3" />
+                      {receipt.receiptNumber}
+                    </span>
+                  </div>
+
+                  {/* Name */}
+                  <div className="mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Received From</p>
+                    <p className="text-base font-black text-gray-900 truncate">{receipt.receivedFrom}</p>
+                  </div>
+
+                  {/* Amount */}
+                  <div className="mb-4">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Amount</p>
+                    <p className="text-xl font-black text-gray-900">
+                      AED {parseFloat(String(receipt.amount ?? 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </p>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex items-center gap-1.5 pt-3 border-t border-gray-100">
+                    <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                    <span className="text-xs text-gray-400 font-medium">{receipt.date}</span>
                   </div>
                 </div>
+              </button>
 
-                {/* Name */}
-                <div className="mb-3">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Received From</p>
-                  <p className="text-base font-black text-gray-900 truncate">{receipt.receivedFrom}</p>
-                </div>
-
-                {/* Amount */}
-                <div className="mb-4">
-                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-0.5">Amount</p>
-                  <p className="text-xl font-black text-gray-900">
-                    AED {parseFloat(String(receipt.amount ?? 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </p>
-                </div>
-
-                {/* Footer */}
-                <div className="flex items-center gap-1.5 pt-3 border-t border-gray-100">
-                  <Calendar className="w-3.5 h-3.5 text-gray-400" />
-                  <span className="text-xs text-gray-400 font-medium">{receipt.date}</span>
-                </div>
-              </div>
-            </button>
+              <button
+                type="button"
+                onClick={() => onReprint(receipt)}
+                title="Reprint Receipt"
+                className="absolute top-5 right-5 w-8 h-8 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 hover:bg-black hover:text-white transition-all"
+              >
+                <Printer className="w-4 h-4" />
+              </button>
+            </div>
           ))}
         </div>
       ) : (

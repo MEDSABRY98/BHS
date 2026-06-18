@@ -10,6 +10,8 @@ type InventoryMoveRow = {
   QTY: number | null;
 };
 
+const INVENTORY_MOVE_SELECT = 'DATE,"LOCATION FROM","LOCATION TO","PRODUCT ID",QTY';
+
 type InventoryProductRow = {
   ID: string;
   'PRODUCT ID': string;
@@ -28,22 +30,56 @@ function parseNum(val: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
-  const { data, error } = await bhs_supabase
-    .from('web_INVENTORY_PRODUCTS')
-    .select('*');
+async function fetchAllInventoryRows<T>(
+  table: 'web_INVENTORY_PRODUCTS' | 'web_INVENTORY_MOVES' | 'web_INVENTORY_ITEM_CODE',
+  select: string,
+  options?: {
+    order?: { column: string; ascending?: boolean };
+    productId?: string;
+  }
+): Promise<T[]> {
+  const pageSize = 1000;
+  let from = 0;
+  const allRows: T[] = [];
 
-  if (error) throw error;
-  return (data || []) as InventoryProductRow[];
+  while (true) {
+    let query = bhs_supabase.from(table).select(select);
+
+    if (options?.productId) {
+      query = query.eq('PRODUCT ID', options.productId.trim());
+    }
+
+    if (options?.order) {
+      query = query.order(options.order.column, { ascending: options.order.ascending ?? true });
+    }
+
+    const { data, error } = await query.range(from, from + pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    allRows.push(...(data as T[]));
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return allRows;
+}
+
+async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
+  return fetchAllInventoryRows<InventoryProductRow>('web_INVENTORY_PRODUCTS', '*');
 }
 
 async function fetchInventoryMoves(): Promise<InventoryMoveRow[]> {
-  const { data, error } = await bhs_supabase
-    .from('web_INVENTORY_MOVES')
-    .select('*');
+  return fetchAllInventoryRows<InventoryMoveRow>('web_INVENTORY_MOVES', INVENTORY_MOVE_SELECT, {
+    order: { column: 'DATE', ascending: true },
+  });
+}
 
-  if (error) throw error;
-  return (data || []) as InventoryMoveRow[];
+async function fetchInventoryMovesForProduct(productId: string): Promise<InventoryMoveRow[]> {
+  return fetchAllInventoryRows<InventoryMoveRow>('web_INVENTORY_MOVES', INVENTORY_MOVE_SELECT, {
+    order: { column: 'DATE', ascending: true },
+    productId,
+  });
 }
 
 function buildSalesMaps(moveRows: InventoryMoveRow[]) {
@@ -312,13 +348,13 @@ export async function getProductMovementsData() {
 
 export async function getItemCodesData() {
   try {
-    const { data, error } = await bhs_supabase
-      .from('web_INVENTORY_ITEM_CODE')
-      .select('*');
+    const data = await fetchAllInventoryRows<{
+      TAGS: string | null;
+      'ITEM CODE': string | null;
+      BARCODE: string | null;
+    }>('web_INVENTORY_ITEM_CODE', 'TAGS,"ITEM CODE",BARCODE');
 
-    if (error) throw error;
-
-    return (data || [])
+    return data
       .map((row) => ({
         tags: row.TAGS?.toString().trim() || '',
         itemCode: row['ITEM CODE']?.toString().trim() || '',
@@ -334,15 +370,15 @@ export async function getItemCodesData() {
 export async function getSingleProductAnalysis(productId: string, filters?: { year?: string, month?: string, from?: string, to?: string, preset?: string }) {
   try {
     const [moveRows, products] = await Promise.all([
-      fetchInventoryMoves(),
+      fetchInventoryMovesForProduct(productId),
       fetchInventoryProducts(),
     ]);
 
-    if (moveRows.length === 0) return null;
+    const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId.trim());
+    if (!productRow) return null;
 
-    const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId);
-    const currentStock = parseNum(productRow?.['QTY ON HAND']);
-    const minQ = parseNum(productRow?.['MIN Q BY CTN']);
+    const currentStock = parseNum(productRow['QTY ON HAND']);
+    const minQ = parseNum(productRow['MIN Q BY CTN']);
 
     let filterStart: Date | null = null;
     let filterEnd: Date | null = new Date();
