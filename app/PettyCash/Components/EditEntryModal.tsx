@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckCircle2 } from 'lucide-react';
+import { toast } from '@/app/Components/Notification';
 
 interface EditEntryModalProps {
   isOpen: boolean;
@@ -50,7 +51,7 @@ export default function EditEntryModal({
 
   const handleUpdate = () => {
     if (!formData.date || !formData.amount || !formData.source || !formData.description) {
-      alert('Please fill all fields');
+      toast.warning('Please fill all fields');
       return;
     }
     onUpdate(formData);

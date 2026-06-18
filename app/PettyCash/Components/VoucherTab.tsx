@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, FileText, CheckCircle2, RotateCw } from 'lucide-react';
+import { toast } from '@/app/Components/Notification';
 
 interface Voucher {
   number: string;
@@ -44,7 +45,7 @@ export default function VoucherTab({
 
   const handlePrint = async () => {
     if (!formData.amount || !formData.source || !formData.description) {
-      alert('Please fill all fields');
+      toast.warning('Please fill all fields');
       return;
     }
     const success = await onPrint(formData);

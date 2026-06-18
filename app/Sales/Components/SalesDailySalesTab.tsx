@@ -46,6 +46,10 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
   // Fetch data
   useEffect(() => {
     const fetchDailySales = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/DailySales', {

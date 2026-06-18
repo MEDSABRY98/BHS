@@ -23,7 +23,6 @@ export interface BaseProductOrder {
     tags: string;
     onHand: number;
     qinc: number;
-    rowIndex: number;
     minQ?: number;
     maxQ?: number;
 }
@@ -73,7 +72,7 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
             setError(null);
         } catch (err) {
             console.error('Error loading orders:', err);
-            setError('Failed to load orders data from Google Sheets');
+            setError('Failed to load orders data from Supabase');
         } finally {
             setLoading(false);
         }

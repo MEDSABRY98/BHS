@@ -163,7 +163,7 @@ export default function HomeSelection({ currentUser, onLogout }: HomeSelectionPr
 
     { id: 'suppliers', title: "Suppliers", icon: Truck, path: '/Suppliers', color: 'emerald' as const },
     { id: 'lpo-management', title: "LPO's", icon: ShoppingCart, path: '/LPOs', color: 'yellow' as const },
-    { id: 'database', title: "Database", icon: Database, path: '/DataBase', color: 'sky' as const },
+    { id: 'database', title: "Database", icon: Database, path: '/DataBase/Customers', color: 'sky' as const },
   ];
 
   const allowedSystems = ALL_SYSTEMS

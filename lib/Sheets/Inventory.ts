@@ -1,5 +1,120 @@
 import { google } from 'googleapis';
 import { SPREADSHEET_ID, getServiceAccountCredentials } from './Core';
+import { bhs_supabase } from '@/lib/supabase';
+
+type InventoryMoveRow = {
+  DATE: string | null;
+  'LOCATION FROM': string | null;
+  'LOCATION TO': string | null;
+  'PRODUCT ID': string | null;
+  QTY: number | null;
+};
+
+type InventoryProductRow = {
+  ID: string;
+  'PRODUCT ID': string;
+  'PRODUCT BARCODE': string | null;
+  'PRODUCT NAME': string;
+  TAGS: string | null;
+  'MIN Q BY CTN': number | null;
+  'MAX Q BY CTN': number | null;
+  QINC: number | null;
+  'QTY ON HAND': number | null;
+  'QTY FREE TO USE': number | null;
+};
+
+function parseNum(val: unknown): number {
+  const n = parseFloat(String(val ?? '').replace(/,/g, ''));
+  return Number.isFinite(n) ? n : 0;
+}
+
+async function fetchInventoryProducts(): Promise<InventoryProductRow[]> {
+  const { data, error } = await bhs_supabase
+    .from('web_INVENTORY_PRODUCTS')
+    .select('*');
+
+  if (error) throw error;
+  return (data || []) as InventoryProductRow[];
+}
+
+async function fetchInventoryMoves(): Promise<InventoryMoveRow[]> {
+  const { data, error } = await bhs_supabase
+    .from('web_INVENTORY_MOVES')
+    .select('*');
+
+  if (error) throw error;
+  return (data || []) as InventoryMoveRow[];
+}
+
+function buildSalesMaps(moveRows: InventoryMoveRow[]) {
+  const now = new Date();
+  const getMonthStart = (monthsAgo: number) => new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
+  const months = [3, 2, 1, 0].map((i) => getMonthStart(i));
+  const monthKeys = months.map((d) => `${d.getFullYear()}-${d.getMonth()}`);
+  const monthLabels = months.map((d) => {
+    const mon = d.toLocaleString('en-US', { month: 'short' });
+    const yy = d.getFullYear().toString().slice(-2);
+    return `${mon} ${yy}`;
+  });
+
+  const salesBreakdownMap = new Map<string, number[]>();
+  const salesMap = new Map<string, number>();
+
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(now.getDate() - 120);
+  ninetyDaysAgo.setHours(0, 0, 0, 0);
+
+  moveRows.forEach((row) => {
+    const dateStr = row.DATE;
+    const locationTo = row['LOCATION TO']?.toString().trim();
+    if (!dateStr || locationTo !== 'Partners/Customers') return;
+
+    const moveDate = new Date(dateStr);
+    if (isNaN(moveDate.getTime())) return;
+
+    const productId = row['PRODUCT ID']?.toString().trim();
+    const qty = parseNum(row.QTY);
+    if (!productId || qty === 0) return;
+
+    if (moveDate >= ninetyDaysAgo) {
+      salesMap.set(productId, (salesMap.get(productId) || 0) + qty);
+    }
+
+    const key = `${moveDate.getFullYear()}-${moveDate.getMonth()}`;
+    const monthIndex = monthKeys.findIndex((k) => k === key);
+    if (monthIndex !== -1) {
+      const breakdown = salesBreakdownMap.get(productId) || new Array(months.length).fill(0);
+      breakdown[monthIndex] += qty;
+      salesBreakdownMap.set(productId, breakdown);
+    }
+  });
+
+  return { salesMap, salesBreakdownMap, monthLabels, months };
+}
+
+function aggregateMovements(moveRows: InventoryMoveRow[]) {
+  const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
+
+  moveRows.forEach((row) => {
+    const from = row['LOCATION FROM']?.toString().trim();
+    const to = row['LOCATION TO']?.toString().trim();
+    const productId = row['PRODUCT ID']?.toString().trim();
+    const qty = parseNum(row.QTY);
+
+    if (!productId || qty === 0) return;
+
+    if (!movements[productId]) {
+      movements[productId] = { sales: 0, returns: 0, netPurchases: 0 };
+    }
+
+    if (to === 'Partners/Customers') movements[productId].sales += qty;
+    if (from === 'Partners/Customers') movements[productId].returns += qty;
+    if (from === 'Partners/Vendors') movements[productId].netPurchases += qty;
+    if (to === 'Partners/Vendors') movements[productId].netPurchases -= qty;
+  });
+
+  return movements;
+}
 
 // ============================================================
 // INVENTORY
@@ -107,216 +222,65 @@ export interface ProductOrder {
   qtyOnHand: number;
   qtyFreeToUse: number;
   salesQty: number;
-  rowIndex: number;
   salesBreakdown: { label: string; qty: number }[];
 }
 
 export async function getProductOrdersData(): Promise<ProductOrder[]> {
   try {
-    const credentials = getServiceAccountCredentials();
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const [inventoryResponse, movesResponse] = await Promise.all([
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - PRODUCTS'!A:Z`,
-      }),
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - MOVES'!A:I`,
-      })
+    const [products, moveRows] = await Promise.all([
+      fetchInventoryProducts(),
+      fetchInventoryMoves(),
     ]);
 
-    const now = new Date();
-    const getMonthStart = (monthsAgo: number) => {
-      const d = new Date(now.getFullYear(), now.getMonth() - monthsAgo, 1);
-      return d;
-    };
+    const { salesMap, salesBreakdownMap, monthLabels, months } = buildSalesMaps(moveRows);
 
-    const months = [3, 2, 1, 0].map(i => getMonthStart(i));
-    const monthKeys = months.map(d => `${d.getFullYear()}-${d.getMonth()}`);
-    const monthLabels = months.map(d => {
-      const mon = d.toLocaleString('en-US', { month: 'short' });
-      const yy = d.getFullYear().toString().slice(-2);
-      return `${mon} ${yy}`;
-    });
+    return products
+      .map((row) => {
+        const productId = row['PRODUCT ID']?.toString().trim() || '';
+        const breakdownQtys = salesBreakdownMap.get(productId) || new Array(months.length).fill(0);
+        const salesBreakdown = breakdownQtys.map((qty, idx) => ({
+          label: monthLabels[idx],
+          qty,
+        }));
 
-    const salesBreakdownMap = new Map<string, number[]>();
-    const salesMap = new Map<string, number>();
-
-    const moveRows = movesResponse.data.values || [];
-
-    let dateIndex = 0;
-    let productIdIndex = 4;
-    let qtyIndex = 8;
-    let toIndex = 3;
-
-    if (moveRows.length > 0) {
-      const header = moveRows[0].map(h => h.toString().toLowerCase().trim());
-      const foundDate = header.findIndex(h => h === 'date');
-      if (foundDate !== -1) dateIndex = foundDate;
-      const foundProduct = header.findIndex(h => h === 'product id');
-      if (foundProduct !== -1) productIdIndex = foundProduct;
-      const foundQty = header.findIndex(h => h === 'qty');
-      if (foundQty !== -1) qtyIndex = foundQty;
-      const foundTo = header.findIndex(h => h === 'location to');
-      if (foundTo !== -1) toIndex = foundTo;
-    }
-
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(now.getDate() - 120);
-    ninetyDaysAgo.setHours(0, 0, 0, 0);
-
-    moveRows.slice(1).forEach(row => {
-      const dateStr = row[dateIndex]?.toString().trim();
-      const locationTo = row[toIndex]?.toString().trim();
-      if (!dateStr || locationTo !== 'Partners/Customers') return;
-
-      const moveDate = new Date(dateStr);
-      if (isNaN(moveDate.getTime())) return;
-
-      const productId = row[productIdIndex]?.toString().trim();
-      const qtyStr = row[qtyIndex]?.toString().replace(/,/g, '') || '0';
-      const qty = parseFloat(qtyStr);
-
-      if (!productId || isNaN(qty)) return;
-
-      if (moveDate >= ninetyDaysAgo) {
-        salesMap.set(productId, (salesMap.get(productId) || 0) + qty);
-      }
-
-      const key = `${moveDate.getFullYear()}-${moveDate.getMonth()}`;
-      const monthIndex = monthKeys.findIndex(k => k === key);
-
-      if (monthIndex !== -1) {
-        const breakdown = salesBreakdownMap.get(productId) || new Array(months.length).fill(0);
-        breakdown[monthIndex] += qty;
-        salesBreakdownMap.set(productId, breakdown);
-      }
-    });
-
-    const rows = inventoryResponse.data.values;
-    if (!rows || rows.length === 0) {
-      return [];
-    }
-
-    const invHeader = rows[0].map((h: string) => h.toString().toLowerCase().trim());
-    const idx = {
-      id: invHeader.findIndex((h: string) => h === 'product id' || h.includes('id') || h.includes('code')),
-      barcode: invHeader.findIndex((h: string) => h === 'product barcode' || h.includes('barcode')),
-      name: invHeader.findIndex((h: string) => h === 'product name' || ((h.includes('name') || h.includes('product') || h.includes('item')) && !h.includes('id') && !h.includes('code'))),
-      minQ: invHeader.findIndex((h: string) => h === 'min q by ctn' || h.includes('min q') || h.includes('min')),
-      maxQ: invHeader.findIndex((h: string) => h === 'max q by ctn' || h.includes('max q') || h.includes('max')),
-      qinc: invHeader.findIndex((h: string) => h === 'qinc'),
-      tags: invHeader.findIndex((h: string) => h === 'tags' || h.includes('tag')),
-      onHand: invHeader.findIndex((h: string) => h === 'qty' || h.includes('on hand') || h.includes('stock')),
-      free: invHeader.findIndex((h: string) => h === 'qty' || h.includes('free') || h.includes('avail'))
-    };
-
-    if (idx.id === -1) idx.id = 0;
-    if (idx.barcode === -1) idx.barcode = 1;
-    if (idx.name === -1) idx.name = 2;
-    if (idx.tags === -1) idx.tags = 3;
-    if (idx.minQ === -1) idx.minQ = 4;
-    if (idx.maxQ === -1) idx.maxQ = 5;
-    if (idx.qinc === -1) idx.qinc = 6;
-    if (idx.onHand === -1) idx.onHand = 7;
-    if (idx.free === -1) idx.free = 7;
-
-    const data = rows.slice(1).map((row, index) => {
-      let productId = row[idx.id]?.toString().trim() || '';
-      const barcode = row[idx.barcode]?.toString().trim() || '';
-      const productName = row[idx.name]?.toString().trim() || '';
-
-      if (!productId) {
-        if (barcode) productId = `BAR-${barcode}`;
-        else if (productName) productId = `NAME-${productName.replace(/\s+/g, '_')}`;
-        else productId = `ROW-${index}`;
-      }
-
-      const breakdownQtys = salesBreakdownMap.get(productId) || new Array(months.length).fill(0);
-      const salesBreakdown = breakdownQtys.map((qty, idx) => ({
-        label: monthLabels[idx],
-        qty: qty
-      }));
-
-      return {
-        productId,
-        barcode,
-        productName,
-        minQ: parseFloat(row[idx.minQ]?.toString().replace(/,/g, '') || '0'),
-        maxQ: parseFloat(row[idx.maxQ]?.toString().replace(/,/g, '') || '0'),
-        qinc: parseFloat(row[idx.qinc]?.toString().replace(/,/g, '') || '0'),
-        tags: row[idx.tags]?.toString().trim() || '',
-        qtyOnHand: parseFloat(row[idx.onHand]?.toString().replace(/,/g, '') || '0'),
-        qtyFreeToUse: parseFloat(row[idx.free]?.toString().replace(/,/g, '') || '0'),
-        salesQty: salesMap.get(productId) || 0,
-        rowIndex: index + 2,
-        salesBreakdown
-      };
-    }).filter(row => row.productName);
-
-    return data;
+        return {
+          productId,
+          barcode: row['PRODUCT BARCODE']?.toString().trim() || '',
+          productName: row['PRODUCT NAME']?.toString().trim() || '',
+          minQ: parseNum(row['MIN Q BY CTN']),
+          maxQ: parseNum(row['MAX Q BY CTN']),
+          qinc: parseNum(row.QINC),
+          tags: row.TAGS?.toString().trim() || '',
+          qtyOnHand: parseNum(row['QTY ON HAND']),
+          qtyFreeToUse: parseNum(row['QTY FREE TO USE']),
+          salesQty: salesMap.get(productId) || 0,
+          salesBreakdown,
+        };
+      })
+      .filter((row) => row.productName);
   } catch (error) {
     console.error('Error fetching product orders data:', error);
     throw error;
   }
 }
 
-export async function updateProductColumn(rowIndex: number, columnName: string, value: any): Promise<{ success: boolean }> {
+export async function updateProductColumn(productId: string, columnName: string, value: unknown): Promise<{ success: boolean }> {
   try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const headerRes = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - PRODUCTS'!1:1`,
-    });
-    const header = (headerRes.data.values?.[0] || []).map((h: string) => h.toLowerCase().trim());
-
-    let colIndex = -1;
-    if (columnName === 'qinc') colIndex = header.findIndex((h: string) => h === 'qinc');
-    else if (columnName === 'minQ') colIndex = header.findIndex((h: string) => h.includes('min q') || h.includes('min'));
-    else if (columnName === 'maxQ') colIndex = header.findIndex((h: string) => h.includes('max q') || h.includes('max'));
-
-    if (colIndex === -1) {
-      if (columnName === 'minQ') colIndex = 4;
-      else if (columnName === 'maxQ') colIndex = 5;
-      else if (columnName === 'qinc') colIndex = 6;
-    }
-
-    if (colIndex === -1) throw new Error(`Column for ${columnName} not found`);
-
-    const getColLetter = (index: number) => {
-      let letter = '';
-      while (index >= 0) {
-        letter = String.fromCharCode((index % 26) + 65) + letter;
-        index = Math.floor(index / 26) - 1;
-      }
-      return letter;
+    const columnMap: Record<string, string> = {
+      minQ: 'MIN Q BY CTN',
+      maxQ: 'MAX Q BY CTN',
+      qinc: 'QINC',
     };
 
-    const colLetter = getColLetter(colIndex);
+    const dbColumn = columnMap[columnName];
+    if (!dbColumn) throw new Error(`Column for ${columnName} not found`);
 
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - PRODUCTS'!${colLetter}${rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values: [[value]],
-      },
-    });
+    const { error } = await bhs_supabase
+      .from('web_INVENTORY_PRODUCTS')
+      .update({ [dbColumn]: parseNum(value) })
+      .eq('PRODUCT ID', productId);
 
+    if (error) throw error;
     return { success: true };
   } catch (error) {
     console.error('Error updating product column:', error);
@@ -324,12 +288,12 @@ export async function updateProductColumn(rowIndex: number, columnName: string, 
   }
 }
 
-export async function updateProductOrderQinc(rowIndex: number, qinc: number): Promise<{ success: boolean }> {
-  return updateProductColumn(rowIndex, 'qinc', qinc);
+export async function updateProductOrderQinc(productId: string, qinc: number): Promise<{ success: boolean }> {
+  return updateProductColumn(productId, 'qinc', qinc);
 }
 
-export async function updateProductOrderLimit(rowIndex: number, field: 'minQ' | 'maxQ', value: number): Promise<{ success: boolean }> {
-  return updateProductColumn(rowIndex, field, value);
+export async function updateProductOrderLimit(productId: string, field: 'minQ' | 'maxQ', value: number): Promise<{ success: boolean }> {
+  return updateProductColumn(productId, field, value);
 }
 
 // ============================================================
@@ -338,122 +302,47 @@ export async function updateProductOrderLimit(rowIndex: number, field: 'minQ' | 
 
 export async function getProductMovementsData() {
   try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `'Inventory - MOVES'!A:I`,
-    });
-
-    const rows = response.data.values || [];
-    if (rows.length === 0) return {};
-
-    const header = rows[0].map((h: string) => h.toLowerCase().trim());
-    const idx = {
-      from: header.indexOf('location from'),
-      to: header.indexOf('location to'),
-      productId: header.indexOf('product id'),
-      qty: header.indexOf('qty')
-    };
-
-    if (idx.from === -1) idx.from = 2;
-    if (idx.to === -1) idx.to = 3;
-    if (idx.productId === -1) idx.productId = 4;
-    if (idx.qty === -1) idx.qty = 8;
-
-    const movements: Record<string, { sales: number; returns: number; netPurchases: number }> = {};
-
-    rows.slice(1).forEach(row => {
-      const from = row[idx.from]?.toString().trim();
-      const to = row[idx.to]?.toString().trim();
-      const productId = row[idx.productId]?.toString().trim();
-      const qtyStr = row[idx.qty]?.toString().replace(/,/g, '') || '0';
-      const qty = parseFloat(qtyStr);
-
-      if (!productId || isNaN(qty)) return;
-
-      if (!movements[productId]) {
-        movements[productId] = { sales: 0, returns: 0, netPurchases: 0 };
-      }
-
-      if (to === 'Partners/Customers') movements[productId].sales += qty;
-      if (from === 'Partners/Customers') movements[productId].returns += qty;
-      if (from === 'Partners/Vendors') movements[productId].netPurchases += qty;
-      if (to === 'Partners/Vendors') movements[productId].netPurchases -= qty;
-    });
-
-    return movements;
+    const moveRows = await fetchInventoryMoves();
+    return aggregateMovements(moveRows);
   } catch (error) {
     console.error('Error fetching movements data:', error);
     throw error;
   }
 }
 
+export async function getItemCodesData() {
+  try {
+    const { data, error } = await bhs_supabase
+      .from('web_INVENTORY_ITEM_CODE')
+      .select('*');
+
+    if (error) throw error;
+
+    return (data || [])
+      .map((row) => ({
+        tags: row.TAGS?.toString().trim() || '',
+        itemCode: row['ITEM CODE']?.toString().trim() || '',
+        barcode: row.BARCODE?.toString().trim() || '',
+      }))
+      .filter((entry) => entry.itemCode || entry.barcode);
+  } catch (error) {
+    console.error('Error fetching item codes:', error);
+    throw error;
+  }
+}
+
 export async function getSingleProductAnalysis(productId: string, filters?: { year?: string, month?: string, from?: string, to?: string, preset?: string }) {
   try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const [movesResponse, productsResponse] = await Promise.all([
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - MOVES'!A:I`,
-      }),
-      sheets.spreadsheets.values.get({
-        spreadsheetId: SPREADSHEET_ID,
-        range: `'Inventory - PRODUCTS'!A:Z`,
-      })
+    const [moveRows, products] = await Promise.all([
+      fetchInventoryMoves(),
+      fetchInventoryProducts(),
     ]);
 
-    const rows = movesResponse.data.values || [];
-    if (rows.length === 0) return null;
+    if (moveRows.length === 0) return null;
 
-    const prodRows = productsResponse.data.values || [];
-    let currentStock = 0;
-    let minQ = 0;
-
-    if (prodRows.length > 0) {
-      const pHeader = prodRows[0].map(h => h.toString().toLowerCase().trim());
-      const pIdx = {
-        id: pHeader.findIndex(h => h === 'product id' || h.includes('id') || h.includes('code')),
-        stock: pHeader.findIndex(h => h === 'qty'),
-        min: pHeader.findIndex(h => h === 'min q' || h.includes('min'))
-      };
-
-      if (pIdx.stock === -1) {
-        pIdx.stock = pHeader.findIndex(h => h.includes('on hand') || h.includes('stock'));
-      }
-
-      const productRow = prodRows.slice(1).find(r => r[pIdx.id]?.toString().trim() === productId);
-      if (productRow) {
-        currentStock = parseFloat(productRow[pIdx.stock]?.toString().replace(/,/g, '') || '0');
-        minQ = parseFloat(productRow[pIdx.min]?.toString().replace(/,/g, '') || '0');
-      }
-    }
-
-    const header = rows[0].map((h: string) => h.toLowerCase().trim());
-    const idx = {
-      date: header.indexOf('date'),
-      from: header.indexOf('location from'),
-      to: header.indexOf('location to'),
-      productId: header.indexOf('product id'),
-      qty: header.indexOf('qty')
-    };
-
-    if (idx.date === -1) idx.date = 0;
-    if (idx.from === -1) idx.from = 2;
-    if (idx.to === -1) idx.to = 3;
-    if (idx.productId === -1) idx.productId = 4;
-    if (idx.qty === -1) idx.qty = 8;
+    const productRow = products.find((p) => p['PRODUCT ID']?.toString().trim() === productId);
+    const currentStock = parseNum(productRow?.['QTY ON HAND']);
+    const minQ = parseNum(productRow?.['MIN Q BY CTN']);
 
     let filterStart: Date | null = null;
     let filterEnd: Date | null = new Date();
@@ -487,11 +376,10 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
     let minDate = filterStart;
     if (!minDate) {
       minDate = new Date();
-      rows.slice(1).forEach(row => {
-        const pid = row[idx.productId]?.toString().trim();
-        if (pid !== productId) return;
-        const dateStr = row[idx.date]?.toString().trim();
-        const d = new Date(dateStr);
+      moveRows.forEach((row) => {
+        const pid = row['PRODUCT ID']?.toString().trim();
+        if (pid !== productId || !row.DATE) return;
+        const d = new Date(row.DATE);
         if (!isNaN(d.getTime()) && d < minDate!) minDate = d;
       });
     }
@@ -532,17 +420,16 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
 
     let totalSales = 0, totalReturns = 0, totalPurchases = 0, totalPurchaseReturns = 0;
 
-    rows.slice(1).forEach(row => {
-      const pid = row[idx.productId]?.toString().trim();
-      if (pid !== productId) return;
+    moveRows.forEach((row) => {
+      const pid = row['PRODUCT ID']?.toString().trim();
+      if (pid !== productId || !row.DATE) return;
 
-      const dateStr = row[idx.date]?.toString().trim();
-      const from = row[idx.from]?.toString().trim();
-      const to = row[idx.to]?.toString().trim();
-      const qty = parseFloat(row[idx.qty]?.toString().replace(/,/g, '') || '0');
-      if (isNaN(qty)) return;
+      const from = row['LOCATION FROM']?.toString().trim();
+      const to = row['LOCATION TO']?.toString().trim();
+      const qty = parseNum(row.QTY);
+      if (qty === 0) return;
 
-      const moveDate = new Date(dateStr);
+      const moveDate = new Date(row.DATE);
       if (isNaN(moveDate.getTime())) return;
 
       if (filterStart && moveDate < filterStart) return;
@@ -554,22 +441,22 @@ export async function getSingleProductAnalysis(productId: string, filters?: { ye
 
       if (to === 'Partners/Customers') {
         totalSales += qty;
-        const pData = allPeriods.find(p => p.key === key);
+        const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.sales += qty;
       }
       if (from === 'Partners/Customers') {
         totalReturns += qty;
-        const pData = allPeriods.find(p => p.key === key);
+        const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.returns += qty;
       }
       if (from === 'Partners/Vendors') {
         totalPurchases += qty;
-        const pData = allPeriods.find(p => p.key === key);
+        const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.purchases += qty;
       }
       if (to === 'Partners/Vendors') {
         totalPurchaseReturns += qty;
-        const pData = allPeriods.find(p => p.key === key);
+        const pData = allPeriods.find((p) => p.key === key);
         if (pData) pData.purchases -= qty;
       }
     });

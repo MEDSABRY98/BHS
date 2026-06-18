@@ -71,6 +71,10 @@ export default function SalesCustomersTab({ filters, userId, onUploadMapping, sh
   // Fetch Data from API
   useEffect(() => {
     const fetchCustomersData = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/Customers', {

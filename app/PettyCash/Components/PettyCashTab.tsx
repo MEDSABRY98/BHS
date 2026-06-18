@@ -12,6 +12,7 @@ import StatsTab from './StatsTab';
 import HistoryTab from './HistoryTab';
 import EditEntryModal from './EditEntryModal';
 import VoucherDocument from './VoucherDocument';
+import { toast } from '@/app/Components/Notification';
 
 interface Receipt {
   id: string;
@@ -230,18 +231,21 @@ export default function PettyCashTab() {
           name: formData.source,
           description: formData.description,
           paid: formData.paid,
-          createdBy: currentUser?.name || 'Custodian',
         }),
       });
 
       if (response.ok) {
         await fetchRecords();
+        toast.success('Receipt saved successfully');
         return true;
       }
+
+      const data = await response.json().catch(() => ({}));
+      toast.error(data.details || data.error || 'Error saving receipt');
       return false;
     } catch (error) {
       console.error('Error submitting receipt:', error);
-      alert('Error saving receipt');
+      toast.error('Error saving receipt');
       return false;
     } finally {
       setLoading(false);
@@ -270,7 +274,6 @@ export default function PettyCashTab() {
               name: row.source,
               description: row.description,
               paid: row.paid,
-              createdBy: currentUser?.name || 'Custodian',
             }),
           });
           if (response.ok) successCount++;
@@ -282,14 +285,15 @@ export default function PettyCashTab() {
       if (successCount > 0) {
         await fetchRecords();
         setActiveTab('stats');
+        toast.success(`${successCount} expense${successCount > 1 ? 's' : ''} saved successfully`);
         return true;
-      } else {
-        alert('Failed to save expenses. Please check your connection.');
-        return false;
       }
+
+      toast.error('Failed to save expenses. Please check your connection.');
+      return false;
     } catch (error) {
       console.error('Error submitting expenses:', error);
-      alert('Error saving records');
+      toast.error('Error saving records');
       return false;
     } finally {
       setLoading(false);
@@ -339,12 +343,13 @@ export default function PettyCashTab() {
       if (response.ok && data.success) {
         await fetchRecords();
         closeModal();
+        toast.success('Entry updated successfully');
       } else {
-        alert(data.error || 'Failed to update entry');
+        toast.error(data.details || data.error || 'Failed to update entry');
       }
     } catch (error) {
       console.error('Error updating entry:', error);
-      alert('Failed to update entry');
+      toast.error('Failed to update entry');
     } finally {
       setLoading(false);
     }
@@ -374,12 +379,13 @@ export default function PettyCashTab() {
       if (response.ok && data.success) {
         await fetchRecords();
         closeModal();
+        toast.success('Entry deleted successfully');
       } else {
-        alert(data.error || 'Failed to delete entry');
+        toast.error(data.details || data.error || 'Failed to delete entry');
       }
     } catch (error) {
       console.error('Error deleting entry:', error);
-      alert('Failed to delete entry');
+      toast.error('Failed to delete entry');
     } finally {
       setLoading(false);
     }
@@ -387,6 +393,7 @@ export default function PettyCashTab() {
 
   // Handler for closing/settling active petty cash period
   const handleSettlePeriod = async () => {
+    const loadingId = toast.loading('Closing and archiving current period...', { id: 'petty_cash_settle' });
     try {
       setSettleLoading(true);
       const response = await fetch('/api/PettyCash', {
@@ -399,24 +406,25 @@ export default function PettyCashTab() {
           liquidationDate: settleDate,
           openingAmount: openingAmount ? parseFloat(openingAmount) : 0,
           openingDescription: openingDescription || 'Opening Balance / رصيد افتتاحي للدورة الجديدة',
-          userName: currentUser?.name || 'Custodian'
         })
       });
 
       if (response.ok) {
-        // Reset states
+        toast.dismiss(loadingId);
         setOpeningAmount('');
         setIsSettleModalOpen(false);
-        // Refresh records
         await fetchRecords();
-        alert('Period closed and archived successfully!');
+        await fetchHistoryRecords();
+        toast.success('Period closed and archived successfully!');
       } else {
-        const errData = await response.json();
-        alert(errData.error || 'Failed to settle current period');
+        toast.dismiss(loadingId);
+        const errData = await response.json().catch(() => ({}));
+        toast.error(errData.details || errData.error || 'Failed to settle current period');
       }
     } catch (error) {
+      toast.dismiss(loadingId);
       console.error('Error settling period:', error);
-      alert('Failed to settle current period');
+      toast.error('Failed to settle current period');
     } finally {
       setSettleLoading(false);
     }
@@ -459,14 +467,15 @@ export default function PettyCashTab() {
           await fetchVoucherHistory();
         }, 100);
 
+        toast.success('Voucher saved successfully');
         return true;
-      } else {
-        alert('Failed to save voucher to Google Sheets');
-        return false;
       }
+
+      toast.error('Failed to save voucher to Google Sheets');
+      return false;
     } catch (error) {
       console.error('Error saving voucher:', error);
-      alert('Error saving voucher');
+      toast.error('Error saving voucher');
       return false;
     } finally {
       setLoading(false);
@@ -582,6 +591,7 @@ export default function PettyCashTab() {
     const filename = `Petty_Cash_Statistics_${date}.xlsx`;
 
     XLSX.writeFile(workbook, filename);
+    toast.success(`Exported to ${filename}`);
   };
 
   const totalReceipts = filteredReceipts.reduce((sum, r) => sum + r.amount, 0);

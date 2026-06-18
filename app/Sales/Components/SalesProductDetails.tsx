@@ -41,6 +41,10 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
   // Fetch product details from API
   useEffect(() => {
     const fetchProductDetails = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/ProductDetails', {

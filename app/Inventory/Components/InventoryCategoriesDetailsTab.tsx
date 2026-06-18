@@ -116,7 +116,7 @@ export default function InventoryProductOrdersDetailsTab({
                 const res = await fetch('/api/Inventory', {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ rowIndex: editingProductInfo.rowIndex, field: update.field, value: update.value })
+                    body: JSON.stringify({ productId: editingProductInfo.productId, field: update.field, value: update.value })
                 });
                 if (!res.ok) throw new Error(`Failed to update ${update.field}`);
             }
@@ -129,7 +129,7 @@ export default function InventoryProductOrdersDetailsTab({
             }
         } catch (err) {
             console.error('Update error:', err);
-            alert('Failed to update product info in Google Sheets');
+            alert('Failed to update product info');
         } finally {
             setUpdating(null);
             setEditingProductInfo(null);

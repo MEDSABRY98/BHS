@@ -1,19 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
-
-// Helper to check if a user is a manager
-async function checkIsManager(userId: string): Promise<boolean> {
-  if (userId === 'ADMIN') return true;
-  const { data: user } = await bhs_supabas
-    .from('bhs_USERS')
-    .select('NAME, ROLE, IS_SALESMANAGER')
-    .eq('ID', userId)
-    .maybeSingle();
-
-  if (!user) return false;
-  return user.NAME === 'MED Sabry' || user.ROLE?.toLowerCase() === 'admin' || user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE';
-}
+import { checkIsManager, invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function POST(request: Request) {
   try {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, CheckCircle2 } from 'lucide-react';
+import { toast } from '@/app/Components/Notification';
 
 interface ReceiptsFormProps {
   loading: boolean;
@@ -23,7 +24,7 @@ export default function ReceiptsForm({ loading, onSubmit }: ReceiptsFormProps) {
 
   const handleSave = async () => {
     if (!formData.amount || !formData.source || !formData.description) {
-      alert('Please fill all fields');
+      toast.warning('Please fill all fields');
       return;
     }
     const success = await onSubmit(formData);

@@ -35,6 +35,12 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
   } | null>(null);
 
   useEffect(() => {
+    if (!userId) {
+      setLoading(false);
+      setData(null);
+      return;
+    }
+
     let isMounted = true;
     const fetchOverview = async () => {
       setLoading(true);
@@ -60,7 +66,7 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
 
     fetchOverview();
     return () => { isMounted = false; };
-  }, [filters, refreshTrigger]);
+  }, [filters, refreshTrigger, userId]);
 
   const exportYearlyTableToExcel = () => {
     if (!data) return;

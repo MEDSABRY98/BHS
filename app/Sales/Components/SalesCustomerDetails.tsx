@@ -67,6 +67,10 @@ export default function SalesCustomerDetails({
   // Fetch customer details from API
   useEffect(() => {
     const fetchCustomerDetails = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/CustomerDetails', {

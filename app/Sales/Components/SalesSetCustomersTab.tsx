@@ -140,6 +140,10 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
   }, []);
 
   const fetchMyCustomers = async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const response = await fetch(`/api/Sales/MyCustomers?userId=${encodeURIComponent(userId)}`);

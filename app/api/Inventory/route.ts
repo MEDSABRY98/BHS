@@ -20,13 +20,13 @@ export async function GET() {
 
 export async function PUT(request: Request) {
   try {
-    const { rowIndex, field, value } = await request.json();
+    const { productId, field, value } = await request.json();
 
-    if (!rowIndex || !field) {
+    if (!productId || !field) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    await updateProductColumn(rowIndex, field, value);
+    await updateProductColumn(productId, field, value);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     console.error('Update Error:', error);

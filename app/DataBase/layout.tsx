@@ -6,18 +6,18 @@ import Link from 'next/link';
 import Login from '@/app/Components/Login';
 import Loading from '@/app/Components/Loading';
 import {
-  LayoutDashboard,
   Users,
   Package,
   UserCircle,
-  LogOut,
   Menu,
   X,
   Database,
   ChevronRight,
   ChevronLeft,
   ArrowLeft,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ArrowLeftRight,
+  Hash
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -106,9 +106,11 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
   }
 
   const NAV_ITEMS = [
-    { id: 'db-dashboard', href: '/DataBase', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'db-customers', href: '/DataBase/Customers', icon: UserCircle, label: 'Customers DB' },
     { id: 'db-products', href: '/DataBase/Products', icon: Package, label: 'Products DB' },
+    { id: 'db-inv-products', href: '/DataBase/InventoryProducts', icon: Package, label: 'Inventory Products' },
+    { id: 'db-inv-moves', href: '/DataBase/InventoryMoves', icon: ArrowLeftRight, label: 'Inventory Moves' },
+    { id: 'db-inv-itemcode', href: '/DataBase/InventoryItemCode', icon: Hash, label: 'Inventory Item Code' },
     { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
     { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB' },
   ];
@@ -149,7 +151,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
             <NavItem
               key={item.href}
               {...item}
-              isActive={pathname === item.href || (item.href !== '/DataBase' && pathname.startsWith(item.href))}
+              isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
               isCollapsed={isCollapsed}
             />
           ))}
@@ -218,7 +220,7 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
                   <NavItem
                     key={item.href}
                     {...item}
-                    isActive={pathname === item.href || (item.href !== '/DataBase' && pathname.startsWith(item.href))}
+                    isActive={pathname === item.href || pathname.startsWith(`${item.href}/`)}
                     onClick={() => setIsSidebarOpen(false)}
                   />
                 ))}

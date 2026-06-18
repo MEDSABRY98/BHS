@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Plus, CheckCircle2, X, TrendingDown } from 'lucide-react';
+import { toast } from '@/app/Components/Notification';
 
 interface ExpenseRow {
   amount: string;
@@ -47,7 +48,7 @@ export default function ExpensesForm({ loading, onSubmit }: ExpensesFormProps) {
     const validRows = expenseCart.filter(row => row.amount && row.source && row.description);
 
     if (validRows.length === 0) {
-      alert('Please fill at least one complete expense row');
+      toast.warning('Please fill at least one complete expense row');
       return;
     }
 

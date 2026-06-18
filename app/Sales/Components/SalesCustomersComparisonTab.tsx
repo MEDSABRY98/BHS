@@ -97,6 +97,10 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
   // Fetch from server
   useEffect(() => {
     const fetchComparison = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/CustomersComparison', {

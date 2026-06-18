@@ -61,6 +61,10 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
   // Fetch data
   useEffect(() => {
     const fetchProducts = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/Products', {

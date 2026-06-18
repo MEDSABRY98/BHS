@@ -24,6 +24,10 @@ export default function SalesNewListingsTab({ userId, filters, refreshTrigger }:
 
   useEffect(() => {
     const fetchNewListings = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/NewListings', {

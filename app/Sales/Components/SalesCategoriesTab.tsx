@@ -39,6 +39,10 @@ export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: 
   // Fetch data
   useEffect(() => {
     const fetchCategories = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/Categories', {

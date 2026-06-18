@@ -1,20 +1,6 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabas } from '@/lib/supabase';
-import { invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
-
-// Helper to check if a user is a manager
-async function checkIsManager(userId: string): Promise<boolean> {
-  const cleanUserId = String(userId || '').trim().toUpperCase();
-  if (cleanUserId === 'ADMIN') return true;
-  const { data: user } = await bhs_supabas
-    .from('bhs_USERS')
-    .select('NAME, ROLE, IS_SALESMANAGER')
-    .eq('ID', cleanUserId)
-    .maybeSingle();
-
-  if (!user) return false;
-  return user.NAME === 'MED Sabry' || user.ROLE?.toLowerCase() === 'admin' || user.IS_SALESMANAGER === true || user.IS_SALESMANAGER === 'TRUE';
-}
+import { checkIsManager, getMappingServer, invalidateMappingCache } from '@/app/Sales/Utils/SalesMappingCache';
 
 export async function GET(request: Request) {
   try {
@@ -28,13 +14,16 @@ export async function GET(request: Request) {
     const cleanUserId = String(userId).trim().toUpperCase();
     const isManager = await checkIsManager(cleanUserId);
 
-    // 1. Fetch raw mappings from database
-    let query = bhs_supabas.from('web_Sales_DB_CUSTOMERSMAPPING').select('*');
-    if (!isManager) {
-      query = query.eq('SALES_REP', cleanUserId);
-    }
-    const { data: rawMappings, error: mapError } = await query;
-    if (mapError) throw mapError;
+    // 1. Fetch mappings filtered by user permissions (ID or legacy name)
+    const filteredMappings = await getMappingServer(userId);
+    const rawMappings = Array.from(filteredMappings.values()).map(m => ({
+      ID: m.id,
+      'CUSTOMER ID': m.customerId,
+      'SALES_REP': m.userId,
+      'AREA': m.area,
+      'MARKET': m.market,
+      'MERCHANDISER': m.merchandiser,
+    }));
 
     // 2. Fetch all customers to resolve names dynamically
     const { data: customers, error: custError } = await bhs_supabas

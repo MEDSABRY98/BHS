@@ -196,10 +196,11 @@ export default function SalesPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && currentUser?.id) {
       fetchData();
+      setRefreshTrigger(prev => prev + 1);
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, currentUser?.id]);
 
   // Enforce subtab permissions
   useEffect(() => {
@@ -221,6 +222,16 @@ export default function SalesPage() {
       }
     }
   }, [currentUser, activeTab]);
+
+  const salesUserId = useMemo(
+    () => String(currentUser?.id || '').trim(),
+    [currentUser?.id]
+  );
+
+  const isSalesManager = useMemo(
+    () => currentUser?.isSalesManager === true || currentUser?.isSalesManager === 'TRUE',
+    [currentUser?.isSalesManager]
+  );
 
   const showCosts = useMemo(() => {
     const userName = currentUser?.name?.toLowerCase() || '';
@@ -275,8 +286,13 @@ export default function SalesPage() {
       if (silent) setIsRefreshing(true);
       else setLoading(true);
 
-      const currentUserObj = localStorage.getItem('currentUser');
-      const userId = currentUserObj ? JSON.parse(currentUserObj).id : 'ADMIN';
+      const userId = salesUserId;
+
+      if (!userId) {
+        setLoading(false);
+        setIsRefreshing(false);
+        return;
+      }
 
       const response = await fetch('/api/Sales/Metadata', {
         method: 'POST',
@@ -310,12 +326,21 @@ export default function SalesPage() {
   };
 
   const handleUploadMapping = async (mapping: Record<string, any>) => {
+    if (!isSalesManager) {
+      toast.error('Only sales managers can upload customer mappings.');
+      return;
+    }
+
     // Save locally for immediate UI update
     setCustomerMapping(mapping);
     localStorage.setItem('salesCustomerMapping', JSON.stringify(mapping));
 
-    const currentUserStr = localStorage.getItem('currentUser');
-    const userId = currentUserStr ? JSON.parse(currentUserStr).id : 'ADMIN';
+    const userId = salesUserId;
+
+    if (!userId) {
+      toast.error('User ID is missing. Please log in again.');
+      return;
+    }
 
     try {
       const response = await fetch('/api/Sales/Mapping', {
@@ -378,6 +403,8 @@ export default function SalesPage() {
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isSalesManager) return;
+
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -477,6 +504,10 @@ export default function SalesPage() {
   ];
 
   const renderTabContent = () => {
+    if (!salesUserId) {
+      return <Loading fullScreen={false} />;
+    }
+
     if (loading) {
       return <Loading fullScreen={false} />;
     }
@@ -528,62 +559,62 @@ export default function SalesPage() {
       <div className="relative w-full">
         {visitedTabs.has('sales-overview') && (
           <div className={activeTab === 'sales-overview' ? 'block' : 'hidden'}>
-            <SalesOverviewTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesOverviewTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-top10') && (
           <div className={activeTab === 'sales-top10' ? 'block' : 'hidden'}>
-            <SalesTop10Tab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesTop10Tab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-customers') && (
           <div className={activeTab === 'sales-customers' ? 'block' : 'hidden'}>
-            <SalesCustomersTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+            <SalesCustomersTab filters={commonFilters} userId={salesUserId} onUploadMapping={handleUploadMapping} showCosts={showCosts} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-customers-comparison') && (
           <div className={activeTab === 'sales-customers-comparison' ? 'block' : 'hidden'}>
-            <SalesCustomersComparisonTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesCustomersComparisonTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-inactive-customers') && (
           <div className={activeTab === 'sales-inactive-customers' ? 'block' : 'hidden'}>
-            <SalesInactiveCustomersTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
+            <SalesInactiveCustomersTab filters={commonFilters} userId={salesUserId} days={inactiveDays as any} minAmount={inactiveMinAmount as any} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-statistics') && (
           <div className={activeTab === 'sales-statistics' ? 'block' : 'hidden'}>
-            <SalesStatisticsTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesStatisticsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-daily-sales') && (
           <div className={activeTab === 'sales-daily-sales' ? 'block' : 'hidden'}>
-            <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={currentUser?.id || 'ADMIN'} showCosts={showCosts} refreshTrigger={refreshTrigger} />
+            <SalesDailySalesTab filters={commonFilters} invoiceTypeFilter={invoiceTypeFilter} userId={salesUserId} showCosts={showCosts} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-products') && (
           <div className={activeTab === 'sales-products' ? 'block' : 'hidden'}>
-            <SalesProductsTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesProductsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-new-listings') && (
           <div className={activeTab === 'sales-new-listings' ? 'block' : 'hidden'}>
-            <SalesNewListingsTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesNewListingsTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-categories') && (
           <div className={activeTab === 'sales-categories' ? 'block' : 'hidden'}>
-            <SalesCategoriesTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesCategoriesTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-download-form') && (
           <div className={activeTab === 'sales-download-form' ? 'block' : 'hidden'}>
-            <SalesStockReportTab filters={commonFilters} userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesStockReportTab filters={commonFilters} userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
         {visitedTabs.has('sales-my-customers') && (
           <div className={activeTab === 'sales-my-customers' ? 'block' : 'hidden'}>
-            <SalesSetCustomersTab userId={currentUser?.id || 'ADMIN'} refreshTrigger={refreshTrigger} />
+            <SalesSetCustomersTab userId={salesUserId} refreshTrigger={refreshTrigger} />
           </div>
         )}
       </div>
@@ -649,14 +680,26 @@ export default function SalesPage() {
               </button>
 
               <div className="flex items-center gap-3">
-                {/* Upload Modal Trigger */}
-                <div
-                  onClick={() => setIsUploadModalOpen(true)}
-                  className="bg-gradient-to-br from-green-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-green-200 cursor-pointer active:scale-95 transition-transform hover:rotate-3"
-                  title="Upload / Download Templates"
-                >
-                  <BarChart3 className="w-6 h-6" />
-                </div>
+                {isSalesManager && (
+                  <>
+                    {/* Upload Modal Trigger — sales managers only */}
+                    <div
+                      onClick={() => setIsUploadModalOpen(true)}
+                      className="bg-gradient-to-br from-green-600 to-emerald-600 text-white p-2.5 rounded-xl shadow-lg shadow-green-200 cursor-pointer active:scale-95 transition-transform hover:rotate-3"
+                      title="Upload / Download Templates"
+                    >
+                      <BarChart3 className="w-6 h-6" />
+                    </div>
+
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept=".xlsx, .xls"
+                      className="hidden"
+                    />
+                  </>
+                )}
 
                 {/* Refresh Data Button */}
                 {currentUser?.name === 'MED Sabry' && (
@@ -670,14 +713,6 @@ export default function SalesPage() {
                   </button>
                 )}
               </div>
-
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept=".xlsx, .xls"
-                className="hidden"
-              />
             </div>
 
             {/* Middle Section: Display Active Tab Label */}
@@ -716,8 +751,8 @@ export default function SalesPage() {
         </div>
       </div>
 
-      {/* UPLOAD/DOWNLOAD MODAL */}
-      {isUploadModalOpen && (
+      {/* UPLOAD/DOWNLOAD MODAL — sales managers only */}
+      {isSalesManager && isUploadModalOpen && (
         <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
           <div
             className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300"

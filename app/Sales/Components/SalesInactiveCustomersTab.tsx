@@ -122,6 +122,10 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
   // Fetch inactive customers from server
   useEffect(() => {
     const fetchInactiveCustomers = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/InactiveCustomers', {

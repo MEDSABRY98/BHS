@@ -92,7 +92,6 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'lpo-reports', label: 'Reports' }
     ],
     'database': [
-        { id: 'db-dashboard', label: 'Dashboard' },
         { id: 'db-customers', label: 'Customers DB' },
         { id: 'db-products', label: 'Products DB' },
         { id: 'db-users', label: 'Users DB' }

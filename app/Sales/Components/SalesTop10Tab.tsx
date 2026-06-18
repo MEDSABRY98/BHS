@@ -33,6 +33,10 @@ export default function SalesTop10Tab({ filters, userId, refreshTrigger }: Sales
   // Fetch Data from API
   useEffect(() => {
     const fetchTop10Data = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/Top10', {

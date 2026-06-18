@@ -23,6 +23,10 @@ export default function SalesStockReportTab({ filters, userId, refreshTrigger }:
 
   useEffect(() => {
     const fetchStockData = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/StockReport', {

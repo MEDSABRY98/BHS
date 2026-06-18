@@ -23,6 +23,10 @@ export default function SalesStatisticsTab({ filters, userId, refreshTrigger }: 
   // Fetch data
   useEffect(() => {
     const fetchStatistics = async () => {
+      if (!userId) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const response = await fetch('/api/Sales/Statistics', {

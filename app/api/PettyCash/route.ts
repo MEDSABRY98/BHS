@@ -1,6 +1,57 @@
 import { NextResponse } from 'next/server';
 import { bhs_supabase } from '@/lib/supabase';
 
+/** Parse R-XXXX numeric part from id (supports legacy `R-0001#date` format). */
+function parseRecordNum(id: string): number | null {
+  const baseId = String(id || '').split('#')[0];
+  if (!baseId.startsWith('R-')) return null;
+  const num = parseInt(baseId.substring(2), 10);
+  return isNaN(num) ? null : num;
+}
+
+function formatRecordId(num: number): string {
+  return `R-${String(num).padStart(4, '0')}`;
+}
+
+function extractErrorMessage(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message?: string }).message || fallback);
+  }
+  if (error instanceof Error) return error.message;
+  return fallback;
+}
+
+/** Highest R-XXXX number across active + history tables. */
+async function getMaxRecordNum(): Promise<number> {
+  const [activeRes, historyRes] = await Promise.all([
+    bhs_supabase.from('web_Petty_Cash_Active').select('ID'),
+    bhs_supabase.from('web_Petty_Cash_History').select('ID'),
+  ]);
+
+  if (activeRes.error) throw activeRes.error;
+  if (historyRes.error) throw historyRes.error;
+
+  let maxNum = 0;
+  const checkMax = (list: { ID?: string }[]) => {
+    list.forEach((row) => {
+      const num = parseRecordNum(row.ID || '');
+      if (num !== null && num > maxNum) {
+        maxNum = num;
+      }
+    });
+  };
+
+  checkMax(activeRes.data || []);
+  checkMax(historyRes.data || []);
+
+  return maxNum;
+}
+
+/** Next sequential R-XXXX id across active + history tables. */
+async function getNextRecordId(): Promise<string> {
+  return formatRecordId((await getMaxRecordNum()) + 1);
+}
+
 // GET: Fetch all active or history petty cash records
 export async function GET(request: Request) {
   try {
@@ -23,9 +74,7 @@ export async function GET(request: Request) {
         amount: Number(row.AMOUNT),
         name: row.NAME,
         description: row.DESCRIPTION,
-        paid: row.PAID,
-        createdBy: row.CREATED_BY,
-        liquidatedBy: row.LIQUIDATED_BY
+        paid: row.PAID
       }));
 
       return NextResponse.json({ records });
@@ -46,14 +95,13 @@ export async function GET(request: Request) {
       amount: Number(row.AMOUNT),
       name: row.NAME,
       description: row.DESCRIPTION,
-      paid: row.PAID,
-      createdBy: row.CREATED_BY
+      paid: row.PAID
     }));
 
     return NextResponse.json({ records });
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to fetch data';
+    const errorMessage = extractErrorMessage(error, 'Failed to fetch data');
     return NextResponse.json(
       {
         error: 'Failed to fetch data',
@@ -72,10 +120,10 @@ export async function POST(request: Request) {
 
     // Handle Period Settlement
     if (action === 'settle') {
-      const { liquidationDate, openingAmount, openingDescription, userName } = body;
+      const { liquidationDate, openingAmount, openingDescription } = body;
 
-      if (!liquidationDate || !userName) {
-        return NextResponse.json({ error: 'Missing liquidationDate or userName' }, { status: 400 });
+      if (!liquidationDate) {
+        return NextResponse.json({ error: 'Missing liquidationDate' }, { status: 400 });
       }
 
       // 1. Fetch all active records to be liquidated
@@ -87,27 +135,35 @@ export async function POST(request: Request) {
 
       // 2. Archive active records to history (if any exist)
       if (activeRecords && activeRecords.length > 0) {
-        const historyRows = activeRecords.map((rec) => ({
-          "ID": rec.ID,
-          "LIQUIDATION DATE": liquidationDate,
-          "DATE": rec.DATE,
-          "TYPE": rec.TYPE,
-          "AMOUNT": rec.AMOUNT,
-          "NAME": rec.NAME,
-          "DESCRIPTION": rec.DESCRIPTION,
-          "PAID": rec.PAID,
-          "CREATED_BY": rec.CREATED_BY,
-          "LIQUIDATED_BY": userName
-        }));
+        // Remove a failed/partial archive for the same liquidation date (safe retry)
+        const { error: cleanupErr } = await bhs_supabase
+          .from('web_Petty_Cash_History')
+          .delete()
+          .eq('LIQUIDATION DATE', liquidationDate);
 
-        // Insert into history
+        if (cleanupErr) throw cleanupErr;
+
+        let nextNum = await getMaxRecordNum();
+        const historyRows = activeRecords.map((rec) => {
+          nextNum += 1;
+          return {
+            "ID": formatRecordId(nextNum),
+            "LIQUIDATION DATE": liquidationDate,
+            "DATE": rec.DATE,
+            "TYPE": rec.TYPE,
+            "AMOUNT": rec.AMOUNT,
+            "NAME": rec.NAME,
+            "DESCRIPTION": rec.DESCRIPTION,
+            "PAID": rec.PAID
+          };
+        });
+
         const { error: insertErr } = await bhs_supabase
           .from('web_Petty_Cash_History')
           .insert(historyRows);
 
         if (insertErr) throw insertErr;
 
-        // Delete from active
         const activeIds = activeRecords.map(rec => rec.ID);
         const { error: deleteErr } = await bhs_supabase
           .from('web_Petty_Cash_Active')
@@ -119,28 +175,7 @@ export async function POST(request: Request) {
 
       // 3. Create a new opening balance receipt record if amount > 0
       if (openingAmount && parseFloat(openingAmount) > 0) {
-        // Find the max ID across history to generate the next sequential ID
-        const { data: latestHistory, error: historyErr } = await bhs_supabase
-          .from('web_Petty_Cash_History')
-          .select('ID')
-          .order('CREATED_AT', { ascending: false })
-          .limit(100);
-
-        if (historyErr) throw historyErr;
-
-        let maxNum = 0;
-        if (latestHistory && latestHistory.length > 0) {
-          latestHistory.forEach((h) => {
-            if (h.ID && h.ID.startsWith('R-')) {
-              const num = parseInt(h.ID.substring(2));
-              if (!isNaN(num) && num > maxNum) {
-                maxNum = num;
-              }
-            }
-          });
-        }
-
-        const nextId = `R-${String(maxNum + 1).padStart(4, '0')}`;
+        const nextId = await getNextRecordId();
 
         // Insert opening receipt row in active
         const openingRow = {
@@ -150,8 +185,7 @@ export async function POST(request: Request) {
           "AMOUNT": parseFloat(openingAmount),
           "NAME": 'Custodian',
           "DESCRIPTION": openingDescription || 'Opening Balance / رصيد افتتاحي للدورة الجديدة',
-          "PAID": 'Yes',
-          "CREATED_BY": userName
+          "PAID": 'Yes'
         };
 
         const { error: openingInsertErr } = await bhs_supabase
@@ -165,7 +199,7 @@ export async function POST(request: Request) {
     }
 
     // Handle normal Add New entry
-    const { date, type, amount, name, description, paid, createdBy } = body;
+    const { date, type, amount, name, description, paid } = body;
 
     if (!date || !type || !amount || !name || !description) {
       return NextResponse.json(
@@ -181,32 +215,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // 1. Generate the next sequential ID (R-XXXX)
-    // Retrieve max from both Active and History tables
-    const [activeRes, historyRes] = await Promise.all([
-      bhs_supabase.from('web_Petty_Cash_Active').select('ID').order('CREATED_AT', { ascending: false }).limit(100),
-      bhs_supabase.from('web_Petty_Cash_History').select('ID').order('CREATED_AT', { ascending: false }).limit(100)
-    ]);
-
-    if (activeRes.error) throw activeRes.error;
-    if (historyRes.error) throw historyRes.error;
-
-    let maxNum = 0;
-    const checkMax = (list: any[]) => {
-      list.forEach((r) => {
-        if (r.ID && r.ID.startsWith('R-')) {
-          const num = parseInt(r.ID.substring(2));
-          if (!isNaN(num) && num > maxNum) {
-            maxNum = num;
-          }
-        }
-      });
-    };
-
-    checkMax(activeRes.data || []);
-    checkMax(historyRes.data || []);
-
-    const nextId = `R-${String(maxNum + 1).padStart(4, '0')}`;
+    const nextId = await getNextRecordId();
 
     // 2. Insert record into active table
     const { error: insertErr } = await bhs_supabase
@@ -218,8 +227,7 @@ export async function POST(request: Request) {
         "AMOUNT": parseFloat(amount),
         "NAME": name,
         "DESCRIPTION": description,
-        "PAID": paid || 'No',
-        "CREATED_BY": createdBy || 'System'
+        "PAID": paid || 'No'
       }]);
 
     if (insertErr) throw insertErr;
@@ -227,7 +235,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, id: nextId });
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to process request';
+    const errorMessage = extractErrorMessage(error, 'Failed to process request');
     return NextResponse.json(
       {
         error: 'Failed to process request',
@@ -275,7 +283,7 @@ export async function PUT(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to update petty cash entry';
+    const errorMessage = extractErrorMessage(error, 'Failed to update petty cash entry');
     return NextResponse.json(
       {
         error: 'Failed to update petty cash entry',
@@ -309,7 +317,7 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('API Error:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Failed to delete petty cash record';
+    const errorMessage = extractErrorMessage(error, 'Failed to delete petty cash record');
     return NextResponse.json(
       {
         error: 'Failed to delete petty cash record',
