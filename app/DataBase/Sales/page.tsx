@@ -110,36 +110,104 @@ export default function SalesDBPage() {
     toast.success('Template downloaded successfully!');
   };
 
+  const normalizeExcelId = (val: unknown): string => {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'number' && Number.isFinite(val)) {
+      return Number.isInteger(val) ? String(Math.trunc(val)) : String(val);
+    }
+    return String(val).trim();
+  };
+
+  const fetchAllColumnValues = async (table: string, column: string): Promise<Set<string>> => {
+    const pageSize = 1000;
+    let from = 0;
+    const values = new Set<string>();
+
+    while (true) {
+      const { data, error } = await bhs_supabas
+        .from(table)
+        .select(`"${column}"`)
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      data.forEach((row: Record<string, unknown>) => {
+        const val = normalizeExcelId(row[column]);
+        if (val) values.add(val);
+      });
+
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return values;
+  };
+
+  const downloadMissingIdsReport = (missingCustomers: Set<string>, missingProducts: Set<string>) => {
+    const lines: string[] = [
+      'Sales Upload - Missing References',
+      `Generated: ${new Date().toLocaleString('en-GB')}`,
+      '',
+    ];
+
+    if (missingCustomers.size > 0) {
+      lines.push(`=== MISSING CUSTOMER IDs (${missingCustomers.size}) — add in Customers DB ===`);
+      [...missingCustomers].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach((id) => {
+        lines.push(id);
+      });
+      lines.push('');
+    }
+
+    if (missingProducts.size > 0) {
+      lines.push(`=== MISSING PRODUCT IDs (${missingProducts.size}) — add in Products DB ===`);
+      [...missingProducts].sort((a, b) => a.localeCompare(b, undefined, { numeric: true })).forEach((id) => {
+        lines.push(id);
+      });
+      lines.push('');
+    }
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Sales_Missing_IDs_${new Date().toISOString().split('T')[0]}.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleSalesUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
     try {
-      // 1. Read and parse Excel file
       const dataBuffer = await file.arrayBuffer();
       const workbook = XLSX.read(dataBuffer, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
 
       if (jsonData.length === 0) {
         toast.error('The uploaded Excel file is empty.');
-        setIsUploading(false);
         return;
       }
 
-      // Validate required columns
       const requiredColumns = ['INVOICE DATE', 'INVOICE NUMBER', 'CUSTOMER ID', 'PRODUCT ID', 'PRODUCT COST', 'PRODUCT PRICE', 'QTY'];
       const firstRow = jsonData[0];
       const missingColumns = requiredColumns.filter(col => !(col in firstRow));
       if (missingColumns.length > 0) {
         toast.error(`Missing required columns: ${missingColumns.join(', ')}`);
-        setIsUploading(false);
         return;
       }
 
-      // 2. Fetch latest 200 rows by CREATED_AT desc to find the max ID suffix.
+      const [productIds, customerIds] = await Promise.all([
+        fetchAllColumnValues('bhs_PRODUCTS', 'PRODUCT ID'),
+        fetchAllColumnValues('bhs_CUSTOMERS', 'CUSTOMER ID'),
+      ]);
+
       const { data: latestRows, error: latestErr } = await bhs_supabas
         .from('web_Sales_DB')
         .select('ID')
@@ -152,7 +220,7 @@ export default function SalesDBPage() {
       if (latestRows && latestRows.length > 0) {
         latestRows.forEach(row => {
           if (row.ID && row.ID.startsWith('R-')) {
-            const num = parseInt(row.ID.substring(2));
+            const num = parseInt(row.ID.substring(2), 10);
             if (!isNaN(num) && num > maxNum) {
               maxNum = num;
             }
@@ -160,19 +228,16 @@ export default function SalesDBPage() {
         });
       }
 
-      // Helper function to format Excel date serials or strings to YYYY-MM-DD
-      const formatExcelDate = (val: any): string => {
+      const formatExcelDate = (val: unknown): string => {
         if (!val) return '';
         if (typeof val === 'number') {
-          // Excel serial number
           const date = new Date(Math.round((val - 25569) * 86400 * 1000));
           return date.toISOString().split('T')[0];
         }
         const strVal = String(val).trim();
         if (!strVal) return '';
 
-        // Try standard parsing
-        let d = new Date(strVal);
+        const d = new Date(strVal);
         if (!isNaN(d.getTime())) {
           const parts = strVal.split(/[-/.]/);
           if (parts.length === 3) {
@@ -191,7 +256,6 @@ export default function SalesDBPage() {
           return d.toISOString().split('T')[0];
         }
 
-        // Try parsing DD/MM/YYYY manually if constructor failed
         const parts = strVal.split(/[-/.]/);
         if (parts.length === 3) {
           const day = parseInt(parts[0], 10);
@@ -206,7 +270,6 @@ export default function SalesDBPage() {
         return strVal;
       };
 
-      // 3. Format rows and generate IDs
       let nextNum = maxNum + 1;
       const formattedRows = jsonData.map((row) => {
         const cost = Number(row['PRODUCT COST']) || 0;
@@ -221,8 +284,8 @@ export default function SalesDBPage() {
           ID: recordId,
           'INVOICE DATE': formatExcelDate(row['INVOICE DATE']),
           'INVOICE NUMBER': String(row['INVOICE NUMBER'] ?? '').trim(),
-          'CUSTOMER ID': String(row['CUSTOMER ID'] ?? '').trim(),
-          'PRODUCT ID': String(row['PRODUCT ID'] ?? '').trim(),
+          'CUSTOMER ID': normalizeExcelId(row['CUSTOMER ID']),
+          'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
           'PRODUCT COST': cost,
           'PRODUCT PRICE': price,
           'AMOUNT': amount,
@@ -232,11 +295,30 @@ export default function SalesDBPage() {
 
       if (formattedRows.length === 0) {
         toast.error('No valid rows found to upload. Check dates, invoice numbers, product IDs, and customer IDs.');
-        setIsUploading(false);
         return;
       }
 
-      // 4. Batch insert into the database (500 records at a time)
+      const missingProducts = new Set<string>();
+      const missingCustomers = new Set<string>();
+
+      formattedRows.forEach((row) => {
+        if (!productIds.has(row['PRODUCT ID'])) missingProducts.add(row['PRODUCT ID']);
+        if (!customerIds.has(row['CUSTOMER ID'])) missingCustomers.add(row['CUSTOMER ID']);
+      });
+
+      if (missingProducts.size > 0 || missingCustomers.size > 0) {
+        downloadMissingIdsReport(missingCustomers, missingProducts);
+
+        const parts: string[] = [];
+        if (missingCustomers.size > 0) parts.push(`${missingCustomers.size} customer ID(s)`);
+        if (missingProducts.size > 0) parts.push(`${missingProducts.size} product ID(s)`);
+
+        toast.error(
+          `Upload blocked: ${parts.join(' and ')} not found in the database. A text file with the full list has been downloaded — add them in Customers DB / Products DB, then upload again.`
+        );
+        return;
+      }
+
       const chunkSize = 500;
       for (let i = 0; i < formattedRows.length; i += chunkSize) {
         const chunk = formattedRows.slice(i, i + chunkSize);
@@ -247,7 +329,6 @@ export default function SalesDBPage() {
         if (insertErr) throw insertErr;
       }
 
-      // 5. Invalidate caches
       await bhs_supabas
         .from('web_Sales_DB_Cache')
         .update({ DATA: null })
@@ -256,7 +337,6 @@ export default function SalesDBPage() {
       toast.success(`Successfully uploaded ${formattedRows.length} sales rows!`);
       setIsUploadModalOpen(false);
 
-      // 6. Rebuild cache in background & refresh UI
       fetch('/api/Sales/Build', { method: 'POST' })
         .then(r => r.json())
         .catch(err => console.warn('Background build warning:', err));
@@ -379,6 +459,11 @@ export default function SalesDBPage() {
             </div>
 
             <div className="p-8 space-y-6">
+              <p className="text-xs text-gray-500 leading-relaxed">
+                CUSTOMER ID and PRODUCT ID must already exist in Customers DB and Products DB before upload.
+                If any IDs are missing, a text file with the full list will be downloaded automatically.
+              </p>
+
               <div className="space-y-4">
                 {/* Download Button */}
                 <button

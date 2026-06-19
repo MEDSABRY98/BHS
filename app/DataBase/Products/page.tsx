@@ -257,6 +257,40 @@ export default function ProductsPage() {
     }
   };
 
+  const normalizeExcelId = (val: unknown): string => {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'number' && Number.isFinite(val)) {
+      return Number.isInteger(val) ? String(Math.trunc(val)) : String(val);
+    }
+    return String(val).trim();
+  };
+
+  const downloadUploadIssuesReport = (
+    fileName: string,
+    title: string,
+    sections: { heading: string; lines: string[] }[]
+  ) => {
+    const nonEmptySections = sections.filter((section) => section.lines.length > 0);
+    if (nonEmptySections.length === 0) return;
+
+    const lines: string[] = [title, `Generated: ${new Date().toLocaleString('en-GB')}`, ''];
+    nonEmptySections.forEach((section) => {
+      lines.push(section.heading);
+      section.lines.forEach((line) => lines.push(line));
+      lines.push('');
+    });
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -267,27 +301,118 @@ export default function ProductsPage() {
       const workbook = XLSX.read(data, { type: 'array' });
       const firstSheetName = workbook.SheetNames[0];
       const worksheet = workbook.Sheets[firstSheetName];
-      const jsonData: any[] = XLSX.utils.sheet_to_json(worksheet);
+      const jsonData: Record<string, unknown>[] = XLSX.utils.sheet_to_json(worksheet);
 
       if (jsonData.length === 0) {
         toast.error('The uploaded Excel file is empty.');
         return;
       }
 
-      // Map JSON to match the database columns
-      const formattedData = jsonData.map(row => ({
-        ID: row['ID'] || undefined,
-        "PRODUCT NAME": row['PRODUCT NAME'] || '',
-        "PRODUCT BARCODE": row['PRODUCT BARCODE'] || '',
-        "PRODUCT ID": row['PRODUCT ID'] || '',
-        "ITEM CODE": row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
-        "PRODUCT CATEGORY": row['PRODUCT CATEGORY'] || ''
-      })).filter(row => row["PRODUCT NAME"] && row.ID);
+      const { data: latestProducts, error: fetchErr } = await bhs_supabas
+        .from('bhs_PRODUCTS')
+        .select('ID, "PRODUCT ID"');
 
-      if (formattedData.length === 0) {
-        toast.error('No valid products found in the file. Make sure ID and PRODUCT NAME exist.');
+      if (fetchErr) throw fetchErr;
+
+      const dbProductIdToIdMap = new Map<string, string>();
+      (latestProducts || []).forEach((product) => {
+        const productId = normalizeExcelId(product['PRODUCT ID']);
+        if (productId) {
+          dbProductIdToIdMap.set(productId, product.ID);
+        }
+      });
+
+      const duplicateProductIdsInFile = new Map<string, number[]>();
+      const duplicateIdsInFile = new Map<string, number[]>();
+      const missingIdRows: number[] = [];
+      const missingNameRows: number[] = [];
+      const missingProductIdRows: number[] = [];
+      const conflictingProductIdRows: string[] = [];
+
+      const trackRow = (map: Map<string, number[]>, key: string, rowNumber: number) => {
+        if (!key) return;
+        const rows = map.get(key) || [];
+        rows.push(rowNumber);
+        map.set(key, rows);
+      };
+
+      jsonData.forEach((row, index) => {
+        const rowNumber = index + 2;
+        const recordId = row['ID']?.toString().trim() || '';
+        const productId = normalizeExcelId(row['PRODUCT ID']);
+        const productName = row['PRODUCT NAME']?.toString().trim() || '';
+
+        if (!recordId) missingIdRows.push(rowNumber);
+        if (!productName) missingNameRows.push(rowNumber);
+        if (!productId) missingProductIdRows.push(rowNumber);
+
+        if (recordId) trackRow(duplicateIdsInFile, recordId, rowNumber);
+        if (productId) trackRow(duplicateProductIdsInFile, productId, rowNumber);
+
+        if (productId && recordId && dbProductIdToIdMap.has(productId)) {
+          const existingId = dbProductIdToIdMap.get(productId);
+          if (existingId && existingId !== recordId) {
+            conflictingProductIdRows.push(
+              `Row ${rowNumber}: PRODUCT ID "${productId}" already belongs to record ${existingId}, not ${recordId}`
+            );
+          }
+        }
+      });
+
+      const issueSections = [
+        {
+          heading: `=== MISSING ID (${missingIdRows.length}) ===`,
+          lines: missingIdRows.map((row) => `Row ${row}`),
+        },
+        {
+          heading: `=== MISSING PRODUCT NAME (${missingNameRows.length}) ===`,
+          lines: missingNameRows.map((row) => `Row ${row}`),
+        },
+        {
+          heading: `=== MISSING PRODUCT ID (${missingProductIdRows.length}) ===`,
+          lines: missingProductIdRows.map((row) => `Row ${row}`),
+        },
+        {
+          heading: '=== DUPLICATE PRODUCT ID IN FILE ===',
+          lines: [...duplicateProductIdsInFile.entries()]
+            .filter(([, rows]) => rows.length > 1)
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([productId, rows]) => `${productId} -> rows ${rows.join(', ')}`),
+        },
+        {
+          heading: '=== DUPLICATE ID IN FILE ===',
+          lines: [...duplicateIdsInFile.entries()]
+            .filter(([, rows]) => rows.length > 1)
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([recordId, rows]) => `${recordId} -> rows ${rows.join(', ')}`),
+        },
+        {
+          heading: `=== PRODUCT ID ALREADY LINKED TO ANOTHER RECORD (${conflictingProductIdRows.length}) ===`,
+          lines: conflictingProductIdRows,
+        },
+      ];
+
+      const hasIssues = issueSections.some((section) => section.lines.length > 0);
+      if (hasIssues) {
+        downloadUploadIssuesReport(
+          `Products_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+          'Products Upload - Issues Found',
+          issueSections
+        );
+        toast.error(
+          'Upload blocked. A text file with all issues has been downloaded. Fix the Excel file and upload again.'
+        );
         return;
       }
+
+      const formattedData = jsonData.map((row) => ({
+        ID: row['ID']?.toString().trim(),
+        'PRODUCT NAME': row['PRODUCT NAME']?.toString().trim() || '',
+        'PRODUCT BARCODE': row['PRODUCT BARCODE']?.toString().trim() || '',
+        'PRODUCT ID': normalizeExcelId(row['PRODUCT ID']),
+        'ITEM CODE': row['ITEM CODE'] ? Number(row['ITEM CODE']) : null,
+        'PRODUCT CATEGORY': row['PRODUCT CATEGORY']?.toString().trim() || '',
+      }));
 
       const chunkSize = 500;
       for (let i = 0; i < formattedData.length; i += chunkSize) {

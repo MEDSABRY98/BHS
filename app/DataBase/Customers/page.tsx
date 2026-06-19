@@ -208,6 +208,40 @@ export default function CustomersPage() {
     else toast.error(text);
   };
 
+  const normalizeExcelId = (val: unknown): string => {
+    if (val === null || val === undefined || val === '') return '';
+    if (typeof val === 'number' && Number.isFinite(val)) {
+      return Number.isInteger(val) ? String(Math.trunc(val)) : String(val);
+    }
+    return String(val).trim();
+  };
+
+  const downloadUploadIssuesReport = (
+    fileName: string,
+    title: string,
+    sections: { heading: string; lines: string[] }[]
+  ) => {
+    const nonEmptySections = sections.filter((section) => section.lines.length > 0);
+    if (nonEmptySections.length === 0) return;
+
+    const lines: string[] = [title, `Generated: ${new Date().toLocaleString('en-GB')}`, ''];
+    nonEmptySections.forEach((section) => {
+      lines.push(section.heading);
+      section.lines.forEach((line) => lines.push(line));
+      lines.push('');
+    });
+
+    const blob = new Blob([lines.join('\r\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const downloadCustomersExcel = async () => {
     setIsSaving(true);
     try {
@@ -296,12 +330,12 @@ export default function CustomersPage() {
 
         (latestCustomers || []).forEach(c => {
           if (c["CUSTOMER ID"]) {
-            dbCustomerIdToIdMap.set(c["CUSTOMER ID"].trim(), c.ID);
+            dbCustomerIdToIdMap.set(normalizeExcelId(c["CUSTOMER ID"]), c.ID);
           }
           if (c.ID) {
             dbIdSet.add(c.ID.trim());
             if (c.ID.startsWith('R-')) {
-              const num = parseInt(c.ID.split('-')[1]);
+              const num = parseInt(c.ID.split('-')[1], 10);
               if (!isNaN(num) && num > highestNum) {
                 highestNum = num;
               }
@@ -309,54 +343,119 @@ export default function CustomersPage() {
           }
         });
 
-        // Track duplicate CUSTOMER IDs and IDs within the Excel file itself to prevent collisions in the batch
-        const excelCustomerIdSet = new Set<string>();
-        const excelIdSet = new Set<string>();
+        const duplicateCustomerIdsInFile = new Map<string, number[]>();
+        const duplicateIdsInFile = new Map<string, number[]>();
+        const missingSubNameRows: number[] = [];
+        const conflictingCustomerIdRows: number[] = [];
+        const missingCustomerIdRows: number[] = [];
 
-        const recordsToUpsert = [];
+        const trackRow = (map: Map<string, number[]>, key: string, rowNumber: number) => {
+          if (!key) return;
+          const rows = map.get(key) || [];
+          rows.push(rowNumber);
+          map.set(key, rows);
+        };
+
         for (let i = 0; i < data.length; i++) {
           const row = data[i];
-          let id = row["ID"]?.toString().trim();
-          const customerId = row["Customer ID"]?.toString().trim() || '';
+          const rowNumber = i + 2;
+          const id = row["ID"]?.toString().trim();
+          const customerId = normalizeExcelId(row["Customer ID"]);
 
-          if (customerId) {
-            // Check for duplicates of Customer ID within the Excel sheet itself
-            if (excelCustomerIdSet.has(customerId)) {
-              triggerMessage('error', `Row ${i + 2}: Duplicate 'Customer ID' "${customerId}" found within the Excel file.`);
-              setIsUploading(false);
-              return;
-            }
-            excelCustomerIdSet.add(customerId);
+          if (!customerId) {
+            missingCustomerIdRows.push(rowNumber);
+          } else {
+            trackRow(duplicateCustomerIdsInFile, customerId, rowNumber);
           }
 
-          // Determine database ID for this customer (prioritize explicit ID column, then Customer ID lookup)
+          if (id) {
+            trackRow(duplicateIdsInFile, id, rowNumber);
+          }
+
+          let resolvedId = id;
+          if (!resolvedId && customerId) {
+            resolvedId = dbCustomerIdToIdMap.get(customerId);
+          }
+
+          const isExisting = !!resolvedId;
+          const customerSubNameRaw = row["Customer Sub Name"] !== undefined ? row["Customer Sub Name"] : row["Customer Name"];
+          const customerSubName = customerSubNameRaw !== undefined ? customerSubNameRaw.toString().trim() : undefined;
+
+          if (!isExisting && !customerSubName) {
+            missingSubNameRows.push(rowNumber);
+          }
+
+          if (customerId && id && dbCustomerIdToIdMap.has(customerId)) {
+            const existingDbId = dbCustomerIdToIdMap.get(customerId);
+            if (existingDbId && existingDbId !== id) {
+              conflictingCustomerIdRows.push(rowNumber);
+            }
+          }
+        }
+
+        const issueSections = [
+          {
+            heading: `=== MISSING CUSTOMER ID (${missingCustomerIdRows.length}) ===`,
+            lines: missingCustomerIdRows.map((row) => `Row ${row}`),
+          },
+          {
+            heading: `=== DUPLICATE CUSTOMER ID IN FILE ===`,
+            lines: [...duplicateCustomerIdsInFile.entries()]
+              .filter(([, rows]) => rows.length > 1)
+              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+              .map(([customerId, rows]) => `${customerId} -> rows ${rows.join(', ')}`),
+          },
+          {
+            heading: `=== DUPLICATE ID IN FILE ===`,
+            lines: [...duplicateIdsInFile.entries()]
+              .filter(([, rows]) => rows.length > 1)
+              .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+              .map(([recordId, rows]) => `${recordId} -> rows ${rows.join(', ')}`),
+          },
+          {
+            heading: `=== MISSING CUSTOMER SUB NAME FOR NEW CUSTOMERS (${missingSubNameRows.length}) ===`,
+            lines: missingSubNameRows.map((row) => `Row ${row}`),
+          },
+          {
+            heading: `=== CUSTOMER ID ALREADY LINKED TO ANOTHER RECORD (${conflictingCustomerIdRows.length}) ===`,
+            lines: conflictingCustomerIdRows.map((row) => `Row ${row}`),
+          },
+        ];
+
+        const hasIssues = issueSections.some((section) => section.lines.length > 0);
+        if (hasIssues) {
+          downloadUploadIssuesReport(
+            `Customers_Upload_Issues_${new Date().toISOString().split('T')[0]}.txt`,
+            'Customers Upload - Issues Found',
+            issueSections
+          );
+          triggerMessage(
+            'error',
+            'Upload blocked. A text file with all issues has been downloaded. Fix the Excel file and upload again.'
+          );
+          setIsUploading(false);
+          e.target.value = '';
+          return;
+        }
+
+        const recordsToUpsert = [];
+        const excelIdSet = new Set<string>();
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i];
+          const id = row["ID"]?.toString().trim();
+          const customerId = normalizeExcelId(row["Customer ID"]);
+          if (!customerId) continue;
+
           let finalId = id;
           if (!finalId && customerId) {
             finalId = dbCustomerIdToIdMap.get(customerId);
           }
 
-          const isExisting = !!finalId;
-
-          // Check if name is provided in the Excel row
           const customerSubNameRaw = row["Customer Sub Name"] !== undefined ? row["Customer Sub Name"] : row["Customer Name"];
           const customerSubName = customerSubNameRaw !== undefined ? customerSubNameRaw.toString().trim() : undefined;
 
-          // If it's a new customer, name is required
-          if (!isExisting && !customerSubName) {
-            triggerMessage('error', `Row ${i + 2}: 'Customer Sub Name' or 'Customer Name' is required for new customers.`);
-            setIsUploading(false);
-            return;
-          }
-
-          // Check if this DB ID is already claimed by another row in the same Excel file
-          if (finalId) {
-            if (excelIdSet.has(finalId)) {
-              triggerMessage('error', `Row ${i + 2}: Database ID "${finalId}" is claimed by multiple rows in the Excel file.`);
-              setIsUploading(false);
-              return;
-            }
-          } else {
-            // Generate a new ID for new customer
+          if (!finalId) {
             highestNum++;
             finalId = `R-${highestNum.toString().padStart(4, '0')}`;
             while (dbIdSet.has(finalId) || excelIdSet.has(finalId)) {
@@ -367,7 +466,6 @@ export default function CustomersPage() {
 
           excelIdSet.add(finalId);
 
-          // Build payload dynamically - only include fields defined in the Excel sheet
           const record: any = { ID: finalId };
 
           if (row["Customer ID"] !== undefined) {
@@ -386,7 +484,13 @@ export default function CustomersPage() {
           recordsToUpsert.push(record);
         }
 
-        // Perform bulk upsert
+        if (recordsToUpsert.length === 0) {
+          triggerMessage('error', 'No valid customer rows found to upload.');
+          setIsUploading(false);
+          e.target.value = '';
+          return;
+        }
+
         const { error: upsertErr } = await bhs_supabas
           .from('bhs_CUSTOMERS')
           .upsert(recordsToUpsert);

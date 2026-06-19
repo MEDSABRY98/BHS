@@ -13,9 +13,10 @@ export interface MoveDaySummary {
   count: number;
 }
 
-async function fetchAllMoveDates(
-  applyFilters?: (query: ReturnType<typeof bhs_supabase.from>) => ReturnType<typeof bhs_supabase.from>
-): Promise<{ DATE: string | null }[]> {
+async function fetchAllMoveDates(options?: {
+  dateStart?: string;
+  dateEnd?: string;
+}): Promise<{ DATE: string | null }[]> {
   const pageSize = 1000;
   let from = 0;
   const allRows: { DATE: string | null }[] = [];
@@ -26,8 +27,11 @@ async function fetchAllMoveDates(
       .select('DATE')
       .order('DATE', { ascending: true });
 
-    if (applyFilters) {
-      query = applyFilters(query);
+    if (options?.dateStart) {
+      query = query.gte('DATE', options.dateStart);
+    }
+    if (options?.dateEnd) {
+      query = query.lt('DATE', options.dateEnd);
     }
 
     const { data, error } = await query.range(from, from + pageSize - 1);
@@ -42,15 +46,20 @@ async function fetchAllMoveDates(
   return allRows;
 }
 
-async function deleteMatchingMoves(
-  applyFilters: (query: ReturnType<typeof bhs_supabase.from>) => ReturnType<typeof bhs_supabase.from>
-): Promise<void> {
+async function deleteMatchingMoves(options: {
+  dateStart: string;
+  dateEnd: string;
+}): Promise<void> {
   const pageSize = 1000;
 
   while (true) {
-    let selectQuery = bhs_supabase.from('web_INVENTORY_MOVES').select('ID');
-    selectQuery = applyFilters(selectQuery);
-    const { data, error } = await selectQuery.limit(pageSize);
+    const { data, error } = await bhs_supabase
+      .from('web_INVENTORY_MOVES')
+      .select('ID')
+      .gte('DATE', options.dateStart)
+      .lt('DATE', options.dateEnd)
+      .limit(pageSize);
+
     if (error) throw error;
     if (!data || data.length === 0) break;
 
@@ -141,7 +150,7 @@ async function fetchMoveDaysSummary(year: number, month: number): Promise<MoveDa
   }
 
   const { start, end } = monthDateRange(year, month);
-  const rows = await fetchAllMoveDates((query) => query.gte('DATE', start).lt('DATE', end));
+  const rows = await fetchAllMoveDates({ dateStart: start, dateEnd: end });
   return aggregateDaysFromDates(rows);
 }
 
@@ -200,7 +209,7 @@ export async function DELETE(request: Request) {
         return NextResponse.json({ error: 'Invalid date' }, { status: 400 });
       }
       const { start, end } = dayDateRange(date);
-      await deleteMatchingMoves((query) => query.gte('DATE', start).lt('DATE', end));
+      await deleteMatchingMoves({ dateStart: start, dateEnd: end });
       return NextResponse.json({ success: true });
     }
 
@@ -212,7 +221,7 @@ export async function DELETE(request: Request) {
     }
 
     const { start, end } = monthDateRange(year, month);
-    await deleteMatchingMoves((query) => query.gte('DATE', start).lt('DATE', end));
+    await deleteMatchingMoves({ dateStart: start, dateEnd: end });
 
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
