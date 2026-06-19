@@ -11,7 +11,7 @@ import VoucherTab from './VoucherTab';
 import StatsTab from './StatsTab';
 import HistoryTab from './HistoryTab';
 import EditEntryModal from './EditEntryModal';
-import VoucherDocument from './VoucherDocument';
+import { generateVoucherPdf } from '../Utils/VoucherPdf';
 import { toast } from '@/app/Components/Notification';
 
 interface Receipt {
@@ -93,13 +93,6 @@ export default function PettyCashTab() {
   const [nextVoucherNumber, setNextVoucherNumber] = useState('V-0001');
   const [voucherSubTab, setVoucherSubTab] = useState<'add' | 'reprint'>('add');
   const [voucherHistory, setVoucherHistory] = useState<any[]>([]);
-  const [printData, setPrintData] = useState({
-    voucherNumber: '',
-    date: '',
-    amount: '',
-    source: '',
-    description: ''
-  });
 
   // Fetch records from Google Sheets on mount
   useEffect(() => {
@@ -452,22 +445,23 @@ export default function PettyCashTab() {
       });
 
       if (response.ok) {
-        setPrintData({
+        const voucherData = {
           voucherNumber: nextVoucherNumber,
           date: formData.date,
           amount: formData.amount,
           source: formData.source,
-          description: formData.description
+          description: formData.description,
+        };
+
+        await generateVoucherPdf({
+          data: voucherData,
+          filename: `Voucher_${nextVoucherNumber}`,
         });
 
-        // Direct print in the same window
-        setTimeout(async () => {
-          window.print();
-          await fetchNextVoucherNumber();
-          await fetchVoucherHistory();
-        }, 100);
+        await fetchNextVoucherNumber();
+        await fetchVoucherHistory();
 
-        toast.success('Voucher saved successfully');
+        toast.success('Voucher saved and PDF downloaded');
         return true;
       }
 
@@ -482,20 +476,23 @@ export default function PettyCashTab() {
     }
   };
 
-  const handleReprintVoucher = (voucher: any) => {
-    setPrintData({
-      amount: voucher.amount.toString(),
-      source: voucher.receiptName,
-      description: voucher.description,
-      date: voucher.date,
-      voucherNumber: voucher.number
-    });
-    // Wait for state to update then print
-    setTimeout(() => {
-      window.print();
-      // After printing, refresh next voucher number to be safe
-      fetchNextVoucherNumber();
-    }, 100);
+  const handleReprintVoucher = async (voucher: any) => {
+    try {
+      await generateVoucherPdf({
+        data: {
+          amount: voucher.amount.toString(),
+          source: voucher.receiptName,
+          description: voucher.description,
+          date: voucher.date,
+          voucherNumber: voucher.number,
+        },
+        filename: `Voucher_${voucher.number}`,
+      });
+      toast.success('Voucher PDF downloaded');
+    } catch (error) {
+      console.error('Error generating voucher PDF:', error);
+      toast.error('Failed to generate voucher PDF');
+    }
   };
 
   // Get unique recipients from expenses for the filter
@@ -784,34 +781,6 @@ export default function PettyCashTab() {
           )}
         </div>
       </div>
-
-      {/* Hidden container for global printing - MATCHING CASH RECEIPT LOGIC */}
-      <div id="voucher-print" className="hidden-print m-0 p-0" style={{ width: '210mm' }}>
-        <VoucherDocument data={printData} />
-      </div>
-
-      <style jsx global>{`
-        @media screen {
-          .hidden-print { position: absolute; left: -9999px; }
-          /* Hide number input arrows */
-          input[type=number]::-webkit-inner-spin-button, 
-          input[type=number]::-webkit-outer-spin-button { 
-            -webkit-appearance: none; 
-            margin: 0; 
-          }
-          input[type=number] {
-            -moz-appearance: textfield;
-          }
-        }
-        @media print {
-          .no-print { display: none !important; }
-          .hidden-print { display: block !important; position: static !important; width: 100% !important; height: auto !important; overflow: hidden !important; }
-          body { background: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; min-height: initial !important; }
-          html { height: auto !important; }
-          #voucher-print { border: none !important; box-shadow: none !important; width: 210mm !important; margin: 0 auto !important; }
-          @page { size: A4 portrait; margin: 5mm; }
-        }
-      `}</style>
 
       {/* Edit/Delete Modal */}
       <EditEntryModal

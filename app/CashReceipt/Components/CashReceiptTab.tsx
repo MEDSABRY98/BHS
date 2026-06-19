@@ -6,7 +6,6 @@ import Header from './Header';
 import { generateReceiptPdf } from '../Utils/ReceiptPdf';
 import NewReceiptForm from './NewReceiptForm';
 import SavedReceiptsTab from './SavedReceiptsTab';
-import ReceiptDocument from './ReceiptDocument';
 import { bhs_supabas } from '@/lib/supabase';
 import { toast } from '@/app/Components/Notification';
 
@@ -213,7 +212,6 @@ export default function CashReceiptTab({
       console.error('Error generating PDF:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
       toast.error(`Failed to generate PDF: ${message}`);
-      window.print();
     } finally {
       setLoading(false);
     }
@@ -222,27 +220,6 @@ export default function CashReceiptTab({
   const handleBack = () => {
     window.location.href = '/';
   };
-
-  useEffect(() => {
-    const handleBeforePrint = () => {
-      const receiptNumber = formData.receiptNumber || 'Receipt';
-      const date = formData.date || new Date().toISOString().split('T')[0];
-      const filename = `${receiptNumber}_${date}`;
-      document.title = filename;
-    };
-
-    const handleAfterPrint = () => {
-      document.title = 'BHS Analysis';
-    };
-
-    window.addEventListener('beforeprint', handleBeforePrint);
-    window.addEventListener('afterprint', handleAfterPrint);
-
-    return () => {
-      window.removeEventListener('beforeprint', handleBeforePrint);
-      window.removeEventListener('afterprint', handleAfterPrint);
-    };
-  }, [formData.receiptNumber, formData.date]);
 
   const fetchNextReceiptNumber = async () => {
     try {
@@ -415,19 +392,8 @@ export default function CashReceiptTab({
               onEdit={handleEdit}
               onDelete={handleDelete}
               searchQuery={searchQuery}
-              receivedBySignature={medSabrySignature}
             />
           )}
-        </div>
-      </div>
-
-      {/* Hidden container for global printing */}
-      <div className="hidden-print m-0 p-0" style={{ width: '210mm', fontFamily: 'system-ui, sans-serif' }}>
-        <div id="receipt-original">
-          <ReceiptDocument data={formData} isCopy={false} receivedBySignature={medSabrySignature} />
-        </div>
-        <div id="receipt-copy">
-          <ReceiptDocument data={formData} isCopy={true} receivedBySignature={medSabrySignature} />
         </div>
       </div>
 
@@ -467,24 +433,6 @@ export default function CashReceiptTab({
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 10px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
-        
-        @media screen {
-          .hidden-print {
-            display: none !important;
-          }
-        }
-        @media print {
-          .no-print { display: none !important; }
-          .hidden-print {
-            display: block !important;
-            position: static !important;
-            opacity: 1 !important;
-            visibility: visible !important;
-          }
-          body { background: white !important; padding: 0 !important; margin: 0 !important; }
-          #receipt { border: none !important; box-shadow: none !important; }
-          @page { size: auto; margin: 0mm; }
-        }
       `}</style>
     </>
   );

@@ -1,4 +1,5 @@
 import jsPDF from 'jspdf';
+import { addArabicFont } from '@/app/Components/Pdf/shared';
 
 export interface ReceiptPdfData {
   receiptNumber: string;
@@ -11,6 +12,8 @@ export interface ReceiptPdfData {
   receivedBySignature?: string;
 }
 
+const ARABIC_REGEX = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/;
+
 const COLORS = {
   white: [255, 255, 255] as [number, number, number],
   gray50: [249, 250, 251] as [number, number, number],
@@ -22,6 +25,10 @@ const COLORS = {
   gray900: [17, 24, 39] as [number, number, number],
   black: [0, 0, 0] as [number, number, number],
 };
+
+function hasArabic(text: string): boolean {
+  return ARABIC_REGEX.test(text);
+}
 
 function formatAmount(amount: string | number): string {
   const value = parseFloat(String(amount));
@@ -36,14 +43,67 @@ function formatDate(date: string): string {
   return parsed.toLocaleDateString('en-GB');
 }
 
-function splitLines(doc: jsPDF, text: string, maxWidth: number): string[] {
+function setLabelFont(doc: jsPDF, size = 8, style: 'normal' | 'bold' | 'italic' = 'bold') {
+  doc.setFont('helvetica', style);
+  doc.setFontSize(size);
+}
+
+function setContentFont(doc: jsPDF, size = 12) {
+  doc.setFont('Amiri', 'normal');
+  doc.setFontSize(size);
+}
+
+function splitLatinLines(doc: jsPDF, text: string, maxWidth: number, fontSize: number, style: 'normal' | 'bold' | 'italic' = 'normal'): string[] {
+  doc.setFont('helvetica', style);
+  doc.setFontSize(fontSize);
   return doc.splitTextToSize(text || '', maxWidth) as string[];
+}
+
+function splitContentLines(doc: jsPDF, text: string, maxWidth: number, fontSize = 12): string[] {
+  setContentFont(doc, fontSize);
+  return doc.splitTextToSize(text || '', maxWidth) as string[];
+}
+
+function measureTextBlockHeight(lineCount: number, lineHeight = 5): number {
+  return Math.max(12, lineCount * lineHeight + 4);
 }
 
 function drawDivider(doc: jsPDF, x: number, y: number, width: number, thickness = 0.2) {
   doc.setDrawColor(...COLORS.gray200);
   doc.setLineWidth(thickness);
   doc.line(x, y, x + width, y);
+}
+
+function drawTextBlock(
+  doc: jsPDF,
+  text: string,
+  x: number,
+  y: number,
+  width: number,
+  fontSize: number,
+  rtl = false
+): number {
+  const content = text || '---';
+  const lineHeight = rtl ? 6 : 5;
+  const isRtl = rtl && hasArabic(content);
+
+  if (isRtl) {
+    setContentFont(doc, fontSize);
+    doc.text(content, x + width, y, { align: 'right', maxWidth: width });
+    const lines = splitContentLines(doc, content, width, fontSize);
+    return measureTextBlockHeight(lines.length, lineHeight);
+  }
+
+  if (hasArabic(content)) {
+    setContentFont(doc, fontSize);
+    const lines = splitContentLines(doc, content, width, fontSize);
+    doc.text(lines, x, y);
+    return measureTextBlockHeight(lines.length, lineHeight);
+  }
+
+  const lines = splitLatinLines(doc, content, width, fontSize);
+  doc.text(lines, x, y);
+  return measureTextBlockHeight(lines.length, lineHeight);
 }
 
 function drawFieldBlock(
@@ -53,21 +113,16 @@ function drawFieldBlock(
   x: number,
   y: number,
   width: number,
-  valueFontSize = 11
+  valueFontSize = 11,
+  rtl = false
 ): number {
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  setLabelFont(doc, 9, 'bold');
   doc.setTextColor(...COLORS.gray700);
   doc.text(label, x, y);
 
-  doc.setFont('helvetica', valueFontSize >= 12 ? 'bold' : 'normal');
-  doc.setFontSize(valueFontSize);
   doc.setTextColor(...COLORS.gray900);
+  const blockHeight = drawTextBlock(doc, value, x, y + 6, width, valueFontSize, rtl);
 
-  const lines = splitLines(doc, value || '', width);
-  doc.text(lines, x, y + 6);
-
-  const blockHeight = Math.max(12, lines.length * 5 + 4);
   doc.setDrawColor(...COLORS.black);
   doc.setLineWidth(0.4);
   doc.line(x, y + blockHeight, x + width, y + blockHeight);
@@ -85,8 +140,7 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
   const infoBarBottom = headerHeight + infoBarHeight;
 
   if (isCopy) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(72);
+    setLabelFont(doc, 72, 'bold');
     doc.setTextColor(240, 240, 240);
     doc.text('COPY', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
   }
@@ -94,27 +148,22 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
   doc.setFillColor(...COLORS.gray900);
   doc.rect(0, 0, pageWidth, headerHeight, 'F');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(11);
+  setLabelFont(doc, 11, 'bold');
   doc.setTextColor(...COLORS.white);
   doc.text('Al Marai Al Arabia Trading Sole Proprietorship L.L.C', margin, 9);
 
   const receiptLabel = 'RECEIPT';
   const cashLabel = 'CASH PAYMENT';
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
+  setLabelFont(doc, 18, 'bold');
   const receiptWidth = doc.getTextWidth(receiptLabel);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  setLabelFont(doc, 8, 'normal');
   const cashWidth = doc.getTextWidth(cashLabel);
   const labelGap = 4;
   const labelsStartX = pageWidth - margin - receiptWidth - labelGap - cashWidth;
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(18);
+  setLabelFont(doc, 18, 'bold');
   doc.text(receiptLabel, labelsStartX, 10);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(8);
+  setLabelFont(doc, 8, 'normal');
   doc.text(cashLabel, labelsStartX + receiptWidth + labelGap, 10);
 
   doc.setFillColor(...COLORS.gray100);
@@ -123,8 +172,7 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
   doc.setLineWidth(0.5);
   doc.line(0, infoBarBottom, pageWidth, infoBarBottom);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  setLabelFont(doc, 9, 'bold');
   doc.setTextColor(...COLORS.gray900);
   doc.text(`Receipt No: ${data.receiptNumber || '---'}`, margin, infoBarBottom - 5);
   doc.text(`Date: ${formatDate(data.date)}`, pageWidth - margin, infoBarBottom - 5, { align: 'right' });
@@ -142,13 +190,11 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
   doc.setLineWidth(0.5);
   doc.roundedRect(margin, y, contentWidth, amountBoxHeight, 2, 2, 'FD');
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(9);
+  setLabelFont(doc, 9, 'bold');
   doc.setTextColor(...COLORS.gray700);
   doc.text('Amount:', margin + 4, y + 8);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
+  setLabelFont(doc, 16, 'bold');
   doc.setTextColor(...COLORS.gray900);
   doc.text(formatAmount(data.amount), margin + 4, y + 18);
 
@@ -156,45 +202,55 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
   doc.setLineWidth(0.2);
   doc.line(margin + 4, y + 22, margin + contentWidth - 4, y + 22);
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  setLabelFont(doc, 8, 'bold');
   doc.setTextColor(...COLORS.gray700);
   doc.text('Amount in Words:', margin + 4, y + 28);
 
-  doc.setFont('helvetica', 'italic');
-  doc.setFontSize(8);
   doc.setTextColor(...COLORS.gray900);
-  const words = splitLines(doc, data.amountInWords || '', contentWidth - 40);
-  doc.text(words, margin + 34, y + 28);
+  const wordsWidth = contentWidth - 40;
+  const wordsX = margin + 34;
+  if (hasArabic(data.amountInWords || '')) {
+    setContentFont(doc, 8);
+    doc.text(data.amountInWords || '', wordsX + wordsWidth, y + 28, {
+      align: 'right',
+      maxWidth: wordsWidth,
+    });
+  } else {
+    setLabelFont(doc, 8, 'italic');
+    const words = splitLatinLines(doc, data.amountInWords || '', wordsWidth, 8, 'italic');
+    doc.text(words, wordsX, y + 28);
+  }
 
   y += amountBoxHeight + 6;
-  y += drawFieldBlock(doc, 'Payment For:', data.reason, margin, y, contentWidth, 10);
+  y += drawFieldBlock(doc, 'Payment For:', data.reason, margin, y, contentWidth, 10, true);
 
   y += 4;
   const signatureTop = Math.max(y, pageHeight - 72);
   const columnWidth = (contentWidth - 8) / 2;
 
   if (!isCopy) {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    setLabelFont(doc, 8, 'bold');
     doc.setTextColor(...COLORS.gray600);
     doc.text("Payer's Signature", margin + columnWidth / 2, signatureTop, { align: 'center' });
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
     doc.setTextColor(...COLORS.gray900);
-    const payerLines = splitLines(doc, data.receivedFrom || '', columnWidth - 6);
-    doc.text(payerLines, margin + columnWidth / 2, signatureTop + 8, { align: 'center' });
+    if (hasArabic(data.receivedFrom || '')) {
+      setContentFont(doc, 12);
+      const payerLines = splitContentLines(doc, data.receivedFrom || '', columnWidth - 6, 12);
+      doc.text(payerLines, margin + columnWidth / 2, signatureTop + 8, { align: 'center' });
+    } else {
+      setLabelFont(doc, 12, 'bold');
+      const payerLines = splitLatinLines(doc, data.receivedFrom || '', columnWidth - 6, 12, 'bold');
+      doc.text(payerLines, margin + columnWidth / 2, signatureTop + 8, { align: 'center' });
+    }
   }
 
   const receivedX = margin + columnWidth + 8;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
+  setLabelFont(doc, 8, 'bold');
   doc.setTextColor(...COLORS.gray600);
   doc.text('Received By', receivedX + columnWidth / 2, signatureTop, { align: 'center' });
 
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(12);
+  setLabelFont(doc, 12, 'bold');
   doc.setTextColor(...COLORS.gray900);
   doc.text('Mohamed Sabry', receivedX + columnWidth / 2, signatureTop + 8, { align: 'center' });
 
@@ -211,8 +267,7 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
     doc.setDrawColor(...COLORS.gray200);
     doc.setLineWidth(0.2);
     doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    setLabelFont(doc, 8, 'bold');
     doc.setTextColor(...COLORS.gray500);
     doc.text('True Copy of Original', pageWidth / 2, pageHeight - 12, { align: 'center' });
   }
@@ -224,6 +279,8 @@ export async function generateReceiptPdf(options: {
 }): Promise<void> {
   const { data, filename } = options;
   const doc = new jsPDF('p', 'mm', 'a4');
+
+  await addArabicFont(doc);
 
   doc.setProperties({
     title: filename,
