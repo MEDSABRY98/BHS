@@ -144,6 +144,36 @@ export default function SalesDBPage() {
     return values;
   };
 
+  const getNextSalesRecordNum = async (): Promise<number> => {
+    const pageSize = 1000;
+    let from = 0;
+    let maxNum = 0;
+
+    while (true) {
+      const { data, error } = await bhs_supabas
+        .from('web_Sales_DB')
+        .select('ID')
+        .range(from, from + pageSize - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) break;
+
+      data.forEach((row) => {
+        if (row.ID && row.ID.startsWith('R-')) {
+          const num = parseInt(row.ID.substring(2), 10);
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num;
+          }
+        }
+      });
+
+      if (data.length < pageSize) break;
+      from += pageSize;
+    }
+
+    return maxNum + 1;
+  };
+
   const downloadMissingIdsReport = (missingCustomers: Set<string>, missingProducts: Set<string>) => {
     const lines: string[] = [
       'Sales Upload - Missing References',
@@ -203,30 +233,13 @@ export default function SalesDBPage() {
         return;
       }
 
-      const [productIds, customerIds] = await Promise.all([
+      const [productIds, customerIds, nextNumStart] = await Promise.all([
         fetchAllColumnValues('bhs_PRODUCTS', 'PRODUCT ID'),
         fetchAllColumnValues('bhs_CUSTOMERS', 'CUSTOMER ID'),
+        getNextSalesRecordNum(),
       ]);
 
-      const { data: latestRows, error: latestErr } = await bhs_supabas
-        .from('web_Sales_DB')
-        .select('ID')
-        .order('CREATED_AT', { ascending: false })
-        .limit(200);
-
-      if (latestErr) throw latestErr;
-
-      let maxNum = 0;
-      if (latestRows && latestRows.length > 0) {
-        latestRows.forEach(row => {
-          if (row.ID && row.ID.startsWith('R-')) {
-            const num = parseInt(row.ID.substring(2), 10);
-            if (!isNaN(num) && num > maxNum) {
-              maxNum = num;
-            }
-          }
-        });
-      }
+      let nextNum = nextNumStart;
 
       const formatExcelDate = (val: unknown): string => {
         if (!val) return '';
@@ -270,7 +283,6 @@ export default function SalesDBPage() {
         return strVal;
       };
 
-      let nextNum = maxNum + 1;
       const formattedRows = jsonData.map((row) => {
         const cost = Number(row['PRODUCT COST']) || 0;
         const price = Number(row['PRODUCT PRICE']) || 0;
