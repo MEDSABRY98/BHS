@@ -3,7 +3,7 @@ import NoData from '@/app/Components/NoDataTab';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/lib/InvoiceType';
 import { parseDate } from './PaymentTUtilsTab';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend, Cell, LabelList } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList } from 'recharts';
 
 interface PaymentTDetailsDashboardTabProps {
   data: InvoiceRow[];
@@ -109,37 +109,19 @@ export default function PaymentTDetailsDashboardTab({
 
   const periods = [
     {
-      title: 'CURRENT',
+      title: 'Current',
       range: `${formatDate(startDate as Date)} – ${formatDate(endDate as Date)} (${curDays} Days)`,
       amount: curMet.total,
-      colors: {
-        bg: 'bg-[#f0f6ff]',
-        border: 'border-[#3a7fe8]',
-        text: 'text-[#3a7fe8]',
-        accent: 'bg-[#3a7fe8]'
-      }
     },
     {
-      title: 'PREVIOUS',
+      title: 'Previous',
       range: `${prevStartDate ? formatDate(prevStartDate) : ''} – ${prevEndDate ? formatDate(prevEndDate) : ''} (${prevDays} Days)`,
       amount: prevMet.total,
-      colors: {
-        bg: 'bg-[#f7f7f7]',
-        border: 'border-[#a1a1aa]',
-        text: 'text-[#52525b]',
-        accent: 'bg-[#a1a1aa]'
-      }
     },
     {
-      title: 'LAST YEAR',
+      title: 'Last Year',
       range: `${lyStartDate ? formatDate(lyStartDate) : ''} – ${lyEndDate ? formatDate(lyEndDate) : ''} (${lyDays} Days)`,
       amount: lyMet.total,
-      colors: {
-        bg: 'bg-[#f2fbec]',
-        border: 'border-[#5aad2e]',
-        text: 'text-[#5aad2e]',
-        accent: 'bg-[#5aad2e]'
-      }
     }
   ];
 
@@ -153,31 +135,28 @@ export default function PaymentTDetailsDashboardTab({
 
   const growthCards = [
     {
-      title: 'COLLECTIONS GROWTH',
+      title: 'Collections Growth',
       prevPct: revenueTrend,
       lyPct: revenueLyTrend,
       prevDiff: curMet.total - prevMet.total,
       lyDiff: curMet.total - lyMet.total,
       isCurrency: true,
-      colors: { bg: 'bg-[#f4f7fb]', text: 'text-[#3a7fe8]' }
     },
     {
-      title: 'CUSTOMER GROWTH',
+      title: 'Customer Growth',
       prevPct: custTrend,
       lyPct: custLyTrend,
       prevDiff: curMet.uniqueCustomers - prevMet.uniqueCustomers,
       lyDiff: curMet.uniqueCustomers - lyMet.uniqueCustomers,
       isCurrency: false,
-      colors: { bg: 'bg-[#f6faf3]', text: 'text-[#5aad2e]' }
     },
     {
-      title: 'TRANSACTION GROWTH',
+      title: 'Transaction Growth',
       prevPct: countTrend,
       lyPct: countLyTrend,
       prevDiff: curMet.count - prevMet.count,
       lyDiff: curMet.count - lyMet.count,
       isCurrency: false,
-      colors: { bg: 'bg-[#fdf7f2]', text: 'text-[#e57d24]' }
     }
   ];
 
@@ -262,86 +241,78 @@ export default function PaymentTDetailsDashboardTab({
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn pb-8">
-      {/* Top Period Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {periods.map((p, i) => (
-          <div key={i} className={`relative overflow-hidden rounded-[24px] border-2 ${p.colors.border} ${p.colors.bg} p-6 shadow-sm hover:shadow-md transition-shadow`}>
-            <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${p.colors.accent}`} />
-            <div className="ml-3">
-              <h3 className={`text-sm font-black tracking-widest ${p.colors.text}`}>{p.title}</h3>
-              <p className="text-xs text-gray-500/80 mt-2 font-medium">{p.range}</p>
-              <div className={`text-4xl font-extrabold mt-5 ${p.colors.text}`}>
-                {p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </div>
-            </div>
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{p.title}</h3>
+            <p className="text-xs text-gray-400 mt-1">{p.range}</p>
+            <p className="text-2xl font-bold text-gray-900 mt-3">
+              {p.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
           </div>
         ))}
       </div>
 
-      {/* Growth Cards Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {growthCards.map((card, i) => (
-          <div key={i} className={`p-5 rounded-[20px] ${card.colors.bg} border border-black/[0.03] shadow-sm flex flex-col justify-center`}>
-            <h3 className={`text-[10px] font-bold mb-4 tracking-widest ${card.colors.text}`}>
-              {card.title}
-            </h3>
-
-            <div className="flex items-center">
-              {/* vs Previous */}
+          <div key={i} className="bg-white rounded-xl border border-gray-200 p-4">
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">{card.title}</h3>
+            <div className="flex items-center gap-4">
               <div className="flex-1">
-                <div className={`text-[28px] font-black ${card.prevPct >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'} flex items-baseline gap-2`}>
-                  <span>{card.prevPct >= 0 ? '+' : ''}{card.prevPct.toFixed(0)}%</span>
-                  <span className="text-sm font-bold opacity-75">
+                <div className={`text-xl font-bold ${card.prevPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {card.prevPct >= 0 ? '+' : ''}{card.prevPct.toFixed(0)}%
+                  <span className="text-sm font-medium text-gray-500 ml-1">
                     ({card.prevDiff >= 0 ? '+' : '-'}{formatDiff(card.prevDiff, card.isCurrency)})
                   </span>
                 </div>
-                <div className="text-[10px] text-gray-400 font-medium mt-0.5 uppercase">vs previous</div>
+                <p className="text-xs text-gray-400 mt-0.5">vs previous</p>
               </div>
-
-              {/* Divider */}
-              <div className="w-[1px] h-10 bg-gray-200 mx-3" />
-
-              {/* vs Last Year */}
-              <div className="flex-1 pl-3">
-                <div className={`text-[28px] font-black ${card.lyPct >= 0 ? 'text-[#16a34a]' : 'text-[#dc2626]'} flex items-baseline gap-2`}>
-                  <span>{card.lyPct >= 0 ? '+' : ''}{card.lyPct.toFixed(0)}%</span>
-                  <span className="text-sm font-bold opacity-75">
+              <div className="w-px h-8 bg-gray-200" />
+              <div className="flex-1">
+                <div className={`text-xl font-bold ${card.lyPct >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {card.lyPct >= 0 ? '+' : ''}{card.lyPct.toFixed(0)}%
+                  <span className="text-sm font-medium text-gray-500 ml-1">
                     ({card.lyDiff >= 0 ? '+' : '-'}{formatDiff(card.lyDiff, card.isCurrency)})
                   </span>
                 </div>
-                <div className="text-[10px] text-gray-400 font-medium mt-0.5 uppercase">vs last year</div>
+                <p className="text-xs text-gray-400 mt-0.5">vs last year</p>
               </div>
             </div>
           </div>
         ))}
       </div>
 
-      {/* Bar Chart Section */}
-      <div className="bg-white/90 backdrop-blur-md p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white mt-8 h-[500px]">
-        <div className="flex items-center justify-between mb-8">
-          <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">Period Comparison</h3>
+      <div className="bg-white rounded-xl border border-gray-200 p-4 h-[460px]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
+          <h3 className="text-sm font-semibold text-gray-900">Period Comparison</h3>
+          <div className="flex flex-wrap items-center gap-4 text-xs text-gray-600">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-gray-700" />
+              Current Period
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-gray-400" />
+              Previous Period
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-gray-300" />
+              Last Year
+            </span>
+          </div>
         </div>
         <ResponsiveContainer width="100%" height={380}>
-          <BarChart data={chartData} margin={{ top: 30, right: 0, left: -20, bottom: 0 }} barGap={8} barCategoryGap="20%">
+          <BarChart data={chartData} margin={{ top: 10, right: 10, left: 10, bottom: 0 }} barGap={8} barCategoryGap="20%">
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 13, fontWeight: 600 }} dy={10} />
+            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} dy={10} />
             <YAxis hide domain={[0, 115]} />
-            <Legend
-              verticalAlign="top"
-              align="left"
-              height={40}
-              iconType="square"
-              formatter={(value) => <span className="text-sm text-gray-600 font-semibold ml-1">{value}</span>}
-              wrapperStyle={{ top: -20 }}
-            />
-            <Bar dataKey="current" name="Current Period" fill="#3b82f6" radius={[6, 6, 0, 0]}>
+            <Bar dataKey="current" name="Current Period" fill="#374151" radius={[4, 4, 0, 0]}>
               <LabelList dataKey="current" content={(props: any) => <CustomLabel {...props} dataKey="current" />} />
             </Bar>
-            <Bar dataKey="previous" name="Previous Period" fill="#bfdbfe" radius={[6, 6, 0, 0]}>
+            <Bar dataKey="previous" name="Previous Period" fill="#9CA3AF" radius={[4, 4, 0, 0]}>
               <LabelList dataKey="previous" content={(props: any) => <CustomLabel {...props} dataKey="previous" />} />
             </Bar>
-            <Bar dataKey="lastYear" name="Last Year" fill="#e2e8f0" radius={[6, 6, 0, 0]}>
+            <Bar dataKey="lastYear" name="Last Year" fill="#D1D5DB" radius={[4, 4, 0, 0]}>
               <LabelList dataKey="lastYear" content={(props: any) => <CustomLabel {...props} dataKey="lastYear" />} />
             </Bar>
           </BarChart>

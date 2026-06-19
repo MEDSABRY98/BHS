@@ -38,7 +38,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 }) => {
   return (
     <>
-      <div className="mb-4 bg-white p-4 rounded-xl border-2 border-gray-100">
+      <div className="mb-4 bg-black p-4 rounded-xl border border-gray-800">
         <div className="grid grid-cols-1 md:grid-cols-8 gap-4">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="contents">
@@ -48,8 +48,8 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                 return (
                   <div
                     key={header.id}
-                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-gray-700 ${isName ? 'md:col-span-3' : 'md:col-span-1'
-                      } hover:bg-white cursor-pointer`}
+                    className={`flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all duration-200 font-semibold text-sm uppercase tracking-wider text-white ${isName ? 'md:col-span-3' : 'md:col-span-1'
+                      } hover:bg-gray-800 cursor-pointer`}
                   >
                     <div className="flex items-center justify-center gap-2 w-full">
                       {isName && (
@@ -62,15 +62,15 @@ const DefaultView: React.FC<DefaultViewProps> = ({
                       )}
                       <button
                         onClick={header.column.getToggleSortingHandler()}
-                        className="flex items-center justify-center gap-2"
+                        className="flex items-center justify-center gap-2 text-white"
                       >
                         {flexRender(header.column.columnDef.header, header.getContext())}
-                        <span className="text-blue-600">
+                        <span className="text-white">
                           {{
                             asc: '↑',
                             desc: '↓',
                           }[header.column.getIsSorted() as string] ?? (
-                              <span className="text-gray-300">↕</span>
+                              <span className="text-gray-400">↕</span>
                             )}
                         </span>
                       </button>

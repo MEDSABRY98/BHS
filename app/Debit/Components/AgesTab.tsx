@@ -464,7 +464,7 @@ export default function AgesTab({ data }: AgesTabProps) {
             <NoData />
           ) : (
           <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
-            <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+            <thead className="bg-black text-white">
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => {
@@ -477,7 +477,7 @@ export default function AgesTab({ data }: AgesTabProps) {
                     return (
                       <th
                         key={header.id}
-                        className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider cursor-pointer hover:bg-blue-700 transition-colors whitespace-nowrap"
+                        className="px-6 py-4 text-center font-semibold text-sm uppercase tracking-wider text-white cursor-pointer hover:bg-gray-800 transition-colors whitespace-nowrap"
                         style={{ width: getWidth() }}
                         onClick={header.column.getToggleSortingHandler()}
                       >

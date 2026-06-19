@@ -59,13 +59,12 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
     }
 
     return (
-      <div className="bg-white/90 backdrop-blur-md rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wide text-gray-600">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <table className="w-full table-fixed">
+          <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-600">
               <tr>
                 <th
-                  className="px-5 py-3 text-left font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none"
+                  className="px-5 py-3 text-center font-semibold cursor-pointer hover:bg-gray-100 transition-colors select-none"
                   onClick={() => {
                     if (sortColumn === 'customerName') {
                       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -75,10 +74,10 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                     }
                   }}
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-center gap-2">
                     Customer Name
                     {sortColumn === 'customerName' && (
-                      <span className="text-blue-600">
+                      <span className="text-gray-700">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -98,7 +97,7 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                   <div className="flex items-center justify-center gap-2">
                     Total Payments
                     {sortColumn === 'totalPayments' && (
-                      <span className="text-blue-600">
+                      <span className="text-gray-700">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -118,7 +117,7 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                   <div className="flex items-center justify-center gap-2">
                     Payment Count
                     {sortColumn === 'paymentCount' && (
-                      <span className="text-blue-600">
+                      <span className="text-gray-700">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -138,7 +137,7 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                   <div className="flex items-center justify-center gap-2">
                     Last Payment
                     {sortColumn === 'lastPayment' && (
-                      <span className="text-blue-600">
+                      <span className="text-gray-700">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -158,7 +157,7 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                   <div className="flex items-center justify-center gap-2">
                     Days Since
                     {sortColumn === 'daysSince' && (
-                      <span className="text-blue-600">
+                      <span className="text-gray-700">
                         {sortDirection === 'asc' ? '↑' : '↓'}
                       </span>
                     )}
@@ -168,25 +167,16 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredByCustomer.map((item, index) => (
-                <tr key={item.customerName} className="bg-white hover:bg-blue-50/40 transition-colors">
-                  <td className="px-5 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                        {index + 1}
-                      </div>
-                      <div className="font-semibold text-gray-900">{item.customerName}</div>
-                    </div>
-                  </td>
-                  <td className="px-5 py-4 text-center font-semibold text-gray-900 w-40">
+              {filteredByCustomer.map((item) => (
+                <tr key={item.customerName} className="hover:bg-gray-50">
+                  <td className="px-5 py-3 text-center font-medium text-gray-900">{item.customerName}</td>
+                  <td className="px-5 py-3 text-center font-medium text-gray-900 w-40">
                     {item.totalPayments.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
-                  <td className="px-5 py-4 text-center w-40">
-                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                      {item.paymentCount}
-                    </span>
+                  <td className="px-5 py-3 text-center w-40 text-gray-700">
+                    {item.paymentCount}
                   </td>
-                  <td className="px-5 py-4 text-center w-40">
+                  <td className="px-5 py-3 text-center w-40">
                     {item.lastPayment ? (
                       <div className="flex flex-col items-center gap-1">
                         <span className="text-sm font-semibold text-gray-900">
@@ -209,16 +199,16 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                       <span className="text-sm text-gray-400">-</span>
                     )}
                   </td>
-                  <td className="px-5 py-4 text-center w-40">
+                  <td className="px-5 py-3 text-center w-40">
                     <button
                       onClick={() => {
                         setSelectedCustomer(item);
                         setDetailMode('customer');
                         setLastCustomerSelection(item.customerName.trim().toLowerCase());
                       }}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-semibold"
+                      className="px-3 py-1.5 bg-gray-800 text-white rounded-lg hover:bg-gray-700 text-sm font-medium"
                     >
-                      View Details
+                      View
                     </button>
                   </td>
                 </tr>
@@ -226,7 +216,7 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
             </tbody>
             <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
               <tr>
-                <td className="px-5 py-3 text-left">Total</td>
+                <td className="px-5 py-3 text-center">Total</td>
                 <td className="px-5 py-3 text-center w-40">
                   {customerTotals.totalPayments.toLocaleString('en-US', {
                     minimumFractionDigits: 2,
@@ -240,7 +230,6 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
               </tr>
             </tfoot>
           </table>
-        </div>
       </div>
     );
   }
@@ -277,12 +266,11 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
     );
 
     return (
-      <div className="mt-6 bg-white/90 backdrop-blur-md rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gray-50">
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50">
           <div>
-            <h3 className="text-xl font-bold text-gray-900">{selectedCustomer.customerName}</h3>
-            <p className="text-sm text-gray-500 mt-1">Detailed payment history analysis</p>
+            <h3 className="text-base font-semibold text-gray-900">{selectedCustomer.customerName}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Payment history</p>
           </div>
           <button
             onClick={() => {
@@ -290,152 +278,71 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
               setSelectedCustomer(null);
               setLastCustomerSelection(null);
             }}
-            className="px-4 py-2 bg-white border border-gray-300 shadow-sm text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors flex items-center gap-2"
+            className="px-3 py-1.5 border border-gray-200 text-gray-700 rounded-lg hover:bg-white text-sm"
           >
-            <span>←</span> Back to list
+            ← Back
           </button>
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-8 custom-scrollbar">
-          {/* Cards Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="p-6 rounded-[24px] bg-emerald-50/50 border border-emerald-100/50 flex flex-col items-center text-center shadow-sm">
-              <span className="text-emerald-600 font-medium text-sm uppercase tracking-wider mb-1">Total Collected</span>
-              <span className="text-3xl font-bold text-emerald-700">
-                {customerDetailPayments
-                  .reduce((sum, p) => sum + (p.credit || 0), 0)
-                  .toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-
-            <div className="p-6 rounded-[24px] bg-cyan-50/50 border border-cyan-100/50 flex flex-col items-center text-center shadow-sm">
-              <span className="text-cyan-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Amount</span>
-              <span className="text-3xl font-bold text-cyan-700">
-                {(() => {
-                  const total = customerDetailPayments.reduce((sum, p) => sum + (p.credit || 0), 0);
-                  const count = customerDetailPayments.filter(p => p.rawCredit > 0.01).length;
-                  return (count > 0 ? total / count : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-                })()}
-              </span>
-            </div>
-
-            <div className="p-6 rounded-[24px] bg-blue-50/50 border border-blue-100/50 flex flex-col items-center text-center shadow-sm">
-              <span className="text-blue-600 font-medium text-sm uppercase tracking-wider mb-1">Payment Count</span>
-              <span className="text-3xl font-bold text-blue-700">
-                {customerDetailPayments.filter(p => p.rawCredit > 0.01).length}
-              </span>
-            </div>
-
-            <div className="p-6 rounded-[24px] bg-purple-50/50 border border-purple-100/50 flex flex-col items-center text-center shadow-sm">
-              <span className="text-purple-600 font-medium text-sm uppercase tracking-wider mb-1">Avg. Payment Days</span>
-              <span className="text-3xl font-bold text-purple-700">
-                {Math.round(customerAvgDays)} <span className="text-lg font-normal text-purple-600">days</span>
-              </span>
-            </div>
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Total Collected', value: customerDetailPayments.reduce((sum, p) => sum + (p.credit || 0), 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+              { label: 'Avg Payment', value: (() => { const total = customerDetailPayments.reduce((sum, p) => sum + (p.credit || 0), 0); const count = customerDetailPayments.filter(p => p.rawCredit > 0.01).length; return (count > 0 ? total / count : 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); })() },
+              { label: 'Payment Count', value: customerDetailPayments.filter(p => p.rawCredit > 0.01).length.toString() },
+              { label: 'Avg Days', value: `${Math.round(customerAvgDays)} days` },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-lg border border-gray-200 p-3 text-center">
+                <p className="text-xs text-gray-500 uppercase tracking-wide">{stat.label}</p>
+                <p className="text-lg font-bold text-gray-900 mt-1">{stat.value}</p>
+              </div>
+            ))}
           </div>
 
-          {/* Chart */}
-          <div className="bg-white rounded-xl p-4 h-80">
-            <h4 className="text-xl font-bold text-gray-800 mb-4 px-2">Payments Last 12 Months</h4>
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="border border-gray-200 rounded-lg p-3 h-72">
+            <h4 className="text-sm font-semibold text-gray-900 mb-2">Last 12 Months</h4>
+            <ResponsiveContainer width="100%" height="90%">
               <BarChart data={customerChartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorPayment" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.8} />
-                    <stop offset="95%" stopColor="#2563EB" stopOpacity={0.8} />
-                  </linearGradient>
-                </defs>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                <XAxis
-                  dataKey="name"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fill: '#374151', fontSize: 13, fontWeight: '600' }}
-                  dy={10}
-                />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#6B7280', fontSize: 12 }} dy={10} />
                 <YAxis hide />
                 <Tooltip
-                  cursor={{ fill: '#EFF6FF', radius: 4 }}
-                  content={({ active, payload, label }) => {
-                    if (active && payload && payload.length) {
-                      const data = payload[0].payload;
-                      return (
-                        <div className="bg-white p-3 rounded-xl shadow-xl border border-blue-100 text-sm">
-                          <p className="font-bold text-gray-800 mb-1">{label}</p>
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-2xl font-bold text-blue-600">
-                              {new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(data.amount)}
-                            </span>
-                            <span className="text-xs text-gray-500 font-medium uppercase tracking-wide">AED</span>
-                          </div>
-                          <div className="mt-2 pt-2 border-t border-gray-100 flex items-center justify-between gap-4">
-                            <span className="text-gray-500 text-xs">Transactions</span>
-                            <span className="font-semibold text-gray-700 bg-gray-100 px-2 py-0.5 rounded-full text-xs">
-                              {data.count}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
+                  cursor={{ fill: '#F9FAFB' }}
+                  contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB' }}
+                  formatter={(value: number) => [new Intl.NumberFormat('en-US', { minimumFractionDigits: 0 }).format(value), 'Amount']}
                 />
-                <Bar
-                  dataKey="amount"
-                  name="Amount"
-                  fill="url(#colorPayment)"
-                  radius={[6, 6, 0, 0]}
-                  barSize={40}
-                  activeBar={{ fill: '#1D4ED8' }}
-                />
+                <Bar dataKey="amount" name="Amount" fill="#374151" radius={[4, 4, 0, 0]} barSize={32} />
               </BarChart>
             </ResponsiveContainer>
           </div>
 
-          {/* Data Table */}
-          <div className="bg-white rounded-xl border border-gray-200 overflow-hidden mt-12">
-            <div className="px-5 py-3 border-b bg-gray-50">
-              <h4 className="font-semibold text-gray-800">Payment History</h4>
-            </div>
-            {groupedPayments.length === 0 ? (
-              <NoData title="NO PAYMENTS FOUND" />
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr className="text-gray-600 text-center">
-                      <th className="px-4 py-3 text-center">Date</th>
-                      <th className="px-4 py-3 text-center">Number</th>
-                      <th className="px-4 py-3 text-center">Paid</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {groupedPayments.map((group, idx) => (
-                      <tr
-                        key={`${group.number}-${idx}`}
-                        className={`hover:bg-gray-50 text-center ${group.hasNegative
-                          ? 'bg-red-100 border-l-4 border-red-500'
-                          : group.hasOB
-                            ? 'bg-emerald-50/60'
-                            : ''
-                          }`}
-                      >
-                        <td className="px-4 py-2 text-gray-700 text-center">{formatDate(group.date)}</td>
-                        <td className="px-4 py-2 font-semibold text-gray-900 text-center">{group.number}</td>
-                        <td className={`px-4 py-2 font-semibold text-center text-base ${group.totalCredit < 0 ? 'text-red-700' : 'text-green-700'}`}>
-                          {group.totalCredit.toLocaleString('en-US', {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+          {groupedPayments.length === 0 ? (
+            <NoData title="NO PAYMENTS FOUND" />
+          ) : (
+            <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+              <thead className="bg-gray-50 border-b border-gray-200">
+                <tr className="text-gray-600 text-center">
+                  <th className="px-4 py-2 text-center font-semibold">Date</th>
+                  <th className="px-4 py-2 text-center font-semibold">Number</th>
+                  <th className="px-4 py-2 text-center font-semibold">Paid</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {groupedPayments.map((group, idx) => (
+                  <tr
+                    key={`${group.number}-${idx}`}
+                    className={`text-center hover:bg-gray-50 ${group.hasNegative ? 'bg-red-50' : group.hasOB ? 'bg-gray-50' : ''}`}
+                  >
+                    <td className="px-4 py-2 text-center text-gray-700">{formatDate(group.date)}</td>
+                    <td className="px-4 py-2 text-center font-medium text-gray-900">{group.number}</td>
+                    <td className={`px-4 py-2 text-center font-medium ${group.totalCredit < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {group.totalCredit.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     );

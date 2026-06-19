@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import { addArabicFont } from '@/app/Components/Pdf/shared';
+import { bhs_supabas } from '@/lib/supabase';
 
 export interface ReceiptPdfData {
   receiptNumber: string;
@@ -130,7 +131,7 @@ function drawFieldBlock(
   return blockHeight + 10;
 }
 
-function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
+function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData) {
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 12;
@@ -138,12 +139,6 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
   const headerHeight = 20;
   const infoBarHeight = 12;
   const infoBarBottom = headerHeight + infoBarHeight;
-
-  if (isCopy) {
-    setLabelFont(doc, 72, 'bold');
-    doc.setTextColor(240, 240, 240);
-    doc.text('COPY', pageWidth / 2, pageHeight / 2, { align: 'center', angle: 45 });
-  }
 
   doc.setFillColor(...COLORS.gray900);
   doc.rect(0, 0, pageWidth, headerHeight, 'F');
@@ -226,50 +221,45 @@ function renderReceiptPage(doc: jsPDF, data: ReceiptPdfData, isCopy: boolean) {
 
   y += 4;
   const signatureTop = Math.max(y, pageHeight - 72);
-  const columnWidth = (contentWidth - 8) / 2;
+  const signatureWidth = contentWidth * 0.55;
+  const signatureX = margin + (contentWidth - signatureWidth) / 2;
 
-  if (!isCopy) {
-    setLabelFont(doc, 8, 'bold');
-    doc.setTextColor(...COLORS.gray600);
-    doc.text("Payer's Signature", margin + columnWidth / 2, signatureTop, { align: 'center' });
-
-    doc.setTextColor(...COLORS.gray900);
-    if (hasArabic(data.receivedFrom || '')) {
-      setContentFont(doc, 12);
-      const payerLines = splitContentLines(doc, data.receivedFrom || '', columnWidth - 6, 12);
-      doc.text(payerLines, margin + columnWidth / 2, signatureTop + 8, { align: 'center' });
-    } else {
-      setLabelFont(doc, 12, 'bold');
-      const payerLines = splitLatinLines(doc, data.receivedFrom || '', columnWidth - 6, 12, 'bold');
-      doc.text(payerLines, margin + columnWidth / 2, signatureTop + 8, { align: 'center' });
-    }
-  }
-
-  const receivedX = margin + columnWidth + 8;
   setLabelFont(doc, 8, 'bold');
   doc.setTextColor(...COLORS.gray600);
-  doc.text('Received By', receivedX + columnWidth / 2, signatureTop, { align: 'center' });
+  doc.text('Received By', signatureX + signatureWidth / 2, signatureTop, { align: 'center' });
 
   setLabelFont(doc, 12, 'bold');
   doc.setTextColor(...COLORS.gray900);
-  doc.text('Mohamed Sabry', receivedX + columnWidth / 2, signatureTop + 8, { align: 'center' });
+  doc.text('Mohamed Sabry', signatureX + signatureWidth / 2, signatureTop + 8, { align: 'center' });
 
   if (data.receivedBySignature?.startsWith('data:image')) {
     try {
       const format = data.receivedBySignature.includes('image/png') ? 'PNG' : 'JPEG';
-      doc.addImage(data.receivedBySignature, format, receivedX + columnWidth / 2 - 18, signatureTop + 12, 36, 14);
+      doc.addImage(
+        data.receivedBySignature,
+        format,
+        signatureX + signatureWidth / 2 - 18,
+        signatureTop + 12,
+        36,
+        14,
+      );
     } catch {
       // ignore invalid signature image
     }
   }
+}
 
-  if (isCopy) {
-    doc.setDrawColor(...COLORS.gray200);
-    doc.setLineWidth(0.2);
-    doc.line(margin, pageHeight - 18, pageWidth - margin, pageHeight - 18);
-    setLabelFont(doc, 8, 'bold');
-    doc.setTextColor(...COLORS.gray500);
-    doc.text('True Copy of Original', pageWidth / 2, pageHeight - 12, { align: 'center' });
+async function fetchReceiverSignature(): Promise<string> {
+  try {
+    const { data } = await bhs_supabas
+      .from('bhs_USERS')
+      .select('SIGNATURE')
+      .eq('NAME', 'MED Sabry')
+      .maybeSingle();
+
+    return data?.SIGNATURE || '';
+  } catch {
+    return '';
   }
 }
 
@@ -282,13 +272,13 @@ export async function generateReceiptPdf(options: {
 
   await addArabicFont(doc);
 
+  const receivedBySignature = data.receivedBySignature || await fetchReceiverSignature();
+
   doc.setProperties({
     title: filename,
   });
 
-  renderReceiptPage(doc, data, false);
-  doc.addPage();
-  renderReceiptPage(doc, data, true);
+  renderReceiptPage(doc, { ...data, receivedBySignature });
 
   doc.save(`${filename}.pdf`);
 }

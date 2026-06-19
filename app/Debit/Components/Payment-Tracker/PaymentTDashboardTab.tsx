@@ -26,107 +26,78 @@ interface PaymentTDashboardTabProps {
   dateTo: string;
 }
 
+const statCards = [
+  { label: 'Total Collections', key: 'totalCollections', format: 'currency' },
+  { label: 'Net Payment Count', key: 'netPaymentCount', format: 'number' },
+  { label: 'Avg Monthly', key: 'averageMonthly', source: 'avg', format: 'currency' },
+  { label: 'Avg Weekly', key: 'averageWeekly', source: 'avg', format: 'currency' },
+] as const;
+
 const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
   dashboardData,
   chartPeriodType,
   setChartPeriodType,
-  chartYear,
-  setChartYear,
-  chartMonth,
-  setChartMonth,
   averageCollections,
-
-  dateFrom,
-  dateTo,
 }) => {
+  const getValue = (card: typeof statCards[number]) => {
+    if (card.source === 'avg') {
+      return averageCollections[card.key];
+    }
+    return dashboardData.totals[card.key];
+  };
+
   return (
-    <div className="space-y-6 animate-fadeIn pb-8">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
-          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Total Collections</h3>
-          <div className="text-2xl font-bold text-green-600">
-            {dashboardData.totals.totalCollections.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+        {statCards.map((card) => (
+          <div key={card.label} className="bg-white rounded-xl border border-gray-200 p-4">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">{card.label}</p>
+            <p className="text-xl font-bold text-gray-900">
+              {getValue(card).toLocaleString('en-US', {
+                minimumFractionDigits: card.format === 'currency' ? 2 : 0,
+                maximumFractionDigits: card.format === 'currency' ? 2 : 0,
+              })}
+            </p>
           </div>
-        </div>
-
-        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
-          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Net Payment Count</h3>
-          <div className="text-2xl font-bold text-blue-600">
-            {dashboardData.totals.netPaymentCount.toLocaleString('en-US')}
-          </div>
-        </div>
-
-        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
-          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Avg Monthly</h3>
-          <div className="text-2xl font-bold text-teal-600">
-            {averageCollections.averageMonthly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </div>
-
-        <div className="bg-white/90 backdrop-blur-md p-6 rounded-[28px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white hover:shadow-md transition-all duration-300">
-          <h3 className="text-gray-500 font-medium mb-2 text-sm uppercase tracking-wider">Avg Weekly</h3>
-          <div className="text-2xl font-bold text-cyan-600">
-            {averageCollections.averageWeekly.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </div>
-        </div>
-
-
+        ))}
       </div>
 
-      {/* Chart */}
-      <div className="bg-white/90 backdrop-blur-md p-8 rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white h-[760px]">
-        <div className="flex flex-col items-center gap-4 mb-8">
-          <h3 className="text-xl font-extrabold text-gray-900 tracking-tight">
-            Collections - {
-              chartPeriodType === 'weekly' ? 'Weekly Trend' : 'Monthly Trend'
-            }
+      <div className="bg-white rounded-xl border border-gray-200 p-4 h-[680px]">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            Collections — {chartPeriodType === 'weekly' ? 'Weekly' : 'Monthly'}
           </h3>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <div className="flex gap-1 p-1 bg-gray-100/50 rounded-2xl border border-gray-100 shadow-inner">
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-lg border border-gray-200">
+            {(['monthly', 'weekly'] as const).map((type) => (
               <button
-                onClick={() => setChartPeriodType('monthly')}
-                className={`px-5 py-2 rounded-xl font-bold transition-all text-xs uppercase tracking-widest ${chartPeriodType === 'monthly'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-500 hover:bg-white/40'
+                key={type}
+                onClick={() => setChartPeriodType(type)}
+                className={`px-3 py-1.5 rounded-md text-xs font-semibold uppercase ${chartPeriodType === type
+                  ? 'bg-white text-gray-900 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
                   }`}
               >
-                Monthly
+                {type}
               </button>
-              <button
-                onClick={() => setChartPeriodType('weekly')}
-                className={`px-5 py-2 rounded-xl font-bold transition-all text-xs uppercase tracking-widest ${chartPeriodType === 'weekly'
-                  ? 'bg-white text-blue-600 shadow-sm'
-                  : 'text-gray-400 hover:text-gray-500 hover:bg-white/40'
-                  }`}
-              >
-                Weekly
-              </button>
-            </div>
+            ))}
           </div>
         </div>
 
-        <ResponsiveContainer width="100%" height={560}>
+        <ResponsiveContainer width="100%" height={580}>
           <BarChart
             data={dashboardData.chartData.slice(-12)}
             barGap="15%"
             barCategoryGap="15%"
-            margin={{
-              top: 40,
-              right: 30,
-              left: 20,
-              bottom: 60,
-            }}
+            margin={{ top: 40, right: 30, left: 20, bottom: 60 }}
           >
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" strokeOpacity={0.6} />
+            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
             <XAxis
               dataKey="periodLabel"
               axisLine={false}
               tickLine={false}
-              tick={{ fill: '#6B7280', fontSize: 13, fontWeight: '700' }}
+              tick={{ fill: '#6B7280', fontSize: 12 }}
               height={70}
               interval={0}
-              textAnchor="middle"
               dy={15}
             />
             <YAxis
@@ -139,15 +110,14 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
             />
             <Tooltip
               cursor={{ fill: '#F9FAFB' }}
-              contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 40px -10px rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.95)', backdropFilter: 'blur(8px)' }}
-              itemStyle={{ fontWeight: 'bold' }}
-            formatter={(value: number, name: string, props: any) => {
+              contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+              formatter={(value: number, name: string, props: any) => {
                 const rowData = props?.payload || {};
                 if (name === 'Net Collections') {
                   return [
                     <div key="custom-tooltip">
-                      <div className="text-blue-600 text-lg font-extrabold">{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
-                      <div className="text-[11px] mt-1 text-gray-400 font-medium">
+                      <div className="text-gray-900 text-base font-bold">{new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}</div>
+                      <div className="text-xs mt-1 text-gray-500">
                         {rowData.paymentCount || 0} Payments / {rowData.customerCount || 0} Customers
                       </div>
                     </div>,
@@ -156,9 +126,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
                 }
                 if (name === 'Last Year') {
                   return [
-                    <div key="custom-tooltip-ly" className="text-slate-500 text-lg font-bold">
-                      {new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)}
-                    </div>,
+                    new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value),
                     'Last Year'
                   ];
                 }
@@ -166,34 +134,33 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
               }}
             />
             <Legend verticalAlign="top" height={36} />
-
             <Bar
               dataKey="displayCollections"
               name="Net Collections"
-              fill="#3B82F6"
-              radius={[10, 10, 0, 0]}
+              fill="#374151"
+              radius={[4, 4, 0, 0]}
               barSize={32}
               label={{
                 position: 'top',
-                fill: '#1E40AF',
-                fontSize: 14,
-                fontWeight: '900',
-                dy: -15,
+                fill: '#374151',
+                fontSize: 12,
+                fontWeight: 600,
+                dy: -10,
                 formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''
               }}
             />
             <Bar
               dataKey="lastYearCollections"
               name="Last Year"
-              fill="#E2E8F0"
-              radius={[10, 10, 0, 0]}
+              fill="#D1D5DB"
+              radius={[4, 4, 0, 0]}
               barSize={32}
               label={{
                 position: 'top',
-                fill: '#64748B',
-                fontSize: 13,
-                fontWeight: 'bold',
-                dy: -15,
+                fill: '#6B7280',
+                fontSize: 11,
+                fontWeight: 500,
+                dy: -10,
                 formatter: (val: any) => val > 0 ? new Intl.NumberFormat('en-US', { notation: 'compact', compactDisplay: 'short' }).format(Number(val)) : ''
               }}
             />
