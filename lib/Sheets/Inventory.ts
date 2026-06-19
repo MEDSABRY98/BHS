@@ -153,97 +153,6 @@ function aggregateMovements(moveRows: InventoryMoveRow[]) {
 }
 
 // ============================================================
-// INVENTORY
-// ============================================================
-
-export async function getInventoryData() {
-  try {
-    const credentials = getServiceAccountCredentials();
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory!A:H`, // BARCODE, ITEM CODE, PRODUCT NAME, TAGS, TYPE, QTY IN BOX, WEIGHT, SIZE
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) {
-      return [];
-    }
-
-    const data = rows.slice(1).map((row, index) => {
-      return {
-        rowIndex: index + 2,
-        barcode: row[0] || '',
-        itemCode: row[1] || '',
-        productName: row[2] || '',
-        tags: row[3] || '',
-        type: row[4] || '',
-        qtyInBox: row[5] ? parseInt(row[5]) : 0,
-        weight: row[6] || '',
-        size: row[7] || '',
-      };
-    }).filter(row => row.productName);
-
-    return data;
-  } catch (error) {
-    console.error('Error fetching inventory data:', error);
-    throw error;
-  }
-}
-
-export async function updateInventoryItem(rowIndex: number, data: {
-  barcode: string;
-  itemCode: string;
-  productName: string;
-  tags: string;
-  type: string;
-  qtyInBox: number;
-  weight: string;
-  size: string;
-}) {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const values = [[
-      data.barcode,
-      data.itemCode,
-      data.productName,
-      data.tags,
-      data.type,
-      data.qtyInBox,
-      data.weight,
-      data.size
-    ]];
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `Inventory!A${rowIndex}:H${rowIndex}`,
-      valueInputOption: 'USER_ENTERED',
-      requestBody: {
-        values,
-      },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error updating inventory item:', error);
-    throw error;
-  }
-}
-
-// ============================================================
 // PRODUCT ORDERS
 // ============================================================
 
@@ -322,14 +231,6 @@ export async function updateProductColumn(productId: string, columnName: string,
     console.error('Error updating product column:', error);
     throw error;
   }
-}
-
-export async function updateProductOrderQinc(productId: string, qinc: number): Promise<{ success: boolean }> {
-  return updateProductColumn(productId, 'qinc', qinc);
-}
-
-export async function updateProductOrderLimit(productId: string, field: 'minQ' | 'maxQ', value: number): Promise<{ success: boolean }> {
-  return updateProductColumn(productId, field, value);
 }
 
 // ============================================================

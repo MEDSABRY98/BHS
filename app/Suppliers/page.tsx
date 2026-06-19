@@ -79,11 +79,15 @@ export default function SuppliersPage() {
             setLoading(true);
             const res = await fetch('/api/Suppliers');
             const json = await res.json();
+            if (json.error) {
+                throw new Error(json.details ? `${json.error}: ${json.details}` : json.error);
+            }
             if (json.data) {
                 setTransactions(json.data);
             }
         } catch (e) {
             console.error('Failed to fetch suppliers', e);
+            alert(e instanceof Error ? e.message : 'Failed to fetch supplier data');
         } finally {
             setLoading(false);
         }

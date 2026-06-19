@@ -116,42 +116,6 @@ export async function updateNote(rowIndex: number, content: string, isSolved?: b
   }
 }
 
-export async function deleteNote(rowIndex: number) {
-  try {
-    const credentials = getServiceAccountCredentials();
-
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-    });
-
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SPREADSHEET_ID,
-      requestBody: {
-        requests: [
-          {
-            deleteDimension: {
-              range: {
-                sheetId: 0,
-                dimension: 'ROWS',
-                startIndex: rowIndex - 1,
-                endIndex: rowIndex,
-              },
-            },
-          },
-        ],
-      },
-    });
-
-    return { success: true };
-  } catch (error) {
-    console.error('Error deleting note:', error);
-    throw error;
-  }
-}
-
 export async function deleteNoteRow(rowIndex: number) {
   try {
     const sheetId = await getSheetId('Notes');

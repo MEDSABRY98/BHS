@@ -11,38 +11,6 @@ const splitCustomerGroupNames = (text: string): string[] =>
     .map((p) => p.trim())
     .filter(Boolean);
 
-export async function getCustomerEmail(customerName: string): Promise<string | null> {
-  try {
-    const credentials = getServiceAccountCredentials();
-    const auth = new google.auth.GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
-    });
-    const sheets = google.sheets({ version: 'v4', auth });
-
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: SPREADSHEET_ID,
-      range: `EMAILS!A:C`, // CUSTOMER ID, CUSTOMER NAME, EMAIL
-    });
-
-    const rows = response.data.values;
-    if (!rows || rows.length === 0) return null;
-
-    const customerRow = rows.slice(1).find(row =>
-      row[1]?.toString().trim().toLowerCase() === customerName.trim().toLowerCase()
-    );
-
-    if (customerRow && customerRow[2]) {
-      return customerRow[2].toString().trim();
-    }
-
-    return null;
-  } catch (error) {
-    console.error('Error fetching customer email:', error);
-    return null;
-  }
-}
-
 export async function resolveCustomerEmailTargets(customerName: string): Promise<{ customers: string[]; emails: string[] }> {
   try {
     const credentials = getServiceAccountCredentials();

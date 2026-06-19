@@ -102,6 +102,8 @@ const SYSTEM_SUBTABS: Record<string, { id: string, label: string }[]> = {
         { id: 'db-inv-itemcode', label: 'Inventory Item Code' },
         { id: 'db-users', label: 'Users DB' },
         { id: 'db-sales', label: 'Sales DB' },
+        { id: 'db-suppliers-purchase', label: 'Suppliers Purchase' },
+        { id: 'db-suppliers-refund', label: 'Suppliers Refund' },
     ]
 };
 

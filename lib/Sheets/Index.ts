@@ -1,7 +1,7 @@
 // Core utilities
-export { SPREADSHEET_ID, getServiceAccountCredentials, getSheetId, getSheetsClient, nowTimestamp } from './Core';
+export { SPREADSHEET_ID, getServiceAccountCredentials, getSheetId } from './Core';
 
-// Invoices & Suppliers
+// Invoices & Suppliers (Sheets fallback for one-time migration)
 export * from './Invoices';
 
 // Emails
@@ -10,14 +10,11 @@ export * from './Emails';
 // Notes
 export * from './Notes';
 
-// Customers (Closed / Semi-Closed)
+// Customers (Closed)
 export * from './Customers';
 
 // Inventory, Product Orders, Movements, IC
 export * from './Inventory';
 
-// Documents Tracking
-export * from './Documents';
-
-// Payments, Visit Customers, Suppliers Matching, Sales Interfaces
+// Suppliers Matching (Sheets fallback) + shared Sales types
 export * from './Payments';

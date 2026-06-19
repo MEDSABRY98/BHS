@@ -3,7 +3,6 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 
 export const SPREADSHEET_ID = process.env.GOOGLE_SHEET_ID || '1s1G42Qd0FNDyvz42qi_6SPoKMAy8Kvx8eMm7iyR8pds';
-const SHEET_NAME = process.env.GOOGLE_SHEET_NAME || 'Invoices';
 
 interface ServiceAccountCredentials {
   type: string;
@@ -20,18 +19,16 @@ interface ServiceAccountCredentials {
 }
 
 export function getServiceAccountCredentials(): ServiceAccountCredentials {
-  // First try environment variable (for Vercel)
   const credentialsJson = process.env.GOOGLE_SERVICE_ACCOUNT;
 
   if (credentialsJson) {
     try {
       return JSON.parse(credentialsJson);
-    } catch (error) {
+    } catch {
       throw new Error('Failed to parse GOOGLE_SERVICE_ACCOUNT JSON');
     }
   }
 
-  // Fallback to file (for local development)
   try {
     let filePath = join(process.cwd(), 'assets', 'BHAPPS.json');
     try {
@@ -48,15 +45,6 @@ export function getServiceAccountCredentials(): ServiceAccountCredentials {
   }
 }
 
-export async function getSheetsClient() {
-  const credentials = getServiceAccountCredentials();
-  const auth = new google.auth.GoogleAuth({
-    credentials,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
-  return google.sheets({ version: 'v4', auth });
-}
-
 export async function getSheetId(sheetName: string): Promise<number | null> {
   try {
     const credentials = getServiceAccountCredentials();
@@ -70,16 +58,16 @@ export async function getSheetId(sheetName: string): Promise<number | null> {
       spreadsheetId: SPREADSHEET_ID,
     });
 
-    let sheet = response.data.sheets?.find(s => s.properties?.title === sheetName);
+    let sheet = response.data.sheets?.find((s) => s.properties?.title === sheetName);
 
     if (!sheet) {
-      sheet = response.data.sheets?.find(s =>
-        s.properties?.title?.trim().toLowerCase() === sheetName.trim().toLowerCase()
+      sheet = response.data.sheets?.find(
+        (s) => s.properties?.title?.trim().toLowerCase() === sheetName.trim().toLowerCase()
       );
     }
 
     if (!sheet) {
-      const available = response.data.sheets?.map(s => s.properties?.title).join(', ');
+      const available = response.data.sheets?.map((s) => s.properties?.title).join(', ');
       console.error(`Sheet '${sheetName}' not found. Available: ${available}`);
     }
 
@@ -88,12 +76,4 @@ export async function getSheetId(sheetName: string): Promise<number | null> {
     console.error('Error getting sheet ID:', error);
     return null;
   }
-}
-
-export function nowTimestamp(): string {
-  return new Date().toLocaleString('en-GB', {
-    timeZone: 'Asia/Dubai',
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
 }

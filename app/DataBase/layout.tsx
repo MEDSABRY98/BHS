@@ -17,7 +17,8 @@ import {
   ArrowLeft,
   FileSpreadsheet,
   ArrowLeftRight,
-  Hash
+  Hash,
+  Truck
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -113,6 +114,8 @@ export default function DatabaseLayout({ children }: { children: React.ReactNode
     { id: 'db-inv-itemcode', href: '/DataBase/InventoryItemCode', icon: Hash, label: 'Inventory Item Code' },
     { id: 'db-users', href: '/DataBase/Users', icon: Users, label: 'Users DB' },
     { id: 'db-sales', href: '/DataBase/Sales', icon: FileSpreadsheet, label: 'Sales DB' },
+    { id: 'db-suppliers-purchase', href: '/DataBase/SuppliersPurchase', icon: Truck, label: 'Suppliers Purchase' },
+    { id: 'db-suppliers-refund', href: '/DataBase/SuppliersRefund', icon: Truck, label: 'Suppliers Refund' },
   ];
 
   return (
