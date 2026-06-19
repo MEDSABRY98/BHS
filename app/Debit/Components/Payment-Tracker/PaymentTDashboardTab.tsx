@@ -40,7 +40,7 @@ const PaymentTDashboardTab: React.FC<PaymentTDashboardTabProps> = ({
   averageCollections,
 }) => {
   const getValue = (card: typeof statCards[number]) => {
-    if (card.source === 'avg') {
+    if ('source' in card && card.source === 'avg') {
       return averageCollections[card.key];
     }
     return dashboardData.totals[card.key];
