@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { 
+import NoData from '@/app/Components/NoDataTab';
+import {
   BarChart, 
   Bar, 
   XAxis, 
@@ -53,6 +54,10 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
 }) => {
   // --- SUB PAGE: Customer List ---
   if (detailMode === 'none') {
+    if (filteredByCustomer.length === 0) {
+      return <NoData title="NO PAYMENTS MATCH YOUR SEARCH" />;
+    }
+
     return (
       <div className="bg-white/90 backdrop-blur-md rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden">
         <div className="overflow-x-auto">
@@ -218,13 +223,6 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                   </td>
                 </tr>
               ))}
-              {filteredByCustomer.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500">
-                    No payments match your search.
-                  </td>
-                </tr>
-              )}
             </tbody>
             <tfoot className="bg-gray-100 font-bold text-gray-900 border-t-2 border-gray-300">
               <tr>
@@ -249,6 +247,35 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
 
   // --- SUB PAGE: Customer Details ---
   if (detailMode === 'customer' && selectedCustomer) {
+    const groupedMap = new Map<string, any>();
+    customerDetailPayments.forEach(p => {
+      const key = p.number.trim().toUpperCase();
+      if (!groupedMap.has(key)) {
+        groupedMap.set(key, {
+          date: p.parsedDate,
+          number: p.number,
+          totalCredit: 0,
+          matches: [],
+          hasNegative: false,
+          hasOB: false
+        });
+      }
+      const group = groupedMap.get(key)!;
+      group.totalCredit += p.credit;
+      if (p.credit < 0) group.hasNegative = true;
+      if (p.matching) {
+        const matchId = p.matching.toString().trim();
+        const matchIdLower = matchId.toLowerCase();
+        if (!group.matches.some((m: any) => m.id.toLowerCase() === matchIdLower)) {
+          group.matches.push({ id: matchId, isOB: p.matchedOpeningBalance });
+          if (p.matchedOpeningBalance) group.hasOB = true;
+        }
+      }
+    });
+    const groupedPayments = Array.from(groupedMap.values()).sort(
+      (a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0),
+    );
+
     return (
       <div className="mt-6 bg-white/90 backdrop-blur-md rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white overflow-hidden animate-in fade-in slide-in-from-right-4 duration-500">
         {/* Header */}
@@ -371,54 +398,20 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
             <div className="px-5 py-3 border-b bg-gray-50">
               <h4 className="font-semibold text-gray-800">Payment History</h4>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr className="text-gray-600 text-center">
-                    <th className="px-4 py-3 text-center">Date</th>
-                    <th className="px-4 py-3 text-center">Number</th>
-                    <th className="px-4 py-3 text-center">Paid</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {(() => {
-                    const groupedMap = new Map<string, any>();
-                    customerDetailPayments.forEach(p => {
-                      const key = p.number.trim().toUpperCase();
-                      if (!groupedMap.has(key)) {
-                        groupedMap.set(key, {
-                          date: p.parsedDate,
-                          number: p.number,
-                          totalCredit: 0,
-                          matches: [],
-                          hasNegative: false,
-                          hasOB: false
-                        });
-                      }
-                      const group = groupedMap.get(key)!;
-                      group.totalCredit += p.credit;
-                      if (p.credit < 0) group.hasNegative = true;
-                      if (p.matching) {
-                        const matchId = p.matching.toString().trim();
-                        const matchIdLower = matchId.toLowerCase();
-                        if (!group.matches.some((m: any) => m.id.toLowerCase() === matchIdLower)) {
-                          group.matches.push({ id: matchId, isOB: p.matchedOpeningBalance });
-                          if (p.matchedOpeningBalance) group.hasOB = true;
-                        }
-                      }
-                    });
-
-                    const groupedPayments = Array.from(groupedMap.values()).sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
-
-                    if (groupedPayments.length === 0) {
-                      return (
-                        <tr>
-                          <td colSpan={3} className="p-8 text-center text-gray-400">No payments found</td>
-                        </tr>
-                      );
-                    }
-
-                    return groupedPayments.map((group, idx) => (
+            {groupedPayments.length === 0 ? (
+              <NoData title="NO PAYMENTS FOUND" />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr className="text-gray-600 text-center">
+                      <th className="px-4 py-3 text-center">Date</th>
+                      <th className="px-4 py-3 text-center">Number</th>
+                      <th className="px-4 py-3 text-center">Paid</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {groupedPayments.map((group, idx) => (
                       <tr
                         key={`${group.number}-${idx}`}
                         className={`hover:bg-gray-50 text-center ${group.hasNegative
@@ -437,11 +430,11 @@ const PaymentTCustomerTab: React.FC<PaymentTCustomerTabProps> = ({
                           })}
                         </td>
                       </tr>
-                    ));
-                  })()}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>

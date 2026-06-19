@@ -5,11 +5,13 @@ import { SharedTabProps } from '../Types';
 
 export default function OverdueTab(props: SharedTabProps) {
   const { overdueTable, overdueTotalDebit, overdueTotalCredit, overdueTotalDifference } = props;
+  const hasRows = overdueTable.getRowModel().rows.length > 0;
 
   return (
     <div>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
+          {hasRows ? (
           <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
             <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
               {overdueTable.getHeaderGroups().map((headerGroup: any) => (
@@ -49,63 +51,56 @@ export default function OverdueTab(props: SharedTabProps) {
               ))}
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {overdueTable.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-12">
-                    <NoData />
-                  </td>
+              {overdueTable.getRowModel().rows.map((row: any) => (
+                <tr key={row.id} className="hover:bg-red-50/20 transition-colors group">
+                  {row.getVisibleCells().map((cell: any) => {
+                    const getWidth = () => {
+                      const columnId = cell.column.id;
+                      if (columnId === 'select') return '5%';
+                      if (columnId === 'date') return '12%';
+                      if (columnId === 'type') return '10%';
+                      if (columnId === 'number') return '12%';
+                      if (columnId === 'debit') return '12%';
+                      if (columnId === 'credit') return '12%';
+                      if (columnId === 'difference') return '12%';
+                      if (columnId === 'matching') return '12%';
+                      if (columnId === 'daysOverdue') return '13%';
+                      return '12%';
+                    };
+                    return (
+                      <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
                 </tr>
-              ) : (
-                overdueTable.getRowModel().rows.map((row: any) => (
-                  <tr key={row.id} className="hover:bg-red-50/20 transition-colors group">
-                    {row.getVisibleCells().map((cell: any) => {
-                      const getWidth = () => {
-                        const columnId = cell.column.id;
-                        if (columnId === 'select') return '5%';
-                        if (columnId === 'date') return '12%';
-                        if (columnId === 'type') return '10%';
-                        if (columnId === 'number') return '12%';
-                        if (columnId === 'debit') return '12%';
-                        if (columnId === 'credit') return '12%';
-                        if (columnId === 'difference') return '12%';
-                        if (columnId === 'matching') return '12%';
-                        if (columnId === 'daysOverdue') return '13%';
-                        return '12%';
-                      };
-                      return (
-                        <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
-              {overdueTable.getRowModel().rows.length > 0 && (
-                <tr className="bg-gray-50 border-t-2 border-gray-200">
-                  <td className="px-6 py-4" style={{ width: '5%' }}></td>
-                  <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '12%' }}>Total</td>
-                  <td className="px-6 py-4" style={{ width: '10%' }}></td>
-                  <td className="px-6 py-4" style={{ width: '12%' }}></td>
-                  <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '12%' }}>
-                    {overdueTotalDebit.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '12%' }}>
-                    {overdueTotalCredit.toLocaleString('en-US')}
-                  </td>
-                  <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '12%' }}>
-                    <span className={`px-3 py-1 rounded-full ${overdueTotalDifference > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
-                      {overdueTotalDifference.toLocaleString('en-US')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4" style={{ width: '12%' }}></td>
-                  <td className="px-6 py-4" style={{ width: '13%' }}></td>
-                </tr>
-              )}
+              ))}
+              <tr className="bg-gray-50 border-t-2 border-gray-200">
+                <td className="px-6 py-4" style={{ width: '5%' }}></td>
+                <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '12%' }}>Total</td>
+                <td className="px-6 py-4" style={{ width: '10%' }}></td>
+                <td className="px-6 py-4" style={{ width: '12%' }}></td>
+                <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '12%' }}>
+                  {overdueTotalDebit.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-sm font-bold text-gray-900" style={{ width: '12%' }}>
+                  {overdueTotalCredit.toLocaleString('en-US')}
+                </td>
+                <td className="px-6 py-4 text-center text-sm font-bold" style={{ width: '12%' }}>
+                  <span className={`px-3 py-1 rounded-full ${overdueTotalDifference > 0 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                    {overdueTotalDifference.toLocaleString('en-US')}
+                  </span>
+                </td>
+                <td className="px-6 py-4" style={{ width: '12%' }}></td>
+                <td className="px-6 py-4" style={{ width: '13%' }}></td>
+              </tr>
             </tbody>
           </table>
+          ) : (
+            <NoData />
+          )}
         </div>
-        {overdueTable.getRowModel().rows.length > 0 && (
+        {hasRows && (
           <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
             <div className="flex justify-between flex-1 sm:hidden">
               <button

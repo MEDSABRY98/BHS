@@ -194,23 +194,23 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Items</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Standard</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Pricing</th>
-                <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Analysis</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredCustomers.length === 0 ? (
-                <tr><td colSpan={5} className="py-20"><NoData /></td></tr>
-              ) : (
-                paginatedCustomers.map((c, i) => (
+      {filteredCustomers.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="py-4 px-8 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Customer Name</th>
+                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Items</th>
+                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Standard</th>
+                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Pricing</th>
+                  <th className="py-4 px-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider w-[180px]">Analysis</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {paginatedCustomers.map((c, i) => (
                   <tr key={i} className="hover:bg-slate-50 transition-colors group">
                     <td className="py-3 px-8 text-sm font-semibold text-gray-800 truncate" title={c.customer}>{c.customer}</td>
                     <td className="py-3 px-4 text-center">
@@ -247,13 +247,25 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
                       </button>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-        {selectedCustomerForPriceList && (
+          {filteredCustomers.length > ITEMS_PER_PAGE && (
+            <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-sm text-gray-500 font-medium">Coverage: {filteredCustomers.length} Customers</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"><ChevronLeft className="w-5 h-5" /></button>
+                <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} / {totalPages}</div>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"><ChevronRight className="w-5 h-5" /></button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {selectedCustomerForPriceList && (
           <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300" onClick={() => setSelectedCustomerForPriceList(null)} />
             <div className="relative bg-white rounded-[32px] shadow-2xl p-8 max-w-sm w-full animate-in zoom-in-95 duration-300 border border-white/20">
@@ -326,18 +338,6 @@ export default function SalesST_ByCustomers({ customersData, loading, refreshTri
             </div>
           </div>
         )}
-
-        {filteredCustomers.length > ITEMS_PER_PAGE && (
-          <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500 font-medium">Coverage: {filteredCustomers.length} Customers</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"><ChevronLeft className="w-5 h-5" /></button>
-              <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} / {totalPages}</div>
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-40 transition-all shadow-sm"><ChevronRight className="w-5 h-5" /></button>
-            </div>
-          </div>
-        )}
-      </div>
 
       {showDownloadModal && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">

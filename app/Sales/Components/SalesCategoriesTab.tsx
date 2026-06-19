@@ -166,35 +166,30 @@ export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: 
       </div>
 
       {/* Categories Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[5%]">#</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[35%]">Category</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">Amount</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[15%]">Qty</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[25%]">Customers Count</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredCategories.map((item, index) => (
-                <CategoryRow
-                  key={item.category}
-                  item={item}
-                  rowNumber={index + 1}
-                />
-              ))}
-              {filteredCategories.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-12">
-                    <NoData />
-                  </td>
+      {filteredCategories.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[5%]">#</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[35%]">Category</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[20%]">Amount</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[15%]">Qty</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-[25%]">Customers Count</th>
                 </tr>
-              )}
-            </tbody>
-            {filteredCategories.length > 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredCategories.map((item, index) => (
+                  <CategoryRow
+                    key={item.category}
+                    item={item}
+                    rowNumber={index + 1}
+                  />
+                ))}
+              </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
                   <td className="py-4 px-4 text-sm text-gray-800" colSpan={2}>Grand Total</td>
@@ -209,10 +204,10 @@ export default function SalesCategoriesTab({ filters, userId, refreshTrigger }: 
                   </td>
                 </tr>
               </tfoot>
-            )}
-          </table>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

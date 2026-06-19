@@ -460,6 +460,9 @@ export default function AgesTab({ data }: AgesTabProps) {
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
+          {table.getRowModel().rows.length === 0 ? (
+            <NoData />
+          ) : (
           <table className="w-full" style={{ tableLayout: 'fixed', minWidth: '1200px' }}>
             <thead className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -490,14 +493,7 @@ export default function AgesTab({ data }: AgesTabProps) {
               ))}
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12">
-                    <NoData />
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row, idx) => (
+              {table.getRowModel().rows.map((row, idx) => (
                   <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}>
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
@@ -516,8 +512,7 @@ export default function AgesTab({ data }: AgesTabProps) {
                       );
                     })}
                   </tr>
-                ))
-              )}
+                ))}
               <tr className="bg-gradient-to-r from-gray-100 to-gray-200 font-bold border-t-4 border-gray-300">
                 <td className="px-6 py-4 text-center text-lg text-gray-900 whitespace-nowrap" style={{ width: '30%' }}>
                   TOTAL
@@ -543,6 +538,7 @@ export default function AgesTab({ data }: AgesTabProps) {
               </tr>
             </tbody>
           </table>
+          )}
         </div>
       </div>
     </div>

@@ -125,15 +125,9 @@ export default function SalesST_ByProduct({ productList, loading, refreshTrigger
 
       <div className="grid grid-cols-1 gap-6">
         {!appliedSearchQuery.trim() ? (
-          <div className="bg-white rounded-[40px] p-20 border border-dashed border-slate-200 flex flex-col items-center justify-center text-center">
-            <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-6">
-              <Search className="w-10 h-10 text-slate-300" />
-            </div>
-            <h3 className="text-xl font-black text-slate-800 mb-2">Ready to Search</h3>
-            <p className="text-sm text-slate-400 max-w-xs mx-auto">Enter a product name or scan a barcode to view customer pricing analysis</p>
-          </div>
+          <NoData title="ENTER SEARCH TO BEGIN" />
         ) : filteredProducts.length === 0 ? (
-          <div className="bg-white rounded-3xl p-20 border border-slate-100 shadow-sm"><NoData /></div>
+          <NoData />
         ) : (
           filteredProducts.map((p, idx) => {
             const customerList = p.customers

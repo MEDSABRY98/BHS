@@ -269,6 +269,14 @@ export default function SessionsHistoryTab({
         </div>
       </div>
 
+      {isEntriesLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3">
+          <Loader2 className="w-10 h-10 animate-spin text-black" />
+          <span className="text-sm font-bold text-gray-400">Loading sessions...</span>
+        </div>
+      ) : groupedSessions.length === 0 ? (
+        <NoData title="No Sessions Found" />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full border-collapse text-center">
           <thead>
@@ -281,23 +289,7 @@ export default function SessionsHistoryTab({
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-50">
-            {isEntriesLoading ? (
-              <tr>
-                <td colSpan={5} className="py-20">
-                  <div className="flex flex-col items-center justify-center gap-3">
-                    <Loader2 className="w-10 h-10 animate-spin text-black" />
-                    <span className="text-sm font-bold text-gray-400">Loading sessions...</span>
-                  </div>
-                </td>
-              </tr>
-            ) : groupedSessions.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="py-12">
-                  <NoData title="No Sessions Found" />
-                </td>
-              </tr>
-            ) : (
-              groupedSessions.map((s) => (
+              {groupedSessions.map((s) => (
                 <tr key={s.sessionId} className="group hover:bg-gray-50/30 transition-all text-center">
                   <td className="py-5 px-4 text-center">
                     <span className="inline-flex px-3 py-1.5 bg-[#D4AF37]/10 rounded-xl text-xs font-black text-[#8a6d1a] border border-[#D4AF37]/20 uppercase">
@@ -352,11 +344,11 @@ export default function SessionsHistoryTab({
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
+              ))}
           </tbody>
         </table>
       </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MODALS                                                                     */}

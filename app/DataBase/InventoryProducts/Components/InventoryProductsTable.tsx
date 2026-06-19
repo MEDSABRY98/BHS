@@ -50,11 +50,7 @@ export default function InventoryProductsTable({
   }
 
   if (rows.length === 0) {
-    return (
-      <div className="bg-white rounded-[2.5rem] p-12 border border-gray-100 shadow-sm flex items-center justify-center">
-        <NoData title="NO INVENTORY PRODUCTS FOUND" />
-      </div>
-    );
+    return <NoData title="NO INVENTORY PRODUCTS FOUND" />;
   }
 
   return (

@@ -1185,6 +1185,9 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
       {groupCustomers.length > 0 ? (
         <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
+            {table.getRowModel().rows.length === 0 ? (
+              <NoData />
+            ) : (
             <table className="w-full border-collapse" style={{ minWidth: '1200px' }}>
               <thead>
                 {table.getHeaderGroups().map((headerGroup) => (
@@ -1222,14 +1225,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                 ))}
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {table.getRowModel().rows.length === 0 ? (
-                  <tr>
-                    <td colSpan={columns.length} className="px-6 py-12">
-                      <NoData />
-                    </td>
-                  </tr>
-                ) : (
-                  table.getRowModel().rows.map((row, idx) => (
+                {table.getRowModel().rows.map((row, idx) => (
                     <tr
                       key={row.id}
                       className={`hover:bg-slate-50/70 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}`}
@@ -1245,8 +1241,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                         );
                       })}
                     </tr>
-                  ))
-                )}
+                  ))}
                 {/* Total Summary Row */}
                 {filteredGroupInvoices.length > 0 && (
                   <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
@@ -1268,10 +1263,11 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
                 )}
               </tbody>
             </table>
+            )}
           </div>
 
           {/* Pagination Controls */}
-          {filteredGroupInvoices.length > 0 && (
+          {table.getRowModel().rows.length > 0 && filteredGroupInvoices.length > 0 && (
             <div className="px-6 py-4 bg-white border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-4 flex-wrap">
                 {/* Page Size Selector */}
@@ -1352,9 +1348,7 @@ export default function CustomersGroupTab({ data }: CustomersGroupTabProps) {
           )}
         </div>
       ) : (
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm">
-          <NoData title="NO CUSTOMERS ADDED" />
-        </div>
+        <NoData title="NO CUSTOMERS ADDED" />
       )}
 
     </div>

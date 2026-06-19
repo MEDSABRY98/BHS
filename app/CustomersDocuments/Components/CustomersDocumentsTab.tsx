@@ -99,6 +99,9 @@ export default function CustomersDocumentsTab({
 
   return (
     <div className="w-full space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
+      {data.length === 0 && !loading ? (
+        <NoData title="No Records" />
+      ) : (
       <div className="bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
           <table className="w-full text-left border-collapse table-fixed min-w-[1800px]">
@@ -189,9 +192,9 @@ export default function CustomersDocumentsTab({
               })}
             </tbody>
           </table>
-          {data.length === 0 && !loading && <NoData title="No Records" message="Start by adding customers to your document sheet." />}
         </div>
       </div>
+      )}
 
       {updatingRow && (
         <div className="fixed bottom-8 right-8 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 animate-bounce z-50">

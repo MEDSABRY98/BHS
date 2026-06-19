@@ -412,6 +412,9 @@ export default function OrdersPage() {
       </div>
 
       {/* Orders Table */}
+      {paginatedOrders.length === 0 ? (
+        <NoData title="NO ORDERS FOUND" />
+      ) : (
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-center border-collapse min-w-[1100px]">
@@ -421,7 +424,7 @@ export default function OrdersPage() {
                   <input
                     type="checkbox"
                     className="w-5 h-5 accent-[#D4AF37] rounded-lg border-gray-300 focus:ring-0 focus:ring-offset-0 cursor-pointer"
-                    checked={paginatedOrders.length > 0 && paginatedOrders.every(o => selectedOrderIds.includes(o.ID))}
+                    checked={paginatedOrders.every(o => selectedOrderIds.includes(o.ID))}
                     onChange={(e) => {
                       if (e.target.checked) {
                         const pageIds = paginatedOrders.map(o => o.ID);
@@ -445,14 +448,7 @@ export default function OrdersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paginatedOrders.length === 0 ? (
-                <tr>
-                  <td colSpan={10}>
-                    <NoData title="NO ORDERS FOUND" />
-                  </td>
-                </tr>
-              ) : (
-                paginatedOrders.map((order) => (
+                {paginatedOrders.map((order) => (
                   <tr key={order.ID} className="group hover:bg-gray-50/50 transition-all">
                     {/* Checkbox */}
                     <td className="px-6 py-6 text-center whitespace-nowrap">
@@ -541,8 +537,7 @@ export default function OrdersPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
@@ -603,6 +598,7 @@ export default function OrdersPage() {
           </div>
         )}
       </div>
+      )}
 
       <ConfirmModal
         isOpen={isBulkActionModalOpen}

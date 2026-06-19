@@ -111,36 +111,38 @@ export default function SalesCustomerCategoriesTab({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full table-fixed">
-          <thead>
-            <tr className="border-b-2 border-gray-100">
-              <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[10%]">#</th>
-              <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[40%]">Category</th>
-              <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[16%]">Amount</th>
-              <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[17%]">Quantity</th>
-              <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[17%]">Transactions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-50">
-            {categoriesData.map((item, index) => (
-              <tr key={item.category} className="hover:bg-gray-50 transition-colors group">
-                <td className="py-4 px-4 text-center text-gray-400 font-medium">{index + 1}</td>
-                <td className="py-4 px-4 text-center text-gray-800 font-medium group-hover:text-green-600 transition-colors">
-                  {item.category}
-                </td>
-                <td className="py-4 px-4 text-center text-gray-900 font-medium">
-                  {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </td>
-                <td className="py-4 px-4 text-center text-gray-700 font-medium">
-                  {item.qty.toLocaleString('en-US')}
-                </td>
-                <td className="py-4 px-4 text-center text-gray-600 font-medium">
-                  {item.invoiceNumbers.size}
-                </td>
+        {categoriesData.length === 0 ? (
+          <NoData />
+        ) : (
+          <table className="w-full table-fixed">
+            <thead>
+              <tr className="border-b-2 border-gray-100">
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[10%]">#</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[40%]">Category</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[16%]">Amount</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[17%]">Quantity</th>
+                <th className="py-4 px-4 text-center text-sm font-bold text-gray-500 uppercase tracking-wider w-[17%]">Transactions</th>
               </tr>
-            ))}
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {categoriesData.map((item, index) => (
+                <tr key={item.category} className="hover:bg-gray-50 transition-colors group">
+                  <td className="py-4 px-4 text-center text-gray-400 font-medium">{index + 1}</td>
+                  <td className="py-4 px-4 text-center text-gray-800 font-medium group-hover:text-green-600 transition-colors">
+                    {item.category}
+                  </td>
+                  <td className="py-4 px-4 text-center text-gray-900 font-medium">
+                    {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </td>
+                  <td className="py-4 px-4 text-center text-gray-700 font-medium">
+                    {item.qty.toLocaleString('en-US')}
+                  </td>
+                  <td className="py-4 px-4 text-center text-gray-600 font-medium">
+                    {item.invoiceNumbers.size}
+                  </td>
+                </tr>
+              ))}
 
-            {categoriesData.length > 0 && (
               <tr className="bg-gray-50/50 border-t-2 border-gray-100">
                 <td className="py-5 px-4"></td>
                 <td className="py-5 px-4 text-center text-gray-900 font-black text-lg">GRAND TOTAL</td>
@@ -152,17 +154,9 @@ export default function SalesCustomerCategoriesTab({
                 </td>
                 <td className="py-5 px-4"></td>
               </tr>
-            )}
-
-            {categoriesData.length === 0 && (
-              <tr>
-                <td colSpan={5} className="py-20">
-                  <NoData />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

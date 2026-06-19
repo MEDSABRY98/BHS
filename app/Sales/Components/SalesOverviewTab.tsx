@@ -403,9 +403,7 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
             </div>
           </div>
         ) : (
-          <div className="h-64 flex items-center justify-center">
-            <NoData />
-          </div>
+          <NoData />
         )}
       </div>
 
@@ -424,6 +422,9 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
             <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
           </button>
         </div>
+        {yearlyTableData.length === 0 ? (
+          <NoData />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full table-fixed">
             <thead>
@@ -487,16 +488,10 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
                   </td>
                 </tr>
               ))}
-              {yearlyTableData.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="py-8 text-center text-gray-500">
-                    No yearly sales data available
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Monthly Sales Table */}
@@ -511,6 +506,9 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
             <FileSpreadsheet className="h-5 w-5 transition-transform group-hover:scale-110" />
           </button>
         </div>
+        {monthlyTableData.length === 0 ? (
+          <NoData />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full table-fixed">
             <thead>
@@ -574,16 +572,10 @@ export default function SalesOverviewTab({ filters, refreshTrigger, userId }: Sa
                   </td>
                 </tr>
               ))}
-              {monthlyTableData.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="py-8 text-center text-gray-500">
-                    No monthly sales data available
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
     </div>

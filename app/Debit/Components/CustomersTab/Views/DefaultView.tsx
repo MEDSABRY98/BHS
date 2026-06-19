@@ -83,6 +83,10 @@ const DefaultView: React.FC<DefaultViewProps> = ({
         </div>
       </div>
 
+      {table.getRowModel().rows.length === 0 ? (
+        <NoData />
+      ) : (
+        <>
       <div className="space-y-3 mb-6">
         {table.getRowModel().rows.map((row, index) => {
           const customer = row.original;
@@ -300,6 +304,8 @@ const DefaultView: React.FC<DefaultViewProps> = ({
           </div>
         </div>
       </div>
+        </>
+      )}
     </>
   );
 };

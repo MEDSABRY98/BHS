@@ -584,6 +584,9 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
 
       <div className="bg-white rounded-lg shadow overflow-hidden">
         <div className="overflow-x-auto">
+          {table.getRowModel().rows.length === 0 ? (
+            <NoData />
+          ) : (
           <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <thead className="bg-gray-100">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -619,14 +622,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
               ))}
             </thead>
             <tbody>
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="py-12">
-                    <NoData />
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
+              {table.getRowModel().rows.map((row) => (
                   <tr key={row.id} className="border-b hover:bg-gray-50">
                     {row.getVisibleCells().map((cell) => {
                       const getWidth = () => {
@@ -647,8 +643,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
                       );
                     })}
                   </tr>
-                ))
-              )}
+                ))}
               <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '20%' }}>Total</td>
                 <td className="px-4 py-3 text-center text-lg" style={{ width: '12%' }}>
@@ -697,6 +692,7 @@ export default function SalesRepsTab({ data }: SalesRepsTabProps) {
               </tr>
             </tbody>
           </table>
+          )}
         </div>
       </div>
     </div>

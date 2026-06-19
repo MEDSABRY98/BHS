@@ -378,6 +378,9 @@ export default function DamageExpireCountTab() {
             </div>
 
             {/* Results Table */}
+            {filteredData.length === 0 ? (
+                <NoData title="No Data Found" />
+            ) : (
             <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full" style={{ tableLayout: 'fixed' }}>
@@ -429,8 +432,7 @@ export default function DamageExpireCountTab() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {filteredData.length > 0 ? (
-                                filteredData.map((item, idx) => (
+                                {filteredData.map((item, idx) => (
                                     <tr 
                                         key={idx} 
                                         onClick={() => setEditingItem(item)}
@@ -469,34 +471,26 @@ export default function DamageExpireCountTab() {
                                             )}
                                         </td>
                                     </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={7} className="py-20">
-                                        <NoData title="No Data Found" message={searchQuery ? "No results match your search query." : "No damage/expire counting data available."} />
-                                    </td>
-                                </tr>
-                            )}
+                                ))}
                         </tbody>
                     </table>
                 </div>
 
                 {/* Footer */}
-                {filteredData.length > 0 && (
-                    <div className="bg-slate-50/50 px-8 py-5 border-t border-gray-100">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-slate-500">
-                                <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-                                    <Package className="w-5 h-5 text-red-500" />
-                                </div>
-                                <span className="text-sm font-bold">
-                                    Showing <span className="text-slate-900">{filteredData.length}</span> items
-                                </span>
+                <div className="bg-slate-50/50 px-8 py-5 border-t border-gray-100">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-slate-500">
+                            <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                                <Package className="w-5 h-5 text-red-500" />
                             </div>
+                            <span className="text-sm font-bold">
+                                Showing <span className="text-slate-900">{filteredData.length}</span> items
+                            </span>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
+            )}
 
             {editingItem && (
                 <EditICItemModal

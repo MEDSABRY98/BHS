@@ -269,10 +269,6 @@ export default function HistoryTab({ records, loading }: HistoryTabProps) {
     );
   }
 
-  if (records.length === 0) {
-    return <NoData title="NO HISTORY FOUND" />;
-  }
-
   return (
     <div className="max-w-7xl mx-auto space-y-6 no-print">
       {/* Date, Type, Name & Search Filters */}
@@ -332,6 +328,7 @@ export default function HistoryTab({ records, loading }: HistoryTabProps) {
       </div>
 
       {/* Stats Cards */}
+      {records.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Total Receipts */}
         <div className="bg-gradient-to-br from-green-50 to-white rounded-xl shadow-md p-5 border border-green-100 flex items-center justify-between">
@@ -369,8 +366,14 @@ export default function HistoryTab({ records, loading }: HistoryTabProps) {
           </div>
         </div>
       </div>
+      )}
 
       {/* Operations Table */}
+      {records.length === 0 ? (
+        <NoData title="NO HISTORY FOUND" />
+      ) : filteredRecords.length === 0 ? (
+        <NoData title="NO MATCHING ENTRIES" />
+      ) : (
       <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
         <div className="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
           <h3 className="text-lg font-bold text-gray-800">
@@ -381,11 +384,6 @@ export default function HistoryTab({ records, loading }: HistoryTabProps) {
           </span>
         </div>
 
-        {filteredRecords.length === 0 ? (
-          <div className="py-8">
-            <NoData title="NO MATCHING ENTRIES" />
-          </div>
-        ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -501,8 +499,8 @@ export default function HistoryTab({ records, loading }: HistoryTabProps) {
               </div>
             )}
           </div>
-        )}
       </div>
+      )}
     </div>
   );
 }

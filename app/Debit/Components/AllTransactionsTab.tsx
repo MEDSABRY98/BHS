@@ -440,6 +440,9 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
         {viewMode === 'details' ? (
           <>
             <div className="overflow-x-auto">
+              {table.getRowModel().rows.length === 0 ? (
+                <NoData />
+              ) : (
               <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
                 <thead className="bg-gray-100">
                   {table.getHeaderGroups().map((headerGroup) => (
@@ -473,14 +476,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-12">
-                        <NoData />
-                      </td>
-                    </tr>
-                  ) : (
-                    table.getRowModel().rows.map((row) => (
+                  {table.getRowModel().rows.map((row) => (
                       <tr key={row.id} className="border-b hover:bg-gray-50">
                         {row.getVisibleCells().map((cell) => {
                           const getWidth = () => {
@@ -508,8 +504,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                           );
                         })}
                       </tr>
-                    ))
-                  )}
+                    ))}
                   {filteredItems.length > 0 && (
                     <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                       <td className="px-4 py-3 text-center text-lg">Total</td>
@@ -550,10 +545,11 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                   )}
                 </tbody>
               </table>
+              )}
             </div>
 
             {/* Pagination Controls */}
-            {filteredItems.length > 0 && (
+            {table.getRowModel().rows.length > 0 && filteredItems.length > 0 && (
               <div className="px-4 py-3 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <button
@@ -614,6 +610,9 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
           </>
         ) : (
           <div className="overflow-x-auto">
+            {groupedByCustomer.length === 0 ? (
+              <NoData />
+            ) : (
             <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
               <thead className="bg-gray-100">
                 <tr>
@@ -635,14 +634,7 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                 </tr>
               </thead>
               <tbody>
-                {groupedByCustomer.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-12">
-                      <NoData />
-                    </td>
-                  </tr>
-                ) : (
-                  groupedByCustomer.map((row) => {
+                {groupedByCustomer.map((row) => {
                     const isNegative = row.totalNet < 0;
                     const isExpanded = expandedCustomer === row.customerName;
                     return (
@@ -781,10 +773,8 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                         )}
                       </Fragment>
                     );
-                  })
-                )}
-                {groupedByCustomer.length > 0 && (
-                  <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
+                  })}
+                <tr className="bg-gray-100 font-bold border-t-2 border-gray-300">
                     <td className="px-4 py-3 text-left text-base">
                       Total ({groupedByCustomer.length.toLocaleString('en-US')} customer
                       {groupedByCustomer.length === 1 ? '' : 's'})
@@ -829,9 +819,9 @@ export default function AllTransactionsTab({ data }: AllTransactionsTabProps) {
                       })()}
                     </td>
                   </tr>
-                )}
               </tbody>
             </table>
+            )}
           </div>
         )}
       </div>

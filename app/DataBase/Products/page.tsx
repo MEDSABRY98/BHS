@@ -495,6 +495,35 @@ export default function ProductsPage() {
         </div>
       </div>
 
+      {isLoading ? (
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse table-fixed min-w-[1200px]">
+              <thead>
+                <tr className="border-b border-gray-50">
+                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-24">ID</th>
+                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[35%]">Product Name</th>
+                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Barcode</th>
+                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-[20%]">Category</th>
+                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Item Code</th>
+                  <th className="px-6 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-28">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {Array(8).fill(0).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="px-8 py-6">
+                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : paginatedProducts.length === 0 ? (
+        <NoData title="NO PRODUCTS FOUND" />
+      ) : (
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse table-fixed min-w-[1200px]">
@@ -509,22 +538,7 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {isLoading ? (
-                Array(8).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-8 py-6">
-                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
-                    </td>
-                  </tr>
-                ))
-              ) : paginatedProducts.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-8 py-12 text-center">
-                    <NoData title="NO PRODUCTS FOUND" />
-                  </td>
-                </tr>
-              ) : (
-                paginatedProducts.map((product) => (
+                {paginatedProducts.map((product) => (
                   <tr key={product.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{product.ID}</span>
@@ -575,12 +589,12 @@ export default function ProductsPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
       </div>
+      )}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (

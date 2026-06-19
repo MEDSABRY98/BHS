@@ -578,6 +578,35 @@ export default function CustomersPage() {
         </div>
       </div>
 
+      {isLoading ? (
+        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="border-b border-gray-50">
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">ID</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-48">Customer ID</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Main Name</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Customer Sub Name</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-40">City</th>
+                  <th className="px-8 py-6 text-center text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] w-32">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {Array(6).fill(0).map((_, i) => (
+                  <tr key={i} className="animate-pulse">
+                    <td colSpan={6} className="px-8 py-6">
+                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : paginatedCustomers.length === 0 ? (
+        <NoData title="NO CUSTOMERS FOUND" />
+      ) : (
       <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
@@ -592,22 +621,7 @@ export default function CustomersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {isLoading ? (
-                Array(6).fill(0).map((_, i) => (
-                  <tr key={i} className="animate-pulse">
-                    <td colSpan={6} className="px-8 py-6">
-                      <div className="h-8 bg-gray-50 rounded-xl w-full"></div>
-                    </td>
-                  </tr>
-                ))
-              ) : paginatedCustomers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-8 py-12 text-center">
-                    <NoData title="NO CUSTOMERS FOUND" />
-                  </td>
-                </tr>
-              ) : (
-                paginatedCustomers.map((customer) => (
+                {paginatedCustomers.map((customer) => (
                   <tr key={customer.ID} className="group hover:bg-gray-50/50 transition-all duration-300">
                     <td className="px-8 py-6 text-center">
                       <span className="text-xs font-bold text-gray-300 uppercase tracking-widest">{customer.ID}</span>
@@ -647,12 +661,12 @@ export default function CustomersPage() {
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
       </div>
+      )}
 
       {/* Pagination Controls */}
       {totalPages > 1 && (

@@ -210,9 +210,7 @@ export default function SuppliersInvoicesMonthPage({
             ))}
         </div>
       ) : months.length === 0 ? (
-        <div className="bg-white rounded-[2.5rem] p-12 border border-gray-100 shadow-sm flex items-center justify-center">
-          <NoData title={`NO ${invoiceType.toUpperCase()} DATA FOUND`} />
-        </div>
+        <NoData title={`NO ${invoiceType.toUpperCase()} DATA FOUND`} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {months.map((m) => (

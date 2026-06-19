@@ -171,6 +171,14 @@ export default function MatchingTab({ data }: MatchingTabProps) {
         return summaries;
     }, [data, searchQuery]);
 
+    const visibleSuppliers = useMemo(
+        () =>
+            processedData.filter(
+                (s) => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter)
+            ),
+        [processedData, reportMonthFilter, supplierMonths]
+    );
+
     const handleExportMatchReport = () => {
         if (!reportMonthFilter) return;
 
@@ -243,6 +251,9 @@ export default function MatchingTab({ data }: MatchingTabProps) {
                 </div>
             </div>
 
+            {visibleSuppliers.length === 0 ? (
+                <NoData />
+            ) : (
             <table className="w-full">
                 <thead className="bg-gray-50">
                     <tr>
@@ -255,9 +266,7 @@ export default function MatchingTab({ data }: MatchingTabProps) {
                     </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                    {processedData
-                        .filter(s => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter))
-                        .map((supplier) => {
+                    {visibleSuppliers.map((supplier) => {
                             const available = supplierMonths[supplier.supplierName] || [];
                             const matchedTokens = getMatchedTokens(supplier.supplierName);
 
@@ -324,15 +333,9 @@ export default function MatchingTab({ data }: MatchingTabProps) {
                                 </tr>
                             );
                         })}
-                    {processedData.filter(s => !reportMonthFilter || (supplierMonths[s.supplierName] || []).includes(reportMonthFilter)).length === 0 && (
-                        <tr>
-                            <td colSpan={reportMonthFilter ? 4 : 3} className="py-10">
-                                <NoData />
-                            </td>
-                        </tr>
-                    )}
                 </tbody>
             </table>
+            )}
 
             {selectedSupplierForModal && (
                 <MatchingModal

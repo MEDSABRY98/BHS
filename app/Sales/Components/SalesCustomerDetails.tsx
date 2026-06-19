@@ -1253,9 +1253,7 @@ export default function SalesCustomerDetails({
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-center h-96 text-gray-500">
-                  <p>No sales data available for chart</p>
-                </div>
+                <NoData />
               )}
             </div>          </div>
         )}
@@ -1273,6 +1271,9 @@ export default function SalesCustomerDetails({
         {activeTab === 'monthly' && (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Sales by Month</h2>
+            {monthlySales.length === 0 ? (
+              <NoData />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
@@ -1328,16 +1329,10 @@ export default function SalesCustomerDetails({
                       </td>
                     </tr>
                   ))}
-                  {monthlySales.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="py-12">
-                        <NoData />
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
 
@@ -1354,6 +1349,9 @@ export default function SalesCustomerDetails({
                 <Download className="w-5 h-5" />
               </button>
             </div>
+            {productsData.length === 0 ? (
+              <NoData />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
                 <thead>
@@ -1420,16 +1418,10 @@ export default function SalesCustomerDetails({
                       </td>
                     </tr>
                   ))}
-                  {productsData.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="py-12">
-                        <NoData />
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
 
@@ -1477,6 +1469,10 @@ export default function SalesCustomerDetails({
                 <Download className="w-5 h-5" />
               </button>
             </div>
+            {groupedInvoicesData.length === 0 ? (
+              <NoData />
+            ) : (
+            <>
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
                 <thead>
@@ -1539,13 +1535,6 @@ export default function SalesCustomerDetails({
                       </tr>
                     );
                   })}
-                  {groupedInvoicesData.length === 0 && (
-                    <tr>
-                      <td colSpan={customerType === 'main' ? 6 : 5} className="py-12">
-                        <NoData />
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
@@ -1596,6 +1585,8 @@ export default function SalesCustomerDetails({
                   </button>
                 </div>
               </div>
+            )}
+            </>
             )}
           </div>
         )}

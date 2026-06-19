@@ -75,7 +75,7 @@ export default function CustomersDocumentsGrid({
   };
 
   if (data.length === 0 && !loading) {
-    return <NoData title="No Customers Found" message="Try searching for a different name or sync your Google Sheet." />;
+    return <NoData title="No Customers Found" />;
   }
 
   return (

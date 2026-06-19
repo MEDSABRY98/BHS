@@ -110,10 +110,7 @@ export default function SalesNewListingsTab({ userId, filters, refreshTrigger }:
       {!selectedMonth && (
         <>
           {data.length === 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 py-12">
-              <NoData />
-              <p className="text-center text-slate-400 mt-2">No new listings found for the selected filters.</p>
-            </div>
+            <NoData />
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {data.map((month) => (

@@ -463,9 +463,7 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
           )}
 
           {searchedData.length === 0 ? (
-            <div className="py-12">
-              <NoData />
-            </div>
+            <NoData />
           ) : (
             <>
 
@@ -564,9 +562,7 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
             <h2 className="text-xl font-bold text-gray-800">Sales BY Day</h2>
           </div>
           {salesByDayData.length === 0 ? (
-            <div className="py-12">
-              <NoData />
-            </div>
+            <NoData />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
@@ -609,9 +605,7 @@ export default function SalesDailySalesTab({ filters, invoiceTypeFilter, userId,
             <h2 className="text-xl font-bold text-gray-800">AVG Sales BY Day</h2>
           </div>
           {avgSalesByDayData.length === 0 ? (
-            <div className="py-12">
-              <NoData />
-            </div>
+            <NoData />
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">

@@ -44,11 +44,7 @@ export default function InventoryItemCodeTable({
   }
 
   if (rows.length === 0) {
-    return (
-      <div className="bg-white rounded-[2.5rem] p-12 border border-gray-100 shadow-sm flex items-center justify-center">
-        <NoData title="NO ITEM CODES FOUND" />
-      </div>
-    );
+    return <NoData title="NO ITEM CODES FOUND" />;
   }
 
   return (

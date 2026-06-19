@@ -347,6 +347,9 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
 
       <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
+          {table.getRowModel().rows.length === 0 ? (
+            <NoData />
+          ) : (
           <table className="w-full text-sm" style={{ tableLayout: 'fixed', minWidth: '1400px' }}>
             <thead className="bg-gradient-to-r from-slate-800 to-slate-900 text-white">
               {table.getHeaderGroups().map((headerGroup) => (
@@ -375,14 +378,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
               ))}
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td colSpan={11} className="px-6 py-12">
-                    <NoData />
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row, idx) => (
+              {table.getRowModel().rows.map((row, idx) => (
                   <tr key={row.id} className={`border-b hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50'}`}>
                     {row.getVisibleCells().map((cell) => {
                       const id = cell.column.id;
@@ -399,8 +395,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
                       );
                     })}
                   </tr>
-                ))
-              )}
+                ))}
               {/* Grand Total Row */}
               <tr className="bg-slate-800 text-white font-bold border-t-2 border-slate-900">
                 <td className="px-4 py-4 text-center whitespace-nowrap" style={{ width: '20%' }}>
@@ -439,6 +434,7 @@ export default function CustomersSummariesTab({ data, onRefresh }: CustomersSumm
               </tr>
             </tbody>
           </table>
+          )}
         </div>
       </div>
     </div>

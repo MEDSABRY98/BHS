@@ -236,9 +236,7 @@ export default function UsersPage() {
           ))}
         </div>
       ) : filteredUsers.length === 0 ? (
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-gray-100 p-12">
-          <NoData title="NO USERS FOUND" />
-        </div>
+        <NoData title="NO USERS FOUND" />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {filteredUsers.map((user) => {

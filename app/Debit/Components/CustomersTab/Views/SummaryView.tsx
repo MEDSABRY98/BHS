@@ -24,6 +24,9 @@ const SummaryView: React.FC<SummaryViewProps> = ({
   closedCustomers,
 }) => {
   return (
+    table.getRowModel().rows.length === 0 ? (
+      <NoData />
+    ) : (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden mb-6">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 border-collapse table-fixed">
@@ -135,6 +138,7 @@ const SummaryView: React.FC<SummaryViewProps> = ({
         </table>
       </div>
     </div>
+    )
   );
 };
 

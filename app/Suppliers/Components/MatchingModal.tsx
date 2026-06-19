@@ -38,6 +38,9 @@ export default function MatchingModal({
 
                 {/* Content */}
                 <div className="p-8">
+                    {months.length === 0 ? (
+                        <NoData />
+                    ) : (
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                         {months.map(month => {
                             // Extract month token mapping logic (standardizeToken is imported at parent)
@@ -60,12 +63,8 @@ export default function MatchingModal({
                                 </button>
                             );
                         })}
-                        {months.length === 0 && (
-                            <div className="col-span-full py-12">
-                                <NoData />
-                            </div>
-                        )}
                     </div>
+                    )}
                 </div>
 
                 {/* Footer */}

@@ -222,6 +222,9 @@ export default function InventoryProductOrdersDetailsTab({
             </div>
 
             {/* Main Table Container */}
+            {filteredProducts.length === 0 ? (
+                <NoData title="No Items Found" />
+            ) : (
             <div className="bg-white rounded-[2.5rem] border border-slate-100 shadow-[0_20px_60px_-15px_rgba(0,0,0,0.07)] overflow-hidden relative min-h-[500px]">
                 {(updating || fetchingMovements) && (
                     <div className="absolute inset-0 bg-white/40 z-50 flex items-center justify-center transition-all duration-500">
@@ -267,8 +270,7 @@ export default function InventoryProductOrdersDetailsTab({
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredProducts.length > 0 ? (
-                                filteredProducts.map((product, idx) => {
+                            {filteredProducts.map((product, idx) => {
                                     const stockCtns = (!product.qinc || product.qinc === 0) ? '0.00' : (product.onHand / product.qinc).toFixed(2);
                                     const move = movements[product.productId] || { sales: 0, returns: 0, netPurchases: 0 };
                                     return (
@@ -351,20 +353,12 @@ export default function InventoryProductOrdersDetailsTab({
                                             </td>
                                         </tr>
                                     );
-                                })
-                            ) : (
-                                <tr>
-                                    <td colSpan={8} className="px-6 py-24">
-                                        <div className="flex flex-col items-center justify-center opacity-40 grayscale group-hover:grayscale-0 transition-all duration-500">
-                                            <NoData title="No Items Found" />
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
+                                })}
                         </tbody>
                     </table>
                 </div>
             </div>
+            )}
 
             {/* Edit Info Modal */}
             {editingProductInfo && (

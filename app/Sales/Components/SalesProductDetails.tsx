@@ -909,9 +909,7 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
                   </div>
                 </div>
               ) : (
-                <div className="h-64 flex items-center justify-center">
-                  <NoData />
-                </div>
+                <NoData />
               )}
             </div>
           </div>
@@ -921,6 +919,9 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
         {activeTab === 'monthly' && (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Sales by Month</h2>
+            {monthlySales.length === 0 ? (
+              <NoData />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
                 <thead>
@@ -976,16 +977,10 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
                       </td>
                     </tr>
                   ))}
-                  {monthlySales.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="py-12">
-                        <NoData />
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
 
@@ -1024,6 +1019,9 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
                 <Download className="w-5 h-5" />
               </button>
             </div>
+            {customersData.length === 0 ? (
+              <NoData />
+            ) : (
             <div className="overflow-x-auto">
               <table className="w-full table-fixed">
                 <thead>
@@ -1065,16 +1063,10 @@ export default function SalesProductDetails({ productId, filters, userId, onBack
                       </td>
                     </tr>
                   ))}
-                  {customersData.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="py-12">
-                        <NoData />
-                      </td>
-                    </tr>
-                  )}
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         )}
       </div>

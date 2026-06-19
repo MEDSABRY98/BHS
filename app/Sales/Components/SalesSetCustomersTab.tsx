@@ -386,70 +386,66 @@ export default function SalesSetCustomersTab({ userId, refreshTrigger }: SalesSe
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="w-full overflow-hidden">
-          <table className="w-full text-left table-fixed border-collapse">
-            <colgroup><col className="w-[12%]" /><col className="w-[30%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[16%]" /><col className="w-[12%]" /><col className="w-[6%]" /></colgroup>
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-slate-500 font-bold text-center">
-                <th className="px-2 py-4">ID</th>
-                <th className="px-2 py-4 text-left">Customer Name</th>
-                <th className="px-2 py-4">Area</th>
-                <th className="px-2 py-4">Market</th>
-                <th className="px-2 py-4">Sales Rep</th>
-                <th className="px-2 py-4">Merchandiser</th>
-                <th className="px-2 py-4">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredCustomers.map((c, idx) => (
-                <tr key={c['CUSTOMER ID'] || idx} className="hover:bg-slate-50 transition-colors text-center">
-                  <td className="px-2 py-3 text-xs text-slate-500 font-medium truncate" title={c['CUSTOMER ID']}>{c['CUSTOMER ID']}</td>
-                  <td className="px-2 py-3 text-[11px] text-slate-700 font-bold text-left whitespace-normal break-words leading-tight">{c['CUSTOMER SUB NAME']}</td>
-                  <td className="px-2 py-3 text-xs text-slate-600 truncate" title={c['AREA']}>{c['AREA'] || <span className="text-slate-300">-</span>}</td>
-                  <td className="px-2 py-3 text-xs text-slate-600 truncate" title={c['MARKET']}>{c['MARKET'] || <span className="text-slate-300">-</span>}</td>
-                  <td className="px-2 py-3 text-xs text-slate-600 font-medium text-slate-700 truncate" title={c['SALES_REP']}>
-                    {c['SALES_REP'] || <span className="text-slate-300">Unassigned</span>}
-                  </td>
-                  <td className="px-2 py-3 text-xs text-slate-600 truncate" title={c['MERCHANDISER']}>{c['MERCHANDISER'] || <span className="text-slate-300">-</span>}</td>
-                  <td className="px-2 py-3">
-                    <div className="flex justify-center gap-1">
-                      <button
-                        onClick={() => {
-                          setEditingCustomer({ ...c });
-                          setRepSearchQuery(c['SALES_REP'] || '');
-                          setIsEditModalOpen(true);
-                        }}
-                        className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                        title="Edit Assignment"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                      </button>
-                      {c.ID && (
+      {filteredCustomers.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="w-full overflow-hidden">
+            <table className="w-full text-left table-fixed border-collapse">
+              <colgroup><col className="w-[12%]" /><col className="w-[30%]" /><col className="w-[12%]" /><col className="w-[12%]" /><col className="w-[16%]" /><col className="w-[12%]" /><col className="w-[6%]" /></colgroup>
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-gray-100 text-xs uppercase tracking-wider text-slate-500 font-bold text-center">
+                  <th className="px-2 py-4">ID</th>
+                  <th className="px-2 py-4 text-left">Customer Name</th>
+                  <th className="px-2 py-4">Area</th>
+                  <th className="px-2 py-4">Market</th>
+                  <th className="px-2 py-4">Sales Rep</th>
+                  <th className="px-2 py-4">Merchandiser</th>
+                  <th className="px-2 py-4">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredCustomers.map((c, idx) => (
+                  <tr key={c['CUSTOMER ID'] || idx} className="hover:bg-slate-50 transition-colors text-center">
+                    <td className="px-2 py-3 text-xs text-slate-500 font-medium truncate" title={c['CUSTOMER ID']}>{c['CUSTOMER ID']}</td>
+                    <td className="px-2 py-3 text-[11px] text-slate-700 font-bold text-left whitespace-normal break-words leading-tight">{c['CUSTOMER SUB NAME']}</td>
+                    <td className="px-2 py-3 text-xs text-slate-600 truncate" title={c['AREA']}>{c['AREA'] || <span className="text-slate-300">-</span>}</td>
+                    <td className="px-2 py-3 text-xs text-slate-600 truncate" title={c['MARKET']}>{c['MARKET'] || <span className="text-slate-300">-</span>}</td>
+                    <td className="px-2 py-3 text-xs text-slate-600 font-medium text-slate-700 truncate" title={c['SALES_REP']}>
+                      {c['SALES_REP'] || <span className="text-slate-300">Unassigned</span>}
+                    </td>
+                    <td className="px-2 py-3 text-xs text-slate-600 truncate" title={c['MERCHANDISER']}>{c['MERCHANDISER'] || <span className="text-slate-300">-</span>}</td>
+                    <td className="px-2 py-3">
+                      <div className="flex justify-center gap-1">
                         <button
-                          onClick={() => setCustomerToDelete(c)}
-                          className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
-                          title="Clear Assignment"
+                          onClick={() => {
+                            setEditingCustomer({ ...c });
+                            setRepSearchQuery(c['SALES_REP'] || '');
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-1 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                          title="Edit Assignment"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Edit className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredCustomers.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="py-12">
-                    <NoData />
-                    <p className="text-center text-slate-400 mt-2">No customers match your search.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                        {c.ID && (
+                          <button
+                            onClick={() => setCustomerToDelete(c)}
+                            className="p-1 text-red-600 hover:bg-red-50 rounded transition-colors"
+                            title="Clear Assignment"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Edit Modal */}
       {isEditModalOpen && editingCustomer && (

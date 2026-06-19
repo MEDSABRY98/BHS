@@ -558,6 +558,14 @@ export default function RecordScrapTab({
         </div>
 
         {/* Entries Table */}
+        {isEntriesLoading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <Loader2 className="w-10 h-10 animate-spin text-black" />
+            <span className="text-sm font-bold text-gray-400">Loading current batch logs...</span>
+          </div>
+        ) : currentSessionEntries.length === 0 ? (
+          <NoData title="No Session Logs" />
+        ) : (
         <div className="flex-1 overflow-x-auto">
           <table className="w-full border-collapse text-center">
             <thead>
@@ -570,23 +578,7 @@ export default function RecordScrapTab({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {isEntriesLoading ? (
-                <tr>
-                  <td colSpan={5} className="py-20">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <Loader2 className="w-10 h-10 animate-spin text-black" />
-                      <span className="text-sm font-bold text-gray-400">Loading current batch logs...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : currentSessionEntries.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="py-12">
-                    <NoData title="No Session Logs" />
-                  </td>
-                </tr>
-              ) : (
-                currentSessionEntries.map((e) => (
+                {currentSessionEntries.map((e) => (
                   <tr key={e.ID} className="group hover:bg-gray-50/30 transition-all text-center animate-in fade-in duration-200">
                     <td className="py-4 px-4 text-center">
                       <span className="inline-flex px-2.5 py-1 bg-gray-50 rounded-xl text-[11px] font-black text-gray-600 border border-gray-100 uppercase">
@@ -623,11 +615,11 @@ export default function RecordScrapTab({
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
+                ))}
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Deletion Confirm Modal */}

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import NoData from '@/app/Components/NoDataTab';
 import { InvoiceRow } from '@/types';
 import { getInvoiceType } from '@/lib/InvoiceType';
 import { parseDate } from './PaymentTUtilsTab';
@@ -95,11 +96,7 @@ export default function PaymentTDetailsDashboardTab({
   }, [data, startDate, endDate, searchQuery, salesRep]);
 
   if (!metrics) {
-    return (
-      <div className="flex items-center justify-center h-[500px] bg-white/50 backdrop-blur-md rounded-3xl border border-white text-gray-500 font-medium">
-        Please select a valid date range to view detailed dashboard metrics.
-      </div>
-    );
+    return <NoData title="SELECT A VALID DATE RANGE" />;
   }
 
   const {

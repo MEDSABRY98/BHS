@@ -393,65 +393,60 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-12">#</th>
-                {customerType === 'main' ? (
+      {filtered.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-12">#</th>
+                  {customerType === 'main' ? (
+                    <th
+                      className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[180px]"
+                      onClick={() => handleSort('name')}
+                    >Main Customer <SortIcon field="name" /></th>
+                  ) : (
+                    <th
+                      className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[180px]"
+                      onClick={() => handleSort('name')}
+                    >Sub Customer <SortIcon field="name" /></th>
+                  )}
                   <th
-                    className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[180px]"
-                    onClick={() => handleSort('name')}
-                  >Main Customer <SortIcon field="name" /></th>
-                ) : (
+                    className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
+                    onClick={() => handleSort('prev')}
+                  >{prevLabel} <SortIcon field="prev" /></th>
                   <th
-                    className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[180px]"
-                    onClick={() => handleSort('name')}
-                  >Sub Customer <SortIcon field="name" /></th>
-                )}
-                <th
-                  className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
-                  onClick={() => handleSort('prev')}
-                >{prevLabel} <SortIcon field="prev" /></th>
-                <th
-                  className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
-                  onClick={() => handleSort('curr')}
-                >{currLabel} <SortIcon field="curr" /></th>
-                <th
-                  className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
-                  onClick={() => handleSort('diff')}
-                >Diff <SortIcon field="diff" /></th>
-                <th
-                  className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
-                  onClick={() => handleSort('pct')}
-                >% <SortIcon field="pct" /></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {paginated.map((row, idx) => (
-                <tr key={row.customerId} className="border-b border-gray-100 hover:bg-gray-50 text-center transition-colors">
-                  <td className="py-3 px-3 text-xs text-gray-500 font-medium">{startIdx + idx + 1}</td>
-                  <td className="py-3 px-3 text-sm text-gray-700 font-semibold text-center min-w-[180px] max-w-[180px] whitespace-normal break-words" title={customerType === 'main' ? row.mainName : row.subName}>
-                    {customerType === 'main' ? row.mainName : row.subName}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-gray-600">{fmt(row.prev)}</td>
-                  <td className="py-3 px-3 text-sm text-gray-800 font-semibold">{fmt(row.curr)}</td>
-                  <td className={`py-3 px-3 text-sm font-bold ${row.diff >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                    {row.diff >= 0 ? '+' : ''}{fmt(row.diff)}
-                  </td>
-                  <td className="py-3 px-3"><PctBadge pct={row.pct} /></td>
+                    className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
+                    onClick={() => handleSort('curr')}
+                  >{currLabel} <SortIcon field="curr" /></th>
+                  <th
+                    className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
+                    onClick={() => handleSort('diff')}
+                  >Diff <SortIcon field="diff" /></th>
+                  <th
+                    className="py-4 px-3 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 min-w-[100px]"
+                    onClick={() => handleSort('pct')}
+                  >% <SortIcon field="pct" /></th>
                 </tr>
-              ))}
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-12">
-                    <NoData />
-                  </td>
-                </tr>
-              )}
-            </tbody>
-            {filtered.length > 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginated.map((row, idx) => (
+                  <tr key={row.customerId} className="border-b border-gray-100 hover:bg-gray-50 text-center transition-colors">
+                    <td className="py-3 px-3 text-xs text-gray-500 font-medium">{startIdx + idx + 1}</td>
+                    <td className="py-3 px-3 text-sm text-gray-700 font-semibold text-center min-w-[180px] max-w-[180px] whitespace-normal break-words" title={customerType === 'main' ? row.mainName : row.subName}>
+                      {customerType === 'main' ? row.mainName : row.subName}
+                    </td>
+                    <td className="py-3 px-3 text-sm text-gray-600">{fmt(row.prev)}</td>
+                    <td className="py-3 px-3 text-sm text-gray-800 font-semibold">{fmt(row.curr)}</td>
+                    <td className={`py-3 px-3 text-sm font-bold ${row.diff >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {row.diff >= 0 ? '+' : ''}{fmt(row.diff)}
+                    </td>
+                    <td className="py-3 px-3"><PctBadge pct={row.pct} /></td>
+                  </tr>
+                ))}
+              </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
                   <td colSpan={2} className="py-4 px-3 text-xs text-gray-500 uppercase tracking-widest text-center">
@@ -465,32 +460,32 @@ export default function SalesCustomersComparisonTab({ filters, userId, refreshTr
                   <td className="py-4 px-3"><PctBadge pct={totals.pct} /></td>
                 </tr>
               </tfoot>
-            )}
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {filtered.length > ITEMS_PER_PAGE && (
-          <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500 font-medium">{filtered.length} results</span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"
-              ><ChevronLeft className="w-4 h-4" /></button>
-              <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">
-                {currentPage} / {totalPages}
-              </div>
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"
-              ><ChevronRight className="w-4 h-4" /></button>
-            </div>
+            </table>
           </div>
-        )}
-      </div>
+
+          {/* Pagination */}
+          {filtered.length > ITEMS_PER_PAGE && (
+            <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-sm text-gray-500 font-medium">{filtered.length} results</span>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"
+                ><ChevronLeft className="w-4 h-4" /></button>
+                <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">
+                  {currentPage} / {totalPages}
+                </div>
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"
+                ><ChevronRight className="w-4 h-4" /></button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

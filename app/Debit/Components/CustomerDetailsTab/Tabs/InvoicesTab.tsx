@@ -5,11 +5,13 @@ import { SharedTabProps } from '../Types';
 
 export default function InvoicesTab(props: SharedTabProps) {
   const { invoiceTable, totalDebit, totalCredit, totalNetDebt } = props;
+  const hasRows = invoiceTable.getRowModel().rows.length > 0;
 
   return (
     <div>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
+          {hasRows ? (
           <table className="w-full" style={{ tableLayout: 'fixed', direction: 'ltr' }}>
             <thead className="bg-gray-100 border-b-2 border-gray-300 sticky top-0 z-10 shadow-sm">
               {invoiceTable.getHeaderGroups().map((headerGroup: any) => (
@@ -49,38 +51,30 @@ export default function InvoicesTab(props: SharedTabProps) {
               ))}
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {invoiceTable.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td colSpan={10} className="py-12">
-                    <NoData />
-                  </td>
+              {invoiceTable.getRowModel().rows.map((row: any) => (
+                <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
+                  {row.getVisibleCells().map((cell: any) => {
+                    const getWidth = () => {
+                      const columnId = cell.column.id;
+                      if (columnId === 'select') return '5%';
+                      if (columnId === 'date') return '13%';
+                      if (columnId === 'type') return '10%';
+                      if (columnId === 'number') return '13%';
+                      if (columnId === 'debit') return '13%';
+                      if (columnId === 'credit') return '13%';
+                      if (columnId === 'netDebt') return '13%';
+                      if (columnId === 'matching') return '13%';
+                      if (columnId === 'residual') return '9%';
+                      return '13%';
+                    };
+                    return (
+                      <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    );
+                  })}
                 </tr>
-              ) : (
-                invoiceTable.getRowModel().rows.map((row: any) => (
-                  <tr key={row.id} className="hover:bg-blue-50/30 transition-colors group">
-                    {row.getVisibleCells().map((cell: any) => {
-                      const getWidth = () => {
-                        const columnId = cell.column.id;
-                        if (columnId === 'select') return '5%';
-                        if (columnId === 'date') return '13%';
-                        if (columnId === 'type') return '10%';
-                        if (columnId === 'number') return '13%';
-                        if (columnId === 'debit') return '13%';
-                        if (columnId === 'credit') return '13%';
-                        if (columnId === 'netDebt') return '13%';
-                        if (columnId === 'matching') return '13%';
-                        if (columnId === 'residual') return '9%';
-                        return '13%';
-                      };
-                      return (
-                        <td key={cell.id} className="px-6 py-4 text-center text-sm text-gray-700 font-medium group-hover:text-gray-900" style={{ width: getWidth() }}>
-                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))
-              )}
+              ))}
               <tr className="bg-gray-50 border-t-2 border-gray-200">
                 <td className="px-6 py-4" style={{ width: '5%' }}></td>
                 <td className="px-6 py-4 text-center text-sm font-bold text-gray-900 uppercase tracking-wide" style={{ width: '13%' }}>Total</td>
@@ -102,9 +96,13 @@ export default function InvoicesTab(props: SharedTabProps) {
               </tr>
             </tbody>
           </table>
+          ) : (
+            <NoData />
+          )}
         </div>
 
         {/* Pagination Controls */}
+        {hasRows && (
         <div className="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6 mt-2 rounded-lg shadow">
           <div className="flex justify-between flex-1 sm:hidden">
             <button
@@ -180,6 +178,7 @@ export default function InvoicesTab(props: SharedTabProps) {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

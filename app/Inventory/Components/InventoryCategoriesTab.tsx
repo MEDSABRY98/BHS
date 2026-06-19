@@ -176,6 +176,9 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
             </div>
 
             {/* Category Cards Grid */}
+            {categoryStats.length === 0 ? (
+                <NoData title="No Categories" />
+            ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                 {categoryStats.map((cat) => (
                     <button
@@ -214,9 +217,6 @@ export default function InventoryProductOrdersTab({ orderItems, setOrderItems }:
                     </button>
                 ))}
             </div>
-
-            {categoryStats.length === 0 && (
-                <NoData title="No Categories" />
             )}
         </div>
     );

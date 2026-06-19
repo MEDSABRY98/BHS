@@ -213,6 +213,9 @@ export default function NormalRecordTab() {
             </div>
 
             {/* Results Table */}
+            {filteredData.length === 0 ? (
+                <NoData title="No Records Found" />
+            ) : (
             <div className="bg-white rounded-[2rem] shadow-xl shadow-slate-200/50 border border-gray-100 overflow-hidden">
                 <div className="overflow-x-auto overflow-y-visible">
                     <table className="w-full border-collapse" style={{ tableLayout: 'fixed' }}>
@@ -239,8 +242,7 @@ export default function NormalRecordTab() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {filteredData.length > 0 ? (
-                                filteredData.map((item, idx) => (
+                                {filteredData.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-slate-50 transition-all group border-b border-gray-50">
                                         <td className="px-4 py-4 text-center">
                                             <div className="flex flex-col items-center">
@@ -280,34 +282,26 @@ export default function NormalRecordTab() {
                                             </span>
                                         </td>
                                     </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={8} className="py-20">
-                                        <NoData title="No Records Found" message={searchQuery ? "No results match your search query." : "No historical records available."} />
-                                    </td>
-                                </tr>
-                            )}
+                                ))}
                         </tbody>
                     </table>
                 </div>
 
                 {/* Footer */}
-                {filteredData.length > 0 && (
-                    <div className="bg-slate-50/50 px-8 py-5 border-t border-gray-100">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3 text-slate-500">
-                                <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
-                                    <History className="w-5 h-5 text-slate-600" />
-                                </div>
-                                <span className="text-sm font-bold">
-                                    Total Records: <span className="text-slate-900">{filteredData.length}</span>
-                                </span>
+                <div className="bg-slate-50/50 px-8 py-5 border-t border-gray-100">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-slate-500">
+                            <div className="p-2 bg-white rounded-lg border border-slate-200 shadow-sm">
+                                <History className="w-5 h-5 text-slate-600" />
                             </div>
+                            <span className="text-sm font-bold">
+                                Total Records: <span className="text-slate-900">{filteredData.length}</span>
+                            </span>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
+            )}
         </div>
     );
 }

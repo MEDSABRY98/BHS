@@ -299,53 +299,48 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100">
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-16">#</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-56" onClick={() => handleSort('customer')}>
-                  Customer {getSortIcon('customer')}
-                </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('lastPurchaseDate')}>
-                  Last Purchase {getSortIcon('lastPurchaseDate')}
-                </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('daysSinceLastPurchase')}>
-                  Days Inactive {getSortIcon('daysSinceLastPurchase')}
-                </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('totalAmount')}>
-                  Amount {getSortIcon('totalAmount')}
-                </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('averageOrderValue')}>
-                  Amount Average {getSortIcon('averageOrderValue')}
-                </th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-24" onClick={() => handleSort('orderCount')}>
-                  Orders {getSortIcon('orderCount')}
-                </th>
-                <th className="w-12"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {paginated.map((item, idx) => (
-                <InactiveCustomerRow
-                  key={item.customerId}
-                  item={item}
-                  rowNumber={startIndex + idx + 1}
-                  onCustomerClick={setSelectedCustomer}
-                  onExclude={handleExcludeCustomer}
-                  isExcluding={excludingId === item.customerId}
-                />
-              ))}
-              {filteredCustomers.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="py-12">
-                    <NoData />
-                  </td>
+      {filteredCustomers.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100">
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center w-16">#</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-56" onClick={() => handleSort('customer')}>
+                    Customer {getSortIcon('customer')}
+                  </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('lastPurchaseDate')}>
+                    Last Purchase {getSortIcon('lastPurchaseDate')}
+                  </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('daysSinceLastPurchase')}>
+                    Days Inactive {getSortIcon('daysSinceLastPurchase')}
+                  </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-32" onClick={() => handleSort('totalAmount')}>
+                    Amount {getSortIcon('totalAmount')}
+                  </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-40" onClick={() => handleSort('averageOrderValue')}>
+                    Amount Average {getSortIcon('averageOrderValue')}
+                  </th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-center cursor-pointer hover:text-green-600 w-24" onClick={() => handleSort('orderCount')}>
+                    Orders {getSortIcon('orderCount')}
+                  </th>
+                  <th className="w-12"></th>
                 </tr>
-              )}
-            </tbody>
-            {filteredCustomers.length > 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginated.map((item, idx) => (
+                  <InactiveCustomerRow
+                    key={item.customerId}
+                    item={item}
+                    rowNumber={startIndex + idx + 1}
+                    onCustomerClick={setSelectedCustomer}
+                    onExclude={handleExcludeCustomer}
+                    isExcluding={excludingId === item.customerId}
+                  />
+                ))}
+              </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
                   <td colSpan={4} className="py-4 px-4 text-sm text-gray-500 uppercase tracking-widest">Totals</td>
@@ -355,21 +350,21 @@ export default function SalesInactiveCustomersTab({ filters, userId, days = '30'
                   <td></td>
                 </tr>
               </tfoot>
-            )}
-          </table>
-        </div>
-
-        {filteredCustomers.length > ITEMS_PER_PAGE && (
-          <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-sm text-gray-500 font-medium">Found {filteredCustomers.length} results</span>
-            <div className="flex items-center gap-2">
-              <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"><ChevronLeft className="w-5 h-5" /></button>
-              <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} / {totalPages}</div>
-              <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"><ChevronRight className="w-5 h-5" /></button>
-            </div>
+            </table>
           </div>
-        )}
-      </div>
+
+          {filteredCustomers.length > ITEMS_PER_PAGE && (
+            <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-sm text-gray-500 font-medium">Found {filteredCustomers.length} results</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"><ChevronLeft className="w-5 h-5" /></button>
+                <div className="px-4 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-bold text-gray-700 shadow-sm">Page {currentPage} / {totalPages}</div>
+                <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="p-2 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-40 transition-all"><ChevronRight className="w-5 h-5" /></button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {customerToExclude && (

@@ -60,54 +60,50 @@ export default function SalesNewListingsCustomers({ selectedMonth, searchQuery }
     <div className="space-y-4 animate-in fade-in duration-300">
 
       {/* Details View: Customers Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left table-auto">
-            <thead>
-              <tr className="bg-slate-50/50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-bold text-center">
-                <th className="px-6 py-4">#</th>
-                <th className="px-6 py-4">Customer ID</th>
-                <th className="px-6 py-4">Customer Name</th>
-                <th className="px-6 py-4">Products Count</th>
-                <th className="px-6 py-4">View Products</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredCustomers.map((c: any, idx: number) => (
-                <tr key={c.id} className="hover:bg-slate-50 transition-colors text-center">
-                  <td className="px-6 py-4 text-sm text-slate-500 font-medium">{idx + 1}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500 font-mono">{c.id}</td>
-                  <td className="px-6 py-4 text-sm text-slate-800 font-bold max-w-md truncate mx-auto" title={c.name}>
-                    {c.name}
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="bg-emerald-50 text-emerald-700 font-black px-3 py-1 rounded-full text-sm">
-                      {c.productsCount}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => setSelectedCustomer(c)}
-                      className="inline-flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 rounded-xl transition-colors"
-                      title="View Products"
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                  </td>
+      {filteredCustomers.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left table-auto">
+              <thead>
+                <tr className="bg-slate-50/50 border-b border-slate-100 text-xs uppercase tracking-wider text-slate-500 font-bold text-center">
+                  <th className="px-6 py-4">#</th>
+                  <th className="px-6 py-4">Customer ID</th>
+                  <th className="px-6 py-4">Customer Name</th>
+                  <th className="px-6 py-4">Products Count</th>
+                  <th className="px-6 py-4">View Products</th>
                 </tr>
-              ))}
-              {filteredCustomers.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="py-12 text-center">
-                    <NoData />
-                    <p className="text-slate-400 text-sm mt-2">No customers match your search.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredCustomers.map((c: any, idx: number) => (
+                  <tr key={c.id} className="hover:bg-slate-50 transition-colors text-center">
+                    <td className="px-6 py-4 text-sm text-slate-500 font-medium">{idx + 1}</td>
+                    <td className="px-6 py-4 text-sm text-slate-500 font-mono">{c.id}</td>
+                    <td className="px-6 py-4 text-sm text-slate-800 font-bold max-w-md truncate mx-auto" title={c.name}>
+                      {c.name}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="bg-emerald-50 text-emerald-700 font-black px-3 py-1 rounded-full text-sm">
+                        {c.productsCount}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => setSelectedCustomer(c)}
+                        className="inline-flex items-center justify-center w-10 h-10 bg-slate-100 hover:bg-emerald-100 text-slate-600 hover:text-emerald-700 rounded-xl transition-colors"
+                        title="View Products"
+                      >
+                        <Eye className="w-5 h-5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Level 3: Product Details Popup */}
       {selectedCustomer && (

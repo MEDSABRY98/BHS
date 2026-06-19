@@ -167,6 +167,9 @@ export default function StatementsTab({
                 )}
             </div>
 
+            {processedData.length === 0 ? (
+                <NoData />
+            ) : (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <table className="w-full">
                     <thead className="bg-gray-50/80 border-b border-gray-200 backdrop-blur-sm">
@@ -175,7 +178,7 @@ export default function StatementsTab({
                                 <input
                                     type="checkbox"
                                     className="w-5 h-5 rounded text-teal-600 focus:ring-teal-500 border-gray-300 cursor-pointer"
-                                    checked={processedData.length > 0 && selectedSuppliers.size === processedData.length}
+                                    checked={selectedSuppliers.size === processedData.length}
                                     onChange={toggleSelectAll}
                                 />
                             </th>
@@ -209,16 +212,10 @@ export default function StatementsTab({
                                 </td>
                             </tr>
                         ))}
-                        {processedData.length === 0 && (
-                            <tr>
-                                <td colSpan={5} className="py-10">
-                                    <NoData />
-                                </td>
-                            </tr>
-                        )}
                     </tbody>
                 </table>
             </div>
+            )}
         </>
     );
 }

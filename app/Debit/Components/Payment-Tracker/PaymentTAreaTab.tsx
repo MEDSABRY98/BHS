@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import NoData from '@/app/Components/NoDataTab';
 import { AreaStat } from './PaymentTTypesTab';
 
 interface PaymentTAreaTabProps {
@@ -8,6 +9,10 @@ interface PaymentTAreaTabProps {
 }
 
 const PaymentTAreaTab: React.FC<PaymentTAreaTabProps> = ({ areaStats }) => {
+  if (areaStats.length === 0) {
+    return <NoData title="NO DATA FOR SELECTED FILTERS" />;
+  }
+
   return (
     <div className="bg-white/90 backdrop-blur-md rounded-[32px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white overflow-hidden animate-fadeIn pb-4">
       <table className="min-w-full divide-y divide-gray-200">
@@ -50,16 +55,8 @@ const PaymentTAreaTab: React.FC<PaymentTAreaTabProps> = ({ areaStats }) => {
               </td>
             </tr>
           ))}
-          {areaStats.length === 0 && (
-            <tr>
-              <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
-                No data available for the selected filters
-              </td>
-            </tr>
-          )}
         </tbody>
-        {areaStats.length > 0 && (
-          <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold text-base">
+        <tfoot className="bg-gray-100 border-t-2 border-gray-300 font-bold text-base">
             <tr>
               <td className="px-6 py-4 text-center text-gray-900">Total / Average</td>
               <td className="px-6 py-4 text-center text-emerald-700">
@@ -76,7 +73,6 @@ const PaymentTAreaTab: React.FC<PaymentTAreaTabProps> = ({ areaStats }) => {
               </td>
             </tr>
           </tfoot>
-        )}
       </table>
     </div>
   );

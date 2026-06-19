@@ -127,6 +127,9 @@ export default function InventoryItemCodeTab() {
             </div>
 
             {/* Results Table */}
+            {filteredItems.length === 0 ? (
+                <NoData title="No Item Codes" />
+            ) : (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
                     <table className="w-full">
@@ -147,8 +150,7 @@ export default function InventoryItemCodeTab() {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {filteredItems.length > 0 ? (
-                                filteredItems.map((item, idx) => (
+                                {filteredItems.map((item, idx) => (
                                     <tr key={idx} className="hover:bg-blue-50/50 transition-colors group">
                                         <td className="px-6 py-4 text-center text-sm font-bold text-gray-400 group-hover:text-blue-500">
                                             {idx + 1}
@@ -169,35 +171,24 @@ export default function InventoryItemCodeTab() {
                                             {item.barcode}
                                         </td>
                                     </tr>
-                                ))
-                            ) : (
-                                <tr>
-                                    <td colSpan={4} className="py-20">
-                                        <NoData
-                                            title="No Item Codes"
-                                            message={searchQuery ? 'No results match your search query.' : 'No item codes currently available in the database.'}
-                                        />
-                                    </td>
-                                </tr>
-                            )}
+                                ))}
                         </tbody>
                     </table>
                 </div>
 
                 {/* Footer with count */}
-                {filteredItems.length > 0 && (
-                    <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Package className="w-4 h-4" />
-                                <span className="font-medium">
-                                    Showing {filteredItems.length} of {itemCodes.length} items
-                                </span>
-                            </div>
+                <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <Package className="w-4 h-4" />
+                            <span className="font-medium">
+                                Showing {filteredItems.length} of {itemCodes.length} items
+                            </span>
                         </div>
                     </div>
-                )}
+                </div>
             </div>
+            )}
         </div>
     );
 }

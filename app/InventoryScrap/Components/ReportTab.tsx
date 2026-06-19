@@ -273,9 +273,7 @@ export default function InventoryScrapReportTab() {
             <p className="text-sm font-medium">Loading report records...</p>
           </div>
         ) : entries.length === 0 ? (
-          <div className="py-20">
-            <NoData title="No Scrap Records" />
-          </div>
+          <NoData title="No Scrap Records" />
         ) : (
           /* Styled A4-like Document Preview Box */
           <div

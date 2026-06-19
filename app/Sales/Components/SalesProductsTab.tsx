@@ -203,37 +203,32 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
       </div>
 
       {/* Products Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full table-fixed">
-            <thead>
-              <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">#</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Barcode</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Product Name</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Amount</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Qty</th>
-                <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Transactions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {paginatedProducts.map((item, index) => (
-                <ProductRow
-                  key={`${item.productId}-${item.product}`}
-                  item={item}
-                  rowNumber={startIndex + index + 1}
-                  onProductClick={setSelectedProductId}
-                />
-              ))}
-              {filteredProducts.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-12">
-                    <NoData />
-                  </td>
+      {filteredProducts.length === 0 ? (
+        <NoData />
+      ) : (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full table-fixed">
+              <thead>
+                <tr className="bg-gray-50/50 border-b border-gray-100 text-center">
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-16">#</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-40">Barcode</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-64">Product Name</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Amount</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-24">Qty</th>
+                  <th className="py-4 px-4 text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Transactions</th>
                 </tr>
-              )}
-            </tbody>
-            {filteredProducts.length > 0 && (
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {paginatedProducts.map((item, index) => (
+                  <ProductRow
+                    key={`${item.productId}-${item.product}`}
+                    item={item}
+                    rowNumber={startIndex + index + 1}
+                    onProductClick={setSelectedProductId}
+                  />
+                ))}
+              </tbody>
               <tfoot className="bg-gray-50/50 font-bold border-t border-gray-100">
                 <tr className="text-center">
                   <td className="py-4 px-4 text-sm text-gray-800" colSpan={3}>Grand Total</td>
@@ -248,12 +243,11 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
                   </td>
                 </tr>
               </tfoot>
-            )}
-          </table>
-        </div>
+            </table>
+          </div>
 
-        {/* Pagination Controls */}
-        {filteredProducts.length > ITEMS_PER_PAGE && (
+          {/* Pagination Controls */}
+          {filteredProducts.length > ITEMS_PER_PAGE && (
           <div className="px-6 py-4 bg-gray-50/30 border-t border-gray-100 flex items-center justify-between">
             <div className="text-sm text-gray-500 font-medium">
               Showing <span className="text-gray-900">{startIndex + 1}</span> to <span className="text-gray-900">{Math.min(endIndex, filteredProducts.length)}</span> of <span className="text-gray-900">{filteredProducts.length}</span> products
@@ -299,8 +293,9 @@ export default function SalesProductsTab({ filters, userId, refreshTrigger }: Sa
               </button>
             </div>
           </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -201,6 +201,9 @@ export default function DashboardPage() {
           <Activity className="w-6 h-6 text-gray-200" />
         </div>
 
+        {driverPerformance.length === 0 ? (
+          <NoData title="NO DRIVERS FOUND" />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -262,6 +265,7 @@ export default function DashboardPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Recent Invoices Table */}
@@ -276,6 +280,9 @@ export default function DashboardPage() {
           </Link>
         </div>
 
+        {recentInvoices.length === 0 ? (
+          <NoData title="NO RECENT ACTIVITY FOUND" />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-center border-collapse table-fixed">
             <thead>
@@ -289,14 +296,7 @@ export default function DashboardPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {recentInvoices.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <NoData title="NO RECENT ACTIVITY FOUND" />
-                  </td>
-                </tr>
-              ) : (
-                recentInvoices.map((inv) => {
+                {recentInvoices.map((inv) => {
                   const isCancelled = inv.TRACKING_NOTES === 'SYSTEM_CANCELLED';
                   const isDelivered = inv.STATUS === 'Delivered' && !isCancelled;
                   const isPending = inv.STATUS !== 'Delivered' && !isCancelled;
@@ -357,11 +357,11 @@ export default function DashboardPage() {
                       </td>
                     </tr>
                   )
-                })
-              )}
+                })}
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   );
